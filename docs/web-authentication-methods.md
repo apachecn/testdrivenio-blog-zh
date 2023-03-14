@@ -23,13 +23,13 @@
 
 HTTP 协议中内置的基本身份验证是最基本的身份验证形式。有了它，登录凭据将在每个请求的请求头中发送:
 
-```
+```py
 `"Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=" your-website.com` 
 ```
 
 用户名和密码不加密。相反，用户名和密码使用一个`:`符号连接在一起，形成一个字符串:`username:password`。然后，使用 base64 对该字符串进行编码。
 
-```
+```py
 `>>> import base64
 >>>
 >>> auth = "username:password"
@@ -73,7 +73,7 @@ b'username:password'`
 
 使用 [Flask-HTTP](https://github.com/miguelgrinberg/Flask-HTTPAuth) 包可以在 Flask 中轻松完成基本的 HTTP 认证。
 
-```
+```py
 `from flask import Flask
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -134,7 +134,7 @@ HTTP 摘要式身份验证(或摘要式访问身份验证)是 HTTP 基本身份�
 
 [Flask-HTTP](https://github.com/miguelgrinberg/Flask-HTTPAuth) 包也支持摘要 HTTP 认证。
 
-```
+```py
 `from flask import Flask
 from flask_httpauth import HTTPDigestAuth
 
@@ -190,7 +190,7 @@ if __name__ == "__main__":
 
 [Flask-Login](https://flask-login.readthedocs.io/) 非常适合基于会话的认证。这个包负责登录、注销，并且可以在一段时间内记住用户。
 
-```
+```py
 `from flask import Flask, request
 from flask_login import (
     LoginManager,
@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
 [烧瓶 JWTs 扩展](https://github.com/vimalloc/flask-jwt-extended)包为处理 JWT 提供了许多可能性。
 
-```
+```py
 `from flask import Flask, request, jsonify
 from flask_jwt_extended import (
     JWTManager,
@@ -382,7 +382,7 @@ TOTPs 如何工作:
 
 PyOTP 包提供基于时间和基于计数器的 OTP。
 
-```
+```py
 `from time import sleep
 
 import pyotp
@@ -398,7 +398,7 @@ if __name__ == "__main__":
 
 示例:
 
-```
+```py
 `OTP generated: 474771
 Verify OTP: True
 Verify after 30s: False` 
@@ -444,7 +444,7 @@ OAuth/OAuth2 和 OpenID 分别是授权和认证的流行形式。它们用于�
 
 你可以用 [Flask-Dance](https://flask-dance.readthedocs.io/) 实现 GitHub social auth。
 
-```
+```py
 `from flask import Flask, url_for, redirect
 from flask_dance.contrib.github import make_github_blueprint, github
 

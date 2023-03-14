@@ -8,14 +8,14 @@
 
 克隆项目回购:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/spark-docker-swarm
 $ cd spark-docker-swarm` 
 ```
 
 然后，从 [Docker Hub](https://hub.docker.com/r/mjhea0/spark/) 中拉出预建的`spark`图像:
 
-```
+```py
 `$ docker pull mjhea0/spark:3.0.2` 
 ```
 
@@ -25,7 +25,7 @@ $ cd spark-docker-swarm`
 
 一旦提取，将`SPARK_PUBLIC_DNS`环境变量设置为`localhost`或 Docker 机器的 IP 地址:
 
-```
+```py
 `$ export EXTERNAL_IP=localhost` 
 ```
 
@@ -33,7 +33,7 @@ $ cd spark-docker-swarm`
 
 点燃容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -49,7 +49,7 @@ $ cd spark-docker-swarm`
 
 尝试一下:
 
-```
+```py
 `# get container id, assign to env variable
 $ export CONTAINER_ID=$(docker ps --filter name=master --format "{{.ID}}")
 
@@ -80,13 +80,13 @@ $ docker exec $CONTAINER_ID \
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
 旋转三个数字海洋液滴:
 
-```
+```py
 `$ for i in 1 2 3; do
     docker-machine create \
       --driver digitalocean \
@@ -98,7 +98,7 @@ $ docker exec $CONTAINER_ID \
 
 在`node-1`初始化[群模式](https://docs.docker.com/engine/swarm/):
 
-```
+```py
 `$ docker-machine ssh node-1 \
   -- docker swarm init \
   --advertise-addr $(docker-machine ip node-1)` 
@@ -106,7 +106,7 @@ $ docker exec $CONTAINER_ID \
 
 从上一个命令的输出中获取 join 令牌，然后将剩余的节点作为 workers 添加到群中:
 
-```
+```py
 `$ for i in 2 3; do
     docker-machine ssh node-$i \
       -- docker swarm join --token YOUR_JOIN_TOKEN;
@@ -115,7 +115,7 @@ $ docker exec $CONTAINER_ID \
 
 耗尽蜂群管理器:
 
-```
+```py
 `$ docker-machine ssh node-1 -- docker node update --availability drain node-1` 
 ```
 
@@ -123,7 +123,7 @@ $ docker exec $CONTAINER_ID \
 
 将 Docker 守护进程指向`node-1`，更新`EXTERNAL_IP`环境变量，并部署堆栈:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ export EXTERNAL_IP=$(docker-machine ip node-2)
 $ docker stack deploy --compose-file=docker-compose.yml spark` 
@@ -131,7 +131,7 @@ $ docker stack deploy --compose-file=docker-compose.yml spark`
 
 添加另一个工作节点:
 
-```
+```py
 `$ docker service scale spark_worker=2` 
 ```
 
@@ -139,7 +139,7 @@ $ docker stack deploy --compose-file=docker-compose.yml spark`
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `ID             NAME             IMAGE                NODE      DESIRED STATE   CURRENT STATE
 uoz26a2zhpoh   spark_master.1   mjhea0/spark:3.0.2   node-3    Running         Running 23 seconds ago
 ek7j1imsgvjy   spark_worker.1   mjhea0/spark:3.0.2   node-2    Running         Running 21 seconds ago
@@ -148,14 +148,14 @@ l7jz5s29rqrc   spark_worker.2   mjhea0/spark:3.0.2   node-3    Running         R
 
 将 Docker 守护进程指向 Spark master 所在的节点:
 
-```
+```py
 `$ NODE=$(docker service ps --format "{{.Node}}" spark_master)
 $ eval $(docker-machine env $NODE)` 
 ```
 
 获取 IP:
 
-```
+```py
 `$ docker-machine ip $NODE` 
 ```
 
@@ -165,19 +165,19 @@ $ eval $(docker-machine env $NODE)`
 
 获取 Spark master 的容器 ID，并将其设置为环境变量:
 
-```
+```py
 `$ export CONTAINER_ID=$(docker ps --filter name=master --format "{{.ID}}")` 
 ```
 
 复制文件:
 
-```
+```py
 `$ docker cp count.py $CONTAINER_ID:/tmp` 
 ```
 
 测试:
 
-```
+```py
 `$ docker exec $CONTAINER_ID \
   bin/spark-submit \
     --master spark://master:7077 \
@@ -191,7 +191,7 @@ $ eval $(docker-machine env $NODE)`
 
 作业完成后关闭节点:
 
-```
+```py
 `$ docker-machine rm node-1 node-2 node-3 -y` 
 ```
 
@@ -210,7 +210,7 @@ $ eval $(docker-machine env $NODE)`
 
 *create.sh* :
 
-```
+```py
 `#!/bin/bash
 
 echo "Spinning up three droplets..."
@@ -251,7 +251,7 @@ docker-machine ip $NODE`
 
 *run.sh* :
 
-```
+```py
 `#!/bin/sh
 
 echo "Getting container ID of the Spark master..."
@@ -276,7 +276,7 @@ docker exec $CONTAINER_ID \
 
 *destroy.sh* :
 
-```
+```py
 `#!/bin/bash
 
 docker-machine rm node-1 node-2 node-3 -y` 

@@ -25,7 +25,7 @@
 
 然后，安装以下依赖项并启动一个新的 Django 项目:
 
-```
+```py
 `(venv)$ pip install \
         django==3.2.4 \
         djangorestframework==3.12.4 \
@@ -36,14 +36,14 @@
 
 > 如果在尝试安装`aloe_django`时出现此错误，您可能需要手动安装 [setuptools-scm](https://github.com/pypa/setuptools_scm) ( `pip install setuptools-scm`):
 > 
-> ```
+> ```py
 > distutils.errors.DistutilsError:
 > Could not find suitable distribution for Requirement.parse('setuptools_scm') 
 > ```
 
 更新 *settings.py* 中的`INSTALLED_APPS`列表:
 
-```
+```py
 `INSTALLED_APPS = [
 
     ...
@@ -79,7 +79,7 @@
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Feature: Friendships
 
   Scenario: A user can log into the app
@@ -104,7 +104,7 @@
 
 运行`python manage.py harvest`并查看以下输出。
 
-```
+```py
 `nosetests --verbosity=1
 Creating test database for alias 'default'...
 E
@@ -136,7 +136,7 @@ Destroying test database for alias 'default'...`
 
 **示例/功能/友谊 _ 步骤. py**
 
-```
+```py
 `from aloe import before, step, world
 from aloe.tools import guess_types
 from aloe_django.steps.models import get_model
@@ -169,7 +169,7 @@ def step_confirm_log_in(self):
 
 最后一件事:考虑以下语句的结构:
 
-```
+```py
 `And I create the following users:
   | id | email             | username | password  |
   | 1  | [[email protected]](/cdn-cgi/l/email-protection) | Annie    | pAssw0rd! |` 
@@ -177,17 +177,17 @@ def step_confirm_log_in(self):
 
 有了 Aloe，您可以使用表格结构来表示字典列表。然后，您可以使用`self.hashes`来访问数据。在`guess_types()`函数中包装`self.hashes`会返回一个列表，其中包含正确输入的字典值。在这个例子中，`guess_types(self.hashes)`返回这个代码。
 
-```
+```py
 `[{'id': 1, 'email': '[[email protected]](/cdn-cgi/l/email-protection)', 'username': 'Annie', 'password': 'pAssw0rd!'}]` 
 ```
 
 用下面的命令运行 Aloe 测试套件，看到所有测试都通过了。
 
-```
+```py
 `(venv)$ python manage.py harvest` 
 ```
 
-```
+```py
 `nosetests --verbosity=1
 Creating test database for alias 'default'... . ---------------------------------------------------------------------- Ran 1 test in 0.512s
 
@@ -199,7 +199,7 @@ Destroying test database for alias 'default'...`
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Scenario: A user can see a list of friends
 
   Given I empty the "Friendship" table
@@ -214,7 +214,7 @@ Destroying test database for alias 'default'...`
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Feature: Friendships
 
   Background: Set up common data
@@ -254,7 +254,7 @@ Destroying test database for alias 'default'...`
 
 **example/models.py**
 
-```
+```py
 `from django.conf import settings
 from django.db import models
 
@@ -273,7 +273,7 @@ class Friendship(models.Model):
 
 进行迁移并运行它。
 
-```
+```py
 `(venv)$ python manage.py makemigrations
 (venv)$ python manage.py migrate` 
 ```
@@ -282,7 +282,7 @@ class Friendship(models.Model):
 
 **示例/功能/友谊 _ 步骤. py**
 
-```
+```py
 `@step('I create the following friendships:')
 def step_create_friendships(self):
     Friendship.objects.bulk_create([
@@ -296,7 +296,7 @@ def step_create_friendships(self):
 
 将`Friendship`模型导入添加到文件中。
 
-```
+```py
 `from ..models import Friendship` 
 ```
 
@@ -304,7 +304,7 @@ def step_create_friendships(self):
 
 **example/serializer . py**
 
-```
+```py
 `from django.contrib.auth.models import User
 from rest_framework import serializers
 
@@ -319,7 +319,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 **example/models.py**
 
-```
+```py
 `# New import!
 from django.db.models import Q
 
@@ -348,7 +348,7 @@ class FriendshipManager(models.Manager):
 
 **example/views.py**
 
-```
+```py
 `from rest_framework.generics import ListAPIView
 
 from .models import Friendship
@@ -365,7 +365,7 @@ class FriendsView(ListAPIView):
 
 **example_bdd/urls.py**
 
-```
+```py
 `from django.urls import path
 
 from example.views import FriendsView
@@ -379,7 +379,7 @@ urlpatterns = [
 
 **示例/功能/友谊 _ 步骤. py**
 
-```
+```py
 `@step('I get a list of friends')
 def step_get_friends(self):
     world.response = world.client.get('/friends/')
@@ -395,7 +395,7 @@ def step_confirm_response_data(self):
 
 运行测试并观察它们是否通过。
 
-```
+```py
 `(venv)$ python manage.py harvest` 
 ```
 
@@ -403,7 +403,7 @@ def step_confirm_response_data(self):
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Scenario: A user with no friends sees an empty list
 
   Given I empty the "Friendship" table
@@ -422,7 +422,7 @@ def step_confirm_response_data(self):
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Scenario: A user can add a friend
 
   Given I empty the "Friendship" table
@@ -440,7 +440,7 @@ def step_confirm_response_data(self):
 
 **示例/功能/友谊 _ 步骤. py**
 
-```
+```py
 `@step('I add the following friendship:')
 def step_add_friendship(self):
     world.response = world.client.post('/friendships/', data=guess_types(self.hashes[0]))
@@ -457,7 +457,7 @@ def step_confirm_table(self, model_name):
 
 **example/models.py**
 
-```
+```py
 `class FriendshipManager(models.Manager):
     def friendships(self, user):
         """Get all friendships that involve the specified user."""
@@ -484,7 +484,7 @@ def step_confirm_table(self, model_name):
 
 **example/serializer . py**
 
-```
+```py
 `class FriendshipSerializer(serializers.ModelSerializer):
     class Meta:
         model = Friendship
@@ -496,7 +496,7 @@ def step_confirm_table(self, model_name):
 
 **example/views.py**
 
-```
+```py
 `class FriendshipsView(ModelViewSet):
     serializer_class = FriendshipSerializer
 
@@ -508,7 +508,7 @@ def step_confirm_table(self, model_name):
 
 **example/urls.py**
 
-```
+```py
 `path('friendships/', FriendshipsView.as_view({'post': 'create'})),` 
 ```
 
@@ -524,7 +524,7 @@ def step_confirm_table(self, model_name):
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Scenario: A user can request a friendship with another user
 
   Given I empty the "Friendship" table
@@ -542,7 +542,7 @@ def step_confirm_table(self, model_name):
 
 **示例/功能/友谊 _ 步骤. py**
 
-```
+```py
 `@step('I request the following friendship:')
 def step_request_friendship(self):
     world.response = world.client.post('/friendship-requests/', data=guess_types(self.hashes[0]))` 
@@ -552,7 +552,7 @@ def step_request_friendship(self):
 
 **example/models.py**
 
-```
+```py
 `class Friendship(models.Model):
     PENDING = 'PENDING'
     ACCEPTED = 'ACCEPTED'
@@ -580,7 +580,7 @@ def step_request_friendship(self):
 
 进行迁移并迁移数据库。
 
-```
+```py
 `(venv)$ python manage.py makemigrations
 (venv)$ python manage.py migrate` 
 ```
@@ -589,7 +589,7 @@ def step_request_friendship(self):
 
 **example/views.py**
 
-```
+```py
 `class FriendshipRequestsView(ModelViewSet):
     serializer_class = FriendshipSerializer
 
@@ -601,7 +601,7 @@ def step_request_friendship(self):
 
 **example/urls.py**
 
-```
+```py
 `path('friendship-requests/', FriendshipRequestsView.as_view({'post': 'create'}))` 
 ```
 
@@ -609,7 +609,7 @@ def step_request_friendship(self):
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Scenario: A user can accept a friendship request
 
   Given I empty the "Friendship" table
@@ -643,7 +643,7 @@ Scenario: A user can reject a friendship request
 
 **示例/功能/友谊 _ 步骤. py**
 
-```
+```py
 `@step('I accept the friendship request with ID "([^"]+)"')
 def step_accept_friendship_request(self, pk):
     world.response = world.client.put(f'/friendship-requests/{pk}/', data={
@@ -661,7 +661,7 @@ def step_reject_friendship_request(self, pk):
 
 **example/urls.py**
 
-```
+```py
 `path('friendship-requests/<int:pk>/', FriendshipRequestsView.as_view({'put': 'partial_update'}))` 
 ```
 
@@ -669,7 +669,7 @@ def step_reject_friendship_request(self, pk):
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Scenario: A user can see a list of friends
 
   Given I empty the "Friendship" table
@@ -691,7 +691,7 @@ def step_reject_friendship_request(self, pk):
 
 **例子/特色/友谊.特色**
 
-```
+```py
 `Scenario: A user with no accepted friendship requests sees an empty list
 
   Given I empty the "Friendship" table
@@ -711,7 +711,7 @@ def step_reject_friendship_request(self, pk):
 
 **示例/功能/友谊 _ 步骤. py**
 
-```
+```py
 `@step('I create the following friendships:')
 def step_create_friendships(self):
     Friendship.objects.bulk_create([
@@ -728,7 +728,7 @@ def step_create_friendships(self):
 
 **example/serializer . py**
 
-```
+```py
 `class FriendshipSerializer(serializers.ModelSerializer):
     class Meta:
         model = Friendship
@@ -740,7 +740,7 @@ def step_create_friendships(self):
 
 **example/models.py**
 
-```
+```py
 `def friends(self, user):
     """Get all users that are friends with the specified user."""
     friendships = self.friendships(user).filter(status=Friendship.ACCEPTED)

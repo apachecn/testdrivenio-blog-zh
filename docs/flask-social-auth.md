@@ -44,7 +44,7 @@
 
 让我们看一个使用 GitHub 的流程的快速示例:
 
-```
+```py
 `"""
 Import necessary modules.
  - `os` to read env variable
@@ -105,7 +105,7 @@ print(f"You are {username} on GitHub")`
 
 登录你的 GitHub 账户，然后导航到[https://github.com/settings/applications/new](https://github.com/settings/applications/new)创建一个新的 [OAuth 应用](https://docs.github.com/en/free-pro-team@latest/developers/apps/authorizing-oauth-apps):
 
-```
+```py
 `Application name: Testing Flask-Dance
 Homepage URL: http://127.0.0.1:5000
 Callback URL: http://127.0.0.1:5000/login/github/authorized` 
@@ -121,7 +121,7 @@ Callback URL: http://127.0.0.1:5000/login/github/authorized`
 
 将生成的客户端 ID 和客户端密码设置为环境变量:
 
-```
+```py
 `$ export GITHUB_ID=<your-github-id>
 $ export GITHUB_SECRET=<your-github-secret>
 # for windows machine, use `set` instead of `export`` 
@@ -129,27 +129,27 @@ $ export GITHUB_SECRET=<your-github-secret>
 
 安装[请求](https://requests.readthedocs.io/en/master/)库，然后运行脚本:
 
-```
+```py
 `$ pip install requests
 $ python oauth.py` 
 ```
 
 您应该看到:
 
-```
+```py
 `Authorization URL: https://github.com/login/oauth/authorize?response_type=code&client_id=cde067521efaefe0c927
 Enter the code:` 
 ```
 
 导航到该 URL。授权应用程序。然后，从重定向 URL 获取代码。例如:
 
-```
+```py
 `http://127.0.0.1:5000/login/github/authorized?code=5e54f2d755e450a64af3` 
 ```
 
 将代码添加回终端窗口:
 
-```
+```py
 `Authorization URL: https://github.com/login/oauth/authorize?response_type=code&client_id=cde067521efaefe0c927
 Enter the code: 5e54f2d755e450a64af3` 
 ```
@@ -164,7 +164,7 @@ OAuthLib 是一个流行的、维护良好的 Python 库，它实现了 OAuth。
 
 继续创建新的 Flask 应用程序，激活虚拟环境，并安装所需的依赖项:
 
-```
+```py
 `$ mkdir flask-social-auth && cd flask-social-auth
 $ python3.11 -m venv .venv
 $ source .venv/bin/activate
@@ -173,7 +173,7 @@ $ source .venv/bin/activate
 
 接下来，创建一个 *main.py* 文件:
 
-```
+```py
 `# main.py
 
 from flask import Flask, jsonify
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
 继续将您之前创建的 GitHub 客户端 ID 和客户端密码保存到一个新的*。env* 文件:
 
-```
+```py
 `GITHUB_ID=<YOUR_ID_HERE>
 GITHUB_SECRET=<YOUR_SECRET_HERE>
 
@@ -210,7 +210,7 @@ OAUTHLIB_INSECURE_TRANSPORT=1`
 
 Flask-Dance 为每个供应商提供 Flask [蓝图](https://flask-dance.readthedocs.io/en/latest/concepts.html#blueprints)。让我们在 *app/oauth.py* 中为 GitHub 提供者创建一个:
 
-```
+```py
 `# app/oauth.py
 
 import os
@@ -225,7 +225,7 @@ github_blueprint = make_github_blueprint(
 
 在 *main.py* 中导入并注册蓝图，并连接新路线:
 
-```
+```py
 `# main.py
 
 from flask import Flask, jsonify, redirect, url_for
@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
 通过运行`python main.py`启动应用程序，导航到[http://127 . 0 . 0 . 1:5000/github](http://127.0.0.1:5000/github)，测试应用程序。在 GitHub 上验证后，你会被重定向回来。您应该会看到类似如下的内容:
 
-```
+```py
 `You  are  @mjhea0  on  GitHub` 
 ```
 
@@ -267,7 +267,7 @@ if __name__ == "__main__":
 
 安装依赖项:
 
-```
+```py
 `(.venv)$ pip install Flask-Login==0.6.2 Flask-SQLAlchemy==3.0.2 SQLAlchemy-Utils==0.38.3` 
 ```
 
@@ -275,7 +275,7 @@ if __name__ == "__main__":
 
 创建模型以在名为 *app/models.py* 的新文件中存储用户和 OAuth 信息:
 
-```
+```py
 `# app/models.py
 
 from flask_sqlalchemy import SQLAlchemy
@@ -306,7 +306,7 @@ def load_user(user_id):
 
 这将创建两个表，`user`和`flask_dance_oauth`:
 
-```
+```py
 `# user table
 
 name          type
@@ -329,7 +329,7 @@ user_id     INTEGER`
 
 接下来，修改之前创建的 GitHub 蓝图，添加`OAuth`表作为存储:
 
-```
+```py
 `# app/oauth.py
 
 import os
@@ -362,7 +362,7 @@ github_blueprint = make_github_blueprint(
 
 接下来，让我们在 *main.py* - `login`、`logout`和`homepage`中定义适当的端点:
 
-```
+```py
 `# main.py
 
 from flask import Flask, jsonify, redirect, render_template, url_for
@@ -421,13 +421,13 @@ if __name__ == "__main__":
 
 Signals 需要 [Binker](https://pypi.org/project/blinker/) 才能工作，所以现在就开始安装吧:
 
-```
+```py
 `(.venv)$ pip install blinker==1.5` 
 ```
 
 向 *app/oauth.py* 添加新的助手:
 
-```
+```py
 `# app/oauth.py
 
 import os
@@ -477,7 +477,7 @@ def github_logged_in(blueprint, token):
 
 最后，让我们添加模板:
 
-```
+```py
 `(.venv)$ mkdir templates && cd templates
 (.venv)$ touch _base.html
 (.venv)$ touch index.html` 
@@ -485,7 +485,7 @@ def github_logged_in(blueprint, token):
 
 *_base.html* 模板包含总体布局:
 
-```
+```py
 `<!-- templates/_base.html -->
 
 <!DOCTYPE html>
@@ -511,7 +511,7 @@ def github_logged_in(blueprint, token):
 
 接下来，给*index.html*添加一个“用 GitHub 登录”按钮:
 
-```
+```py
 `<!-- templates/index.html -->
 
 {% extends '_base.html' %}
@@ -538,7 +538,7 @@ def github_logged_in(blueprint, token):
 
 项目结构:
 
-```
+```py
 `├── .env
 ├── app
 │   ├── __init__.py

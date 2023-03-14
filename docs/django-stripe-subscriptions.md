@@ -51,7 +51,7 @@
 
 让我们首先为我们的项目创建一个新目录。在目录中，我们将创建并激活一个新的虚拟环境，安装 Django，并使用 django-admin 创建一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-stripe-subscriptions && cd django-stripe-subscriptions
 $ python3.10 -m venv env
 $ source env/bin/activate
@@ -62,13 +62,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`subscriptions`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp subscriptions` 
 ```
 
 在`INSTALLED_APPS`下的 *djangostripe/settings.py* 中注册 app:
 
-```
+```py
 `# djangostripe/settings.py
 
 INSTALLED_APPS = [
@@ -84,7 +84,7 @@ INSTALLED_APPS = [
 
 创建一个名为`home`的新视图，它将作为我们的主索引页面:
 
-```
+```py
 `# subscriptions/views.py
 
 from django.shortcuts import render
@@ -95,7 +95,7 @@ def home(request):
 
 通过向 *subscriptions/urls.py* 添加以下内容，为视图分配一个 URL:
 
-```
+```py
 `# subscriptions/urls.py
 
 from django.urls import path
@@ -108,7 +108,7 @@ urlpatterns = [
 
 现在，让我们告诉 Django，`subscriptions`应用程序在主应用程序中有自己的 URL:
 
-```
+```py
 `# djangostripe/urls.py
 
 from django.contrib import admin
@@ -122,7 +122,7 @@ urlpatterns = [
 
 最后，在名为“模板”的新文件夹中创建一个名为*home.html*的新模板。将以下 HTML 添加到模板中:
 
-```
+```py
 `<!-- templates/home.html -->
 
 <!DOCTYPE html>
@@ -145,7 +145,7 @@ urlpatterns = [
 
 确保更新 *settings.py* 文件，以便 Django 知道要查找“模板”文件夹:
 
-```
+```py
 `# djangostripe/settings.py
 
 TEMPLATES = [
@@ -157,7 +157,7 @@ TEMPLATES = [
 
 最后运行`migrate`来同步数据库，运行`runserver`来启动 Django 的本地 web 服务器。
 
-```
+```py
 `(env)$ python manage.py migrate
 (env)$ python manage.py runserver` 
 ```
@@ -168,7 +168,7 @@ TEMPLATES = [
 
 准备好基础项目后，让我们添加 Stripe。安装最新版本:
 
-```
+```py
 `(env)$ pip install stripe` 
 ```
 
@@ -182,7 +182,7 @@ TEMPLATES = [
 
 在你的 *settings.py* 文件的底部，添加下面两行，包括你自己的测试秘密和可发布的密钥。确保在实际的键周围包含`''`字符。
 
-```
+```py
 `# djangostripe/settings.py
 
 STRIPE_PUBLISHABLE_KEY = '<enter your stripe publishable key>'
@@ -209,7 +209,7 @@ STRIPE_SECRET_KEY = '<enter your stripe secret key>'`
 
 将 ID 保存在 *settings.py* 文件中，如下所示:
 
-```
+```py
 `# djangostripe/settings.py
 
 STRIPE_PRICE_ID = '<enter your stripe price id>'` 
@@ -221,7 +221,7 @@ STRIPE_PRICE_ID = '<enter your stripe price id>'`
 
 先来保护一下`home`视图:
 
-```
+```py
 `# subscriptions/views.py
 
 from django.contrib.auth.decorators import login_required  # new
@@ -242,13 +242,13 @@ django-allauth 是最流行的 django 包之一，用于解决认证、注册、
 
 首先，安装软件包:
 
-```
+```py
 `(env)$ pip install django-allauth` 
 ```
 
 像这样更新 *djangostripe/settings.py* 中的`INSTALLED_APPS`:
 
-```
+```py
 `# djangostripe/settings.py
 
 INSTALLED_APPS = [
@@ -268,7 +268,7 @@ INSTALLED_APPS = [
 
 接下来，将以下 django-allauth 配置添加到 *djangostripe/settings.py* :
 
-```
+```py
 `# djangostripe/settings.py
 
 AUTHENTICATION_BACKENDS = [
@@ -291,7 +291,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'`
 
 注册 allauth URLs:
 
-```
+```py
 `# djangostripe/urls.py
 
 from django.contrib import admin
@@ -306,7 +306,7 @@ urlpatterns = [
 
 应用迁移:
 
-```
+```py
 `(env)$ python manage.py migrate` 
 ```
 
@@ -320,7 +320,7 @@ urlpatterns = [
 
 让我们在 *subscriptions/models.py* 中创建我们的模型:
 
-```
+```py
 `# subscriptions/models.py
 
 from django.contrib.auth.models import User
@@ -337,7 +337,7 @@ class StripeCustomer(models.Model):
 
 在 *subscriptions/admin.py* 中向管理员注册:
 
-```
+```py
 `# subscriptions/admin.py
 
 from django.contrib import admin
@@ -348,7 +348,7 @@ admin.site.register(StripeCustomer)`
 
 创建和应用迁移:
 
-```
+```py
 `(env)$ python manage.py makemigrations && python manage.py migrate` 
 ```
 
@@ -358,20 +358,20 @@ admin.site.register(StripeCustomer)`
 
 首先创建一个新的静态文件来保存我们所有的 JavaScript:
 
-```
+```py
 `(env)$ mkdir static
 (env)$ touch static/main.js` 
 ```
 
 向新的 *main.js* 文件添加快速健全检查:
 
-```
+```py
 `// static/main.js console.log("Sanity check!");` 
 ```
 
 然后更新 *settings.py* 文件，这样 Django 就知道在哪里可以找到静态文件:
 
-```
+```py
 `# djangostripe/settings.py
 
 STATIC_URL = 'static/'
@@ -385,7 +385,7 @@ STATICFILES_DIRS = [Path(BASE_DIR).joinpath('static')]  # new
 
 在 HTML 模板中添加静态模板标签和新的脚本标签:
 
-```
+```py
 `<!-- templates/home.html -->
 
 {% load static %} <!-- new -->
@@ -416,7 +416,7 @@ STATICFILES_DIRS = [Path(BASE_DIR).joinpath('static')]  # new
 
 接下来，向 *subscriptions/views.py* 添加一个新视图来处理 AJAX 请求:
 
-```
+```py
 `# subscriptions/views.py
 
 from django.conf import settings # new
@@ -439,7 +439,7 @@ def stripe_config(request):
 
 也添加一个新的 URL:
 
-```
+```py
 `# subscriptions/urls.py
 
 from django.urls import path
@@ -455,7 +455,7 @@ urlpatterns = [
 
 接下来，使用[获取 API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) 向 *static/main.js* 中的新`/config/`端点发出 AJAX 请求:
 
-```
+```py
 `// static/main.js console.log("Sanity check!"); // new // Get Stripe publishable key fetch("/config/") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { // Initialize Stripe.js const  stripe  =  Stripe(data.publicKey); });` 
 ```
 
@@ -469,7 +469,7 @@ urlpatterns = [
 
 首先，添加新视图:
 
-```
+```py
 `# subscriptions/views.py
 
 @csrf_exempt
@@ -502,7 +502,7 @@ def create_checkout_session(request):
 
 完整的文件现在应该如下所示:
 
-```
+```py
 `# subscriptions/views.py
 
 import stripe
@@ -550,7 +550,7 @@ def create_checkout_session(request):
 
 注册结帐会话 URL:
 
-```
+```py
 `# subscriptions/urls.py
 
 from django.urls import path
@@ -565,7 +565,7 @@ urlpatterns = [
 
 将事件处理程序和后续 AJAX 请求添加到 *static/main.js* :
 
-```
+```py
 `// static/main.js console.log("Sanity check!"); // Get Stripe publishable key fetch("/config/") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { // Initialize Stripe.js const  stripe  =  Stripe(data.publicKey); // new // Event handler let  submitBtn  =  document.querySelector("#submitBtn"); if  (submitBtn  !==  null)  { submitBtn.addEventListener("click",  ()  =>  { // Get Checkout Session ID fetch("/create-checkout-session/") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { console.log(data); // Redirect to Stripe Checkout return  stripe.redirectToCheckout({sessionId:  data.sessionId}) }) .then((res)  =>  { console.log(res); }); }); } });` 
 ```
 
@@ -583,7 +583,7 @@ urlpatterns = [
 
 视图:
 
-```
+```py
 `# subscriptions/views.py
 
 @login_required
@@ -599,7 +599,7 @@ def cancel(request):
 
 成功:
 
-```
+```py
 `<!-- templates/success.html -->
 
 {% load static %}
@@ -625,7 +625,7 @@ def cancel(request):
 
 取消:
 
-```
+```py
 `<!-- templates/cancel.html -->
 
 {% load static %}
@@ -651,7 +651,7 @@ def cancel(request):
 
 在 *subscriptions/urls.py* 中注册新视图:
 
-```
+```py
 `# subscriptions/urls.py
 
 from django.urls import path
@@ -686,7 +686,7 @@ urlpatterns = [
 
 创建一个名为`stripe_webhook`的新视图，每次有人订阅我们的服务时都会创建一个新的`StripeCustomer`:
 
-```
+```py
 `# subscriptions/views.py
 
 @csrf_exempt
@@ -733,7 +733,7 @@ def stripe_webhook(request):
 
 对导入进行以下更改:
 
-```
+```py
 `# subscriptions/views.py
 
 import stripe
@@ -749,7 +749,7 @@ from subscriptions.models import StripeCustomer  # new`
 
 要使端点可访问，剩下唯一要做的事情就是在 *urls.py* 中注册它:
 
-```
+```py
 `# subscriptions/urls.py
 
 from django.urls import path
@@ -773,7 +773,7 @@ urlpatterns = [
 
 此命令应生成一个配对代码:
 
-```
+```py
 `Your pairing code is: peach-loves-classy-cozy
 This pairing code verifies your authentication with Stripe.
 Press Enter to open the browser (^C to quit)` 
@@ -781,7 +781,7 @@ Press Enter to open the browser (^C to quit)`
 
 通过按 Enter，CLI 将打开您的默认 web 浏览器，并请求访问您的帐户信息的权限。请继续并允许访问。回到您的终端，您应该看到类似于以下内容的内容:
 
-```
+```py
 `> Done! The Stripe CLI is configured for Django Test with account id acct_<ACCOUNT_ID>
 
 Please note: this key will expire after 90 days, at which point you'll need to re-authenticate.` 
@@ -789,19 +789,19 @@ Please note: this key will expire after 90 days, at which point you'll need to r
 
 接下来，我们可以开始侦听条带事件，并使用以下命令将它们转发到我们的端点:
 
-```
+```py
 `$ stripe listen --forward-to localhost:8000/webhook/` 
 ```
 
 这也将生成一个 webhook 签名密码:
 
-```
+```py
 `> Ready! Your webhook signing secret is whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (^C to quit)` 
 ```
 
 为了初始化端点，将秘密添加到 *settings.py* 文件中:
 
-```
+```py
 `# djangostribe/settings.py
 
 STRIPE_ENDPOINT_SECRET = '<your webhook signing secret here>'` 
@@ -825,7 +825,7 @@ Stripe 现在会将事件转发到我们的端点。要测试，通过`4242 4242
 
 更新`home`视图:
 
-```
+```py
 `# subscriptions/views.py
 
 @login_required
@@ -854,7 +854,7 @@ def home(request):
 
 修改*home.html*模板，向订阅用户显示当前计划；
 
-```
+```py
 `<!-- templates/home.html -->
 
 {% load static %}

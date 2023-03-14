@@ -47,20 +47,20 @@ AWS 弹性豆茎不另收费。您只需为应用程序消耗的资源付费。
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装需求并初始化数据库:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt
 (venv)$ python init_db.py` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ uvicorn main:app --reload` 
 ```
 
@@ -84,7 +84,7 @@ AWS 弹性豆茎不另收费。您只需为应用程序消耗的资源付费。
 
 安装 EB CLI 后，您可以通过运行以下命令来检查版本:
 
-```
+```py
 `$ eb --version
 
 EB CLI 3.20.3 (Python 3.10.)` 
@@ -130,14 +130,14 @@ CodeCommit 是一个安全的、高度可伸缩的、托管的源代码控制服
 
 回答完所有问题后，您会注意到项目根目录下有一个隐藏的目录，名为。elasticbeanstalk”。该目录应该包含一个 *config.yml* 文件，其中包含您刚才提供的所有数据。
 
-```
+```py
 `.elasticbeanstalk
 └── config.yml` 
 ```
 
 该文件应包含类似以下内容:
 
-```
+```py
 `branch-defaults: master: environment:  null group_suffix:  null global: application_name:  fastapi-songs branch:  null default_ec2_keyname:  aws-eb default_platform:  Python 3.8 running on 64bit Amazon Linux 2 default_region:  us-west-2 include_git_submodules:  true instance_profile:  null platform_name:  null platform_version:  null profile:  eb-cli repository:  null sc:  git workspace_type:  Application` 
 ```
 
@@ -182,7 +182,7 @@ CodeCommit 是一个安全的、高度可伸缩的、托管的源代码控制服
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `|-- .elasticbeanstalk
 |   └-- config.yml
 |-- .gitignore
@@ -199,7 +199,7 @@ CodeCommit 是一个安全的、高度可伸缩的、托管的源代码控制服
 
 部署应用后，您可以通过运行以下命令来检查其状态:
 
-```
+```py
 `$ eb status
 
 Environment details for: fastapi-songs-env
@@ -243,7 +243,7 @@ Environment details for: fastapi-songs-env
 
 在项目根目录下创建一个名为“”的新文件夹。ebextensions”。在新创建的文件夹中创建一个名为 *01_fastapi.config* 的文件:
 
-```
+```py
 `# .ebextensions/01_fastapi.config option_settings: aws:elasticbeanstalk:application:environment: PYTHONPATH:  "/var/app/current:$PYTHONPATH" aws:elasticbeanstalk:container:python: WSGIPath:  "main:app"` 
 ```
 
@@ -266,7 +266,7 @@ Environment details for: fastapi-songs-env
 
 在项目根目录下创建一个名为 *Procfile* 的新文件:
 
-```
+```py
 `# Procfile
 
 web: gunicorn main:app --workers=4 --worker-class=uvicorn.workers.UvicornWorker` 
@@ -278,7 +278,7 @@ web: gunicorn main:app --workers=4 --worker-class=uvicorn.workers.UvicornWorker`
 
 最后，我们必须告诉 Elastic Beanstalk 在部署新的应用程序版本时初始化数据库。将以下内容添加到*的末尾。EB extensions/01 _ fastapi . config*:
 
-```
+```py
 `# .ebextensions/01_fastapi.config container_commands: 01_initdb: command:  "source /var/app/venv/*/bin/activate && python3 init_db.py" leader_only:  true` 
 ```
 
@@ -291,7 +291,7 @@ web: gunicorn main:app --workers=4 --worker-class=uvicorn.workers.UvicornWorker`
 
 此时，您的项目结构应该如下所示:
 
-```
+```py
 `|-- .ebextensions
 |   └-- 01_fastapi.config
 |-- .elasticbeanstalk
@@ -309,7 +309,7 @@ web: gunicorn main:app --workers=4 --worker-class=uvicorn.workers.UvicornWorker`
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -330,7 +330,7 @@ $ eb deploy`
 
 首先，让 Postgres 在本地运行。您可以从 [PostgreSQL Downloads](https://www.postgresql.org/download/) 下载它，或者启动 Docker 容器:
 
-```
+```py
 `$ docker run --name fastapi-songs-postgres -p 5432:5432 \
     -e POSTGRES_USER=fastapi-songs -e POSTGRES_PASSWORD=complexpassword123 \
     -e POSTGRES_DB=fastapi-songs -d postgres` 
@@ -338,7 +338,7 @@ $ eb deploy`
 
 检查容器是否正在运行:
 
-```
+```py
 `$ docker ps -f name=fastapi-songs-postgres
 
 CONTAINER ID   IMAGE      COMMAND                  CREATED              STATUS              PORTS                    NAMES
@@ -349,7 +349,7 @@ c05621dac852   postgres   "docker-entrypoint.s…"   About a minute ago   Up Abo
 
 在 *database.py* 里面把`DATABASE_URL`改成这样:
 
-```
+```py
 `# database.py
 
 DATABASE_URL = \
@@ -364,7 +364,7 @@ DATABASE_URL = \
 
 之后，从`create_engine`中删除`connect_args`，因为`check_same_thread`是[仅在 SQLite](https://docs.sqlalchemy.org/en/14/dialects/sqlite.html#uri-connections) 中需要。
 
-```
+```py
 `# database.py
 
 engine = create_engine(
@@ -374,25 +374,25 @@ engine = create_engine(
 
 接下来，安装 Postgres 所需的 [psycopg2-binary](https://pypi.org/project/psycopg2-binary/) :
 
-```
+```py
 `(venv)$ pip install psycopg2-binary==2.9.3` 
 ```
 
 添加到 *requirements.txt* :
 
-```
+```py
 `fastapi==0.75.0 psycopg2-binary==2.9.3 SQLAlchemy==1.4.32 uvicorn[standard]==0.17.6` 
 ```
 
 删除现有数据库 *default.db* ，然后初始化新数据库:
 
-```
+```py
 `(venv)$ python init_db.py` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ uvicorn main:app --reload` 
 ```
 
@@ -419,7 +419,7 @@ engine = create_engine(
 
 环境更新完成后，EB 会自动将以下数据库凭证传递给我们的 FastAPI 应用程序:
 
-```
+```py
 `RDS_DB_NAME
 RDS_USERNAME
 RDS_PASSWORD
@@ -429,7 +429,7 @@ RDS_PORT`
 
 我们现在可以在 *database.py* 中使用这些变量来连接我们的数据库。将`DATABASE_URL`替换为以下内容:
 
-```
+```py
 `if 'RDS_DB_NAME' in os.environ:
     DATABASE_URL = \
         'postgresql://{username}:{password}@{host}:{port}/{database}'.format(
@@ -456,7 +456,7 @@ else:
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -510,7 +510,7 @@ $ eb deploy`
 
 我们需要将所有流量从 HTTP 重定向到 HTTPS。有多种方法可以做到这一点，但最简单的方法是将 [Apache](https://httpd.apache.org/) 设置为代理主机。我们可以通过在*中的`option_settings`末尾添加以下内容来编程实现这一点。EB extensions/01 _ fastapi . config*:
 
-```
+```py
 `# .ebextensions/01_fastapi.config
 
 option_settings:
@@ -521,13 +521,13 @@ option_settings:
 
 您最终的 *01_fastapi.config* 文件现在应该是这样的:
 
-```
+```py
 `# .ebextensions/01_fastapi.config option_settings: aws:elasticbeanstalk:application:environment: PYTHONPATH:  "/var/app/current:$PYTHONPATH" aws:elasticbeanstalk:container:python: WSGIPath:  "main:app" aws:elasticbeanstalk:environment:proxy: ProxyServer:  apache container_commands: 01_initdb: command:  "source /var/app/venv/*/bin/activate && python3 init_db.py" leader_only:  true` 
 ```
 
 接下来，创建一个”。平台"文件夹中，并添加以下文件和文件夹:
 
-```
+```py
 `└-- .platform
     └-- httpd
         └-- conf.d
@@ -536,7 +536,7 @@ option_settings:
 
 *ssl_rewrite.conf* :
 
-```
+```py
 `# .platform/httpd/conf.d/ssl_rewrite.conf
 
 RewriteEngine On
@@ -547,7 +547,7 @@ RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R,L]
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `|-- .ebextensions
 |   └-- 01_fastapi.config
 |-- .elasticbeanstalk
@@ -569,7 +569,7 @@ RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R,L]
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -588,7 +588,7 @@ $ eb deploy`
 
 您可以执行一个命令来设置它们，如下所示:
 
-```
+```py
 `$ eb setenv VARIABLE_NAME='variable value'` 
 ```
 
@@ -598,7 +598,7 @@ $ eb deploy`
 
 例如:
 
-```
+```py
 `VARIABLE_NAME = os.environ['VARIABLE_NAME']` 
 ```
 
@@ -629,7 +629,7 @@ CLI:
 
 该命令将从以下文件中获取最后 100 行:
 
-```
+```py
 `/var/log/web.stdout.log /var/log/eb-hooks.log /var/log/nginx/access.log /var/log/nginx/error.log /var/log/eb-engine.log` 
 ```
 
@@ -637,7 +637,7 @@ CLI:
 
 我建议将日志传送到 [CloudWatch](https://aws.amazon.com/cloudwatch/) 。运行以下命令来启用此功能:
 
-```
+```py
 `$ eb logs --cloudwatch-logs enable` 
 ```
 

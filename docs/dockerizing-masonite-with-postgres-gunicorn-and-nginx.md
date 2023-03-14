@@ -16,7 +16,7 @@
 
 创建项目目录，安装 Masonite，并创建新的 Masonite 项目:
 
-```
+```py
 `$ mkdir masonite-on-docker && cd masonite-on-docker
 $ python3.10 -m venv env
 $ source env/bin/activate
@@ -39,7 +39,7 @@ $ source env/bin/activate
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `├── .env.dev
 └── web
     ├── .env.testing
@@ -123,7 +123,7 @@ $ source env/bin/activate
 
 安装 [Docker](https://docs.docker.com/install/) ，如果你还没有，那么在“web”目录下添加一个 *Dockerfile* :
 
-```
+```py
 `# pull official base image
 FROM  python:3.10.5-alpine
 
@@ -162,7 +162,7 @@ COPY  . .`
 
 接下来，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./web command:  python craft serve -p 8000 -b 0.0.0.0 volumes: -  ./web/:/usr/src/app/ ports: -  8000:8000 env_file: -  .env.dev` 
 ```
 
@@ -170,7 +170,7 @@ COPY  . .`
 
 让我们通过删除任何未使用的变量来简化 *.env.dev* :
 
-```
+```py
 `APP_DEBUG=True
 APP_ENV=local
 APP_KEY=zWDMwC0aNfVk8Ao1NyVJC_LiGD9tHJtVn_uCPeaaTNY=
@@ -203,7 +203,7 @@ QUEUE_DRIVER=async`
 
 保存后，您应该会看到应用程序在您的终端中重新加载，如下所示:
 
-```
+```py
 `* Detected change in '/usr/src/app/routes/web.py', reloading
 * Restarting with watchdog (inotify)` 
 ```
@@ -216,7 +216,7 @@ QUEUE_DRIVER=async`
 
 首先，向 *docker-compose.yml* 添加一个名为`db`的新服务:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./web command:  python craft serve -p 8000 -b 0.0.0.0 volumes: -  ./web/:/usr/src/app/ ports: -  8000:8000 env_file: -  .env.dev depends_on: -  db db: image:  postgres:14.4-alpine volumes: -  postgres_data_dev:/var/lib/postgresql/data/ environment: -  POSTGRES_USER=hello_masonite -  POSTGRES_PASSWORD=hello_masonite -  POSTGRES_DB=hello_masonite_dev volumes: postgres_data_dev:` 
 ```
 
@@ -228,7 +228,7 @@ QUEUE_DRIVER=async`
 
 在 *.env.dev* 文件中更新以下与数据库相关的环境变量:
 
-```
+```py
 `DB_CONNECTION=postgres
 DB_HOST=db
 DB_PORT=5432
@@ -241,7 +241,7 @@ DB_PASSWORD=hello_masonite`
 
 更新 docker 文件以安装 Psycopg2 所需的相应软件包:
 
-```
+```py
 `# pull official base image
 FROM  python:3.10.5-alpine
 
@@ -269,7 +269,7 @@ COPY  . .`
 
 将 Psycopg2 添加到 *web/requirements.txt* :
 
-```
+```py
 `masonite>=4.0,<5.0
 masonite-orm>=2.0,<3.0
 psycopg2-binary==2.9.3` 
@@ -279,19 +279,19 @@ psycopg2-binary==2.9.3`
 
 构建新的映像并旋转两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 应用迁移(从“web/数据库/迁移”文件夹):
 
-```
+```py
 `$ docker-compose exec web python craft migrate` 
 ```
 
 您应该看到:
 
-```
+```py
 `Migrating: 2021_01_09_033202_create_password_reset_table
 Migrated: 2021_01_09_033202_create_password_reset_table (0.01s)
 Migrating: 2021_01_09_043202_create_users_table
@@ -300,7 +300,7 @@ Migrated: 2021_01_09_043202_create_users_table (0.02s)`
 
 确保`users`表已创建:
 
-```
+```py
 `$ docker-compose exec db psql --username=hello_masonite --dbname=hello_masonite_dev
 
 psql (14.4)
@@ -335,13 +335,13 @@ hello_masonite_dev=# \q`
 
 您也可以通过运行以下命令来检查该卷是否已创建:
 
-```
+```py
 `$ docker volume inspect masonite-on-docker_postgres_data_dev` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `[
     {
         "CreatedAt": "2022-07-22T20:07:50Z",
@@ -361,7 +361,7 @@ hello_masonite_dev=# \q`
 
 接下来，将一个 *entrypoint.sh* 文件添加到“web”目录，以在应用迁移和运行 Masonite 开发服务器之前，验证 Postgres 是否启动*和*健康*:*
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DB_CONNECTION" = "postgres" ]
@@ -385,7 +385,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 然后，更新 Dockerfile 来运行 *entrypoint.sh* 文件，作为 Docker [entrypoint](https://docs.docker.com/engine/reference/builder/#entrypoint) 命令:
 
-```
+```py
 `# pull official base image
 FROM  python:3.10.5-alpine
 
@@ -416,7 +416,7 @@ ENTRYPOINT  ["/usr/src/app/entrypoint.sh"]`
 
 在本地更新文件权限:
 
-```
+```py
 `$ chmod +x web/entrypoint.sh` 
 ```
 
@@ -428,7 +428,7 @@ ENTRYPOINT  ["/usr/src/app/entrypoint.sh"]`
 
 想播种一些用户？
 
-```
+```py
 `$ docker-compose exec web python craft seed:run
 
 $ docker-compose exec db psql --username=hello_masonite --dbname=hello_masonite_dev
@@ -452,7 +452,7 @@ hello_masonite_dev=# \q`
 
 接下来，对于生产环境，让我们将 [Gunicorn](https://gunicorn.org/) ，一个生产级的 WSGI 服务器，添加到需求文件中:
 
-```
+```py
 `masonite>=4.0,<5.0
 masonite-orm>=2.0,<3.0
 psycopg2-binary==2.9.3
@@ -461,7 +461,7 @@ gunicorn==20.1.0`
 
 由于我们仍然希望在开发中使用 Masonite 的内置服务器，因此为生产创建一个名为 *docker-compose.prod.yml* 的新合成文件:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./web command:  gunicorn --bind 0.0.0.0:8000 wsgi:application ports: -  8000:8000 env_file: -  .env.prod depends_on: -  db db: image:  postgres:14.4-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ env_file: -  .env.prod.db volumes: postgres_data_prod:` 
 ```
 
@@ -471,7 +471,7 @@ gunicorn==20.1.0`
 
 *.env.prod* :
 
-```
+```py
 `APP_DEBUG=False
 APP_ENV=prod
 APP_KEY=GM28x-FeI1sM72tgtsgikLcT-AryyVOiY8etOGr7q7o=
@@ -493,7 +493,7 @@ QUEUE_DRIVER=async`
 
 *.env.prod.db* :
 
-```
+```py
 `POSTGRES_USER=hello_masonite
 POSTGRES_PASSWORD=hello_masonite
 POSTGRES_DB=hello_masonite_prod` 
@@ -505,7 +505,7 @@ POSTGRES_DB=hello_masonite_prod`
 
 然后，构建生产映像并启动容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -519,7 +519,7 @@ POSTGRES_DB=hello_masonite_prod`
 
 entry point . prod . sh:
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DB_CONNECTION" = "postgres" ]
@@ -538,7 +538,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 > 或者，不创建新的入口点文件，您可以修改现有的文件，如下所示:
 > 
-> ```
+> ```py
 > #!/bin/sh
 > 
 > if [ "$DB_CONNECTION" = "postgres" ]
@@ -566,7 +566,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 要使用这个文件，创建一个名为 *Dockerfile.prod* 的新 Dockerfile，用于生产构建:
 
-```
+```py
 `###########
 # BUILDER #
 ###########
@@ -649,13 +649,13 @@ ENTRYPOINT  ["/home/app/web/entrypoint.prod.sh"]`
 
 更新 *docker-compose.prod.yml* 文件中的`web`服务，用 *Dockerfile.prod* 构建:
 
-```
+```py
 `web: build: context:  ./web dockerfile:  Dockerfile.prod command:  gunicorn --bind 0.0.0.0:8000 wsgi:application ports: -  8000:8000 env_file: -  .env.prod depends_on: -  db` 
 ```
 
 尝试一下:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python craft migrate` 
@@ -667,13 +667,13 @@ $ docker-compose -f docker-compose.prod.yml exec web python craft migrate`
 
 将服务添加到 *docker-compose.prod.yml* :
 
-```
+```py
 `nginx: build:  ./nginx ports: -  1337:80 depends_on: -  web` 
 ```
 
 然后，在本地项目根目录中，创建以下文件和文件夹:
 
-```
+```py
 `└── nginx
     ├── Dockerfile
     └── nginx.conf` 
@@ -681,7 +681,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python craft migrate`
 
 *Dockerfile* :
 
-```
+```py
 `FROM  nginx:1.23.1-alpine
 
 RUN  rm /etc/nginx/conf.d/default.conf
@@ -690,7 +690,7 @@ COPY  nginx.conf /etc/nginx/conf.d`
 
 *engine . conf*:
 
-```
+```py
 `upstream hello_masonite {
     server web:8000;
 }
@@ -713,7 +713,7 @@ server {
 
 然后，更新`web`服务，在 *docker-compose.prod.yml* 中，用`expose`替换`ports`:
 
-```
+```py
 `web: build: context:  ./web dockerfile:  Dockerfile.prod command:  gunicorn --bind 0.0.0.0:8000 wsgi:application expose: -  8000 env_file: -  .env.prod depends_on: -  db` 
 ```
 
@@ -723,7 +723,7 @@ server {
 
 再测试一次。
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python craft migrate` 
@@ -733,7 +733,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python craft migrate`
 
 您的项目结构现在应该看起来像这样:
 
-```
+```py
 `├── .env.dev
 ├── .env.prod
 ├── .env.prod.db
@@ -827,7 +827,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python craft migrate`
 
 完成后将容器拿下来:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
@@ -837,7 +837,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python craft migrate`
 
 首先，更新 *web/config/filesystem.py* 中的`STATICFILES`配置:
 
-```
+```py
 `STATICFILES = {
     # folder          # template alias
     "storage/static": "static/",
@@ -869,13 +869,13 @@ $ docker-compose -f docker-compose.prod.yml exec web python craft migrate`
 
 对于生产，向 *docker-compose.prod.yml* 中的`web`和`nginx`服务添加一个卷，这样每个容器将共享“存储”目录:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./web dockerfile:  Dockerfile.prod command:  gunicorn --bind 0.0.0.0:8000 wsgi:application volumes: -  storage_volume:/home/app/web/storage expose: -  8000 env_file: -  .env.prod depends_on: -  db db: image:  postgres:14.4-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ env_file: -  .env.prod.db nginx: build:  ./nginx volumes: -  storage_volume:/home/app/web/storage ports: -  1337:80 depends_on: -  web volumes: postgres_data_prod: storage_volume:` 
 ```
 
 接下来，更新 Nginx 配置，将静态文件请求路由到适当的文件夹:
 
-```
+```py
 `upstream hello_masonite {
     server web:8000;
 }
@@ -913,7 +913,7 @@ server {
 
 测试:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -925,7 +925,7 @@ server {
 
 您还可以通过`docker-compose -f docker-compose.prod.yml logs -f`在日志中验证对静态文件的请求是否通过 Nginx 成功提供:
 
-```
+```py
 `nginx_1  | 172.28.0.1 - - [2022-07-20:01:39:43 +0000] "GET /robots.txt HTTP/1.1" 200 0 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36" "-"
 nginx_1  | 172.28.0.1 - - [2022-07-20:01:39:52 +0000] "GET /static/hello.txt HTTP/1.1" 200 4 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36" "-"
 nginx_1  | 172.28.0.1 - - [2022-07-20:01:39:59 +0000] "GET /static/css/app.css HTTP/1.1" 200 649 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36" "-"` 
@@ -933,13 +933,13 @@ nginx_1  | 172.28.0.1 - - [2022-07-20:01:39:59 +0000] "GET /static/css/app.css H
 
 完成后带上容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
 要测试对用户上传的媒体文件的处理，请更新*web/templates/welcome . html*模板中的内容块:
 
-```
+```py
 `{% block content %}
 <html>
   <body>
@@ -958,7 +958,7 @@ nginx_1  | 172.28.0.1 - - [2022-07-20:01:39:59 +0000] "GET /static/css/app.css H
 
 在*web/app/controllers/welcome controller . py*中给`WelcomeController`添加一个名为`upload`的新方法:
 
-```
+```py
 `def upload(self, storage: Storage, view: View, request: Request):
     filename = storage.disk("local").put_file("image_upload", request.input("image_upload"))
     return view.render("welcome", {"image_url": f"/framework/filesystem/{filename}"})` 
@@ -966,7 +966,7 @@ nginx_1  | 172.28.0.1 - - [2022-07-20:01:39:59 +0000] "GET /static/css/app.css H
 
 不要忘记进口:
 
-```
+```py
 `from masonite.filesystem import Storage
 from masonite.request import Request` 
 ```
@@ -977,7 +977,7 @@ from masonite.request import Request`
 
 测试:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -987,7 +987,7 @@ from masonite.request import Request`
 
 对于生产，更新 Nginx 配置以将媒体文件请求路由到“上传”文件夹:
 
-```
+```py
 `upstream hello_masonite {
     server web:8000;
 }
@@ -1020,7 +1020,7 @@ server {
 
 重建:
 
-```
+```py
 `$ docker-compose down -v
 
 $ docker-compose -f docker-compose.prod.yml up -d --build` 

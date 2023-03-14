@@ -45,7 +45,7 @@ APIFairy 提供了五个核心装饰器:
 
 API 端点的输入(使用`@body`装饰器)和输出(使用`@response`装饰器)被定义为模式:
 
-```
+```py
 `class EntrySchema(ma.Schema):
     """Schema defining the attributes in a journal entry."""
     id = ma.Integer()
@@ -61,7 +61,7 @@ API 端点的输入(使用`@body`装饰器)和输出(使用`@response`装饰器)
 
 典型的 API 认证方法是定义[基本认证](https://flask-httpauth.readthedocs.io/#basic-authentication-examples)来保护获取认证令牌的路径:
 
-```
+```py
 `basic_auth = HTTPBasicAuth()
 
 @basic_auth.verify_password
@@ -73,7 +73,7 @@ def verify_password(email, password):
 
 并且还定义了[令牌认证](https://flask-httpauth.readthedocs.io/en/latest/#token-authentication-example)，用于基于时间敏感认证令牌保护大多数路由:
 
-```
+```py
 `token_auth = HTTPTokenAuth()
 
 @token_auth.verify_token
@@ -127,7 +127,7 @@ APIFairy 的一个伟大特性是自动生成的漂亮的 API 文档:
 
 首先创建一个新的项目文件夹和一个虚拟环境:
 
-```
+```py
 `$ mkdir flask-journal-api
 $ cd flask-journal-api
 $ python3 -m venv venv
@@ -139,7 +139,7 @@ $ source venv/bin/activate
 
 继续添加下列文件和文件夹:
 
-```
+```py
 `├── app.py
 ├── instance
 │   └── .gitkeep
@@ -153,7 +153,7 @@ $ source venv/bin/activate
 
 接下来，为了安装必要的 Python 包，将依赖项添加到项目根目录下的 *requirements.txt* 文件中:
 
-```
+```py
 `apifairy==0.9.1
 Flask==2.1.2
 Flask-SQLAlchemy==2.5.1
@@ -162,7 +162,7 @@ marshmallow-sqlalchemy==0.28.0`
 
 安装:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
@@ -175,7 +175,7 @@ marshmallow-sqlalchemy==0.28.0`
 
 首先在*项目/__init__ 中定义应用工厂函数。py* :
 
-```
+```py
 `from apifairy import APIFairy
 from flask import Flask, json
 from flask_marshmallow import Marshmallow
@@ -223,7 +223,7 @@ def register_blueprints(app):
 
 定义好应用工厂函数后，可以在项目顶层文件夹的 *app.py* 中调用:
 
-```
+```py
 `from project import create_app
 
 # Call the application factory function to construct a Flask application
@@ -235,7 +235,7 @@ app = create_app()`
 
 让我们定义一下`journal_api`蓝图。首先在*项目/journal_api/__init_ 中定义`journal_api`蓝图。py* :
 
-```
+```py
 `"""
 The 'journal_api' blueprint handles the API for managing journal entries.
 Specifically, this blueprint allows for journal entries to be added, edited,
@@ -252,7 +252,7 @@ from . import routes`
 
 从必要的导入开始:
 
-```
+```py
 `from apifairy import body, other_responses, response
 from flask import abort
 
@@ -262,7 +262,7 @@ from . import journal_api_blueprint`
 
 对于 Flask Journal API 的这个初始版本，数据库将是一个日志条目列表:
 
-```
+```py
 `# --------
 # Database
 # --------
@@ -276,7 +276,7 @@ messages = [
 
 接下来，定义创建新日志条目和返回日志条目的模式:
 
-```
+```py
 `# -------
 # Schemas
 # -------
@@ -303,7 +303,7 @@ entries_schema = EntrySchema(many=True)`
 
 从检索所有日志条目开始:
 
-```
+```py
 `@journal_api_blueprint.route('/', methods=['GET'])
 @response(entries_schema)
 def journal():
@@ -315,7 +315,7 @@ def journal():
 
 接下来，创建用于添加新日志条目的 API 端点:
 
-```
+```py
 `@journal_api_blueprint.route('/', methods=['POST'])
 @body(new_entry_schema)
 @response(entry_schema, 201)
@@ -330,7 +330,7 @@ def add_journal_entry(kwargs):
 
 从`@body`装饰器解析的输入数据作为`kwargs`(**k**ey**w**ord**arg**uments)参数传递给`add_journal_entry()`视图函数。然后，该数据用于创建新的日志条目，并将其添加到数据库中:
 
-```
+```py
 `new_message = dict(**kwargs, id=messages[-1]['id']+1)
 messages.append(new_message)` 
 ```
@@ -339,7 +339,7 @@ messages.append(new_message)`
 
 创建用于检索特定日记条目的 API 端点:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['GET'])
 @response(entry_schema)
 @other_responses({404: 'Entry not found'})
@@ -357,7 +357,7 @@ def get_journal_entry(index):
 
 创建用于更新日记帐分录的 API 端点:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['PUT'])
 @body(new_entry_schema)
 @response(entry_schema)
@@ -375,7 +375,7 @@ def update_journal_entry(data, index):
 
 最后，创建用于删除日志条目的 API 端点:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['DELETE'])
 @other_responses({404: 'Entry not found'})
 def delete_journal_entry(index):
@@ -393,7 +393,7 @@ def delete_journal_entry(index):
 
 为了进行测试，在一个终端窗口中，配置 Flask 应用程序并运行开发服务器:
 
-```
+```py
 `(venv) $ export FLASK_APP=app.py
 (venv) $ export FLASK_ENV=development
 (venv) $ flask run` 
@@ -403,7 +403,7 @@ def delete_journal_entry(index):
 
 请求示例:
 
-```
+```py
 `$ python3
 
 >>> import requests
@@ -430,7 +430,7 @@ APIFairy 的一个令人难以置信的特性是自动创建 API 文档！
 
 我们已经在前一节中讨论了第一项，因为我们包括了每个视图函数的文档字符串。例如，`journal()`视图函数对这个 API 端点的用途有一个简短的描述:
 
-```
+```py
 `@journal_api_blueprint.route('/', methods=['GET'])
 @response(entries_schema)
 def journal():
@@ -440,7 +440,7 @@ def journal():
 
 接下来，我们需要在*项目/__init__ 的顶部包含描述整个项目的 docstring。py* 文件:
 
-```
+```py
 `"""
 Welcome to the documentation for the Flask Journal API!
 
@@ -484,7 +484,7 @@ The project utilizes the following modules:
 
 最后，需要定义一些配置变量来指定 API 文档的外观。更新*项目/__init__ 中的`create_app()`函数。py* :
 
-```
+```py
 `def create_app():
     # Create the Flask application
     app = Flask(__name__)
@@ -524,7 +524,7 @@ The project utilizes the following modules:
 
 首先在“配置”部分创建一个`SQLAlchemy()`对象:
 
-```
+```py
 `...
 
 from apifairy import APIFairy
@@ -548,7 +548,7 @@ database = SQLAlchemy()  # <-- NEW!!
 
 接下来，更新`create_app()`函数以指定必要的配置变量:
 
-```
+```py
 `def create_app():
     # Create the Flask application
     app = Flask(__name__)
@@ -575,7 +575,7 @@ database = SQLAlchemy()  # <-- NEW!!
 
 最后，更新`initialize_extensions()`函数来初始化 Flask-SQLAlchemy 对象:
 
-```
+```py
 `def initialize_extensions(app):
     # Since the application instance is now created, pass it to each Flask
     # extension instance to bind it to the Flask application instance (app)
@@ -590,7 +590,7 @@ database = SQLAlchemy()  # <-- NEW!!
 
 创建一个新的 *project/models.py* 文件来定义数据库表以表示日志条目:
 
-```
+```py
 `from project import database
 
 class Entry(database.Model):
@@ -617,7 +617,7 @@ class Entry(database.Model):
 
 虽然 *models.py* 定义了数据库表，但它并不在 SQLite 数据库中创建表。要创建表，请在终端窗口中启动 Flask shell:
 
-```
+```py
 `(venv)$ flask shell
 
 >>> from project import database
@@ -632,7 +632,7 @@ class Entry(database.Model):
 
 因为我们正在使用 SQLite 数据库，所以从删除在*project/journal _ API/routes . py*中定义的临时`database` (Python 列表)开始:
 
-```
+```py
 `# --------
 # Database
 # --------
@@ -648,7 +648,7 @@ messages = [
 
 首先更新`journal()`视图功能:
 
-```
+```py
 `@journal_api_blueprint.route('/', methods=['GET'])
 @response(entries_schema)
 def journal():
@@ -660,13 +660,13 @@ def journal():
 
 添加导入:
 
-```
+```py
 `from project.models import Entry` 
 ```
 
 接下来，更新`add_journal_entry()`视图功能:
 
-```
+```py
 `@journal_api_blueprint.route('/', methods=['POST'])
 @body(new_entry_schema)
 @response(entry_schema, 201)
@@ -680,7 +680,7 @@ def add_journal_entry(kwargs):
 
 该视图功能的输入由`new_entry_schema`指定:
 
-```
+```py
 `class NewEntrySchema(ma.Schema):
     """Schema defining the attributes when creating a new journal entry."""
     entry = ma.String(required=True)
@@ -692,13 +692,13 @@ new_entry_schema = NewEntrySchema()`
 
 添加导入:
 
-```
+```py
 `from project import database` 
 ```
 
 接下来，更新`get_journal_entry()`:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['GET'])
 @response(entry_schema)
 @other_responses({404: 'Entry not found'})
@@ -710,7 +710,7 @@ def get_journal_entry(index):
 
 该函数现在尝试查找指定的日志条目(基于`index`):
 
-```
+```py
 `entry = Entry.query.filter_by(id=index).first_or_404()` 
 ```
 
@@ -718,7 +718,7 @@ def get_journal_entry(index):
 
 接下来，更新`update_journal_entry()`:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['PUT'])
 @body(new_entry_schema)
 @response(entry_schema)
@@ -734,7 +734,7 @@ def update_journal_entry(data, index):
 
 `update_journal_entry()`视图功能现在试图检索指定的日志条目:
 
-```
+```py
 `entry = Entry.query.filter_by(id=index).first_or_404()` 
 ```
 
@@ -742,7 +742,7 @@ def update_journal_entry(data, index):
 
 最后，更新`delete_journal_entry()`:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['DELETE'])
 @other_responses({404: 'Entry not found'})
 def delete_journal_entry(index):
@@ -763,7 +763,7 @@ def delete_journal_entry(index):
 
 在 Flask 项目中，这可以通过使用自定义错误处理程序来完成。在 *project/__init__。py* ，在文件底部定义一个新函数(`register_error_handlers()`):
 
-```
+```py
 `def register_error_handlers(app):
     @app.errorhandler(HTTPException)
     def handle_http_exception(e):
@@ -784,13 +784,13 @@ def delete_journal_entry(index):
 
 添加导入:
 
-```
+```py
 `from werkzeug.exceptions import HTTPException` 
 ```
 
 另外，更新应用程序工厂函数`create_app()`，以调用这个新函数:
 
-```
+```py
 `def create_app():
     # Create the Flask application
     app = Flask(__name__)
@@ -834,7 +834,7 @@ APIFairy 利用 [Flask-HTTPAuth](https://flask-httpauth.readthedocs.io/) 进行�
 
 首先为基本身份验证和令牌身份验证创建单独的对象:
 
-```
+```py
 `...
 
 import os
@@ -868,7 +868,7 @@ token_auth = HTTPTokenAuth()  # NEW!!
 
 在 *project/models.py* 中，需要创建一个新的`User`模型来代表一个用户:
 
-```
+```py
 `class User(database.Model):
     __tablename__ = 'users'
 
@@ -914,7 +914,7 @@ token_auth = HTTPTokenAuth()  # NEW!!
 
 添加导入:
 
-```
+```py
 `import secrets
 from datetime import datetime, timedelta
 
@@ -927,7 +927,7 @@ from werkzeug.security import check_password_hash, generate_password_hash`
 
 `User`模型使用`secrets`为特定用户生成认证令牌。该令牌在`generate_auth_token()`方法中创建，包含未来 60 分钟的到期日期/时间:
 
-```
+```py
 `def generate_auth_token(self):
     self.auth_token = secrets.token_urlsafe()
     self.auth_token_expiration = datetime.utcnow() + timedelta(minutes=60)
@@ -936,7 +936,7 @@ from werkzeug.security import check_password_hash, generate_password_hash`
 
 有一个静态方法`verify_auth_token()`，用于验证身份验证令牌(同时考虑到期时间)并从有效令牌返回用户:
 
-```
+```py
 `@staticmethod
 def verify_auth_token(auth_token):
     user = User.query.filter_by(auth_token=auth_token).first()
@@ -946,7 +946,7 @@ def verify_auth_token(auth_token):
 
 另一个有趣的方法是`revoke_auth_token()`，它用于撤销特定用户的认证令牌:
 
-```
+```py
 `def revoke_auth_token(self):
     self.auth_token_expiration = datetime.utcnow()` 
 ```
@@ -955,7 +955,7 @@ def verify_auth_token(auth_token):
 
 为了在用户(“一”)和他们的条目(“多”)之间建立一对多的关系，需要更新`Entry`模型以将`entries`和`users`表链接在一起:
 
-```
+```py
 `class Entry(database.Model):
     """Class that represents a journal entry."""
     __tablename__ = 'entries'
@@ -976,7 +976,7 @@ def verify_auth_token(auth_token):
 
 `User`模型已经包含了返回到`entries`表的链接:
 
-```
+```py
 `entries = database.relationship('Entry', backref='user', lazy='dynamic')` 
 ```
 
@@ -986,7 +986,7 @@ Flask 项目的用户管理功能将在名为`users_api_blueprint`的单独蓝�
 
 首先在“project”中创建一个名为“users_api”的新目录。在该目录中创建一个 *__init__。py* 文件:
 
-```
+```py
 `from flask import Blueprint
 
 users_api_blueprint = Blueprint('users_api', __name__)
@@ -996,7 +996,7 @@ from . import authentication, routes`
 
 这个新蓝图需要在*项目/__init__ 中用烧瓶`app`注册。`register_blueprints()`功能内的 py* :
 
-```
+```py
 `def register_blueprints(app):
     # Import the blueprints
     from project.journal_api import journal_api_blueprint
@@ -1016,7 +1016,7 @@ from . import authentication, routes`
 
 对于基本身份验证(检查用户的电子邮件和密码):
 
-```
+```py
 `from werkzeug.exceptions import Forbidden, Unauthorized
 
 from project import basic_auth, token_auth
@@ -1047,7 +1047,7 @@ def basic_auth_error(status=401):
 
 对于令牌身份验证(处理令牌以确定用户是否有效):
 
-```
+```py
 `@token_auth.verify_token
 def verify_token(auth_token):
     return User.verify_auth_token(auth_token)
@@ -1075,7 +1075,7 @@ def token_auth_error(status=401):
 
 首先，需要在*projects/users _ API/routes . py*中定义一组新的模式(使用 marshmallow):
 
-```
+```py
 `from project import ma
 
 from . import users_api_blueprint
@@ -1109,7 +1109,7 @@ token_schema = TokenSchema()`
 
 接下来，定义注册新用户的视图函数:
 
-```
+```py
 `@users_api_blueprint.route('/', methods=['POST'])
 @body(new_user_schema)
 @response(user_schema, 201)
@@ -1123,7 +1123,7 @@ def register(kwargs):
 
 添加导入:
 
-```
+```py
 `from apifairy import authenticate, body, other_responses, response
 
 from project import basic_auth, database, ma
@@ -1136,7 +1136,7 @@ from project.models import User`
 
 然后，电子邮件和密码(定义为`kwargs` -关键字参数)被解包以创建一个新的`User`对象，该对象被保存到数据库:
 
-```
+```py
 `new_user = User(**kwargs)
 database.session.add(new_user)
 database.session.commit()` 
@@ -1148,7 +1148,7 @@ API 端点的输出由`user_schema`定义，它是新用户的 ID 和电子邮�
 
 在*projects/users _ API/routes . py*中定义的另一个视图函数用于检索认证令牌:
 
-```
+```py
 `@users_api_blueprint.route('/get-auth-token', methods=['POST'])
 @authenticate(basic_auth)
 @response(token_schema)
@@ -1164,13 +1164,13 @@ def get_auth_token():
 
 在本教程中第一次使用了`@authenticate` decorator，它指定了应该使用基本认证来保护这条路线:
 
-```
+```py
 `@authenticate(basic_auth)` 
 ```
 
 当用户想要检索他们的身份验证令牌时，他们需要向这个 API 端点发送 POST 请求，并在“Authorization”头中嵌入电子邮件和密码。例如，可以对这个 API 端点使用以下使用 [Requests](https://requests.readthedocs.io/en/latest/user/authentication/#basic-authentication) 包的 Python 命令:
 
-```
+```py
 `>>> import requests
 >>> r = requests.post(
     'http://127.0.0.1:5000/users/get-auth-token',
@@ -1180,13 +1180,13 @@ def get_auth_token():
 
 如果基本认证成功，view 函数使用 Flask-HTTPAuth 提供的`current_user()`方法检索当前用户:
 
-```
+```py
 `user = basic_auth.current_user()` 
 ```
 
 将为该用户创建一个新的身份验证令牌:
 
-```
+```py
 `token = user.generate_auth_token()` 
 ```
 
@@ -1202,7 +1202,7 @@ def get_auth_token():
 
 首先，更新`journal()`以便只返回当前用户的日志条目:
 
-```
+```py
 `@journal_api_blueprint.route('/', methods=['GET'])
 @authenticate(token_auth)
 @response(entries_schema)
@@ -1214,7 +1214,7 @@ def journal():
 
 像这样更新顶部的导入:
 
-```
+```py
 `from apifairy import authenticate, body, other_responses, response
 from flask import abort
 
@@ -1226,7 +1226,7 @@ from . import journal_api_blueprint`
 
 `@authenticate` decorator 指定在访问这个 API 端点时需要使用令牌认证。例如，下面的 GET 请求可以使用 Requests ( *在认证令牌被检索之后*):
 
-```
+```py
 `>>> import requests
 >>> headers = {'Authorization': f'Bearer {auth_token}'}
 >>> r = requests.get('http://127.0.0.1:5000/journal/', headers=headers)` 
@@ -1234,7 +1234,7 @@ from . import journal_api_blueprint`
 
 用户通过身份验证后，将根据用户 ID 从数据库中检索日志条目的完整列表:
 
-```
+```py
 `user = token_auth.current_user()
 return Entry.query.filter_by(user_id=user.id).all()` 
 ```
@@ -1243,7 +1243,7 @@ return Entry.query.filter_by(user_id=user.id).all()`
 
 接下来，更新`add_journal_entry()`:
 
-```
+```py
 `@journal_api_blueprint.route('/', methods=['POST'])
 @authenticate(token_auth)
 @body(new_entry_schema)
@@ -1259,7 +1259,7 @@ def add_journal_entry(kwargs):
 
 与前面的视图函数一样，`@authenticate`装饰器用于指定在访问这个 API 端点时需要使用令牌认证。此外，现在通过指定应该与日记条目相关联的用户 ID 来添加日记条目:
 
-```
+```py
 `user = token_auth.current_user()
 new_message = Entry(user_id=user.id, **kwargs)` 
 ```
@@ -1268,7 +1268,7 @@ new_message = Entry(user_id=user.id, **kwargs)`
 
 接下来，更新`get_journal_entry()`:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['GET'])
 @authenticate(token_auth)
 @response(entry_schema)
@@ -1287,14 +1287,14 @@ def get_journal_entry(index):
 
 当试图检索一个日志条目时，需要进行额外的检查，以确保试图访问该日志条目的用户是该条目的实际“所有者”。如果没有，那么通过函数`abort()`从 Flask 返回一个 403(禁止)错误代码:
 
-```
+```py
 `if entry.user_id != user.id:
         abort(403)` 
 ```
 
 注意，这个 API 端点有两个由`@other_responses`装饰器指定的异常响应:
 
-```
+```py
 `@other_responses({403: 'Forbidden', 404: 'Entry not found'})` 
 ```
 
@@ -1302,7 +1302,7 @@ def get_journal_entry(index):
 
 接下来，更新`update_journal_entry()`:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['PUT'])
 @authenticate(token_auth)
 @body(new_entry_schema)
@@ -1329,7 +1329,7 @@ def update_journal_entry(data, index):
 
 最后，更新`delete_journal_entry()`:
 
-```
+```py
 `@journal_api_blueprint.route('/<int:index>', methods=['DELETE'])
 @authenticate(token_auth)
 @other_responses({403: 'Forbidden', 404: 'Entry not found'})

@@ -8,7 +8,7 @@
 
 假设您使用 Redis 作为您的消息代理，您的 Docker 编写配置将类似于:
 
-```
+```py
 `version:  '3.7' services: redis: image:  redis expose: -  6379 worker: build: context:  . dockerfile:  Dockerfile command:  ['celery',  '-A',  'app.app',  'worker',  '-l',  'info'] environment: -  BROKER_URL=redis://redis:6379 -  RESULT_BACKEND=redis://redis:6379 depends_on: -  redis flower: image:  mher/flower:0.9.7 command:  ['flower',  '--broker=redis://redis:6379',  '--port=5555'] ports: -  5557:5555 depends_on: -  redis` 
 ```
 
@@ -22,7 +22,7 @@
 
 *app.py* :
 
-```
+```py
 `import os
 
 from celery import Celery
@@ -39,7 +39,7 @@ def add(x, y):
 
 *芹菜 _ 配置. py* :
 
-```
+```py
 `from os import environ
 
 broker_url = environ['BROKER_URL']
@@ -48,7 +48,7 @@ result_backend = environ['RESULT_BACKEND']`
 
 *Dockerfile* :
 
-```
+```py
 `FROM  python:3.10
 
 WORKDIR  /usr/src/app
@@ -61,7 +61,7 @@ COPY  celery_config.py .`
 
 快速测试:
 
-```
+```py
 `$ docker-compose build
 $ docker-compose up -d --build
 $ docker-compose exec worker python
@@ -81,19 +81,19 @@ $ docker-compose exec worker python
 
 要在 [Nginx](https://www.nginx.com) 之后运行 flower，首先将 Nginx 添加到 Docker Compose 配置中:
 
-```
+```py
 `version:  '3.7' services: redis: image:  redis expose: -  6379 worker: build: context:  . dockerfile:  Dockerfile command:  ['celery',  '-A',  'app.app',  'worker',  '-l',  'info'] environment: -  BROKER_URL=redis://redis:6379 -  RESULT_BACKEND=redis://redis:6379 depends_on: -  redis flower: image:  mher/flower:0.9.7 command:  ['flower',  '--broker=redis://redis:6379',  '--port=5555'] expose:  # new -  5555 depends_on: -  redis # new nginx: image:  nginx:latest volumes: -  ./nginx.conf:/etc/nginx/nginx.conf ports: -  80:80 depends_on: -  flower` 
 ```
 
 *engine . conf*:
 
-```
+```py
 `events  {} http  { server  { listen  80; #  server_name  your.server.url; location  /  { proxy_pass  http://flower:5555; proxy_set_header  Host  $host; proxy_redirect  off; proxy_http_version  1.1; proxy_set_header  Upgrade  $http_upgrade; proxy_set_header  Connection  "upgrade"; } } }` 
 ```
 
 快速测试:
 
-```
+```py
 `$ docker-compose down
 $ docker-compose build
 $ docker-compose up -d --build
@@ -114,19 +114,19 @@ $ docker-compose exec worker python
 
 要添加基本认证，首先创建一个 *htpasswd* 文件。例如:
 
-```
+```py
 `$ htpasswd -c htpasswd michael` 
 ```
 
 接下来，向`nginx`服务添加另一个卷，以将 *htpasswd* 从主机挂载到 */etc/nginx/。容器中的 htpasswd* :
 
-```
+```py
 `nginx: image:  nginx:latest volumes: -  ./nginx.conf:/etc/nginx/nginx.conf -  ./htpasswd:/etc/nginx/.htpasswd  # new ports: -  80:80 depends_on: -  flower` 
 ```
 
 最后，为了保护“/”路由，将 [auth_basic](http://nginx.org/en/docs/http/ngx_http_auth_basic_module.html#auth_basic) 和 [auth_basic_user_file](http://nginx.org/en/docs/http/ngx_http_auth_basic_module.html#auth_basic_user_file) 指令添加到位置块:
 
-```
+```py
 `events  {} http  { server  { listen  80; #  server_name  your.server.url; location  /  { proxy_pass  http://flower:5555; proxy_set_header  Host  $host; proxy_redirect  off; proxy_http_version  1.1; proxy_set_header  Upgrade  $http_upgrade; proxy_set_header  Connection  "upgrade"; auth_basic  "Restricted"; auth_basic_user_file  /etc/nginx/.htpasswd; } } }` 
 ```
 
@@ -134,7 +134,7 @@ $ docker-compose exec worker python
 
 最终测试:
 
-```
+```py
 `$ docker-compose down
 $ docker-compose build
 $ docker-compose up -d --build

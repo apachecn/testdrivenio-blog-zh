@@ -33,7 +33,7 @@
 
 首先创建一个新目录，并建立一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-coinbase && cd django-coinbase
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -44,13 +44,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`payments`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp payments` 
 ```
 
 在`INSTALLED_APPS`下的 *core/settings.py* 中注册 app:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -66,7 +66,7 @@ INSTALLED_APPS = [
 
 向 *payments/views.py* 添加一个名为`home_view`的简单功能视图:
 
-```
+```py
 `# payments/views.py
 
 from django.shortcuts import render
@@ -77,7 +77,7 @@ def home_view(request):
 
 在`payments` app 里面创建一个 *urls.py* 文件:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -91,7 +91,7 @@ urlpatterns = [
 
 使用`payments`应用程序更新项目级 URL 文件:
 
-```
+```py
 `# core/urls.py
 
 from django.contrib import admin
@@ -105,14 +105,14 @@ urlpatterns = [
 
 为主页创建一个专用的“模板”文件夹和一个文件:
 
-```
+```py
 `(env)$ mkdir templates
 (env)$ touch templates/home.html` 
 ```
 
 然后，将以下 HTML 添加到 *templates/home.html* :
 
-```
+```py
 `<!-- templates/home.html -->
 
 <!DOCTYPE html>
@@ -134,7 +134,7 @@ urlpatterns = [
 
 确保更新 settings.py 文件，以便 Django 知道要查找“templates”文件夹:
 
-```
+```py
 `# core/settings.py
 
 TEMPLATES = [
@@ -146,7 +146,7 @@ TEMPLATES = [
 
 最后运行`migrate`来同步数据库，运行`runserver`来启动 Django 的本地 web 服务器:
 
-```
+```py
 `(env)$ python manage.py migrate
 (env)$ python manage.py runserver` 
 ```
@@ -159,7 +159,7 @@ TEMPLATES = [
 
 接下来，安装`coinbase-commerce`:
 
-```
+```py
 `(env)$ pip install coinbase-commerce==1.0.1` 
 ```
 
@@ -169,7 +169,7 @@ TEMPLATES = [
 
 然后将密钥添加到 *settings.py* 文件中:
 
-```
+```py
 `# core/settings.py
 
 COINBASE_COMMERCE_API_KEY = '<your coinbase api key here>'` 
@@ -177,20 +177,20 @@ COINBASE_COMMERCE_API_KEY = '<your coinbase api key here>'`
 
 在进入下一步之前，让我们测试一下是否可以从 API 中检索数据。使用以下命令输入 Python shell:
 
-```
+```py
 `(env)$ python manage.py shell` 
 ```
 
 导入以下内容:
 
-```
+```py
 `>>> from core import settings
 >>> from coinbase_commerce.client import Client` 
 ```
 
 初始化新客户端并列出费用:
 
-```
+```py
 `>>> client = Client(api_key=settings.COINBASE_COMMERCE_API_KEY)
 >>> for charge in client.charge.list_paging_iter():
 ...     print("{!r}".format(charge))` 
@@ -198,7 +198,7 @@ COINBASE_COMMERCE_API_KEY = '<your coinbase api key here>'`
 
 如果一切正常，`client.charge.list_paging_iter()`应该是一个空列表。只要您没有看到以下错误，就可以认为一切正常:
 
-```
+```py
 `coinbase_commerce.error.AuthenticationError: Request id 10780b77-1021-4b09-b53b-a590ea044380: No such API key.` 
 ```
 
@@ -226,7 +226,7 @@ COINBASE_COMMERCE_API_KEY = '<your coinbase api key here>'`
 
 将`home_view`更新为[创建费用](https://commerce.coinbase.com/docs/api/#create-a-charge):
 
-```
+```py
 `# payments/views.py
 
 from coinbase_commerce.client import Client
@@ -259,7 +259,7 @@ def home_view(request):
 
 我们现在可以访问 *templates/home.html* 中的费用信息。像这样更新模板:
 
-```
+```py
 `<!-- templates/home.html -->
 
 <!DOCTYPE html>
@@ -295,7 +295,7 @@ def home_view(request):
 
 运行开发服务器:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
@@ -311,7 +311,7 @@ def home_view(request):
 
 在 *payments/views.py* 中创建两个新视图:
 
-```
+```py
 `# payments/views.py
 
 def success_view(request):
@@ -323,7 +323,7 @@ def cancel_view(request):
 
 在 *payments/urls.py* 中注册新视图:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -339,7 +339,7 @@ urlpatterns = [
 
 以及 *templates/success.html* :
 
-```
+```py
 `<!-- templates/success.html -->
 
 <!DOCTYPE html>
@@ -361,7 +361,7 @@ urlpatterns = [
 
 以及 *templates/cancel.html* :
 
-```
+```py
 `<!-- templates/cancel.html -->
 
 <!DOCTYPE html>
@@ -440,19 +440,19 @@ urlpatterns = [
 
 永久链接应该是这样的:
 
-```
+```py
 `https://commerce.coinbase.com/checkout/df2d7c68-145e-4537-86fa-1cac705eb748` 
 ```
 
 我们只对 URL 的最后一段感兴趣，它表示结账 ID:
 
-```
+```py
 `df2d7c68-145e-4537-86fa-1cac705eb748` 
 ```
 
 将它保存在 *core/settings.py* 文件中，如下所示:
 
-```
+```py
 `# core/settings.py
 
 COINBASE_CHECKOUT_ID = '<your checkout id>'` 
@@ -460,7 +460,7 @@ COINBASE_CHECKOUT_ID = '<your checkout id>'`
 
 更新*支付/查看. py* :
 
-```
+```py
 `# payments/views.py
 
 from coinbase_commerce.client import Client
@@ -490,7 +490,7 @@ def home_view(request):
 
 更新 *templates/home.html* :
 
-```
+```py
 `<!-- templates/home.html -->
 
 <!DOCTYPE html>
@@ -569,7 +569,7 @@ def home_view(request):
 
 在 *payments/views.py* 中创建`coinbase_webhook`视图:
 
-```
+```py
 `# payments/views.py
 
 @csrf_exempt
@@ -602,7 +602,7 @@ def coinbase_webhook(request):
 
 更新导入:
 
-```
+```py
 `import logging
 
 from coinbase_commerce.client import Client
@@ -620,7 +620,7 @@ from core import settings`
 
 在 *payments/urls.py* 中注册网址:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -652,7 +652,7 @@ urlpatterns = [
 
 要使用收费 API 识别用户，首先将以下内容添加到`home_view`内的`product`字典中:
 
-```
+```py
 `# payments/views.py
 
 product = {
@@ -669,7 +669,7 @@ product = {
 
 您现在可以像这样访问`coinbase_webhook`视图中的元数据:
 
-```
+```py
 `# payments/views.py
 
 @csrf_exempt
@@ -708,7 +708,7 @@ def coinbase_webhook(request):
 
 例如:
 
-```
+```py
 `<div>
   <!-- Coinbase hosted approach (script not required) -->
   <a
@@ -730,7 +730,7 @@ def coinbase_webhook(request):
 
 然后，您可以在`coinbase_webhook`视图中检索元数据，如下所示:
 
-```
+```py
 `# payments/views.py
 
 @csrf_exempt
@@ -780,7 +780,7 @@ def coinbase_webhook(request):
 
 将共享密钥添加到 *settings.py* 文件中，如下所示:
 
-```
+```py
 `# core/settings.py
 
 COINBASE_COMMERCE_WEBHOOK_SHARED_SECRET = '<your coinbase webhook secret here>'` 

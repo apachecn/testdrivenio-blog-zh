@@ -25,14 +25,14 @@ Django 提供了现成的多语言支持。事实上，《姜戈》被翻译成 
 
 首先，从 [django-lang](https://github.com/Samuel-2626/django-lang) repo 中克隆出 [base](https://github.com/Samuel-2626/django-lang/tree/base) 分支:
 
-```
+```py
 `$ git clone https://github.com/Samuel-2626/django-lang --branch base --single-branch
 $ cd django-lang` 
 ```
 
 接下来，创建并激活虚拟环境，安装项目的依赖项，应用迁移，并创建超级用户:
 
-```
+```py
 `$ python3.9 -m venv env
 $ source env/bin/activate
 
@@ -46,7 +46,7 @@ $ source env/bin/activate
 
 注意 *course/models.py* 中的`Course`型号:
 
-```
+```py
 `from django.db import models
 
 class Course(models.Model):
@@ -61,7 +61,7 @@ class Course(models.Model):
 
 运行以下管理命令，向数据库添加一些数据:
 
-```
+```py
 `$ python manage.py add_courses` 
 ```
 
@@ -84,7 +84,7 @@ class Course(models.Model):
 
 在 macOS 上，建议使用[自制](https://brew.sh/):
 
-```
+```py
 `$ brew install gettext
 $ brew link --force gettext` 
 ```
@@ -97,7 +97,7 @@ $ brew link --force gettext`
 
 Django 在 *settings.py* 文件中提供了一些默认的国际化设置:
 
-```
+```py
 `# Internationalization
 # https://docs.djangoproject.com/en/3.1/topics/i18n/
 
@@ -120,7 +120,7 @@ USE_TZ = True`
 
 记下其余的设置:
 
-```
+```py
 `TIME_ZONE = 'UTC'
 
 USE_L10N = True
@@ -136,7 +136,7 @@ USE_TZ = True`
 
 让我们添加一些附加设置来补充现有设置:
 
-```
+```py
 `from django.utils.translation import gettext_lazy as _
 
 LANGUAGES = (
@@ -154,7 +154,7 @@ LANGUAGES = (
 
 将`django.middleware.locale.LocaleMiddleware`添加到`MIDDLEWARE`设置列表中。这个中间件应该在`SessionMiddleware`之后，因为`LocaleMiddleware`需要使用会话数据。它也应该放在`CommonMiddleware`之前，因为`CommonMiddleware`需要活动语言来解析被请求的 URL。因此，顺序非常重要。
 
-```
+```py
 `MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -171,7 +171,7 @@ LANGUAGES = (
 
 为您的应用程序添加消息文件将驻留的区域设置路径目录:
 
-```
+```py
 `LOCALE_PATHS = [
     BASE_DIR / 'locale/',
 ]` 
@@ -181,7 +181,7 @@ Django 查看翻译文件的 [LOCALE_PATHS](https://docs.djangoproject.com/en/3.
 
 您需要在根项目中创建“locale”目录，并为每种语言添加一个新文件夹:
 
-```
+```py
 `locale
 ├── en
 ├── es
@@ -190,13 +190,13 @@ Django 查看翻译文件的 [LOCALE_PATHS](https://docs.djangoproject.com/en/3.
 
 打开 shell 并从项目目录运行以下命令来创建一个*。每种语言的 po* 消息文件:
 
-```
+```py
 `(env)$ django-admin makemessages --all --ignore=env` 
 ```
 
 您现在应该已经:
 
-```
+```py
 `locale
 ├── en
 │   └── LC_MESSAGES
@@ -218,7 +218,7 @@ Django 查看翻译文件的 [LOCALE_PATHS](https://docs.djangoproject.com/en/3.
 
 对于本教程，请进行以下更改:
 
-```
+```py
 `# locale/fr/LC_MESSAGES/django.po
 
 msgid "English"
@@ -248,13 +248,13 @@ Poedit 示例:
 
 接下来，让我们通过运行以下命令来编译消息:
 
-```
+```py
 `(env)$ django-admin compilemessages --ignore=env` 
 ```
 
 一个*。已经为每种语言生成了 mo* 编译消息文件；
 
-```
+```py
 `locale
 ├── en
 │   └── LC_MESSAGES
@@ -288,7 +288,7 @@ Poedit 示例:
 
 像这样编辑 *course/models.py* 文件:
 
-```
+```py
 `from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -302,13 +302,13 @@ class Course(models.Model):
         return self.title` 
 ```
 
-```
+```py
 `(env)$ django-admin makemessages --all --ignore=env` 
 ```
 
 随意手动或使用 Poedit 界面更新法语和西班牙语的`msgstr`翻译，然后编译消息
 
-```
+```py
 `(env)$ django-admin compilemessages --ignore=env` 
 ```
 
@@ -316,7 +316,7 @@ class Course(models.Model):
 
 例如:
 
-```
+```py
 `from django import forms
 from django.utils.translation import gettext_lazy as _
 
@@ -334,19 +334,19 @@ class ExampleForm(forms.Form):
 
 更新*course/templates/index . html*文件中的以下元素以查看其运行情况:
 
-```
+```py
 `<h1>{% trans "TestDriven.io Courses" %}</h1>` 
 ```
 
 不要忘记在文件的顶部添加`{% load i18n %}`。
 
-```
+```py
 `(env)$ django-admin makemessages --all --ignore=env` 
 ```
 
 更新以下`msgstr`翻译:
 
-```
+```py
 `# locale/fr/LC_MESSAGES/django.po
 
 msgid "TestDriven.io Courses"
@@ -360,7 +360,7 @@ msgstr "Cursos de TestDriven.io"`
 
 编译消息:
 
-```
+```py
 `(env)$ django-admin compilemessages --ignore=env` 
 ```
 
@@ -370,7 +370,7 @@ msgstr "Cursos de TestDriven.io"`
 
 Rosetta 已经作为依赖项的一部分安装；因此，您只需将它添加到您已安装的应用程序中:
 
-```
+```py
 `INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -385,7 +385,7 @@ Rosetta 已经作为依赖项的一部分安装；因此，您只需将它添加
 
 您还需要将 Rosetta 的 URL 添加到主 URL 配置中的 *django_lang/urls.py* :
 
-```
+```py
 `urlpatterns = [
     path('admin/', admin.site.urls),
     path('rosetta/', include('rosetta.urls')),  # NEW
@@ -395,7 +395,7 @@ Rosetta 已经作为依赖项的一部分安装；因此，您只需将它添加
 
 创建并应用迁移，然后运行服务器:
 
-```
+```py
 `(env)$ python manage.py makemigrations
 (env)$ python manage.py migrate
 (env)$ python manage.py runserver` 
@@ -419,7 +419,7 @@ Rosetta 已经作为依赖项的一部分安装；因此，您只需将它添加
 
 接下来，将`i18n_patterns`函数添加到 *django_lang/urls.py* :
 
-```
+```py
 `from django.conf.urls.i18n import i18n_patterns
 from django.contrib import admin
 from django.urls import path, include
@@ -446,7 +446,7 @@ django-parler 将为每个包含翻译的模型创建一个单独的数据库表
 
 django-parler 已经作为依赖项的一部分安装，所以只需将其添加到您已安装的应用程序中:
 
-```
+```py
 `INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -462,7 +462,7 @@ django-parler 已经作为依赖项的一部分安装，所以只需将其添加
 
 另外，将以下代码添加到您的设置中:
 
-```
+```py
 `PARLER_LANGUAGES = {
     None: (
         {'code': 'en',}, # English
@@ -487,7 +487,7 @@ django-parler 已经作为依赖项的一部分安装，所以只需将其添加
 
 再次更新 *course/models.py* 如下所示:
 
-```
+```py
 `from django.db import models
 from parler.models import TranslatableModel, TranslatedFields
 
@@ -505,19 +505,19 @@ class Course(TranslatableModel):
 
 接下来，创建迁移:
 
-```
+```py
 `(env)$ python manage.py makemigrations` 
 ```
 
 继续之前，替换新创建的迁移文件中的以下行:
 
-```
+```py
 `bases=(parler.models.TranslatedFieldsModelMixin, models.Model),` 
 ```
 
 用下面的一个:
 
-```
+```py
 `bases = (parler.models.TranslatableModel, models.Model)` 
 ```
 
@@ -525,7 +525,7 @@ class Course(TranslatableModel):
 
 接下来，应用迁移:
 
-```
+```py
 `(env)$ python manage.py migrate` 
 ```
 
@@ -533,7 +533,7 @@ django_parler 的一个令人惊叹的特性是它可以与 django 管理站点�
 
 编辑 *course/admin.py* 如下:
 
-```
+```py
 `from django.contrib import admin
 from parler.admin import TranslatableAdmin
 
@@ -544,7 +544,7 @@ admin.site.register(Course, TranslatableAdmin)`
 
 运行以下管理命令，再次向数据库添加一些数据:
 
-```
+```py
 `(env)$ python manage.py add_courses` 
 ```
 
@@ -560,7 +560,7 @@ admin.site.register(Course, TranslatableAdmin)`
 
 更新*index.html*文件是这样的:
 
-```
+```py
 `{% load i18n %}
 
 <!DOCTYPE html>

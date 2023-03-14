@@ -84,7 +84,7 @@ Docker 文件用于创建 Docker 图像，然后用于创建(多个)Docker 容�
 
 下面是一个非常简单的 Dockerfile 文件的例子:
 
-```
+```py
 `FROM  python:3.10-slim-buster
 
 WORKDIR  /usr/src/app
@@ -109,7 +109,7 @@ Dockerfile 本质上是一个由以下形式的[命令](https://docs.docker.com/
 
 所有 docker 文件都包含一个父映像/基础映像，新映像将在此基础上构建。您使用来自指令的[来定义父图像:](https://docs.docker.com/engine/reference/builder/#from)
 
-```
+```py
 `FROM  python:3.10-slim-buster` 
 ```
 
@@ -138,7 +138,7 @@ Dockerfile 本质上是一个由以下形式的[命令](https://docs.docker.com/
 
 示例:
 
-```
+```py
 `RUN  mkdir /home/app/web
 
 RUN  python manage.py collectstatic --noinput` 
@@ -150,7 +150,7 @@ RUN  python manage.py collectstatic --noinput`
 
 示例:
 
-```
+```py
 `ENV  TZ=UTC
 
 ENV  HOME=/home/app` 
@@ -179,7 +179,7 @@ ENV  HOME=/home/app`
 
 `CMD`指令使用示例:
 
-```
+```py
 `CMD  gunicorn core.wsgi:application --bind 0.0.0.0:$PORT` 
 ```
 
@@ -187,13 +187,13 @@ ENV  HOME=/home/app`
 
 `ENTRYPOINT`作为可执行文件使用的例子:
 
-```
+```py
 `ENTRYPOINT ["./entrypoint.sh"]` 
 ```
 
 这就是 *entrypoint.sh* 文件的样子:
 
-```
+```py
 `#!/bin/sh
 
 python manage.py migrate
@@ -208,7 +208,7 @@ python manage.py collectstatic --noinput`
 
 这两条指令都将新文件或目录从<src>路径复制到位于<dest>路径的镜像文件系统:</dest></src>
 
-```
+```py
 `ADD  <src> <dest>
 COPY  <src> <dest>` 
 ```
@@ -219,7 +219,7 @@ COPY  <src> <dest>`
 
 `ADD`和`COPY`指令用法示例:
 
-```
+```py
 `# copy local files on the host to the destination
 COPY  /source/path  /destination/path
 COPY  ./requirements.txt .
@@ -266,7 +266,7 @@ ADD  source.file.tar.gz /destination/path`
 
 这里有一个创建三个图像的例子:一个没有使用`-t`，一个指定了名称，一个指定了名称和标签。
 
-```
+```py
 `$ docker image build .
 $ docker image build . -t hello_world
 $ docker image build . -t hello_world:67d19c27b60bd782c9d3600ae914604a94bddfd4
@@ -290,7 +290,7 @@ hello_world   latest                                     e03784993f22   26 minut
 
 示例:
 
-```
+```py
 `$ docker image ls
 
 REPOSITORY      TAG       IMAGE ID       CREATED         SIZE
@@ -317,7 +317,7 @@ todo_app        test      999740882932   3 weeks ago     1.03GB`
 
 不成功和成功的图像移除示例:
 
-```
+```py
 `$ docker image ls
 
 REPOSITORY   TAG       IMAGE ID       CREATED          SIZE
@@ -349,7 +349,7 @@ test         latest    4659ba97837b   4 minutes ago   245MB`
 
 示例:
 
-```
+```py
 `$ docker image prune
 
 WARNING! This will remove all dangling images.
@@ -386,7 +386,7 @@ deleted: sha256:1934187bf17ccf4e754842a4ceeacf5c14aaa63ba7a04c0c520f53946426c902
 
 因此，下面的内容基本上给出了相同的结果:
 
-```
+```py
 `$ docker container run my_image
 
 # the same as:
@@ -406,7 +406,7 @@ $ docker container start 88ce9c60aeabbb970012b5f8dbae6f34581fa61ec20bd6d87c6831f
 
 下面是一个例子:
 
-```
+```py
 `$ docker container run -p 8000:8000 my_image` 
 ```
 
@@ -416,7 +416,7 @@ $ docker container start 88ce9c60aeabbb970012b5f8dbae6f34581fa61ec20bd6d87c6831f
 
 如果在分离模式下运行容器，Docker 将只返回容器 ID:
 
-```
+```py
 `$ docker container run -p 8000:8000 -d my_image
 
 0eb20b715f42bc5a053dc7878b3312c761058a25fc1efaffb7920b3b4e48df03` 
@@ -424,7 +424,7 @@ $ docker container start 88ce9c60aeabbb970012b5f8dbae6f34581fa61ec20bd6d87c6831f
 
 默认情况下，您的容器有一个独特、古怪的名称，但是您可以指定自己的名称:
 
-```
+```py
 `$ docker container run -p 8000:8000 --name my_great_container my_image` 
 ```
 
@@ -436,7 +436,7 @@ $ docker container start 88ce9c60aeabbb970012b5f8dbae6f34581fa61ec20bd6d87c6831f
 
 示例:
 
-```
+```py
 `$ docker container start -a reverent_sammet` 
 ```
 
@@ -446,7 +446,7 @@ $ docker container start 88ce9c60aeabbb970012b5f8dbae6f34581fa61ec20bd6d87c6831f
 
 示例:
 
-```
+```py
 `$ docker container ls
 
 CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                    NAMES
@@ -456,7 +456,7 @@ CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS   
 
 如果您还想查看停止的集装箱，您可以添加`-a`标志:
 
-```
+```py
 `$ docker container ls -a
 
 CONTAINER ID   IMAGE          COMMAND                  CREATED              STATUS                     PORTS                    NAMES
@@ -468,7 +468,7 @@ CONTAINER ID   IMAGE          COMMAND                  CREATED              STAT
 
 让我们来看看以下各项的输出:
 
-```
+```py
 `CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                    NAMES
 73bd69d041ae   my_image       "/bin/sh -c 'uvicorn…"   2 hours ago     Up 2 hours     0.0.0.0:8000->8000/tcp   my_great_container` 
 ```
@@ -487,7 +487,7 @@ CONTAINER ID   IMAGE          COMMAND                  CREATED              STAT
 
 示例:
 
-```
+```py
 `$ docker container stop my_great_container
 my_great_container
 
@@ -506,14 +506,14 @@ $ docker container stop 73bd69d041ae
 
 `docker container rm`的例子:
 
-```
+```py
 `$ docker container rm festive_euclid
 festive_euclid` 
 ```
 
 `docker container prune`的例子:
 
-```
+```py
 `$ docker container prune
 
 WARNING! This will remove all stopped containers.

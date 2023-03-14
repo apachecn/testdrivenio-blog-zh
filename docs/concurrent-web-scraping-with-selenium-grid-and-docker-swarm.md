@@ -24,7 +24,7 @@
 
 从使用 web 抓取脚本克隆基础项目开始，创建并激活一个虚拟环境，并安装依赖项:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/selenium-grid-docker-swarm.git --branch base --single-branch
 $ cd selenium-grid-docker-swarm
 $ python3.10 -m venv env
@@ -36,13 +36,13 @@ $ source env/bin/activate
 
 测试刮刀:
 
-```
+```py
 `(env)$ python project/script.py` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `Scraping random Wikipedia page...
 [
   {
@@ -64,7 +64,7 @@ Finished!`
 
 向根目录添加一个 *docker-compose.yml* 文件:
 
-```
+```py
 `version:  '3.8' services: hub: image:  selenium/hub:4.1.3 ports: -  4442:4442 -  4443:4443 -  4444:4444 chrome: image:  selenium/node-chrome:4.1.3 depends_on: -  hub environment: -  SE_EVENT_BUS_HOST=hub -  SE_EVENT_BUS_PUBLISH_PORT=4442 -  SE_EVENT_BUS_SUBSCRIBE_PORT=4443` 
 ```
 
@@ -86,7 +86,7 @@ Finished!`
 
 由于 Selenium Hub 运行在不同的机器上(在 Docker 容器中)，我们需要在*项目/scrapers/scraper.py* 中配置远程驱动程序:
 
-```
+```py
 `def get_driver():
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
@@ -100,13 +100,13 @@ Finished!`
 
 添加导入:
 
-```
+```py
 `from selenium.webdriver.common.desired_capabilities import DesiredCapabilities` 
 ```
 
 再次运行刮刀:
 
-```
+```py
 `(env)$ python project/script.py` 
 ```
 
@@ -122,13 +122,13 @@ Finished!`
 
 将令牌作为环境变量添加:
 
-```
+```py
 `(env)$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_token]` 
 ```
 
 使用 Docker Machine 供应新的 droplet:
 
-```
+```py
 `(env)$ docker-machine create \
         --driver digitalocean \
         --digitalocean-access-token $DIGITAL_OCEAN_ACCESS_TOKEN \
@@ -143,38 +143,38 @@ Finished!`
 
 接下来，将 Docker 守护进程指向新创建的机器，并将其设置为活动机器:
 
-```
+```py
 `(env)$ docker-machine env selenium-hub
 (env)$ eval $(docker-machine env selenium-hub)` 
 ```
 
 旋转液滴上的两个容器:
 
-```
+```py
 `(env)$ docker-compose up -d` 
 ```
 
 一旦启动，获取液滴的 IP:
 
-```
+```py
 `(env)$ docker-machine ip selenium-hub` 
 ```
 
 确保 Selenium Grid 在 [http://YOUR_IP:4444](http://YOUR_IP:4444) 打开，然后更新*project/scrapers/scraper . py*中的 IP 地址:
 
-```
+```py
 `command_executor='http://YOUR_IP:4444/wd/hub',` 
 ```
 
 运行刮刀:
 
-```
+```py
 `(env)$ python project/script.py` 
 ```
 
 同样，导航到网格仪表板并确保会话处于活动状态。您应该在终端中看到以下输出:
 
-```
+```py
 `Scraping random Wikipedia page...
 [
   {
@@ -188,7 +188,7 @@ Finished!`
 
 到目前为止，我们只在维基百科上搜集了一篇文章。如果我们想抓取多篇文章呢？
 
-```
+```py
 `(env)$ for i in {1..21}; do {
           python project/script.py &
         };
@@ -208,13 +208,13 @@ Finished!`
 
 首先在当前机器上初始化 Docker Swarm:
 
-```
+```py
 `(env)$ docker swarm init --advertise-addr [YOUR_IP]` 
 ```
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `Swarm initialized: current node (mky1a6z8rjaeaeiucvzyo355l) is now a manager.
 
 To add a worker to this swarm, run the following command:
@@ -230,7 +230,7 @@ To add a manager to this swarm, run 'docker swarm join-token manager' and follow
 
 接下来，在数字海洋上旋转三个新的水滴:
 
-```
+```py
 `(env)$ for i in 1 2 3; do
             docker-machine create \
               --driver digitalocean \
@@ -245,7 +245,7 @@ To add a manager to this swarm, run 'docker swarm join-token manager' and follow
 
 然后把它们作为工人加入到蜂群中:
 
-```
+```py
 `(env)$ for i in 1 2 3; do
             docker-machine ssh node-$i \
               -- docker swarm join --token YOUR_JOIN_TOKEN;
@@ -254,7 +254,7 @@ To add a manager to this swarm, run 'docker swarm join-token manager' and follow
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `(env)$ for i in 1 2 3; do
             docker-machine ssh node-$i \
               -- docker swarm join --token SWMTKN-1-2136awhbig93jh8xunp8yp2wn0pw9i946dvmfrpi05tnpbxula-633h28mn97sxhbfn8479mmpx5 134.122.20.39:2377
@@ -266,7 +266,7 @@ This node joined a swarm as a worker.`
 
 更新 *docker-compose.yml* 文件，以 Swarm 模式部署 Selenium 网格:
 
-```
+```py
 `version:  '3.8' services: hub: image:  selenium/hub:4.1.3 ports: -  4442:4442 -  4443:4443 -  4444:4444 deploy: mode:  replicated replicas:  1 placement: constraints: -  node.role == worker chrome: image:  selenium/node-chrome:4.1.3 depends_on: -  hub environment: -  SE_EVENT_BUS_HOST=hub -  SE_EVENT_BUS_PUBLISH_PORT=4442 -  SE_EVENT_BUS_SUBSCRIBE_PORT=4443 -  NODE_MAX_SESSION=1 entrypoint:  bash -c 'SE_OPTS="--host $$HOSTNAME" /opt/bin/entry_point.sh' deploy: replicas:  1 placement: constraints: -  node.role == worker` 
 ```
 
@@ -277,13 +277,13 @@ This node joined a swarm as a worker.`
 
 这样，我们就可以部署堆栈了:
 
-```
+```py
 `(env)$ docker stack deploy --compose-file=docker-compose.yml selenium` 
 ```
 
 让我们再添加几个节点:
 
-```
+```py
 `(env)$ docker service scale selenium_chrome=5
 
 selenium_chrome scaled to 5
@@ -298,25 +298,25 @@ verify: Service converged`
 
 您可以像这样检查堆栈的状态:
 
-```
+```py
 `(env)$ docker stack ps selenium` 
 ```
 
 您还需要获得运行 hub 的机器的 IP 地址:
 
-```
+```py
 `(env)$ docker-machine ip $(docker service ps --format "{{.Node}}" selenium_hub)` 
 ```
 
 再次更新*project/scrapers/scraper . py*中的 IP 地址:
 
-```
+```py
 `command_executor='http://YOUR_IP:4444/wd/hub',` 
 ```
 
 测试一下:
 
-```
+```py
 `(env)$ for i in {1..21}; do {
           python project/script.py &
         };
@@ -336,20 +336,20 @@ verify: Service converged`
 
 要获得关于 Chrome 节点的更多信息以及每个节点的运行位置，请运行:
 
-```
+```py
 `(env)$ docker service ps selenium_chrome` 
 ```
 
 移除服务:
 
-```
+```py
 `(env)$ docker service rm selenium_chrome
 (env)$ docker service rm selenium_hub` 
 ```
 
 旋转水滴:
 
-```
+```py
 `(env)$ docker-machine rm node-1 node-2 node-3
 (env)$ docker-machine rm selenium-hub` 
 ```
@@ -360,7 +360,7 @@ verify: Service converged`
 
 *project/create.sh* :
 
-```
+```py
 `#!/bin/bash
 
 echo "Spinning up four droplets..."
@@ -397,7 +397,7 @@ docker service scale selenium_chrome=5`
 
 *project/destroy.sh* :
 
-```
+```py
 `#!/bin/bash
 
 echo "Bringing down the services"
@@ -412,7 +412,7 @@ docker-machine rm node-1 node-2 node-3 node-4 -y`
 
 更新*项目/scrapers/scraper.py* 中的`get_driver()`获取地址:
 
-```
+```py
 `def get_driver(address):
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
@@ -426,7 +426,7 @@ docker-machine rm node-1 node-2 node-3 node-4 -y`
 
 更新 *project/script.py* 中的主块:
 
-```
+```py
 `if __name__ == '__main__':
     browser = get_driver(sys.argv[1])
     data = run_process(browser)
@@ -437,13 +437,13 @@ docker-machine rm node-1 node-2 node-3 node-4 -y`
 
 考验的时候到了！
 
-```
+```py
 `(env)$ sh project/create.sh` 
 ```
 
 运行刮刀:
 
-```
+```py
 `(env)$ docker-machine env node-1
 (env)$ eval $(docker-machine env node-1)
 (env)$ NODE=$(docker service ps --format "{{.Node}}" selenium_hub)
@@ -456,7 +456,7 @@ docker-machine rm node-1 node-2 node-3 node-4 -y`
 
 完成后将资源带下来:
 
-```
+```py
 `(env)$ sh project/destroy.sh` 
 ```
 

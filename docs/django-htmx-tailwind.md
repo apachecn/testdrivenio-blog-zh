@@ -10,7 +10,7 @@ htmx 是一个库，它允许你直接从 HTML 访问现代浏览器特性，如
 
 htmx 扩展了浏览器已经内置的几个特性，比如发出 HTTP 请求和响应事件。例如，您可以使用 HTML 属性在任何 HTML 元素上发送 GET、POST、PUT、PATCH 或 DELETE 请求，而不仅仅是通过`a`和`form`元素发出 GET 和 POST 请求:
 
-```
+```py
 `<button hx-delete="/user/1">Delete</button>` 
 ```
 
@@ -42,7 +42,7 @@ htmx 扩展了浏览器已经内置的几个特性，比如发出 HTTP 请求和
 
 例如，以下面的 HTML 和 CSS 为例:
 
-```
+```py
 `<style> .hello  { height:  5px; width:  10px; background:  gray; border-width:  1px; border-radius:  3px; padding:  5px; } </style>
 
 <div class="hello">Hello World</div>` 
@@ -50,7 +50,7 @@ htmx 扩展了浏览器已经内置的几个特性，比如发出 HTTP 请求和
 
 这可以通过顺风实现，如下所示:
 
-```
+```py
 `<div class="h-1 w-2 bg-gray-600 border rounded-sm p-1">Hello World</div>` 
 ```
 
@@ -83,7 +83,7 @@ Django Compressor 是一个扩展，用于管理(压缩/缓存)Django 应用程�
 
 首先，为我们的项目创建一个新文件夹，创建并激活一个新的虚拟环境，并安装 Django 和 Django Compressor:
 
-```
+```py
 `$ mkdir django-htmx-tailwind && cd django-htmx-tailwind
 $ python3.10 -m venv venv
 $ source venv/bin/activate
@@ -94,21 +94,21 @@ $ source venv/bin/activate
 
 接下来，让我们安装 [pytailwindcss](https://github.com/timonweb/pytailwindcss) 并下载它的二进制文件:
 
-```
+```py
 `(venv)$ pip install pytailwindcss==0.1.4
 (venv)$ tailwindcss` 
 ```
 
 创建一个新的 Django 项目和一个`todos`应用:
 
-```
+```py
 `(venv)$ django-admin startproject config .
 (venv)$ python manage.py startapp todos` 
 ```
 
 将应用添加到 *config/settings.py* 中的`INSTALLED_APPS`列表:
 
-```
+```py
 `# config/settings.py
 
 INSTALLED_APPS = [
@@ -125,7 +125,7 @@ INSTALLED_APPS = [
 
 在项目的根目录下创建一个“模板”文件夹。然后，像这样更新`TEMPLATES`设置:
 
-```
+```py
 `# config/settings.py
 
 TEMPLATES = [
@@ -139,7 +139,7 @@ TEMPLATES = [
 
 让我们为`compressor`向 *config/settings.py* 添加一些配置:
 
-```
+```py
 `# config/settings.py
 
 COMPRESS_ROOT = BASE_DIR / 'static'
@@ -161,7 +161,7 @@ STATICFILES_FINDERS = ('compressor.finders.CompressorFinder',)`
 
 更新 *tailwind.config.js* 这样:
 
-```
+```py
 `module.exports  =  { content:  [ './templates/**/*.html', ], theme:  { extend:  {}, }, plugins:  [], }` 
 ```
 
@@ -169,7 +169,7 @@ STATICFILES_FINDERS = ('compressor.finders.CompressorFinder',)`
 
 接下来，在项目根目录中，创建以下文件和文件夹:
 
-```
+```py
 `static
 └── src
     └── main.css` 
@@ -177,7 +177,7 @@ STATICFILES_FINDERS = ('compressor.finders.CompressorFinder',)`
 
 然后，将以下内容添加到 *static/src/main.css* 中:
 
-```
+```py
 `/* static/src/main.css */ @tailwind  base; @tailwind  components; @tailwind  utilities;` 
 ```
 
@@ -189,7 +189,7 @@ STATICFILES_FINDERS = ('compressor.finders.CompressorFinder',)`
 
 像这样更新 *todos/views.py* 文件:
 
-```
+```py
 `# todos/views.py
 
 from django.shortcuts import render
@@ -200,7 +200,7 @@ def index(request):
 
 将视图添加到 *todos/urls.py* :
 
-```
+```py
 `# todos/urls.py
 
 from django.urls import path
@@ -214,7 +214,7 @@ urlpatterns = [
 
 然后，将`todos.urls`添加到 *config/urls.py* :
 
-```
+```py
 `# config/urls.py
 
 from django.contrib import admin
@@ -228,7 +228,7 @@ urlpatterns = [
 
 向“模板”添加一个 *_base.html* 文件:
 
-```
+```py
 `<!-- templates/_base.html -->
 
 {% load compress %}
@@ -264,7 +264,7 @@ urlpatterns = [
 
 添加一个*index.html*文件:
 
-```
+```py
 `<!-- templates/index.html -->
 
 {% extends "_base.html" %}
@@ -276,13 +276,13 @@ urlpatterns = [
 
 现在，在项目的根目录下运行以下命令，扫描模板中的类并生成一个 CSS 文件:
 
-```
+```py
 `(venv)$ tailwindcss -i ./static/src/main.css -o ./static/src/output.css --minify` 
 ```
 
 应用迁移并运行开发服务器:
 
-```
+```py
 `(venv)$ python manage.py migrate
 (venv)$ python manage.py runserver` 
 ```
@@ -301,7 +301,7 @@ urlpatterns = [
 
 现在，将实现搜索功能的视图添加到 *todos/views.py* :
 
-```
+```py
 `# todos/views.py
 
 from django.shortcuts import render
@@ -329,7 +329,7 @@ def search(request):
 
 将新创建的视图添加到 *todos/urls.py* :
 
-```
+```py
 `# todos/urls.py
 
 from django.urls import path
@@ -344,7 +344,7 @@ urlpatterns = [
 
 接下来，将新资产添加到 *_base.html* 文件中:
 
-```
+```py
 `<!-- templates/base.html -->
 
 {% load compress %}
@@ -382,7 +382,7 @@ urlpatterns = [
 
 我们还添加了以下脚本:
 
-```
+```py
 `document.body.addEventListener('htmx:configRequest',  (event)  =>  { event.detail.headers['X-CSRFToken']  =  '{{ csrf_token }}'; })` 
 ```
 
@@ -392,7 +392,7 @@ urlpatterns = [
 
 更新*index.html*文件是这样的:
 
-```
+```py
 `<!-- templates/index.html -->
 
 {% extends "_base.html" %}
@@ -428,7 +428,7 @@ urlpatterns = [
 
 让我们花点时间来看看从 htmx 定义的属性:
 
-```
+```py
 `<input
   type="text"
   name="search"
@@ -448,7 +448,7 @@ urlpatterns = [
 
 添加*模板/todo.html* 文件:
 
-```
+```py
 `<!-- templates/todo.html -->
 
 {% for todo in todos %}
@@ -475,7 +475,7 @@ urlpatterns = [
 
 生成一个新的 *src/output.css* 文件:
 
-```
+```py
 `(venv)$ tailwindcss -i ./static/src/main.css -o ./static/src/output.css --minify` 
 ```
 

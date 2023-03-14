@@ -22,7 +22,7 @@ AJAX 是一种编程实践，它使用 [XMLHttpRequest](https://developer.mozill
 
 获取 API 的一般结构如下所示:
 
-```
+```py
 `fetch('http://some_url.com') .then(response  =>  response.json())  // converts the response to JSON .then(data  =>  { console.log(data); // do something (like update the DOM with the data) });` 
 ```
 
@@ -66,7 +66,7 @@ AJAX 是一种编程实践，它使用 [XMLHttpRequest](https://developer.mozill
 
 示例:
 
-```
+```py
 `fetch(url,  { method:  "GET", headers:  { "X-Requested-With":  "XMLHttpRequest", } }) .then(response  =>  response.json()) .then(data  =>  { console.log(data); });` 
 ```
 
@@ -82,7 +82,7 @@ AJAX 是一种编程实践，它使用 [XMLHttpRequest](https://developer.mozill
 
 等效的 jQuery 代码:
 
-```
+```py
 `$.ajax({ url:  url, type:  "GET", dataType:  "json", success:  (data)  =>  { console.log(data); }, error:  (error)  =>  { console.log(error); } });` 
 ```
 
@@ -92,7 +92,7 @@ AJAX 是一种编程实践，它使用 [XMLHttpRequest](https://developer.mozill
 
 在 Django 方面，虽然有几种方法可以处理视图中的 AJAX 请求，但最简单的方法是使用基于函数的视图:
 
-```
+```py
 `from django.http import HttpResponseBadRequest, JsonResponse
 
 from todos.models import Todo
@@ -122,7 +122,7 @@ def todos(request):
 
 示例:
 
-```
+```py
 `fetch(url,  { method:  "POST", credentials:  "same-origin", headers:  { "X-Requested-With":  "XMLHttpRequest", "X-CSRFToken":  getCookie("csrftoken"), }, body:  JSON.stringify({payload:  "data to send"}) }) .then(response  =>  response.json()) .then(data  =>  { console.log(data); });` 
 ```
 
@@ -138,7 +138,7 @@ def todos(request):
 
 注意`X-CSRFToken`标题。如果没有它，您将在终端中从服务器得到 403 禁止响应:
 
-```
+```py
 `Forbidden (CSRF token missing or incorrect.): /todos/` 
 ```
 
@@ -148,7 +148,7 @@ def todos(request):
 
 Django 文档为我们提供了一个很好的[函数，允许我们获取令牌](https://docs.djangoproject.com/en/3.0/ref/csrf/#ajax)，从而简化了我们的生活:
 
-```
+```py
 `function  getCookie(name)  { let  cookieValue  =  null; if  (document.cookie  &&  document.cookie  !==  "")  { const  cookies  =  document.cookie.split(";"); for  (let  i  =  0;  i  <  cookies.length;  i++)  { const  cookie  =  cookies[i].trim(); // Does this cookie string begin with the name we want? if  (cookie.substring(0,  name.length  +  1)  ===  (name  +  "="))  { cookieValue  =  decodeURIComponent(cookie.substring(name.length  +  1)); break; } } } return  cookieValue; }` 
 ```
 
@@ -158,7 +158,7 @@ Django 文档为我们提供了一个很好的[函数，允许我们获取令牌
 
 带有 jQuery 的 AJAX POST 请求与 GET 请求非常相似:
 
-```
+```py
 `$.ajax({ url:  url, type:  "POST", dataType:  "json", data:  JSON.stringify({payload:  payload,}), headers:  { "X-Requested-With":  "XMLHttpRequest", "X-CSRFToken":  getCookie("csrftoken"),  // don't forget to include the 'getCookie' function }, success:  (data)  =>  { console.log(data); }, error:  (error)  =>  { console.log(error); } });` 
 ```
 
@@ -168,7 +168,7 @@ Django 文档为我们提供了一个很好的[函数，允许我们获取令牌
 
 在服务器端，视图需要从请求中获取 JSON 格式的数据，所以您需要使用`json`模块来加载它。
 
-```
+```py
 `import json
 
 from django.http import HttpResponseBadRequest, JsonResponse
@@ -200,7 +200,7 @@ def todos(request):
 
 示例:
 
-```
+```py
 `fetch(url,  { method:  "PUT", credentials:  "same-origin", headers:  { "X-Requested-With":  "XMLHttpRequest", "X-CSRFToken":  getCookie("csrftoken"),  // don't forget to include the 'getCookie' function }, body:  JSON.stringify({payload:  "data to send"}) }) .then(response  =>  response.json()) .then(data  =>  { console.log(data); });` 
 ```
 
@@ -215,7 +215,7 @@ def todos(request):
 
 等效 jQuery:
 
-```
+```py
 `$.ajax({ url:  url, type:  "PUT", dataType:  "json", data:  JSON.stringify({payload:  payload,}), headers:  { "X-Requested-With":  "XMLHttpRequest", "X-CSRFToken":  getCookie("csrftoken"),  // don't forget to include the 'getCookie' function }, success:  (data)  =>  { console.log(data); }, error:  (error)  =>  { console.log(error); } });` 
 ```
 
@@ -225,7 +225,7 @@ def todos(request):
 
 示例:
 
-```
+```py
 `import json
 
 from django.http import HttpResponseBadRequest, JsonResponse
@@ -262,7 +262,7 @@ def todo(request, todoId):
 
 示例:
 
-```
+```py
 `fetch(url,  { method:  "DELETE", credentials:  "same-origin", headers:  { "X-Requested-With":  "XMLHttpRequest", "X-CSRFToken":  getCookie("csrftoken"),  // don't forget to include the 'getCookie' function } }) .then(response  =>  response.json()) .then(data  =>  { console.log(data); });` 
 ```
 
@@ -272,7 +272,7 @@ def todo(request, todoId):
 
 jQuery 代码:
 
-```
+```py
 `$.ajax({ url:  url, type:  "DELETE", dataType:  "json", headers:  { "X-Requested-With":  "XMLHttpRequest", "X-CSRFToken":  getCookie("csrftoken"), }, success:  (data)  =>  { console.log(data); }, error:  (error)  =>  { console.log(error); } });` 
 ```
 
@@ -282,7 +282,7 @@ jQuery 代码:
 
 查看:
 
-```
+```py
 `from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 

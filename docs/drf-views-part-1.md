@@ -75,7 +75,7 @@ class 是您可能选择在 DRF 应用程序中使用的所有视图的基础。
 
 例如，假设您的购物清单 API 有一个`Item`类:
 
-```
+```py
 `class Item(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     name = models.CharField(max_length=100)
@@ -84,7 +84,7 @@ class 是您可能选择在 DRF 应用程序中使用的所有视图的基础。
 
 这是一个允许用户一次删除所有项目的视图:
 
-```
+```py
 `from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -99,7 +99,7 @@ class DeleteAllItems(APIView):
 
 这是一个列出所有项目的视图:
 
-```
+```py
 `from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -138,7 +138,7 @@ class ListItems(APIView):
 
 在下面的示例中，我们使用`permission_classes`和`renderer_classes`策略属性更改了权限以及响应的呈现方式:
 
-```
+```py
 `from rest_framework.permissions import IsAuthenticated
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
@@ -165,7 +165,7 @@ class ItemsNotDone(APIView):
 
 > 好奇 DRF 是如何将基于函数的视图转换成 APIView 子类的吗？
 > 
-> ```
+> ```py
 > `# https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/decorators.py#L16
 > 
 > def api_view(http_method_names=None):
@@ -184,7 +184,7 @@ class ItemsNotDone(APIView):
 
 这是一个基于函数的视图，与之前编写的基于类的视图一样，用于删除所有项目:
 
-```
+```py
 `from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -212,7 +212,7 @@ def delete_all_items(request):
 
 如果我们使用与策略属性相同的例子，我们可以像这样实现装饰器，以获得相同的结果:
 
-```
+```py
 `from rest_framework.decorators import api_view, permission_classes, renderer_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.renderers import JSONRenderer
@@ -263,7 +263,7 @@ def items_not_done(request):
 
 `APIView`类中的`dispatch`方法检查方法并根据方法名选择一个处理程序:
 
-```
+```py
 `# https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/views.py#L485
 
 class APIView(View):
@@ -289,7 +289,7 @@ class APIView(View):
 
 允许的方法在 DRF 没有定义，但取自 Django:
 
-```
+```py
 `# https://github.com/django/django/blob/stable/3.2.x/django/views/generic/base.py#L36
 
 class View:

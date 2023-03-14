@@ -78,13 +78,13 @@ Vault 有许多可移动的部分，因此可能需要一些时间来适应整�
 
 创建新的项目目录:
 
-```
+```py
 `$ mkdir vault-consul-docker && cd vault-consul-docker` 
 ```
 
 然后添加以下文件夹:
 
-```
+```py
 `└── vault
     ├── config
     ├── data
@@ -94,7 +94,7 @@ Vault 有许多可移动的部分，因此可能需要一些时间来适应整�
 
 将 *Dockerfile* 添加到“vault”目录:
 
-```
+```py
 `# base image
 FROM  alpine:3.14
 
@@ -131,13 +131,13 @@ ENTRYPOINT  ["vault"]`
 
 接下来，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `version:  '3.8' services: vault: build: context:  ./vault dockerfile:  Dockerfile ports: -  8200:8200 volumes: -  ./vault/config:/vault/config -  ./vault/policies:/vault/policies -  ./vault/data:/vault/data -  ./vault/logs:/vault/logs environment: -  VAULT_ADDR=http://127.0.0.1:8200 -  VAULT_API_ADDR=http://127.0.0.1:8200 command:  server -config=/vault/config/vault-config.json cap_add: -  IPC_LOCK` 
 ```
 
 将名为 *vault-config.json* 的配置文件添加到“vault/config”中:
 
-```
+```py
 `{ "backend":  { "file":  { "path":  "vault/data" } }, "listener":  { "tcp":{ "address":  "0.0.0.0:8200", "tls_disable":  1 } }, "ui":  true }` 
 ```
 
@@ -145,7 +145,7 @@ ENTRYPOINT  ["vault"]`
 
 现在我们可以构建图像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -153,7 +153,7 @@ ENTRYPOINT  ["vault"]`
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `Attaching to vault-consul-docker_vault_1
 vault_1  | ==> Vault server configuration:
 vault_1  |
@@ -178,13 +178,13 @@ vault_1  |`
 
 在运行的容器中启动 bash 会话:
 
-```
+```py
 `$ docker-compose exec vault bash` 
 ```
 
 在 shell 中，初始化 Vault:
 
-```
+```py
 `bash-5.1# vault operator init` 
 ```
 
@@ -194,14 +194,14 @@ vault_1  |`
 
 现在，您可以使用以下三个密钥解封保险库:
 
-```
+```py
 `bash-5.1# vault operator unseal
 Unseal Key (will be hidden):` 
 ```
 
 运行这个命令两次以上，每次使用不同的密钥。一旦完成，确保`Sealed`是`false`:
 
-```
+```py
 `Key             Value
 ---             -----
 Seal Type       shamir
@@ -218,14 +218,14 @@ HA Enabled      false`
 
 使用根令牌，您现在可以进行身份验证:
 
-```
+```py
 `bash-5.1# vault login
 Token (will be hidden):` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `Success! You are now authenticated. The token information displayed below
 is already stored in the token helper. You do NOT need to run "vault login"
 again. Future Vault requests will automatically use this token.
@@ -251,7 +251,7 @@ policies             ["root"]`
 
 在我们测试功能之前，让我们启用一个[审计设备](https://www.vaultproject.io/docs/audit):
 
-```
+```py
 `bash-5.1# vault audit enable file file_path=/vault/logs/audit.log
 
 Success! Enabled the file audit device at: file/` 
@@ -259,7 +259,7 @@ Success! Enabled the file audit device at: file/`
 
 现在，您应该能够在“vault/logs”中本地查看日志。要进行测试，请运行以下命令来查看所有启用的审核设备:
 
-```
+```py
 `bash-5.1# vault audit list
 
 Path     Type    Description
@@ -291,7 +291,7 @@ file/    file    n/a`
 
 使用以下命令启用机密:
 
-```
+```py
 `bash-5.1# vault secrets enable kv
 
 Success! Enabled the kv secrets engine at: kv/` 
@@ -299,7 +299,7 @@ Success! Enabled the kv secrets engine at: kv/`
 
 在`kv/foo`路径中创建一个密钥为`bar`值为`precious`的新秘密:
 
-```
+```py
 `bash-5.1# vault kv put kv/foo bar=precious
 
 Success! Data written to: kv/foo` 
@@ -307,7 +307,7 @@ Success! Data written to: kv/foo`
 
 阅读:
 
-```
+```py
 `bash-5.1# vault kv get kv/foo
 
 === Data ===
@@ -318,7 +318,7 @@ bar    precious`
 
 要使用特定键的不同版本，我们需要升级到[键/值](https://www.vaultproject.io/docs/secrets/kv)后端的 [v2](https://www.vaultproject.io/docs/secrets/kv/kv-v2.html) :
 
-```
+```py
 `bash-5.1# vault kv enable-versioning kv/
 
 Success! Tuned the secrets engine at: kv/` 
@@ -326,7 +326,7 @@ Success! Tuned the secrets engine at: kv/`
 
 通过将值更新为`copper`来添加版本 2:
 
-```
+```py
 `bash-5.1# vault kv put kv/foo bar=copper
 
 Key              Value
@@ -339,7 +339,7 @@ version          2`
 
 阅读版本 1:
 
-```
+```py
 `bash-5.1# vault kv get -version=1 kv/foo
 
 ====== Metadata ======
@@ -358,7 +358,7 @@ bar    precious`
 
 阅读版本 2:
 
-```
+```py
 `bash-5.1# vault kv get -version=2 kv/foo
 
 ====== Metadata ======
@@ -377,7 +377,7 @@ bar    copper`
 
 删除最新版本(如版本 2):
 
-```
+```py
 `bash-5.1# vault kv delete kv/foo
 
 Success! Data deleted (if it existed) at: kv/foo` 
@@ -385,7 +385,7 @@ Success! Data deleted (if it existed) at: kv/foo`
 
 删除版本 1:
 
-```
+```py
 `bash-5.1# vault kv delete -versions=1 kv/foo
 
 Success! Data deleted (if it existed) at: kv/foo` 
@@ -393,7 +393,7 @@ Success! Data deleted (if it existed) at: kv/foo`
 
 您也可以取消删除:
 
-```
+```py
 `bash-5.1# vault kv undelete -versions=1 kv/foo
 
 Success! Data written to: kv/undelete/foo` 
@@ -401,7 +401,7 @@ Success! Data written to: kv/undelete/foo`
 
 删除类似于软删除。如果您想删除底层元数据，您必须使用 [destroy](https://www.vaultproject.io/api/secret/kv/kv-v2.html#destroy-secret-versions) 命令:
 
-```
+```py
 `bash-5.1# vault kv destroy -versions=1 kv/foo
 
 Success! Data written to: kv/destroy/foo` 
@@ -415,13 +415,13 @@ Success! Data written to: kv/destroy/foo`
 
 您还可以通过 [HTTP API](https://learn.hashicorp.com/vault/getting-started/apis) 与 Vault 进行交互。我们将针对 API 的 [v2](https://www.vaultproject.io/api/secret/kv/kv-v2.html) 提出请求。打开一个新的终端选项卡，然后将根令牌设置为环境变量:
 
-```
+```py
 `$ export VAULT_TOKEN=your_token_goes_here` 
 ```
 
 创建一个名为`foo`的新秘密，其值为`world`:
 
-```
+```py
 `$ curl \
     -H "X-Vault-Token: $VAULT_TOKEN" \
     -H "Content-Type: application/json" \
@@ -432,7 +432,7 @@ Success! Data written to: kv/destroy/foo`
 
 阅读秘密:
 
-```
+```py
 `$ curl \
     -H "X-Vault-Token: $VAULT_TOKEN" \
     -X GET \
@@ -441,7 +441,7 @@ Success! Data written to: kv/destroy/foo`
 
 JSON 响应应该包含一个`data`键，其值类似于:
 
-```
+```py
 `"data": {
   "data":{
     "foo": "world"
@@ -471,13 +471,13 @@ JSON 响应应该包含一个`data`键，其值类似于:
 
 将名为 *app-policy.json* 的新配置文件添加到“vault/policies”中:
 
-```
+```py
 `{ "path":  { "kv/data/app/*":  { "policy":  "read" } } }` 
 ```
 
 [在 bash 会话中创建](https://www.vaultproject.io/docs/concepts/policies.html#creating-policies)一个新策略:
 
-```
+```py
 `bash-5.1# vault policy write app /vault/policies/app-policy.json
 
 Success! Uploaded policy: app` 
@@ -485,7 +485,7 @@ Success! Uploaded policy: app`
 
 然后，创建一个新令牌:
 
-```
+```py
 `bash-5.1# vault token create -policy=app
 
 Key                  Value
@@ -501,13 +501,13 @@ policies             ["app" "default"]`
 
 在另一个新的终端选项卡中(现在应该有三个了)，添加带有新令牌的`VAULT_TOKEN`环境变量:
 
-```
+```py
 `$ export VAULT_TOKEN=your_token_goes_here` 
 ```
 
 试着读出我们之前设定的`foo`秘密:
 
-```
+```py
 `$ curl \
     -H "X-Vault-Token: $VAULT_TOKEN" \
     -X GET \
@@ -516,7 +516,7 @@ policies             ["app" "default"]`
 
 您应该没有查看该机密的正确权限:
 
-```
+```py
 `{
   "errors":[
     "1 error occurred:\n\t* permission denied\n\n"
@@ -530,7 +530,7 @@ policies             ["app" "default"]`
 
 回到容器中的 bash 会话，向`app/test`路径添加一个新的秘密:
 
-```
+```py
 `bash-5.1# vault kv put kv/app/test ping=pong
 
 Key              Value
@@ -543,7 +543,7 @@ version          1`
 
 您应该能够使用与`app`策略相关联的令牌来查看秘密:
 
-```
+```py
 `$ curl \
     -H "X-Vault-Token: $VAULT_TOKEN" \
     -X GET \
@@ -563,7 +563,7 @@ version          1`
 
 回到容器中的 bash 会话，启用传输:
 
-```
+```py
 `bash-5.1# vault secrets enable transit
 
 Success! Enabled the transit secrets engine at: transit/` 
@@ -571,7 +571,7 @@ Success! Enabled the transit secrets engine at: transit/`
 
 配置命名加密密钥:
 
-```
+```py
 `bash-5.1# vault write -f transit/keys/foo
 
 Success! Data written to: transit/keys/foo` 
@@ -579,7 +579,7 @@ Success! Data written to: transit/keys/foo`
 
 加密:
 
-```
+```py
 `bash-5.1# vault write transit/encrypt/foo plaintext=$(base64 <<< "my precious")
 
 Key           Value
@@ -589,7 +589,7 @@ ciphertext    vault:v1:cFnk5AQLE9Mg+mZ7Ej17vRmYT5aqheikdZQ1FC4vre5jAod0L/uHDA==`
 
 解密:
 
-```
+```py
 `bash-5.1# vault write transit/decrypt/foo ciphertext=vault:v1:cFnk5AQLE9Mg+mZ7Ej17vRmYT5aqheikdZQ1FC4vre5jAod0L/uHDA==
 
 Key          Value
@@ -599,7 +599,7 @@ plaintext    bXkgcHJlY2lvdXMK`
 
 解码:
 
-```
+```py
 `bash-5.1# base64 -d <<< "bXkgcHJlY2lvdXMK"
 
 my precious` 
@@ -627,7 +627,7 @@ my precious`
 
 启用 AWS 机密后端:
 
-```
+```py
 `bash-5.1# vault secrets enable -path=aws aws
 
 Success! Enabled the aws secrets engine at: aws/` 
@@ -635,7 +635,7 @@ Success! Enabled the aws secrets engine at: aws/`
 
 认证:
 
-```
+```py
 `bash-5.1# vault write aws/config/root access_key=foo secret_key=bar
 
 Success! Data written to: aws/config/root` 
@@ -645,7 +645,7 @@ Success! Data written to: aws/config/root`
 
 创建角色:
 
-```
+```py
 `bash-5.1# vault write aws/roles/ec2-read credential_type=iam_user policy_document=-<<EOF
 {
  "Version": "2012-10-17",
@@ -673,7 +673,7 @@ Success! Data written to: aws/roles/ec2-read`
 
 创建一组新的凭据:
 
-```
+```py
 `bash-5.1# vault read aws/creds/ec2-read
 
 Key                Value
@@ -696,7 +696,7 @@ security_token     <nil>`
 
 创建新的 AWS 角色:
 
-```
+```py
 `bash-5.1# vault write aws/roles/foo credential_type=iam_user policy_document=-<<EOF
 {
  "Version": "2012-10-17",
@@ -720,7 +720,7 @@ Success! Data written to: aws/roles/foo`
 
 创建新的 AWS 凭证时，请注意`lease_duration`:
 
-```
+```py
 `bash-5.1# vault read aws/creds/foo
 
 Key                Value
@@ -735,7 +735,7 @@ security_token     <nil>`
 
 如果您只希望所有 AWS IAM 动态机密的租期为 30 分钟，会怎么样？
 
-```
+```py
 `bash-5.1# vault write aws/config/lease lease=1800s lease_max=1800s` 
 ```
 
@@ -743,7 +743,7 @@ security_token     <nil>`
 
 创建新凭据:
 
-```
+```py
 `bash-5.1# vault read aws/creds/foo
 
 Key                Value
@@ -758,13 +758,13 @@ security_token     <nil>`
 
 想要快速吊销此凭据吗？抓住`lease_id`然后跑:
 
-```
+```py
 `bash-5.1# vault lease revoke aws/creds/foo/xQlJpKDS1ljE9Awz0aywXgbB` 
 ```
 
 想要撤销所有 AWS 信用？
 
-```
+```py
 `bash-5.1# vault lease revoke -prefix aws/` 
 ```
 
@@ -776,13 +776,13 @@ security_token     <nil>`
 
 要设置[consult](https://www.consul.io/)，首先要更新 *docker-compose.yml* 文件:
 
-```
+```py
 `version:  '3.8' services: vault: build: context:  ./vault dockerfile:  Dockerfile ports: -  8200:8200 volumes: -  ./vault/config:/vault/config -  ./vault/policies:/vault/policies -  ./vault/data:/vault/data -  ./vault/logs:/vault/logs environment: -  VAULT_ADDR=http://127.0.0.1:8200 -  VAULT_API_ADDR=http://127.0.0.1:8200 command:  server -config=/vault/config/vault-config.json cap_add: -  IPC_LOCK depends_on: -  consul consul: build: context:  ./consul dockerfile:  Dockerfile ports: -  8500:8500 command:  agent -server -bind 0.0.0.0 -client 0.0.0.0 -bootstrap-expect 1 -config-file=/consul/config/config.json volumes: -  ./consul/config/consul-config.json:/consul/config/config.json -  ./consul/data:/consul/data` 
 ```
 
 在项目根目录中添加一个名为“consul”的新目录，然后在这个新创建的目录中添加一个新的 *Dockerfile* :
 
-```
+```py
 `# base image
 FROM  alpine:3.14
 
@@ -819,7 +819,7 @@ ENTRYPOINT  ["consul"]`
 
 接下来，在“consul”目录中添加两个新目录:“config”和“data”。然后，在“config”中，添加一个名为 *consul-config.json* 的配置文件:
 
-```
+```py
 `{ "datacenter":  "localhost", "data_dir":  "/consul/data", "log_level":  "DEBUG", "server":  true, "ui":  true, "ports":  { "dns":  53 } }` 
 ```
 
@@ -827,7 +827,7 @@ ENTRYPOINT  ["consul"]`
 
 “领事”目录现在应该是这样的:
 
-```
+```py
 `├── Dockerfile
 ├── config
 │   └── consul-config.json
@@ -836,7 +836,7 @@ ENTRYPOINT  ["consul"]`
 
 退出 bash 会话。关闭容器，然后更新 Vault 配置文件:
 
-```
+```py
 `{ "backend":  { "consul":  { "address":  "consul:8500", "path":  "vault/" } }, "listener":  { "tcp":{ "address":  "0.0.0.0:8200", "tls_disable":  1 } }, "ui":  true }` 
 ```
 
@@ -844,7 +844,7 @@ ENTRYPOINT  ["consul"]`
 
 清除“vault/data”目录中的所有文件和文件夹，以删除文件系统后端。构建新映像并旋转容器:
 
-```
+```py
 `$ docker-compose down
 $ docker-compose up -d --build` 
 ```
@@ -859,13 +859,13 @@ $ docker-compose up -d --build`
 
 在 Vault 容器中创建新的 bash 会话:
 
-```
+```py
 `$ docker-compose exec vault bash` 
 ```
 
 然后，运行:
 
-```
+```py
 `# Init
 bash-5.1# vault operator init
 
@@ -893,7 +893,7 @@ bash-5.1# vault kv get kv/foo`
 
 想再添加一个 Consul 服务器吗？向 *docker-compose.yml* 添加新服务:
 
-```
+```py
 `consul-worker: build: context:  ./consul dockerfile:  Dockerfile command:  agent -server -join consul -config-file=/consul/config/config.json volumes: -  ./consul/config/consul-config.json:/consul/config/config.json depends_on: -  consul` 
 ```
 

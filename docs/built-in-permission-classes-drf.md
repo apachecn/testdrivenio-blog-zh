@@ -54,7 +54,7 @@
 
 通过在视图中包含`permission_classes`来指定它:
 
-```
+```py
 `from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
 
@@ -77,7 +77,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 `IsAuthenticated`检查请求是否有用户，以及该用户是否被认证。将`permission_classes`设置为`IsAuthenticated`意味着**只有经过认证的**用户才能使用任何请求方法访问 API 端点。
 
-```
+```py
 `from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
@@ -100,7 +100,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 当权限设置为`IsAuthenticatedOrReadOnly`时，请求必须或者有一个经过验证的用户，或者使用一个安全/只读的 HTTP 请求方法(GET、HEAD、OPTIONS)。这意味着**每个用户**将能够**看到所有**的消息，但是只有登录的用户能够**添加、更改或删除**对象。
 
-```
+```py
 `from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
@@ -123,7 +123,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 权限设置为`IsAdminUser`意味着请求需要有一个用户，并且该用户必须将[的 is_staff](https://docs.djangoproject.com/en/3.2/ref/contrib/auth/#django.contrib.auth.models.User.is_staff) 设置为`True`。这意味着只有管理员用户可以**查看、添加、更改或删除**对象。
 
-```
+```py
 `from rest_framework import viewsets
 from rest_framework.permissions import IsAdminUser
 
@@ -152,7 +152,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 `DjangoModelPermissions`允许我们分别为每个用户设置任意权限组合。然后权限检查用户是否通过了身份验证，以及他们是否对模型拥有`add`、`change`或`delete`用户[权限](https://docs.djangoproject.com/en/3.2/topics/auth/default/#default-permissions)。
 
-```
+```py
 `from rest_framework import viewsets
 from rest_framework.permissions import DjangoModelPermissions
 
@@ -187,7 +187,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 > 
 > 例如， [CreateAPIView](https://www.django-rest-framework.org/api-guide/generic-views/#createapiview) 通用视图不需要 queryset，所以如果你在它上面设置`DjangoModelPermissions`，你会得到一个断言错误。但是，如果您执行查询，即使您没有使用 queryset，`DjangoModelPermissions`也将工作:
 > 
-> ```
+> ```py
 > class NewMessage(generics.CreateAPIView):
 >     queryset = Message.objects.all()
 >     permission_classes = [DjangoModelPermissions]
@@ -198,7 +198,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 `DjangoModelPermissionsOrAnonReadOnly`扩展了`DjangoModelPermissions`，只改变了一件事:将`authenticated_users_only`设置为`False`。
 
-```
+```py
 `from rest_framework import viewsets
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 
@@ -234,13 +234,13 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 要使用 django-guardian，首先需要安装它:
 
-```
+```py
 `$ pip install django-guardian` 
 ```
 
 然后，将其添加到`INSTALLED_APPS`和`AUTHENTICATION_BACKENDS`:
 
-```
+```py
 `# settings.py
 
 INSTALLED_APPS = [
@@ -259,13 +259,13 @@ AUTHENTICATION_BACKENDS = (
 
 最后，运行迁移:
 
-```
+```py
 `(venv)$ python manage.py migrate` 
 ```
 
 如果你想查看单个对象的权限，你需要使用 [GuardedModelAdmin](https://django-guardian.readthedocs.io/en/stable/api/guardian.admin.html#guardedmodeladmin) 而不是 [ModelAdmin](https://docs.djangoproject.com/en/3.2/ref/contrib/admin/#django.contrib.admin.ModelAdmin) 。你可以在一个 *admin.py* 文件中这样做:
 
-```
+```py
 `# admin.py
 
 from django.contrib import admin
@@ -290,7 +290,7 @@ admin.site.register(Message, MessageAdmin)`
 
 这意味着如果您想要检查对象级权限，用户**必须拥有**模型权限。对象级权限的一个很好的用例是只允许对象的所有者更改或删除它。这里有一个视图，只允许对象的创建者删除它:
 
-```
+```py
 `# views.py
 
 from guardian.shortcuts import assign_perm
@@ -347,7 +347,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 您可以使用内置的权限类在您的 *settings.py* 文件中轻松设置全局权限。例如:
 
-```
+```py
 `# settings.py
 
 REST_FRAMEWORK = {

@@ -10,7 +10,7 @@
 
 首先，您只需要在 HTML 文件中包含 Chart.js 脚本和一个`<canvas>`节点:
 
-```
+```py
 `<script src="https://cdn.jsdelivr.net/npm/[[email protected]](/cdn-cgi/l/email-protection)"></script>
 
 <canvas id="chart" width="500" height="500"></canvas>` 
@@ -18,7 +18,7 @@
 
 然后，您可以像这样创建一个图表:
 
-```
+```py
 `let  ctx  =  document.getElementById("chart").getContext("2d"); let  chart  =  new  Chart(ctx,  { type:  "bar", data:  { labels:  ["2020/Q1",  "2020/Q2",  "2020/Q3",  "2020/Q4"], datasets:  [ { label:  "Gross volume ($)", backgroundColor:  "#79AEC8", borderColor:  "#417690", data:  [26900,  28700,  27300,  29200] } ] }, options:  { title:  { text:  "Gross Volume in 2020", display:  true } } });` 
 ```
 
@@ -47,7 +47,7 @@
 
 首先创建一个新目录，并建立一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-interactive-charts && cd django-interactive-charts
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -58,13 +58,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`shop`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp shop` 
 ```
 
 在`INSTALLED_APPS`下的 *core/settings.py* 中注册 app:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -82,7 +82,7 @@ INSTALLED_APPS = [
 
 接下来，创建`Item`和`Purchase`模型:
 
-```
+```py
 `# shop/models.py
 
 from django.db import models
@@ -120,14 +120,14 @@ class Purchase(models.Model):
 
 进行迁移，然后应用它们:
 
-```
+```py
 `(env)$ python manage.py makemigrations
 (env)$ python manage.py migrate` 
 ```
 
 在 *shop/admin.py* 中注册模型:
 
-```
+```py
 `# shop/admin.py
 
 from django.contrib import admin
@@ -144,7 +144,7 @@ admin.site.register(Purchase)`
 
 在“商店”中创建一个名为“管理”的新文件夹，然后在该文件夹中创建另一个名为“命令”的文件夹。在“commands”文件夹中，创建一个名为 *populate_db.py* 的新文件。
 
-```
+```py
 `management
 └── commands
     └── populate_db.py` 
@@ -152,7 +152,7 @@ admin.site.register(Purchase)`
 
 *populate_db.py* :
 
-```
+```py
 `# shop/management/commands/populate_db.py
 
 import random
@@ -195,7 +195,7 @@ class Command(BaseCommand):
 
 运行以下命令来填充数据库:
 
-```
+```py
 `(env)$ python manage.py populate_db --amount 1000` 
 ```
 
@@ -215,7 +215,7 @@ class Command(BaseCommand):
 
 在添加视图之前，让我们创建几个实用函数，这将使创建图表变得更加容易。在项目根目录中添加一个名为“utils”的新文件夹。然后，向该文件夹添加一个名为 *charts.py* 的新文件:
 
-```
+```py
 `# util/charts.py
 
 months = [
@@ -256,7 +256,7 @@ def generate_color_palette(amount):
 
 创建视图:
 
-```
+```py
 `# shop/views.py
 
 from django.contrib.admin.views.decorators import staff_member_required
@@ -386,7 +386,7 @@ def payment_method_chart(request, year):
 
 创建以下应用程序级别的 URL:
 
-```
+```py
 `# shop/urls.py
 
 from django.urls import path
@@ -404,7 +404,7 @@ urlpatterns = [
 
 然后，将应用程序 URL 连接到项目 URL:
 
-```
+```py
 `# core/urls.py
 
 from django.contrib import admin
@@ -422,20 +422,20 @@ urlpatterns = [
 
 创建超级用户，然后运行开发服务器:
 
-```
+```py
 `(env)$ python manage.py createsuperuser
 (env)$ python manage.py runserver` 
 ```
 
 然后，在您选择的浏览器中，导航到[http://localhost:8000/shop/chart/filter-options/](http://localhost:8000/shop/chart/filter-options/)。您应该会看到类似这样的内容:
 
-```
+```py
 `{ "options":[ 2021, 2020, 2019, 2018, 2017, 2016 ] }` 
 ```
 
 要查看 2020 年的月度销售数据，请导航至[http://localhost:8000/shop/chart/sales/2020/](http://localhost:8000/shop/chart/sales/2020/):
 
-```
+```py
 `{ "title":"Sales in 2020", "data":{ "labels":[ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ], "datasets":[ { "label":"Amount ($)", "backgroundColor":"#79aec8", "borderColor":"#79aec8", "data":[ 137.0, 88.0, 187.5, 156.0, 70.5, 133.0, 142.0, 176.0, 155.5, 104.0, 125.5, 97.0 ] } ] } }` 
 ```
 
@@ -445,7 +445,7 @@ urlpatterns = [
 
 在“商店”中添加一个“模板”文件夹。然后，添加一个名为*statistics.html*的新文件:
 
-```
+```py
 `<!-- shop/templates/statistics.html -->
 
 <!DOCTYPE html>
@@ -487,7 +487,7 @@ urlpatterns = [
 
 将以下脚本添加到 HTML 文件中:
 
-```
+```py
 `<script> $(document).ready(function()  { $.ajax({ url:  "/shop/chart/filter-options/", type:  "GET", dataType:  "json", success:  (jsonResponse)  =>  { // Load all the options jsonResponse.options.forEach(option  =>  { $("#year").append(new  Option(option,  option)); }); // Load data for the first option loadAllCharts($("#year").children().first().val()); }, error:  ()  =>  console.log("Failed to fetch chart filter options!") }); }); $("#filterForm").on("submit",  (event)  =>  { event.preventDefault(); const  year  =  $("#year").val(); loadAllCharts(year) }); function  loadChart(chart,  endpoint)  { $.ajax({ url:  endpoint, type:  "GET", dataType:  "json", success:  (jsonResponse)  =>  { // Extract data from the response const  title  =  jsonResponse.title; const  labels  =  jsonResponse.data.labels; const  datasets  =  jsonResponse.data.datasets; // Reset the current chart chart.data.datasets  =  []; chart.data.labels  =  []; // Load new data into the chart chart.options.title.text  =  title; chart.options.title.display  =  true; chart.data.labels  =  labels; datasets.forEach(dataset  =>  { chart.data.datasets.push(dataset); }); chart.update(); }, error:  ()  =>  console.log("Failed to fetch chart data from "  +  endpoint  +  "!") }); } function  loadAllCharts(year)  { loadChart(salesChart,  `/shop/chart/sales/${year}/`); loadChart(spendPerCustomerChart,  `/shop/chart/spend-per-customer/${year}/`); loadChart(paymentSuccessChart,  `/shop/chart/payment-success/${year}/`); loadChart(paymentMethodChart,  `/shop/chart/payment-method/${year}/`); } </script>` 
 ```
 
@@ -500,7 +500,7 @@ urlpatterns = [
 
 Inside *shop/views.py* 创建一个新视图:
 
-```
+```py
 `@staff_member_required
 def statistics_view(request):
     return render(request, 'statistics.html', {})` 
@@ -508,13 +508,13 @@ def statistics_view(request):
 
 不要忘记重要的一点:
 
-```
+```py
 `from django.shortcuts import render` 
 ```
 
 为视图分配 URL:
 
-```
+```py
 `# shop/urls.py
 
 from django.urls import path
@@ -547,7 +547,7 @@ urlpatterns = [
 
 首先，在“商店/模板”中，添加一个“管理”文件夹。给它添加一个*statistics.html*模板:
 
-```
+```py
 `<!-- shop/templates/admin/statistics.html -->
 
 {% extends "admin/base_site.html" %}
@@ -581,7 +581,7 @@ urlpatterns = [
 
 接下来，创建一个 *core/admin.py* 文件:
 
-```
+```py
 `# core/admin.py
 
 from django.contrib import admin
@@ -626,7 +626,7 @@ class CustomAdminSite(admin.AdminSite):
 
 在 *core/apps.py* 里面创建一个`AdminConfig`:
 
-```
+```py
 `# core/apps.py
 
 from django.contrib.admin.apps import AdminConfig
@@ -639,7 +639,7 @@ class CustomAdminConfig(AdminConfig):
 
 在 *core/settings.py* 中用新的替换默认的`AdminConfig`:
 
-```
+```py
 `INSTALLED_APPS = [
     'core.apps.CustomAdminConfig',  # replaced
     'django.contrib.auth',

@@ -40,7 +40,7 @@
 
 在项目的根目录下创建一个名为 *main.py* 的新文件:
 
-```
+```py
 `import io
 
 import pandas as pd
@@ -132,7 +132,7 @@ def analyze_titles(titlesCSV):
 
 接下来，我们需要对 *worker.js* 进行一些修改:
 
-```
+```py
 `// load pyodide.js importScripts("https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"); // Initialize pyodide and load Pandas async  function  initialize()  { self.pyodide  =  await  loadPyodide(); await  self.pyodide.loadPackage("pandas"); } let  initialized  =  initialize(); self.onmessage  =  async  function  (e)  { await  initialized; response  =  await  fetch( "https://raw.githubusercontent.com/amirtds/kaggle-netflix-tv-shows-and-movies/main/titles.csv" ); response.ok  &&  response.status  ===  200 ?  (titles  =  await  response.text()) :  (titles  =  ""); // fetch main.py, save it in browser memory await  self.pyodide.runPythonAsync(`
  from pyodide.http import pyfetch
  response = await pyfetch("main.py")
@@ -165,7 +165,7 @@ def analyze_titles(titlesCSV):
 
 首先在*index.html*的表格标题中添加一个新列:
 
-```
+```py
 `<thead class="bg-gray-50">
   <tr>
     <th scope="col" class="whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Title</th>
@@ -181,7 +181,7 @@ def analyze_titles(titlesCSV):
 
 接下来，对表体进行以下更改:
 
-```
+```py
 `<tbody class="divide-y divide-gray-200 bg-white">
   ${this.state.titles.length > 0 ? JSON.parse(this.state.titles).map(function (title) {
     return (`
@@ -216,7 +216,7 @@ def analyze_titles(titlesCSV):
 
 继续向前，向*index.html*中的`App`类添加两个新方法:
 
-```
+```py
 `setupEvents()  { let  deleteButtons  =  document.querySelectorAll(".delete") .forEach((button)  =>  { button.addEventListener("click",  ()  =>  this.deleteTitle(button.id)) }) } deleteTitle(id)  { this.state.titles  =  JSON.stringify(JSON.parse(this.state.titles).filter(title  =>  title.id  !=  id)); this.render() }` 
 ```
 
@@ -227,7 +227,7 @@ def analyze_titles(titlesCSV):
 
 最后更新`render`调用`setupEvents`:
 
-```
+```py
 `render()  { app.innerHTML  =  this.view(); this.setupEvents();  // NEW }` 
 ```
 
@@ -241,7 +241,7 @@ def analyze_titles(titlesCSV):
 
 在*index.html*的开始`body`标签下添加搜索框的 HTML:
 
-```
+```py
 `<!-- Start Search box -->
 <div class="absolute top-1 right-0 mr-20 z-50">
   <div class="h-full max-w-7xl mt-16 px-4 sm:px-6 lg:px-8 flex flex-row-reverse">
@@ -261,7 +261,7 @@ def analyze_titles(titlesCSV):
 
 接下来，给`App`的状态添加一个新值:
 
-```
+```py
 `state  =  { titles:  [], recommendedMovies:  [], recommendedShows:  [], factsMovies:  [], factsShows:  [], filteredTitles:  [],  // NEW }` 
 ```
 
@@ -269,37 +269,37 @@ def analyze_titles(titlesCSV):
 
 所以，改变:
 
-```
+```py
 `${this.state.titles.length  >  0  ?  JSON.parse(this.state.titles).map(function  (title)  {` 
 ```
 
 收件人:
 
-```
+```py
 `${this.state.filteredTitles.length  >  0  ?  JSON.parse(this.state.filteredTitles).map(function  (title)  {` 
 ```
 
 更新`deleteTitle`方法以使用`filteredTitles`状态而不是`titles`状态:
 
-```
+```py
 `deleteTitle(id)  { this.state.filteredTitles  =  JSON.stringify( JSON.parse(this.state.filteredTitles).filter(function  (title)  { return  title.id  !==  id; }) ); this.render(); }` 
 ```
 
 添加一个名为`searchTitle`的新方法来处理搜索逻辑:
 
-```
+```py
 `searchTitle(name)  { this.state.filteredTitles  =  JSON.stringify( JSON.parse(this.state.titles).filter((title)  => title.title.toLowerCase().includes(name.toLowerCase()) ) ); this.render(); }` 
 ```
 
 为搜索框的`setupEvents`添加一个新的事件监听器，以便当用户在搜索框中键入时调用`searchTitle`:
 
-```
+```py
 `setupEvents()  { let  deleteButtons  =  document.querySelectorAll(".delete").forEach((button)  =>  { button.addEventListener("click",  ()  =>  this.deleteTitle(button.id)); }); let  searchBox  =  document .querySelector("#search") .addEventListener("keyup",  (e)  =>  { this.searchTitle(e.target.value); }); }` 
 ```
 
 最后，将`filteredTitles`状态设置为`titles`状态，以便在`worker.onmessage`中使用一些初始值:
 
-```
+```py
 `worker.onmessage  =  function  (event)  { event.data.titles  !==  undefined  ?  appComponent.state.titles  =  event.data.titles  :  []; event.data.recommendedMovies  !==  undefined  ?  appComponent.state.recommendedMovies  =  event.data.recommendedMovies  :  []; event.data.recommendedShows  !==  undefined  ?  appComponent.state.recommendedShows  =  event.data.recommendedShows  :  []; event.data.factsMovies  !==  undefined  ?  appComponent.state.factsMovies  =  event.data.factsMovies  :  []; event.data.factsShows  !==  undefined  ?  appComponent.state.factsShows  =  event.data.factsShows  :  []; // NEW event.data.titles  !==  undefined  ?  appComponent.state.filteredTitles  =  event.data.titles  :  []; appComponent.render() }` 
 ```
 
@@ -319,7 +319,7 @@ PouchDB 一个为浏览器设计的开源数据库，允许你在浏览器中本
 
 更新*index.html*文件的头，就在顺风 CSS 之后，安装::
 
-```
+```py
 `<head>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -330,7 +330,7 @@ PouchDB 一个为浏览器设计的开源数据库，允许你在浏览器中本
 
 现在，我们可以为标题、推荐和事实创建不同的数据库:
 
-```
+```py
 `<head>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -346,7 +346,7 @@ PouchDB 一个为浏览器设计的开源数据库，允许你在浏览器中本
 
 在*index.html*中，更新最终的脚本标签，如下所示:
 
-```
+```py
 `<script> titlesDB.info().then(function  (info)  { if  (info.doc_count  ==  0)  { const  worker  =  new  Worker("worker.js"); worker.postMessage("Running Pyodide"); worker.onmessage  =  function  (event)  { event.data.titles  !==  undefined ?  (appComponent.state.titles  =  event.data.titles) :  []; event.data.titles  !==  undefined ?  (appComponent.state.filteredTitles  =  event.data.titles) :  []; event.data.recommendedMovies  !==  undefined ?  (appComponent.state.recommendedMovies  =  event.data.recommendedMovies) :  []; event.data.recommendedShows  !==  undefined ?  (appComponent.state.recommendedShows  =  event.data.recommendedShows) :  []; event.data.factsMovies  !==  undefined ?  (appComponent.state.factsMovies  =  event.data.factsMovies) :  []; event.data.factsShows  !==  undefined ?  (appComponent.state.factsShows  =  event.data.factsShows) :  []; appComponent.render(); // Add titles to database appComponent.state.titles.length  >  0 ?  titlesDB .bulkDocs(JSON.parse(appComponent.state.titles)) .then(function  (result)  { // handle result }) .catch(function  (err)  { console.log("titles DB:",  err); }) :  console.log("No titles to add to database"); // Add recommended movies to database appComponent.state.recommendedMovies.length  >  0 ?  recommendedMoviesDB .bulkDocs(JSON.parse(appComponent.state.recommendedMovies)) .then(function  (result)  { // handle result }) .catch(function  (err)  { console.log("recommendedMovies DB:",  err); }) :  console.log("No recommended movies to add to database"); // Add recommended shows to database appComponent.state.recommendedShows.length  >  0 ?  recommendedShowsDB .bulkDocs(JSON.parse(appComponent.state.recommendedShows)) .then(function  (result)  { // handle result }) .catch(function  (err)  { console.log("recommendedShows DB:",  err); }) :  console.log("No recommended shows to add to database"); // Add facts movies to database appComponent.state.factsMovies.length  >  0 ?  factsMoviesDB .bulkDocs(JSON.parse(appComponent.state.factsMovies).data) .then(function  (result)  { // handle result }) .catch(function  (err)  { console.log("factsMovies DB:",  err); }) :  console.log("No facts movies to add to database"); // Add facts shows to database appComponent.state.factsShows.length  >  0 ?  factsShowsDB .bulkDocs(JSON.parse(appComponent.state.factsShows).data) .then(function  (result)  { // handle result }) .catch(function  (err)  { console.log("factsShows DB:",  err); }) :  console.log("No facts shows to add to database"); }; }  else  { console.log("Database already populated"); } }); </script>` 
 ```
 
@@ -369,7 +369,7 @@ PouchDB 一个为浏览器设计的开源数据库，允许你在浏览器中本
 
 重新加载页面。会发生什么？什么都没有，除了唯一的控制台日志，对吗？我们仍然需要从本地数据库加载数据。为此，用以下内容更新`else`块:
 
-```
+```py
 `// use database to populate app state // setting titles state titlesDB.allDocs({ include_docs:  true, descending:  true },  function(err,  doc)  { const  titles  =  doc.rows.map(function(row)  { return  row.doc }) appComponent.state.titles  =  JSON.stringify(titles); appComponent.state.filteredTitles  =  JSON.stringify(titles); appComponent.render() }); // setting recommended movies state recommendedMoviesDB.allDocs({ include_docs:  true, descending:  true },  function(err,  doc)  { const  recommendedMovies  =  doc.rows.map(function(row)  { return  row.doc }) appComponent.state.recommendedMovies  =  JSON.stringify(recommendedMovies); appComponent.render() }); // setting recommended shows state recommendedShowsDB.allDocs({ include_docs:  true, descending:  true },  function(err,  doc)  { const  recommendedShows  =  doc.rows.map(function(row)  { return  row.doc }) appComponent.state.recommendedShows  =  JSON.stringify(recommendedShows); appComponent.render() }); // setting facts movies state factsMoviesDB.allDocs({ include_docs:  true, descending:  true },  function(err,  doc)  { const  factsMovies  =  doc.rows.map(function(row)  { return  row.doc }) appComponent.state.factsMovies  =  JSON.stringify({ data:  factsMovies }); appComponent.render() }); // setting facts shows state factsShowsDB.allDocs({ include_docs:  true, descending:  true },  function(err,  doc)  { const  factsShows  =  doc.rows.map(function(row)  { return  row.doc }) appComponent.state.factsShows  =  JSON.stringify({ data:  factsShows }); appComponent.render() });` 
 ```
 
@@ -379,7 +379,7 @@ PouchDB 一个为浏览器设计的开源数据库，允许你在浏览器中本
 
 要在用户删除标题时正确删除标题，请更新`deleteTitle`，如下所示:
 
-```
+```py
 `deleteTitle(id)  { const  title  =  JSON.parse(this.state.titles).find((title)  =>  title.id  ==  id); titlesDB.remove(title); this.state.titles  =  JSON.stringify( JSON.parse(this.state.titles).filter(function  (title)  { return  title.id  !==  id; }) ); this.state.filteredTitles  =  JSON.stringify( JSON.parse(this.state.filteredTitles).filter(function  (title)  { return  title.id  !==  id; }) ); this.render(); }` 
 ```
 

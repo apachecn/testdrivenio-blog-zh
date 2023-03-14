@@ -30,7 +30,7 @@ Cypress 是一个强大的测试框架，它使得编写端到端的测试变得
 
 如果您还没有安装 [Angular CLI](https://cli.angular.io/) ,则从全局安装开始，然后创建一个新的 Angular 项目:
 
-```
+```py
 `$ npm install -g @angular/[[email protected]](/cdn-cgi/l/email-protection)
 $ ng new angular-cypress
 $ cd angular-cypress` 
@@ -44,13 +44,13 @@ $ cd angular-cypress`
 
 打开 Cypress 测试运行器:
 
-```
+```py
 `$ ./node_modules/.bin/cypress open` 
 ```
 
 由于这是我们第一次运行测试运行程序，Cypress 将自动搭建一个文件夹结构:
 
-```
+```py
 `└─── cypress
     ├── fixtures
     │   └── example.json
@@ -71,7 +71,7 @@ $ cd angular-cypress`
 
 最后，移除示例规范文件-*cypress/integration/example _ spec . js*。在它的位置，添加一个 *spec.js* 文件:
 
-```
+```py
 `describe('My App',  ()  =>  { it('loads',  ()  =>  { cy.visit('/'); cy.get('h1').contains('Welcome to app!'); }); });` 
 ```
 
@@ -91,7 +91,7 @@ $ cd angular-cypress`
 
 通过更新项目根目录中的 *cypress.json* 文件，设置`baseUrl`并关闭视频录制:
 
-```
+```py
 `{ "baseUrl":  "http://127.0.0.1:4200", "videoRecording":  "false" }` 
 ```
 
@@ -101,7 +101,7 @@ $ cd angular-cypress`
 
 然后，在另一个终端窗口中打开测试运行程序:
 
-```
+```py
 `$ ./node_modules/.bin/cypress open` 
 ```
 
@@ -123,7 +123,7 @@ Cypress 将推出一个新的用户界面，它将完成规格文件中的每一
 
 添加一个 *Dockerfile* :
 
-```
+```py
 `#########################
 ### build environment ###
 #########################
@@ -180,13 +180,13 @@ CMD ["nginx", "-g", "daemon off;"]`
 
 下一步，添加一个*坞站-复合. yml* 文件:
 
-```
+```py
 `version:  '3.6' services: angular: build: context:  . dockerfile:  Dockerfile ports: -  '80:80'` 
 ```
 
 构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -194,7 +194,7 @@ CMD ["nginx", "-g", "daemon off;"]`
 
 同样，我们将在一个单独的容器中运行 Cypress 测试，所以添加一个名为 *Dockerfile-cypress* 的新 Dockerfile:
 
-```
+```py
 `# base image
 FROM  cypress/browsers:chrome65-ff57 # set working directory
 RUN  mkdir  /usr/src/app WORKDIR  /usr/src/app # install cypress
@@ -207,7 +207,7 @@ RUN  ./node_modules/.bin/cypress  verify`
 
 像这样更新 *docker-compose.yml* 文件:
 
-```
+```py
 `version:  '3.6' services: angular: build: context:  . dockerfile:  Dockerfile ports: -  '80:80' cypress: build: context:  . dockerfile:  Dockerfile-cypress depends_on: -  angular network_mode:  'host'` 
 ```
 
@@ -215,20 +215,20 @@ RUN  ./node_modules/.bin/cypress  verify`
 
 现在，当我们运行测试时，我们需要[覆盖 *cypress.json* 文件中设置的`baseURL`:](https://docs.cypress.io/guides/references/configuration.html#Overriding-Options)
 
-```
+```py
 `$ docker-compose run cypress ./node_modules/.bin/cypress run \
     --config baseUrl=http://127.0.0.1` 
 ```
 
 > 值得一提的是，您还可以将一个不同的配置文件复制到容器中，该配置文件是特定于使用 Docker 和/或在 CI 环境中运行测试的，如下所示:
 
-```
+```py
 `COPY cypress-ci.json /usr/src/app/cypress.json` 
 ```
 
 测试应该通过:
 
-```
+```py
 `(Tests Starting)
 
 My App
@@ -256,7 +256,7 @@ My App
 
 接下来，让我们使用 Travis CI 进行持续集成。向项目根目录添加一个 *.travis.yml* 文件:
 
-```
+```py
 `language:  node_js node_js: -  10 services: -  docker env: global: -  DOCKER_COMPOSE_VERSION=1.21.1 before_install: -  sudo rm /usr/local/bin/docker-compose -  curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose -  chmod +x docker-compose -  sudo mv docker-compose /usr/local/bin before_script: -  sleep 3 -  docker-compose up -d --build script: -  docker-compose run cypress ./node_modules/.bin/cypress run --config baseUrl=http://127.0.0.1 after_script: -  docker-compose down` 
 ```
 
@@ -270,7 +270,7 @@ My App
 
 首先克隆项目并安装依赖项:
 
-```
+```py
 `$ git clone https://github.com/mjhea0/angular-auth-ngrx
 $ cd angular-auth-ngrx
 $ npm install` 
@@ -286,7 +286,7 @@ $ npm install`
 
 我们将使用一个生成伪令牌的伪后端来测试前端的功能。在新的终端窗口中克隆 repo，安装依赖项，启动应用程序:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/fake-token-api
 $ cd fake-token-api
 $ npm install
@@ -305,7 +305,7 @@ $ npm start`
 
 移除示例规范文件并更新 *cypress.json* :
 
-```
+```py
 `{ "baseUrl":  "http://127.0.0.1:4200", "videoRecording":  false }` 
 ```
 
@@ -327,7 +327,7 @@ $ npm start`
 
 添加一个新的规格文件-*landing . component . spec . js*:
 
-```
+```py
 `describe('Landing Component',  ()  =>  { it('should display the landing page',  ()  =>  { cy .visit('/') .get('h1').contains('Angular + NGRX') .get('a.btn').contains('Log in') .get('a.btn').contains('Sign up') .get('a.btn').contains('Status'); }); });` 
 ```
 
@@ -339,7 +339,7 @@ $ npm start`
 
 再次添加一个新的规范文件-*log in . component . spec . js*:
 
-```
+```py
 `describe('LogIn Component',  ()  =>  { it('should log a user in',  ()  =>  { cy .visit('/') .get('a.btn').contains('Log in').click() .get('form input[name="email"]').clear().type('[[email protected]](/cdn-cgi/l/email-protection)') .get('form input[name="password"]').clear().type('test') .get('button[type="submit"]').click() .get('p').contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .get('a.btn').contains('Log in').should('not.be.visible') .get('a.btn').contains('Sign up').should('not.be.visible') .get('a.btn').contains('Status') .get('button.btn').contains('Log out'); }); });` 
 ```
 
@@ -363,7 +363,7 @@ $ npm start`
 
 接下来，让我们确保如果凭据不正确，用户不会登录。像这样更新规范:
 
-```
+```py
 `describe('LogIn Component',  ()  =>  { it('should log a user in if the credentials are valid',  ()  =>  { cy .visit('/') .get('a.btn').contains('Log in').click() .get('form input[name="email"]').clear().type('[[email protected]](/cdn-cgi/l/email-protection)') .get('form input[name="password"]').clear().type('test') .get('button[type="submit"]').click(); cy .get('p').contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .get('a.btn').contains('Log in').should('not.be.visible') .get('a.btn').contains('Sign up').should('not.be.visible') .get('a.btn').contains('Status') .get('button.btn').contains('Log out'); }); it('should not log a user in if the credentials are invalid',  ()  =>  { cy .visit('/') .get('a.btn').contains('Log in').click() .get('form input[name="email"]').clear().type('[[email protected]](/cdn-cgi/l/email-protection)') .get('form input[name="password"]').clear().type('incorrect') .get('button[type="submit"]').click(); cy .get('p') .contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .should('not.be.visible'); cy .get('div.alert.alert-danger') .contains('Incorrect email and/or password.'); }); });` 
 ```
 
@@ -371,13 +371,13 @@ $ npm start`
 
 更新*cypress/support/commands . js*:
 
-```
+```py
 `Cypress.Commands.add('login',  (email,  password)  =>  { cy .visit('/') .get('a.btn').contains('Log in').click() .get('form input[name="email"]').clear().type(email) .get('form input[name="password"]').clear().type(password) .get('button[type="submit"]').click(); });` 
 ```
 
 然后更新规格:
 
-```
+```py
 `describe('LogIn Component',  ()  =>  { it('should log a user in if the credentials are valid',  ()  =>  { cy .login('[[email protected]](/cdn-cgi/l/email-protection)',  'test'); cy .location('pathname').should('eq',  '/') .get('p').contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .get('a.btn').contains('Log in').should('not.be.visible') .get('a.btn').contains('Sign up').should('not.be.visible') .get('a.btn').contains('Status') .get('button.btn').contains('Log out'); }); it('should not log a user in if the credentials are invalid',  ()  =>  { cy .login('[[email protected]](/cdn-cgi/l/email-protection)',  'incorrect'); cy .get('p') .contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .should('not.be.visible'); cy .location('pathname').should('eq',  '/log-in') .get('div.alert.alert-danger') .contains('Incorrect email and/or password.'); }); });` 
 ```
 
@@ -385,7 +385,7 @@ $ npm start`
 
 让我们再添加一个退出测试:
 
-```
+```py
 `it('should log an authenticated user out',  ()  =>  { cy .login('[[email protected]](/cdn-cgi/l/email-protection)',  'test'); cy .get('p').contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .get('button.btn').contains('Log out').click() cy .location('pathname').should('eq',  '/') .get('h1').contains('Angular + NGRX') .get('a.btn').contains('Log in') .get('a.btn').contains('Sign up') .get('a.btn').contains('Status'); });` 
 ```
 
@@ -397,13 +397,13 @@ $ npm start`
 
 测试:
 
-```
+```py
 `describe('SignUp Component',  ()  =>  { it('should sign a user up',  ()  =>  { cy .signup('[[email protected]](/cdn-cgi/l/email-protection)',  'test'); cy .location('pathname').should('eq',  '/') .get('p').contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .get('a.btn').contains('Log in').should('not.be.visible') .get('a.btn').contains('Sign up').should('not.be.visible') .get('a.btn').contains('Status') .get('button.btn').contains('Log out'); }); it('should throw an error if the email is already is use',  ()  =>  { cy .signup('[[email protected]](/cdn-cgi/l/email-protection)',  'test'); cy .get('p') .contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .should('not.be.visible'); cy .location('pathname').should('eq',  '/sign-up') .get('div.alert.alert-danger') .contains('That email is already in use.'); }); });` 
 ```
 
 添加命令:
 
-```
+```py
 `Cypress.Commands.add('login',  (email,  password)  =>  { cy .visit('/') .get('a.btn').contains('Log in').click() .get('form input[name="email"]').clear().type(email) .get('form input[name="password"]').clear().type(password) .get('button[type="submit"]').click(); }); Cypress.Commands.add('signup',  (email,  password)  =>  { cy .visit('/') .get('a.btn').contains('Sign up').click() .get('form input[name="email"]').clear().type(email) .get('form input[name="password"]').clear().type(password) .get('button[type="submit"]').click(); });` 
 ```
 
@@ -415,7 +415,7 @@ $ npm start`
 
 添加以下测试:
 
-```
+```py
 `it('should not display an error message when a user first hits the component',  ()  =>  { cy .login('[[email protected]](/cdn-cgi/l/email-protection)',  'incorrect') .get('div.alert.alert-danger') .contains('Incorrect email and/or password.') .get('a.btn').contains('Cancel').click() .get('a.btn').contains('Sign up').click(); cy .get('div.alert.alert-danger') .should('not.be.visible'); });` 
 ```
 
@@ -425,7 +425,7 @@ $ npm start`
 
 向登录规范添加一个类似的测试:
 
-```
+```py
 `it('should not display an error message when a user first hits the component',  ()  =>  { cy .signup('[[email protected]](/cdn-cgi/l/email-protection)',  'test') .get('div.alert.alert-danger') .contains('That email is already in use.') .get('a.btn').contains('Cancel').click() .get('a.btn').contains('Log in').click(); cy .get('div.alert.alert-danger') .should('not.be.visible'); });` 
 ```
 
@@ -435,7 +435,7 @@ $ npm start`
 
 添加 spec-*status . component . spec . js*:
 
-```
+```py
 `describe('Status Component',  ()  =>  { it('should display the component if a user is logged in',  ()  =>  { cy .login('[[email protected]](/cdn-cgi/l/email-protection)',  'test'); cy .location('pathname').should('eq',  '/') .get('p').contains('You logged in [[email protected]](/cdn-cgi/l/email-protection)!') .get('a.btn').contains('Status').click(); cy .location('pathname').should('eq',  '/status') .get('h1').contains('Status Works!') .get('a.btn').contains('Home'); }); it('should not display the component if a user is not logged in',  ()  =>  { cy .visit('/') .get('a.btn').contains('Status').click(); cy .location('pathname').should('eq',  '/log-in') .get('h1').contains('Status Works!').should('not.be.visible'); }); });` 
 ```
 

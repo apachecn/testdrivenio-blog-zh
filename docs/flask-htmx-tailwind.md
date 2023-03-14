@@ -10,7 +10,7 @@ htmx 是一个库，它允许你直接从 HTML 访问现代浏览器特性，如
 
 htmx 扩展了浏览器已经内置的几个特性，比如发出 HTTP 请求和响应事件。例如，您可以使用 HTML 属性在任何 HTML 元素上发送 GET、POST、PUT、PATCH 或 DELETE 请求，而不仅仅是通过`a`和`form`元素发出 GET 和 POST 请求:
 
-```
+```py
 `<button hx-delete="/user/1">Delete</button>` 
 ```
 
@@ -42,7 +42,7 @@ htmx 扩展了浏览器已经内置的几个特性，比如发出 HTTP 请求和
 
 例如，以下面的 HTML 和 CSS 为例:
 
-```
+```py
 `<style> .hello  { height:  5px; width:  10px; background:  gray; border-width:  1px; border-radius:  3px; padding:  5px; } </style>
 
 <div class="hello">Hello World</div>` 
@@ -50,7 +50,7 @@ htmx 扩展了浏览器已经内置的几个特性，比如发出 HTTP 请求和
 
 这可以通过顺风实现，如下所示:
 
-```
+```py
 `<div class="h-1 w-2 bg-gray-600 border rounded-sm p-1">Hello World</div>` 
 ```
 
@@ -83,7 +83,7 @@ Flask-Assets 是一个扩展，用于管理 Flask 应用程序中的静态资产
 
 首先，为我们的项目创建一个新目录，创建并激活一个新的虚拟环境，并安装 Flask 和 Flask-Assets:
 
-```
+```py
 `$ mkdir flask-htmx-tailwind && cd flask-htmx-tailwind
 $ python3.10 -m venv venv
 $ source venv/bin/activate
@@ -94,14 +94,14 @@ $ source venv/bin/activate
 
 接下来，让我们安装 [pytailwindcss](https://github.com/timonweb/pytailwindcss) 并下载它的二进制文件:
 
-```
+```py
 `(venv)$ pip install pytailwindcss==0.1.4
 (venv)$ tailwindcss` 
 ```
 
 接下来，添加一个 *app.py* 文件:
 
-```
+```py
 `# app.py
 
 from flask import Flask
@@ -130,7 +130,7 @@ css.build()`
 
 更新 *tailwind.config.js* 这样:
 
-```
+```py
 `module.exports  =  { content:  [ './templates/**/*.html', ], theme:  { extend:  {}, }, plugins:  [], }` 
 ```
 
@@ -138,7 +138,7 @@ css.build()`
 
 将以下内容添加到 *static/src/main.css* 中:
 
-```
+```py
 `/* static/src/main.css */ @tailwind  base; @tailwind  components; @tailwind  utilities;` 
 ```
 
@@ -150,7 +150,7 @@ css.build()`
 
 向 *app.py* 添加运行 Flask development server 的路径和主程序块，如下所示:
 
-```
+```py
 `# app.py
 
 from flask import Flask, render_template
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
 创建一个“模板”文件夹。然后，给它添加一个*base.html*文件:
 
-```
+```py
 `<!-- templates/base.html -->
 
 <!DOCTYPE html>
@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
 添加*index.html*文件:
 
-```
+```py
 `<!-- templates/index.html -->
 
 {% extends "base.html" %}
@@ -215,7 +215,7 @@ if __name__ == "__main__":
 
 现在，在项目的根目录下运行以下命令，扫描模板中的类并生成一个 CSS 文件:
 
-```
+```py
 `(venv)$ tailwindcss -i ./static/src/main.css -o ./static/dist/main.css --minify` 
 ```
 
@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
 现在，要为我们的 JavaScript 文件创建一个新的包，更新 *app.py* 如下:
 
-```
+```py
 `# app.py
 
 from flask import Flask, render_template
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
 接下来，将新资产添加到我们的*base.html*文件中:
 
-```
+```py
 `<!-- templates/base.html -->
 
 <!DOCTYPE html>
@@ -298,7 +298,7 @@ if __name__ == "__main__":
 
 更新*index.html*文件是这样的:
 
-```
+```py
 `<!-- templates/index.html -->
 
 {% extends 'base.html' %}
@@ -335,7 +335,7 @@ if __name__ == "__main__":
 
 让我们花点时间来看看从 htmx 定义的属性:
 
-```
+```py
 `<input
   type="text"
   name="search"
@@ -355,7 +355,7 @@ if __name__ == "__main__":
 
 添加*模板/todo.html* 文件:
 
-```
+```py
 `<!-- templates/todo.html -->
 
 {% if todos|length>0 %}
@@ -379,7 +379,7 @@ if __name__ == "__main__":
 
 最后，将路由处理程序添加到 *app.py* :
 
-```
+```py
 `@app.route("/search", methods=["POST"])
 def search_todo():
     search_term = request.form.get("search")
@@ -399,7 +399,7 @@ def search_todo():
 
 更新顶部的导入:
 
-```
+```py
 `from flask import Flask, render_template, request
 from flask_assets import Bundle, Environment
 
@@ -408,7 +408,7 @@ from todo import todos`
 
 接下来，更新输出 CSS 文件:
 
-```
+```py
 `(venv)$ tailwindcss -i ./static/src/main.css -o ./static/dist/main.css --minify` 
 ```
 

@@ -29,7 +29,7 @@
 
 所有权限类，无论是自定义的还是内置的，都是从`BasePermission`类扩展而来的:
 
-```
+```py
 `class BasePermission(metaclass=BasePermissionMetaclass):
     """
  A base class from which all permission classes should inherit.
@@ -66,7 +66,7 @@
 
 假设您不希望员工能够编辑对象。这种情况下的自定义权限类可能是这样的:
 
-```
+```py
 `# permissions.py
 
 from rest_framework import permissions
@@ -107,7 +107,7 @@ class AuthorAllStaffAllButEditOrReadOnly(permissions.BasePermission):
 
 接下来，我们检查请求方法是否是“安全”的方法之一- `request.method in permissions.SAFE_METHODS`。安全方法在[rest _ framework/permissions . py](https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/permissions.py#L8)中定义:
 
-```
+```py
 `SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')` 
 ```
 
@@ -127,7 +127,7 @@ class AuthorAllStaffAllButEditOrReadOnly(permissions.BasePermission):
 
 使用自定义权限类的方式与使用内置权限类的方式相同:
 
-```
+```py
 `# views.py
 
 from rest_framework import viewsets
@@ -167,7 +167,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 假设您希望限制除超级用户之外的所有人对超过 10 分钟的对象的访问:
 
-```
+```py
 `# permissions.py
 
 from datetime import datetime, timedelta
@@ -201,7 +201,7 @@ class ExpiredObjectSuperuserOnly(permissions.BasePermission):
 
 记下错误消息。信息量不大。用户不知道为什么他们的访问被拒绝。我们可以通过向权限类添加一个`message`属性来创建一个定制的错误消息:
 
-```
+```py
 `class ExpiredObjectSuperuserOnly(permissions.BasePermission):
 
     message = "This object is expired." # custom error message
@@ -226,7 +226,7 @@ class ExpiredObjectSuperuserOnly(permissions.BasePermission):
 
 通常，当使用多个权限类时，可以在视图中定义它们，如下所示:
 
-```
+```py
 `permission_classes = [IsAuthenticated, IsStaff, SomeCustomPermissionClass]` 
 ```
 
@@ -260,13 +260,13 @@ class ExpiredObjectSuperuserOnly(permissions.BasePermission):
 
 并且是权限类的默认行为，通过使用`,`实现:
 
-```
+```py
 `permission_classes = [IsAuthenticated, IsStaff, SomeCustomPermissionClass]` 
 ```
 
 也可以用`&`写:
 
-```
+```py
 `permission_classes = [IsAuthenticated & IsStaff & SomeCustomPermissionClass]` 
 ```
 
@@ -283,7 +283,7 @@ class ExpiredObjectSuperuserOnly(permissions.BasePermission):
 
 代码:
 
-```
+```py
 `class IsStaff(permissions.BasePermission):
 
     def has_permission(self, request, view):
@@ -330,7 +330,7 @@ class IsOwner(permissions.BasePermission):
 
  **现在，当我们很好地设计了权限类后，就很容易将它们组合起来:
 
-```
+```py
 `from rest_framework import viewsets
 
 from .models import Message
@@ -363,7 +363,7 @@ NOT 运算符导致与定义的权限类完全相反的结果。换句话说，�
 
 下面是一个权限类，它只授予财务组成员访问权限:
 
-```
+```py
 `class IsFinancesMember(permissions.BasePermission):
 
     def has_permission(self, request, view):
@@ -373,7 +373,7 @@ NOT 运算符导致与定义的权限类完全相反的结果。换句话说，�
 
 现在，假设您有一个新视图，它是为不属于财务组的所有用户准备的。您可以使用 NOT 运算符来实现这一点:
 
-```
+```py
 `from rest_framework import viewsets
 
 from .models import Message
@@ -392,7 +392,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 > 小心点！如果您只使用 NOT 操作符，**其他所有人**都将被允许访问，**包括未认证的**用户！如果这不是您想要做的，您可以通过添加另一个类来解决这个问题，如下所示:
 > 
-> ```
+> ```py
 > permission_classes = [~IsFinancesMember & IsAuthenticated] 
 > ```
 
@@ -402,7 +402,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 快速示例:
 
-```
+```py
 `class MessageViewSet(viewsets.ModelViewSet):
 
     permission_classes = [(IsFinancesMember | IsTechMember) & IsOwner] # using parentheses

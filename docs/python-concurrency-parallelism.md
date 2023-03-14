@@ -26,7 +26,7 @@ CPU 密集型任务的最好例子是在数据科学中。数据科学家处理�
 
 至此，让我们来看看如何加速以下任务:
 
-```
+```py
 `# tasks.py
 
 import os
@@ -106,7 +106,7 @@ def get_prime_numbers(num):
 
 先说一个基准。
 
-```
+```py
 `# io-bound_sync.py
 
 import time
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
 这里，我们使用`make_request`函数发出了 100 个 HTTP 请求。因为请求是同步发生的，所以每个任务都是按顺序执行的。
 
-```
+```py
 `Elapsed run time: 15.710984757 seconds.` 
 ```
 
@@ -136,7 +136,7 @@ if __name__ == "__main__":
 
 ### 线程示例
 
-```
+```py
 `# io-bound_concurrent_1.py
 
 import threading
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
 在这里，同一个`make_request`函数被调用 100 次。这次使用`threading`库为每个请求创建一个线程。
 
-```
+```py
 `Elapsed run time: 1.020112515 seconds.` 
 ```
 
@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
 ### 并发.未来示例
 
-```
+```py
 `# io-bound_concurrent_2.py
 
 import time
@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
 这里我们使用了`concurrent.futures.ThreadPoolExecutor`来实现多线程。在创建了所有的未来/承诺之后，我们使用`wait`来等待它们全部完成。
 
-```
+```py
 `Elapsed run time: 1.340592231 seconds` 
 ```
 
@@ -211,7 +211,7 @@ if __name__ == "__main__":
 
 ### AsyncIO 示例
 
-```
+```py
 `# io-bound_concurrent_3.py
 
 import asyncio
@@ -242,7 +242,7 @@ if __name__ == "__main__":
 
 这里，我们使用了`asyncio`来实现并发。
 
-```
+```py
 `Elapsed run time: 0.553961068 seconds` 
 ```
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
 
 同样，让我们从一个基准开始。
 
-```
+```py
 `# cpu-bound_sync.py
 
 import time
@@ -278,13 +278,13 @@ if __name__ == "__main__":
 
 这里，我们对从 1000 到 16000 的数字执行了`get_prime_numbers`函数。
 
-```
+```py
 `Elapsed run time: 17.863046316 seconds.` 
 ```
 
 ### 多重处理示例
 
-```
+```py
 `# cpu-bound_parallel_1.py
 
 import time
@@ -309,13 +309,13 @@ if __name__ == "__main__":
 
 在这里，我们使用`multiprocessing`来计算质数。
 
-```
+```py
 `Elapsed run time: 2.9848740599999997 seconds.` 
 ```
 
 ### 并发.未来示例
 
-```
+```py
 `# cpu-bound_parallel_2.py
 
 import time
@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
 这里，我们使用`concurrent.futures.ProcessPoolExecutor`实现了多重处理。一旦作业被添加到 futures 中，`wait(futures)`就会等待它们完成。
 
-```
+```py
 `Elapsed run time: 4.452427557 seconds.` 
 ```
 

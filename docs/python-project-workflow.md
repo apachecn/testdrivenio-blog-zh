@@ -28,14 +28,14 @@
 
 首先，让我们为我们的项目创建一个新文件夹:
 
-```
+```py
 `$ mkdir random-quote-generator
 $ cd random-quote-generator` 
 ```
 
 用[诗歌](https://python-poetry.org)初始化项目:
 
-```
+```py
 `$ poetry init
 
 Package name [random_quote_generator]:
@@ -56,7 +56,7 @@ Do you confirm generation? (yes/no) [yes]`
 
 例如:
 
-```
+```py
 `[tool.poetry] name  =  "random-quote-generator-9308" version  =  "0.1.0" description  =  "" authors  =  ["Michael Herman <[[email protected]](/cdn-cgi/l/email-protection)>"] [tool.poetry.dependencies] python  =  "^3.10" [tool.poetry.dev-dependencies] [build-system] requires  =  ["poetry-core>=1.0.0"] build-backend  =  "poetry.core.masonry.api"` 
 ```
 
@@ -66,7 +66,7 @@ Do you confirm generation? (yes/no) [yes]`
 
 接下来，初始化项目中的 git 存储库:
 
-```
+```py
 `$ git init
 $ git add pyproject.toml
 $ git commit -m "first commit"
@@ -84,13 +84,13 @@ $ git push -u origin main`
 
 安装:
 
-```
+```py
 `$ poetry add --dev pytest pytest-cov black isort flake8 bandit safety` 
 ```
 
 将新的*poem . lock*文件以及更新后的 *pyproject.toml* 文件添加到 git:
 
-```
+```py
 `$ git add poetry.lock pyproject.toml` 
 ```
 
@@ -98,7 +98,7 @@ $ git push -u origin main`
 
 之后，创建一个名为“random_quote_generator”的新文件夹。在该文件夹中，添加一个 *__init__。py* 文件，所以它被当作一个模块，还有一个 *quotes.py* 文件。
 
-```
+```py
 `random-quote-generator
 ├── poetry.lock
 ├── pyproject.toml
@@ -109,7 +109,7 @@ $ git push -u origin main`
 
 在 *quotes.py* 中，添加:
 
-```
+```py
 `quotes = [
     {
         "quote": "A long descriptive name is better than a short "
@@ -133,7 +133,7 @@ $ git push -u origin main`
 
 那里没什么特别的。只是一个字典列表，每个引用一个。接下来，在项目根目录下创建一个名为“tests”的新文件夹，并添加以下文件:
 
-```
+```py
 `tests
 ├── __init__.py
 └── test_get_quote.py` 
@@ -141,7 +141,7 @@ $ git push -u origin main`
 
 *test_get_quote.py* :
 
-```
+```py
 `from random_quote_generator import get_quote
 from random_quote_generator.quotes import quotes
 
@@ -159,19 +159,19 @@ def test_get_quote():
 
 运行测试:
 
-```
+```py
 `$ poetry run python -m pytest tests` 
 ```
 
 它应该会失败:
 
-```
+```py
 `E   ImportError: cannot import name 'get_quote' from 'random_quote_generator'` 
 ```
 
 接下来，向“random_quote_generator”添加一个名为 *get_quote.py* 的新文件:
 
-```
+```py
 `import random
 
 from random_quote_generator.quotes import quotes
@@ -193,7 +193,7 @@ def get_quote() -> dict:
 
 在*random _ quote _ generator/_ _ init _ 中导出函数。py* :
 
-```
+```py
 `"""
 Random Quote Generator
 ======================
@@ -209,7 +209,7 @@ __all__ = ["get_quote"]`
 
 测试现在应该通过了:
 
-```
+```py
 `$ poetry run python -m pytest tests` 
 ```
 
@@ -217,7 +217,7 @@ __all__ = ["get_quote"]`
 
 将“random_quote_generator”和“tests”文件夹与*一起添加到 git 中。gitignore* 文件:
 
-```
+```py
 `$ git add random_quote_generator/ tests/ .gitignore` 
 ```
 
@@ -233,7 +233,7 @@ __all__ = ["get_quote"]`
 
 你将被提升一些问题:
 
-```
+```py
 `> Separate source and build directories (y/n) [n]: n
 > Project name: Random Quote Generator
 > Author name(s): Your Name
@@ -243,7 +243,7 @@ __all__ = ["get_quote"]`
 
 接下来，让我们更新项目配置。打开 *docs/conf.py* 并替换它:
 
-```
+```py
 `# import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))` 
@@ -251,7 +251,7 @@ __all__ = ["get_quote"]`
 
 有了这个:
 
-```
+```py
 `import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))` 
@@ -261,7 +261,7 @@ sys.path.insert(0, os.path.abspath('..'))`
 
 将下列扩展名添加到扩展名列表中:
 
-```
+```py
 `extensions = [
     'sphinx.ext.autodoc',
 ]` 
@@ -269,7 +269,7 @@ sys.path.insert(0, os.path.abspath('..'))`
 
 更新 *docs/index.rst* 如下:
 
-```
+```py
 `.. Random Quote Generator documentation master file, created by
  sphinx-quickstart on Mon Dec 21 22:27:23 2020.
  You can adapt this file completely to your liking, but it should at least
@@ -291,7 +291,7 @@ Indices and tables
 
 这个文件应该从 Flake8 中排除，我们将很快添加它。因此，在项目根目录下创建一个 *.flake8* 文件:
 
-```
+```py
 `[flake8] exclude  = docs/conf.py,` 
 ```
 
@@ -303,7 +303,7 @@ Indices and tables
 
 将以下文件和文件夹添加到项目根目录中:
 
-```
+```py
 `.github
 └── workflows
     └── branch.yaml` 
@@ -311,7 +311,7 @@ Indices and tables
 
 在 *branch.yaml* 中，添加:
 
-```
+```py
 `name:  Push on:  [push] jobs: test: strategy: fail-fast:  false matrix: python-version:  ['3.10'] poetry-version:  ['1.1.13'] os:  [ubuntu-latest] runs-on:  ${{ matrix.os }} steps: -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) with: python-version:  ${{ matrix.python-version }} -  name:  Run image uses:  abatilo/[[email protected]](/cdn-cgi/l/email-protection) with: poetry-version:  ${{ matrix.poetry-version }} -  name:  Install dependencies run:  poetry install -  name:  Run tests run:  poetry run pytest --cov=./ --cov-report=xml -  name:  Upload coverage to Codecov uses:  codecov/[[email protected]](/cdn-cgi/l/email-protection) code-quality: strategy: fail-fast:  false matrix: python-version:  ['3.10'] poetry-version:  ['1.1.13'] os:  [ubuntu-latest] runs-on:  ${{ matrix.os }} steps: -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) with: python-version:  ${{ matrix.python-version }} -  name:  Run image uses:  abatilo/[[email protected]](/cdn-cgi/l/email-protection) with: poetry-version:  ${{ matrix.poetry-version }} -  name:  Install dependencies run:  poetry install -  name:  Run black run:  poetry run black . --check -  name:  Run isort run:  poetry run isort . --check-only --profile black -  name:  Run flake8 run:  poetry run flake8 . -  name:  Run bandit run:  poetry run bandit . -  name:  Run saftey run:  poetry run safety check` 
 ```
 
@@ -330,7 +330,7 @@ Indices and tables
 
 运行所有代码质量检查:
 
-```
+```py
 `$ poetry run black .
 $ poetry run isort . --profile black
 $ poetry run flake8 .
@@ -340,7 +340,7 @@ $ poetry run safety check`
 
 确保添加任何可能已经更改为 git 的文件。然后，将您的更改提交并推送到 GitHub:
 
-```
+```py
 `$ git add docs/ random_quote_generator/ tests/
 $ git commit -m 'Package ready'
 $ git push -u origin main` 
@@ -382,19 +382,19 @@ $ git push -u origin main`
 
 首先将以下部分添加到 *pyproject.toml* 中，以便将“random_quote_generator”模块包含在 PyPI 的发行版中:
 
-```
+```py
 `packages  =  [ {  include  =  "random_quote_generator"  }, ]` 
 ```
 
 示例文件:
 
-```
+```py
 `[tool.poetry] name  =  "random-quote-generator-93618" packages  =  [ {  include  =  "random_quote_generator"  }, ] version  =  "0.1.0" description  =  "" authors  =  ["Amir Tadrisi <[[email protected]](/cdn-cgi/l/email-protection)>"] [tool.poetry.dependencies] python  =  "^3.10" [tool.poetry.dev-dependencies] pytest  =  "^7.1.2" pytest-cov  =  "^3.0.0" black  =  "^22.3.0" isort  =  "^5.10.1" flake8  =  "^4.0.1" bandit  =  "^1.7.4" safety  =  "^1.10.3" [build-system] requires  =  ["poetry-core>=1.0.0"] build-backend  =  "poetry.core.masonry.api"` 
 ```
 
 添加一个名为 *release.yaml* 的新文件到”。github/工作流”:
 
-```
+```py
 `name:  Release on: release: types: -  created jobs: publish: strategy: fail-fast:  false matrix: python-version:  ['3.10'] poetry-version:  ['1.1.13'] os:  [ubuntu-latest] runs-on:  ${{ matrix.os }} steps: -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) with: python-version:  ${{ matrix.python-version }} -  name:  Run image uses:  abatilo/[[email protected]](/cdn-cgi/l/email-protection) with: poetry-version:  ${{ matrix.poetry-version }} -  name:  Publish env: PYPI_TOKEN:  ${{ secrets.PYPI_TOKEN }} run:  | poetry config pypi-token.pypi $PYPI_TOKEN poetry publish --build` 
 ```
 
@@ -406,7 +406,7 @@ $ git push -u origin main`
 
 将 *release.yaml* 文件以及更新后的 *pyproject.toml* 文件添加到 git，提交并推送:
 
-```
+```py
 `$ git add .github/workflows/release.yaml pyproject.toml
 $ git commit -m 'Ready for first release'
 $ git push -u origin main` 
@@ -420,7 +420,7 @@ $ git push -u origin main`
 
 现在您应该能够从 PyPI 安装和使用您的包了:
 
-```
+```py
 `>>> from random_quote_generator import get_quote
 >>>
 >>> print(get_quote())

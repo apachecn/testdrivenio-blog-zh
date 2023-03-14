@@ -54,7 +54,7 @@ Bazel 是创建可重复的密封构件的最佳解决方案之一。它支持�
 
 创建一个名为*工作空间*的文件:
 
-```
+```py
 `workspace(name = "my_flask_app")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
@@ -112,7 +112,7 @@ py_repositories()`
 
 创建一个名为 *BUILD* 的文件:
 
-```
+```py
 `load("@rules_python//python:defs.bzl", "py_runtime", "py_runtime_pair")
 
 py_runtime(
@@ -140,7 +140,7 @@ toolchain(
 
 最后，为了注册工具链，将下面一行添加到*工作空间*文件的末尾:
 
-```
+```py
 `# The Python toolchain must be registered ALWAYS at the end of the file
 register_toolchains("//:py_3_toolchain")` 
 ```
@@ -151,7 +151,7 @@ register_toolchains("//:py_3_toolchain")`
 
 为了用 Python 编写测试，我们需要 [pytest](https://pytest.org/) ，所以让我们添加一个 *requirements.txt* 文件:
 
-```
+```py
 `attrs==20.3.0 --hash=sha256:31b2eced602aa8423c2aea9c76a724617ed67cf9513173fd3a4f03e3a929c7e6
 more-itertools==8.2.0 --hash=sha256:5dd8bcf33e5f9513ffa06d5ad33d78f31e1931ac9a18f33d37e77a180d393a7c
 packaging==20.3 --hash=sha256:82f77b9bee21c1bafbf35a84905d604d5d1223801d639cf3ed140bd651c08752
@@ -167,7 +167,7 @@ wcwidth==0.1.9 --hash=sha256:cafe2186b3c009a04067022ce1dcd79cb38d8d65ee4f4791b88
 
 现在，我们可以通过添加用于处理依赖关系的`pip_install`规则来再次修改工作区。在`register_toolchain`之前添加以下内容:
 
-```
+```py
 `# Third party libraries
 load("@rules_python//python:pip.bzl", "pip_install")
 
@@ -180,7 +180,7 @@ pip_install(
 
 您现在应该已经:
 
-```
+```py
 `workspace(name = "my_flask_app")
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -245,7 +245,7 @@ register_toolchains("//:py_3_toolchain")`
 
 创建一个名为“test”的新文件夹，并添加一个名为 *compiler_version_test.py* 的新测试文件:
 
-```
+```py
 `import os
 import platform
 import sys
@@ -266,7 +266,7 @@ if __name__ == "__main__":
 
 为了将它包含在构建过程中，将一个*构建*文件添加到“test”文件夹中:
 
-```
+```py
 `load("@rules_python//python:defs.bzl", "py_test")
 load("@py_deps//:requirements.bzl", "requirement")
 
@@ -289,7 +289,7 @@ py_test(
 
 此时，您应该会看到这样的内容:
 
-```
+```py
 `├── BUILD
 ├── WORKSPACE
 ├── requirements.txt
@@ -302,13 +302,13 @@ py_test(
 
 从项目根目录运行:
 
-```
+```py
 `$ bazel test //test:compiler_version_test` 
 ```
 
 输出:
 
-```
+```py
 `Starting local Bazel server and connecting to it...
 INFO: Analyzed target //test:compiler_version_test (31 packages loaded, 8550 targets configured).
 INFO: Found 1 test target...
@@ -331,7 +331,7 @@ INFO: Build completed successfully, 2 total actions`
 
 创建一个“src”文件夹。然后，向其中添加一个名为 *flask_app.py* 的文件:
 
-```
+```py
 `import platform
 import subprocess
 import sys
@@ -367,7 +367,7 @@ if __name__ == '__main__':
 
 要构建它，我们需要向“src”添加一个*构建*文件:
 
-```
+```py
 `load("@rules_python//python:defs.bzl", "py_binary")
 load("@py_deps//:requirements.bzl", "requirement")
 
@@ -387,7 +387,7 @@ py_binary(
 
 我们还需要用以下内容扩展 *requirements.txt* 文件:
 
-```
+```py
 `click==5.1 --hash=sha256:0c22a2cd5a1d741e993834df99133de07eff6cc1bf06f137da2c5f3bab9073a6
 flask==1.1.2 --hash=sha256:8a4fdd8936eba2512e9c85df320a37e694c93945b33ef33c89946a340a238557
 itsdangerous==0.24 --hash=sha256:cbb3fcf8d3e33df861709ecaf89d9e6629cff0a217bc2848f1b41cd30d360519
@@ -398,7 +398,7 @@ Werkzeug==0.15.5 --hash=sha256:87ae4e5b5366da2347eb3116c0e6c681a0e939a33b2805e2c
 
 完整文件:
 
-```
+```py
 `attrs==20.3.0 --hash=sha256:31b2eced602aa8423c2aea9c76a724617ed67cf9513173fd3a4f03e3a929c7e6
 click==5.1 --hash=sha256:0c22a2cd5a1d741e993834df99133de07eff6cc1bf06f137da2c5f3bab9073a6
 flask==1.1.2 --hash=sha256:8a4fdd8936eba2512e9c85df320a37e694c93945b33ef33c89946a340a238557
@@ -418,13 +418,13 @@ Werkzeug==0.15.5 --hash=sha256:87ae4e5b5366da2347eb3116c0e6c681a0e939a33b2805e2c
 
 然后，要运行该应用程序，请运行:
 
-```
+```py
 `$ bazel run //src:flask_app` 
 ```
 
 您应该看到:
 
-```
+```py
 `INFO: Analyzed target //src:flask_app (10 packages loaded, 184 targets configured).
 INFO: Found 1 target...
 Target //src:flask_app up-to-date:
@@ -443,7 +443,7 @@ INFO: Build completed successfully, 4 total actions
 
 现在，应用程序正在本地主机上运行。打开浏览器并导航至 [http://127.0.0.1:5000/](http://127.0.0.1:5000/) 。您应该会看到类似如下的内容:
 
-```
+```py
 `Python  executable  used  by  Bazel  is:  /private/var/tmp/_bazel_michael/0c5c16dff39796b913e37a926dff4861/execroot/my_flask_app/bazel-out/darwin-fastbuild/bin/src/flask_app.runfiles/python_interpreter/python_bin Python  version  used  by  Bazel  is:  3.8.3 Python  executable  in  the  HOST  machine  is:  /Users/michael/.pyenv/versions/3.9.0/bin/python3 Python  version  in  the  HOST  machine  is:  3.9.0` 
 ```
 
@@ -455,7 +455,7 @@ INFO: Build completed successfully, 4 total actions
 
 要进行测试，请运行两次构建，并通过比较 md5 哈希来检查输出二进制文件是否有任何差异:
 
-```
+```py
 `$ md5sum $(bazel info bazel-bin)/src/flask_app
 
 2075a7ec4e8eb7ced16f0d9b3d8c5619  /private/var/tmp/_bazel_michael/0c5c16dff39796b913e37a926dff4861/execroot/my_flask_app/bazel-out/darwin-fastbuild/bin/src/flask_app

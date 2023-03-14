@@ -35,7 +35,7 @@ FastAPI 构建时考虑了这三个主要问题:
 
 **烧瓶**
 
-```
+```py
 `pip install flask
 
 # or
@@ -46,7 +46,7 @@ conda install flask`
 
 **FastAPI**
 
-```
+```py
 `pip install fastapi uvicorn
 
 # or
@@ -61,7 +61,7 @@ conda install fastapi uvicorn -c conda-forge`
 
 **烧瓶**
 
-```
+```py
 `# flask_code.py
 
 from flask import Flask
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
 **FastAPI**
 
-```
+```py
 `# fastapi_code.py
 
 import uvicorn
@@ -98,13 +98,13 @@ if __name__ == "__main__":
 
 或者，您可以直接从终端启动服务器:
 
-```
+```py
 `uvicorn run fastapi_code:app` 
 ```
 
 对于热重装:
 
-```
+```py
 `uvicorn run fastapi_code:app --reload` 
 ```
 
@@ -121,7 +121,7 @@ Flask 和 FastAPI 都提供了许多选项来处理不同环境的不同配置�
 
 **烧瓶**
 
-```
+```py
 `import os
 from flask import Flask
 
@@ -141,13 +141,13 @@ if __name__ == "__main__":
 
 现在，在运行服务器之前，设置适当的环境变量:
 
-```
+```py
 `export MESSAGE="hello, world"` 
 ```
 
 **FastAPI**
 
-```
+```py
 `import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseSettings
@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
 同样，在运行服务器之前，设置适当的环境变量:
 
-```
+```py
 `export MESSAGE="hello, world"` 
 ```
 
@@ -178,7 +178,7 @@ if __name__ == "__main__":
 
 **烧瓶**
 
-```
+```py
 `from flask import request
 
 @app.route("/", methods=["GET", "POST"])
@@ -192,7 +192,7 @@ def home():
 
 **FastAPI**
 
-```
+```py
 `@app.get("/")
 def home():
     return {"Hello": "GET"}
@@ -204,7 +204,7 @@ def home_post():
 
 FastAPI 为每个方法提供了单独的装饰器:
 
-```
+```py
 `@app.get("/")
 @app.post("/")
 @app.delete("/")
@@ -217,7 +217,7 @@ FastAPI 为每个方法提供了单独的装饰器:
 
 **烧瓶**
 
-```
+```py
 `@app.route("/employee/<int:id>")
 def home():
     return {"id": id}` 
@@ -225,7 +225,7 @@ def home():
 
 **FastAPI**
 
-```
+```py
 `@app.get("/employee/{id}")
 def home(id: int):
     return {"id": id}` 
@@ -239,7 +239,7 @@ URL 参数的指定类似于 f 字符串表达式。此外，您可以利用类�
 
 **烧瓶**
 
-```
+```py
 `from flask import request
 
 @app.route("/employee")
@@ -250,7 +250,7 @@ def home():
 
 **FastAPI**
 
-```
+```py
 `@app.get("/employee")
 def home(department: str):
     return {"department": department}` 
@@ -260,7 +260,7 @@ def home(department: str):
 
 **烧瓶**
 
-```
+```py
 `from flask import render_template
 
 @app.route("/")
@@ -276,7 +276,7 @@ def home():
 
 实施:
 
-```
+```py
 `from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -302,7 +302,7 @@ def home(request: Request):
 
 在 FastAPI 中，您需要为静态文件挂载一个文件夹:
 
-```
+```py
 `from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
@@ -316,7 +316,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")`
 
 从 [Flask 2.0](https://palletsprojects.com/blog/flask-2-0-released/) 开始，您可以使用`async` / `await`创建异步路由处理程序:
 
-```
+```py
 `@app.route("/")
 async def home():
     result = await some_async_task()
@@ -334,7 +334,7 @@ flask 中的异步也可以通过使用线程(并发)或多处理(并行)来实�
 
 FastAPI 极大地简化了异步任务，因为它本身支持 asyncio。要使用，只需在视图函数中添加关键字`async`:
 
-```
+```py
 `@app.get("/")
 async def home():
     result = await some_async_task()
@@ -343,7 +343,7 @@ async def home():
 
 FastAPI 还有一个[后台任务](https://fastapi.tiangolo.com/tutorial/background-tasks/)特性，可以用来定义在返回响应后运行的后台任务。这对于不需要在发送回响应之前完成的操作非常有用。
 
-```
+```py
 `from fastapi import BackgroundTasks
 
 def process_file(filename: str):
@@ -372,7 +372,7 @@ async def upload_and_process(filename: str, background_tasks: BackgroundTasks):
 
 例如:
 
-```
+```py
 `from databases import Database
 from fastapi import Depends
 from starlette.requests import Request
@@ -398,7 +398,7 @@ Flask 没有任何内部数据验证支持。您可以通过 [Flask-Pydantic](ht
 
 FastAPI 如此强大的原因之一是它支持 Pydantic。
 
-```
+```py
 `from pydantic import BaseModel
 
 app = FastAPI()
@@ -416,7 +416,7 @@ async def login(req: Request):
 
 这里，我们接受模型`Request`的输入。有效负载必须包含用户名和密码。
 
-```
+```py
 `# correct payload format
 ✗ curl -X POST 'localhost:8000/login' \
     --header 'Content-Type: application/json' \
@@ -440,7 +440,7 @@ async def login(req: Request):
 
 最简单的序列化方法是使用 [jsonify](https://flask.palletsprojects.com/en/2.0.x/api/#flask.json.jsonify) :
 
-```
+```py
 `from flask import jsonify
 from data import get_data_as_dict
 
@@ -455,7 +455,7 @@ def send_data():
 
 FastAPI 自动序列化任何返回的`dict`。对于更复杂和结构化的数据，使用 Pydantic:
 
-```
+```py
 `from pydantic import BaseModel
 
 app = FastAPI()
@@ -482,7 +482,7 @@ async def login(req: Request):
 
 示例:
 
-```
+```py
 `# output
 ✗ curl -X POST 'localhost:8000/login' \
     --header 'Content-Type: application/json' \
@@ -497,7 +497,7 @@ async def login(req: Request):
 
 **烧瓶**
 
-```
+```py
 `class middleware:
     def __init__(self, app) -> None:
         self.app = app
@@ -515,7 +515,7 @@ app.wsgi_app = middleware(app.wsgi_app)`
 
 **FastAPI**
 
-```
+```py
 `from fastapi import Request
 
 @app.middleware("http")
@@ -529,7 +529,7 @@ async def add_process_time_header(request: Request, call_next):
 
 `@app.middleware("http")`装饰器是[在 FastAPI 中创建](https://fastapi.tiangolo.com/tutorial/middleware/#create-a-middleware)中间件所必须的。上述中间件计算处理一个请求所花费的时间。在 view 函数处理完请求后，计算总处理时间并作为响应头发送回去。
 
-```
+```py
 `# flask output(logs)
 request processed in 0.0010077953338623047 s
 127.0.0.1 - - [22/Sep/2020 18:56:21] "GET / HTTP/1.1" 200 -
@@ -547,7 +547,7 @@ INFO:     127.0.0.1:51123 - "GET / HTTP/1.1" 200 OK`
 
 在 Flask 中，[蓝图](https://flask.palletsprojects.com/en/2.0.x/blueprints/)用于模块化:
 
-```
+```py
 `# blueprints/product/views.py
 from flask import Blueprint
 
@@ -557,7 +557,7 @@ product = Blueprint("product", __name__)
     ...` 
 ```
 
-```
+```py
 `# main.py
 
 from blueprints.product.views import product
@@ -569,7 +569,7 @@ app.register_blueprint(product)`
 
 同时，使用 FastAPI，通过一个 [APIRouter](https://fastapi.tiangolo.com/tutorial/bigger-applications/#apirouter) 实现模块化:
 
-```
+```py
 `# routers/product/views.py
 from fastapi import APIRouter
 
@@ -579,7 +579,7 @@ product = APIRouter()
     ...` 
 ```
 
-```
+```py
 `# main.py
 
 from routers.product.views import product
@@ -632,7 +632,7 @@ Flask 有一个广泛使用的第三方管理包，叫做 [Flask-Admin](https://
 
 FastAPI 通过`fastapi.security`包本地支持许多安全和认证工具。通过几行代码，您可以将基本的 HTTP 身份验证添加到您的应用程序中:
 
-```
+```py
 `import secrets
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -678,7 +678,7 @@ Flask 需要一个名为 [Flask-CORS](https://github.com/corydolphin/flask-cors)
 
 基本实现:
 
-```
+```py
 `from flask_cors import CORS
 
 app = Flask(__name__)
@@ -690,7 +690,7 @@ CORS(app)`
 
 FastAPI 本机支持 CORS:
 
-```
+```py
 `from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -704,7 +704,7 @@ app.add_middleware(CORSMiddleware, allow_origins=origins)`
 
 **烧瓶**
 
-```
+```py
 `import pytest
 from flask import Flask
 
@@ -723,7 +723,7 @@ def test_hello():
 
 **FastAPI**
 
-```
+```py
 `from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -756,7 +756,7 @@ Flask 默认运行一个开发 [WSGI](https://en.wikipedia.org/wiki/Web_Server_G
 
 启动服务器:
 
-```
+```py
 `# main.py
 # app = Flask(__name__)
 
@@ -771,7 +771,7 @@ gunicorn main:app`
 
 启动服务器:
 
-```
+```py
 `# main.py
 # app = FastAPI()
 
@@ -780,7 +780,7 @@ uvicorn main:app`
 
 您可能希望使用 Gunicorn 来管理 uvicon，以便利用并发性(通过 uvicon)和并行性(通过 Gunicorn workers):
 
-```
+```py
 `# main.py
 # app = FastAPI()
 
@@ -791,7 +791,7 @@ gunicorn -w 3 -k uvicorn.workers.UvicornWorker main:app`
 
 **烧瓶**
 
-```
+```py
 `FROM  python3.10-slim
 
 WORKDIR  /app
@@ -811,7 +811,7 @@ CMD  ["gunicorn",  "main:app"]`
 
 **FastAPI**
 
-```
+```py
 `FROM  python3.10-slim
 
 WORKDIR  /app

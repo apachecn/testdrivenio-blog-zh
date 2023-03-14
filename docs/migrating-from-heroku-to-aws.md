@@ -107,7 +107,7 @@
 
 现在通过命令行，使用`dig`实用程序来检查新的 A 记录是否正在工作。这可以从本地机器或 EC2 实例完成:
 
-```
+```py
 `$ dig A blog.petej.org
 
 ; <<>> DiG 9.9.7-P3 <<>> A blog.petej.org
@@ -170,7 +170,7 @@ Nice:域名- > √。现在您需要让 EC2 实例提供一些内容！
 
 在 EC2 实例上安装 git:
 
-```
+```py
 `$ sudo apt-get install git` 
 ```
 
@@ -178,7 +178,7 @@ Nice:域名- > √。现在您需要让 EC2 实例提供一些内容！
 
 因为你之前为 Ubuntu 服务器设置了用户，所以*/根目录*和你的 *~目录*(用户的主目录)是不一样的。考虑到这一点，在`ssh-add`步骤中改为这样做:
 
-```
+```py
 `cp /root/.ssh/id_rsa ~/.ssh/id_rsa
 cd ~/.ssh
 ssh-add` 
@@ -198,13 +198,13 @@ ssh-add`
 
 你需要一个 Docker Hub 账户->[https://hub.docker.com](https://hub.docker.com)
 
-```
+```py
 `$ docker login
 Username:
 Password:` 
 ```
 
-```
+```py
 `$ docker tag <image-name> <username>/<image-name>:<tag-name>
 $ docker push <username>/<image-name>` 
 ```
@@ -217,19 +217,19 @@ $ docker push <username>/<image-name>`
 
 安装 docker:
 
-```
+```py
 `$ sudo apt install docker.io` 
 ```
 
 在本地拉下您最近上传的 Docker 图像:
 
-```
+```py
 `$ sudo docker pull <username>/<image-name>` 
 ```
 
 获取图像 id 并使用它启动应用程序:
 
-```
+```py
 `$ sudo docker images
 # Copy the image ID
 $ sudo docker run -d -it -p 5000:5000 <image-id>` 
@@ -245,7 +245,7 @@ $ sudo docker run -d -it -p 5000:5000 <image-id>`
 
 我们还需要建立一个符号链接:
 
-```
+```py
 `$ sudo ln -s /etc/nginx/sites-available/circle-grid.petej.org.conf /etc/nginx/sites-enabled/` 
 ```
 

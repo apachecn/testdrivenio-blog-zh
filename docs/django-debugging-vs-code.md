@@ -16,7 +16,7 @@
 
 如果你还没有为你的项目设置一个[运行配置](https://code.visualstudio.com/docs/python/debugging)，添加一个*。vscode/launch.json* 文件:
 
-```
+```py
 `{ "version":  "0.2.0", "configurations":  [ { "name":  "Run Django", "type":  "python", "request":  "attach", "pathMappings":  [ { "localRoot":  "${workspaceFolder}/app", "remoteRoot":  "/usr/src/app" } ], "port":  3000, "host":  "127.0.0.1", } ] }` 
 ```
 
@@ -24,7 +24,7 @@
 
 例如，假设您的 Docker 合成文件中有以下配置:
 
-```
+```py
 `volumes: -  ./app/:/usr/src/app/` 
 ```
 
@@ -44,7 +44,7 @@
 
 由于 debugpy 与 Django 应用程序一起运行，我们需要将其配置为在我们的 *manage.py* 文件中运行:
 
-```
+```py
 `from django.conf import settings
 
 if settings.DEBUG:
@@ -56,7 +56,7 @@ if settings.DEBUG:
 
 您的文件将类似于:
 
-```
+```py
 `#!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
 import os
@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
 `debugpy.listen()`方法启动调试服务器。您还可以阻塞执行，直到调试器附加了`wait_for_client()`:
 
-```
+```py
 `from django.conf import settings
 
 if settings.DEBUG:
@@ -106,13 +106,13 @@ if settings.DEBUG:
 
 因为 debugpy 将在端口 3000 上运行，所以您需要向主机公开该端口。如果您正在使用 Docker Compose，您可以像这样公开端口:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./app command:  python manage.py runserver 0.0.0.0:8000 volumes: -  ./app/:/usr/src/app/ ports: -  8000:8000 -  3000:3000` 
 ```
 
 如果您没有使用 Compose，请确保在运行容器时公开端口:
 
-```
+```py
 `$ docker run -d -p 8000:8000 -p 3000:3000 web` 
 ```
 

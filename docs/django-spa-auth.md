@@ -28,7 +28,7 @@
 
 例如:
 
-```
+```py
 `// token header { "alg":  "HS256", "typ":  "JWT" } // token payload { "sub":  "1234567890", "name":  "John Doe", "iat":  1516239022 }` 
 ```
 
@@ -69,7 +69,7 @@ XSS 攻击是一种注入类型，恶意脚本被注入客户端，通常是为�
 
 让我们首先为我们的项目创建一个新目录。在目录中，我们将创建并激活一个新的虚拟环境，安装 Django，并创建一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django_react_templates && cd django_react_templates
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -80,13 +80,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`api`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp api` 
 ```
 
 在`INSTALLED_APPS`下的*djangookieauth/settings . py*中注册 app:
 
-```
+```py
 `# djangocookieauth/settings.py
 
 INSTALLED_APPS = [
@@ -111,7 +111,7 @@ INSTALLED_APPS = [
 
 向“api”添加一个 *urls.py* 文件，并定义以下 URL:
 
-```
+```py
 `# api/urls.py
 
 from django.urls import path
@@ -128,7 +128,7 @@ urlpatterns = [
 
 现在，让我们将我们的应用程序 URL 注册到基础项目:
 
-```
+```py
 `# djangocookieauth/urls.py
 
 from django.contrib import admin
@@ -143,14 +143,14 @@ urlpatterns = [
 
 我们后端的代码现在差不多完成了。运行 migrate 命令并创建一个超级用户以供将来测试:
 
-```
+```py
 `(env)$ python manage.py migrate
 (env)$ python manage.py createsuperuser` 
 ```
 
 最后，更新*djangookieauth/settings . py*中的以下安全设置:
 
-```
+```py
 `CSRF_COOKIE_SAMESITE = 'Strict'
 SESSION_COOKIE_SAMESITE = 'Strict'
 CSRF_COOKIE_HTTPONLY = False  # False since we will grab it via universal-cookies
@@ -174,7 +174,7 @@ SESSION_COOKIE_HTTPONLY = True
 
 我们将使用 [Create React App](https://create-react-app.dev/) 来搭建一个新的 React 项目:
 
-```
+```py
 `$ npx create-react-app frontend
 $ cd frontend
 $ npm start` 
@@ -186,7 +186,7 @@ $ npm start`
 
 您可以通过删除所有文件和文件夹来简化前端，除了:
 
-```
+```py
 `├── README.md
 ├── node_modules
 ├── package-lock.json
@@ -204,7 +204,7 @@ $ npm start`
 
 接下来，让我们添加 Bootstrap*frontend/public/index . html*:
 
-```
+```py
 `<!-- frontend/public/index.html -->
 
 <!DOCTYPE html>
@@ -236,7 +236,7 @@ $ npm start`
 
 从“前端”文件夹安装它:
 
-```
+```py
 `$ npm install universal-cookie` 
 ```
 
@@ -246,7 +246,7 @@ $ npm start`
 
 我们使用`universal-cookie`获得了 CSRF 令牌，并在我们的请求中将其作为报头传递给了`X-CSRFToken`:
 
-```
+```py
 `import  Cookies  from  "universal-cookie"; const  cookies  =  new  Cookies(); login  =  (event)  =>  { event.preventDefault(); fetch("/api/login/",  { method:  "POST", headers:  { "Content-Type":  "application/json", "X-CSRFToken":  cookies.get("csrftoken"), }, credentials:  "same-origin", body:  JSON.stringify({username:  this.state.username,  password:  this.state.password}), }) .then(this.isResponseOk) .then((data)  =>  { console.log(data); this.setState({isAuthenticated:  true,  username:  "",  password:  "",  error:  ""}); }) .catch((err)  =>  { console.log(err); this.setState({error:  "Wrong username or password."}); }); }` 
 ```
 
@@ -254,7 +254,7 @@ $ npm start`
 
 更新 *frontend/src/index.js* :
 
-```
+```py
 `// frontend/src/index.js import  React  from  "react"; import  ReactDOM  from  "react-dom"; import  App  from  "./App.js"; import  "./index.css"; ReactDOM.render( <React.StrictMode> <App  /> </React.StrictMode>, document.getElementById("root") );` 
 ```
 
@@ -266,7 +266,7 @@ $ npm start`
 
 接下来，我们必须让 Django 知道我们的 React 应用程序在哪里:
 
-```
+```py
 `# djangocookieauth/settings.py
 
 TEMPLATES = [
@@ -298,7 +298,7 @@ STATICFILES_DIRS = (
 
 让我们为我们的应用程序创建索引视图:
 
-```
+```py
 `# djangocookieauth/urls.py
 
 from django.contrib import admin
@@ -320,7 +320,7 @@ urlpatterns = [
 
 从项目根目录，使用`runserver`命令运行 Django 服务器，如下所示:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
@@ -344,7 +344,7 @@ urlpatterns = [
 
 首先创建一个项目目录:
 
-```
+```py
 `$ mkdir django_react_same_origin && cd django_react_same_origin` 
 ```
 
@@ -352,13 +352,13 @@ urlpatterns = [
 
 首先，为 Django 项目创建一个名为“backend”的新目录:
 
-```
+```py
 `$ mkdir backend && cd backend` 
 ```
 
 接下来，创建并激活一个新的虚拟环境，安装 Django，并创建一个新的 Django 项目:
 
-```
+```py
 `$ python3.9 -m venv env
 $ source env/bin/activate
 
@@ -368,13 +368,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`api`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp api` 
 ```
 
 在`INSTALLED_APPS`下的*djangookieauth/settings . py*中注册 app:
 
-```
+```py
 `# backend/djangocookieauth/settings.py
 
 INSTALLED_APPS = [
@@ -400,7 +400,7 @@ INSTALLED_APPS = [
 
 向“后端/api”添加一个 *urls.py* 文件，并定义以下特定于应用程序的 URL:
 
-```
+```py
 `# backend/api/urls.py
 
 from django.urls import path
@@ -418,7 +418,7 @@ urlpatterns = [
 
 现在，让我们将我们的应用程序 URL 注册到基础项目:
 
-```
+```py
 `# backend/djangocookieauth/urls.py
 
 from django.contrib import admin
@@ -433,7 +433,7 @@ urlpatterns = [
 
 让我们更改一下*back end/djangookieauth/settings . py*中的一些安全设置:
 
-```
+```py
 `CSRF_COOKIE_SAMESITE = 'Strict'
 SESSION_COOKIE_SAMESITE = 'Strict'
 CSRF_COOKIE_HTTPONLY = True
@@ -461,7 +461,7 @@ SESSION_COOKIE_HTTPONLY = True
 
 从项目根目录运行:
 
-```
+```py
 `$ npx create-react-app frontend
 $ cd frontend
 $ npm start` 
@@ -473,7 +473,7 @@ $ npm start`
 
 您可以通过删除所有文件和文件夹来简化前端，除了:
 
-```
+```py
 `├── README.md
 ├── node_modules
 ├── package-lock.json
@@ -491,7 +491,7 @@ $ npm start`
 
 接下来，让我们添加 Bootstrap*frontend/public/index . html*:
 
-```
+```py
 `<!-- frontend/public/index.html -->
 
 <!DOCTYPE html>
@@ -530,7 +530,7 @@ $ npm start`
 
 更新 *frontend/src/index.js* :
 
-```
+```py
 `// frontend/src/index.js import  React  from  "react"; import  ReactDOM  from  "react-dom"; import  App  from  "./App.js"; import  "./index.css"; ReactDOM.render( <React.StrictMode> <App  /> </React.StrictMode>, document.getElementById("root") );` 
 ```
 
@@ -540,7 +540,7 @@ $ npm start`
 
 #### 后端
 
-```
+```py
 `# backend/Dockerfile
 
 # pull official base image
@@ -567,7 +567,7 @@ CMD  ["python",  "manage.py",  "runserver",  "0.0.0.0:8000"]`
 
 #### 前端
 
-```
+```py
 `# frontend/Dockerfile
 
 # pull official base image
@@ -593,7 +593,7 @@ CMD  ["npm",  "start"]`
 
 为了在同一个域上运行这两个应用程序，让我们为 Nginx 添加一个作为反向代理的容器。在项目根目录下创建一个名为“nginx”的新文件夹。
 
-```
+```py
 `# nginx/Dockerfile
 
 FROM  nginx:latest
@@ -604,7 +604,7 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 注意两个[位置](https://nginx.org/en/docs/http/ngx_http_core_module.html#location)块:
 
-```
+```py
 `#  nginx/nginx.conf location  /api  { proxy_pass  http://backend:8000; ... } location  /  { proxy_pass  http://frontend:8000; ... }` 
 ```
 
@@ -614,13 +614,13 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 在项目根目录中创建一个 *docker-compose.yml* 文件，并添加以下内容:
 
-```
+```py
 `# docker-compose.yml version:  '3.8' services: backend: build:  ./backend volumes: -  ./backend:/usr/src/app expose: -  8000 frontend: stdin_open:  true build:  ./frontend volumes: -  ./frontend:/usr/src/app -  /usr/src/app/node_modules expose: -  3000 environment: -  NODE_ENV=development depends_on: -  backend reverse_proxy: build:  ./nginx ports: -  81:80 depends_on: -  backend -  frontend` 
 ```
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `├── backend
 │   ├── Dockerfile
 │   ├── api
@@ -665,7 +665,7 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 构建图像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -673,7 +673,7 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 运行迁移并创建超级用户:
 
-```
+```py
 `$ docker-compose exec backend python manage.py makemigrations
 $ docker-compose exec backend python manage.py migrate
 $ docker-compose exec backend python manage.py createsuperuser` 
@@ -689,7 +689,7 @@ $ docker-compose exec backend python manage.py createsuperuser`
 
 当使用这种方法时，你必须使用 pip 安装`djangorestframework`或将其添加到 *requirements.txt* (如果用 Docker 构建)。安装后，你需要在*设置中的`INSTALLED_APPS`下注册它。*
 
-```
+```py
 `# djangocookieauth/settings.py
 
 INSTALLED_APPS = [
@@ -706,7 +706,7 @@ INSTALLED_APPS = [
 
 要启用`SessionAuthentication`，您必须将以下内容添加到您的*设置中。py* :
 
-```
+```py
 `# backend/djangocookieauth/settings.py
 
 # Django REST framework
@@ -726,7 +726,7 @@ REST_FRAMEWORK = {
 
 创建 session 和 whoami 视图时，使用从`rest_framework`导入的`APIView`，并显式设置`authentication_classes`和`permission_classes`:
 
-```
+```py
 `# backend/api/views.py
 
 from django.http import JsonResponse
@@ -753,7 +753,7 @@ class WhoAmIView(APIView):
 
 注册 URL 时，请像这样注册:
 
-```
+```py
 `# backend/api/urls.py
 
 from django.urls import path
@@ -777,7 +777,7 @@ urlpatterns = [
 
 首先创建一个项目目录:
 
-```
+```py
 `$ mkdir django_react_cross_origin && cd django_react_cross_origin` 
 ```
 
@@ -785,13 +785,13 @@ urlpatterns = [
 
 首先，为 Django 项目创建一个名为“backend”的新目录:
 
-```
+```py
 `$ mkdir backend && cd backend` 
 ```
 
 接下来，创建并激活一个新的虚拟环境，安装 Django，并创建一个新的 Django 项目:
 
-```
+```py
 `$ python3.9 -m venv env
 $ source env/bin/activate
 
@@ -801,13 +801,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`api`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp api` 
 ```
 
 在`INSTALLED_APPS`下的*back end/djangookieauth/settings . py*中注册 app:
 
-```
+```py
 `# backend/djangocookieauth/settings.py
 
 INSTALLED_APPS = [
@@ -833,7 +833,7 @@ INSTALLED_APPS = [
 
 向“api”添加一个 *urls.py* 文件，并定义以下 URL:
 
-```
+```py
 `# backend/api/urls.py
 
 from django.urls import path
@@ -851,7 +851,7 @@ urlpatterns = [
 
 现在，让我们将我们的应用程序 URL 注册到基础项目:
 
-```
+```py
 `# backend/djangocookieauth/urls.py
 
 from django.contrib import admin
@@ -866,7 +866,7 @@ urlpatterns = [
 
 现在，我们必须放松一些安全设置，以便我们的请求能够通过。让我们首先在*back end/djangookieauth/settings . py*中设置我们的 cookie 设置:
 
-```
+```py
 `CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = True
@@ -886,13 +886,13 @@ SESSION_COOKIE_HTTPONLY = True
 
 为了允许跨源 cookie 保存，我们还需要更改一些 CORS 设置。为此我们将使用`django-cors-headers`。让我们从使用以下命令安装它开始:
 
-```
+```py
 `(env)$ pip install django-cors-headers==3.5.0` 
 ```
 
 将它添加到您已安装的应用程序中，并添加一个新的中间件类:
 
-```
+```py
 `# backend/djangocookieauth/settings.py
 
 INSTALLED_APPS = [
@@ -920,7 +920,7 @@ MIDDLEWARE = [
 
 配置 CORS:
 
-```
+```py
 `# backend/djangocookieauth/settings.py
 
 CORS_ALLOWED_ORIGINS = [
@@ -939,7 +939,7 @@ CORS_ALLOW_CREDENTIALS = True`
 
 我们后端的代码现在差不多完成了。让我们运行 migrate 命令并创建一个超级用户，以便将来进行测试:
 
-```
+```py
 `(env)$ python manage.py migrate
 (env)$ python manage.py createsuperuser` 
 ```
@@ -952,7 +952,7 @@ CORS_ALLOW_CREDENTIALS = True`
 
 从项目根目录运行:
 
-```
+```py
 `$ npx create-react-app frontend
 $ cd frontend
 $ npm start` 
@@ -964,7 +964,7 @@ $ npm start`
 
 您可以通过删除所有文件和文件夹来简化前端，除了:
 
-```
+```py
 `├── README.md
 ├── node_modules
 ├── package-lock.json
@@ -982,7 +982,7 @@ $ npm start`
 
 接下来，让我们添加 Bootstrap*frontend/public/index . html*:
 
-```
+```py
 `<!-- frontend/public/index.html -->
 
 <!DOCTYPE html>
@@ -1021,7 +1021,7 @@ $ npm start`
 
 更新 *frontend/src/index.js* :
 
-```
+```py
 `// frontend/src/index.js import  React  from  "react"; import  ReactDOM  from  "react-dom"; import  App  from  "./App.js"; import  "./index.css"; ReactDOM.render( <React.StrictMode> <App  /> </React.StrictMode>, document.getElementById("root") );` 
 ```
 
@@ -1029,7 +1029,7 @@ $ npm start`
 
 移动到您的*后端*文件夹，使用以下命令运行 Django:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 

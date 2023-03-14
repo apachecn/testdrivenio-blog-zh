@@ -19,14 +19,14 @@
 
 如果你想继续，复制下[金库-领事-烧瓶](https://github.com/testdrivenio/vault-consul-flask)回购，然后查看 [v1](https://github.com/testdrivenio/vault-consul-flask/tree/v1) 分支:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/vault-consul-flask --branch v1 --single-branch
 $ cd vault-consul-flask` 
 ```
 
 快速浏览一下代码:
 
-```
+```py
 `├── .gitignore
 ├── Dockerfile
 ├── README.md
@@ -51,7 +51,7 @@ $ cd vault-consul-flask`
 
 *项目/配置文件*:
 
-```
+```py
 `import os
 
 USER = os.environ.get('DB_USER')
@@ -70,7 +70,7 @@ class ProductionConfig():
 
 首先，登录 Vault(如有必要)，然后从 Vault [CLI](https://www.vaultproject.io/docs/commands/index.html) 启用数据库[秘密后端](https://www.vaultproject.io/docs/secrets/databases/index.html):
 
-```
+```py
 `$ vault secrets enable database
 
 Success! Enabled the database secrets engine at: database/` 
@@ -78,7 +78,7 @@ Success! Enabled the database secrets engine at: database/`
 
 添加 Postgres 连接以及数据库引擎[插件](https://www.vaultproject.io/docs/secrets/databases/postgresql.html)信息:
 
-```
+```py
 `$ vault write database/config/users_db \
     plugin_name="postgresql-database-plugin" \
     connection_url="postgresql://{{username}}:{{password}}@<ENDPOINT>:5432/users_db" \
@@ -91,7 +91,7 @@ Success! Enabled the database secrets engine at: database/`
 
 确保更新数据库端点以及用户名和密码。例如:
 
-```
+```py
 `$ vault write database/config/users_db \
     plugin_name="postgresql-database-plugin" \
     connection_url="postgresql://{{username}}:{{password}}@users-db.c7vzuyfvhlgz.us-east-1.rds.amazonaws.com:5432/users_db" \
@@ -102,7 +102,7 @@ Success! Enabled the database secrets engine at: database/`
 
 这在“database/config/users_db”中创建了一个新的机密路径:
 
-```
+```py
 `$ vault list database/config
 
 Keys
@@ -112,7 +112,7 @@ users_db`
 
 接下来，创建一个名为`mynewrole`的新角色:
 
-```
+```py
 `$ vault write database/roles/mynewrole \
     db_name=users_db \
     creation_statements="CREATE ROLE \"{{name}}\" \
@@ -134,7 +134,7 @@ Success! Data written to: database/roles/mynewrole`
 
 在项目根目录下创建一个名为 *run.sh* 的新文件:
 
-```
+```py
 `#!/bin/sh
 
 rm -f .env
@@ -153,7 +153,7 @@ docker-compose up -d --build`
 
 添加`VAULT_TOKEN`环境变量:
 
-```
+```py
 `$ export VAULT_TOKEN=<YOUR_VAULT_TOKEN>` 
 ```
 
@@ -161,13 +161,13 @@ docker-compose up -d --build`
 
 验证环境变量是否已成功添加:
 
-```
+```py
 `$ docker-compose exec web env` 
 ```
 
 您还应该在数据库中看到该用户:
 
-```
+```py
 `Role name                                   | Attributes                                  | Member of
 --------------------------------------------+---------------------------------------------+----------
  v-root-mynewrol-jC8Imdx2sMTZj03-1533704364 | Password valid until 2018-08-08 05:59:29+00 | {}` 
@@ -175,14 +175,14 @@ docker-compose up -d --build`
 
 创建并植入数据库`users`表:
 
-```
+```py
 `$ docker-compose run web python manage.py recreate-db
 $ docker-compose run web python manage.py seed-db` 
 ```
 
 在浏览器中进行测试，网址为[http://localhost:5000/users](http://localhost:5000/users):
 
-```
+```py
 `{ "status":  "success", "users":  [{ "active":  true, "admin":  false, "email":  "[[email protected]](/cdn-cgi/l/email-protection)", "id":  1, "username":  "michael" }] }` 
 ```
 

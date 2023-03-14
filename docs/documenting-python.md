@@ -42,7 +42,7 @@
 
 例如，假设您有一个名为 *temperature.py* 的模块，它有一个计算日平均温度的函数。使用 docstrings，您可以像这样记录它:
 
-```
+```py
 `"""
 The temperature module: Manipulate your temperature easily
 
@@ -76,7 +76,7 @@ def daily_average(temperatures: List[float]) -> float:
 
 您可以通过访问`__doc__`属性来查看为`daily_average`函数指定的文档字符串:
 
-```
+```py
 `>>> from temperature import daily_average
 >>>
 >>> print(daily_average.__doc__)
@@ -89,7 +89,7 @@ def daily_average(temperatures: List[float]) -> float:
 
 您还可以通过使用内置的 [help](https://docs.python.org/3/library/functions.html#help) 函数来查看完整的模块级文档字符串:
 
-```
+```py
 `>>> import temperature
 >>>
 >>> help(temperature)` 
@@ -101,7 +101,7 @@ def daily_average(temperatures: List[float]) -> float:
 
 文档字符串可以是单行或多行。无论哪种方式，第一行总是被视为摘要。[摘要行](https://www.python.org/dev/peps/pep-0257/#multi-line-docstrings)可能会被自动索引工具使用，所以它适合一行是很重要的。当使用单行文档字符串时，所有内容都应该在同一行:开始引号、摘要和结束引号。
 
-```
+```py
 `class HighTemperature:
     """Class representing very high temperatures"""
 
@@ -110,7 +110,7 @@ def daily_average(temperatures: List[float]) -> float:
 
 当使用多行文档字符串时，结构是这样的:开始引号、摘要、空行、更详细的描述和结束引号。
 
-```
+```py
 `def daily_average(temperatures: List[float]) -> float:
     """
  Get average daily temperature
@@ -154,7 +154,7 @@ Darglint 是一个流行的 Python 文档 linter。
 
 让我们对 *temperature.py* 模块进行 lint 处理:
 
-```
+```py
 `def daily_average(temperatures: List[float]) -> float:
     """
  Get average daily temperature
@@ -170,13 +170,13 @@ Darglint 是一个流行的 Python 文档 linter。
 
 棉绒:
 
-```
+```py
 `$ darglint --docstring-style sphinx temperature.py` 
 ```
 
 如果把参数名从`temperatures`改成`temperatures_list`会怎么样？
 
-```
+```py
 `$ darglint --docstring-style sphinx temperature.py
 
 temperature.py:daily_average:27: DAR102: + temperatures
@@ -189,7 +189,7 @@ temperature.py:daily_average:27: DAR101: - temperatures_list`
 
 例如:
 
-```
+```py
 `def daily_average(temperatures: List[float], new_param=None) -> float:
     """
  Get average daily temperature
@@ -212,7 +212,7 @@ temperature.py:daily_average:27: DAR101: - temperatures_list`
 
 因此，在上面的例子中，pytest 将断言`daily_average([10.0, 12.0, 14.0])`等于`12.0`。要将这个代码示例作为测试运行，您只需使用 [doctest-modules](https://docs.pytest.org/en/stable/doctest.html) 选项运行 pytest:
 
-```
+```py
 `$ python -m pytest --doctest-modules temperature.py
 
 =============================== test session starts ===============================
@@ -227,12 +227,12 @@ temperature.py .                                                            [100
 
 如果将代码示例更改为:
 
-```
+```py
 `>>> daily_average([10.0, 12.0, 14.0])
 13.0` 
 ```
 
-```
+```py
 `$ python -m pytest --doctest-modules temperature.py
 
 =============================== test session starts ===============================
@@ -273,7 +273,7 @@ FAILED temperature.py::temperature.daily_average
 
 让我们看看它的实际效果。首先按照官方[指南](https://www.sphinx-doc.org/en/master/usage/installation.html)下载并安装 Sphinx。
 
-```
+```py
 `$ sphinx-quickstart --version
 
 sphinx-quickstart 6.1.3` 
@@ -281,14 +281,14 @@ sphinx-quickstart 6.1.3`
 
 创建新的项目目录:
 
-```
+```py
 `$ mkdir sphinx_example
 $ cd sphinx_example` 
 ```
 
 接下来，添加一个名为 *temperature.py* 的新文件:
 
-```
+```py
 `"""
 The temperature module: Manipulate your temperature easily
 
@@ -322,7 +322,7 @@ def daily_average(temperatures: List[float]) -> float:
 
 你会被提升几个问题:
 
-```
+```py
 `> Separate source and build directories (y/n) [n]: n
 > Project name: Temperature
 > Author name(s): Your Name
@@ -332,7 +332,7 @@ def daily_average(temperatures: List[float]) -> float:
 
 完成后,“docs”目录应该包含以下文件和文件夹:
 
-```
+```py
 `docs
 ├── Makefile
 ├── _build
@@ -345,7 +345,7 @@ def daily_average(temperatures: List[float]) -> float:
 
 接下来，让我们更新项目配置。打开 *docs/conf.py* ，在顶部添加以下内容:
 
-```
+```py
 `import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))` 
@@ -355,7 +355,7 @@ sys.path.insert(0, os.path.abspath('..'))`
 
 将以下扩展名添加到`extensions`列表中:
 
-```
+```py
 `extensions = [
     'sphinx.ext.autodoc',
 ]` 
@@ -363,7 +363,7 @@ sys.path.insert(0, os.path.abspath('..'))`
 
 打开 *docs/index.rst* 并编辑它，如下所示:
 
-```
+```py
 `Welcome to Temperature documentation!
 =====================================
 
@@ -404,7 +404,7 @@ OpenAPI 规范(以前的 Swagger 规范)提供了一种描述、生产、消费�
 
 规范本身必须用 YAML 或 JSON 编写。例如:
 
-```
+```py
 `--- openapi:  3.0.2 info: title:  Swagger Petstore - OpenAPI 3.0 description:  |- This is a sample Open API version:  1.0.0 servers: -  url:  "/api/v3" paths: "/pet": post: summary:  Add a new pet to the store description:  Add a new pet to the store operationId:  addPet requestBody: description:  Create a new pet in the store content: application/json: schema: "$ref":  "#/components/schemas/Pet" required:  true responses: '200': description:  Successful operation content: application/json: schema: "$ref":  "#/components/schemas/Pet" '405': description:  Invalid input components: schemas: Pet: required: -  name -  photoUrls type:  object properties: id: type:  integer format:  int64 example:  10 name: type:  string example:  doggie photoUrls: type:  array items: type:  string status: type:  string description:  pet status in the store enum: -  available -  pending -  sold requestBodies: Pet: description:  Pet object that needs to be added to the store content: application/json: schema: "$ref":  "#/components/schemas/Pet"` 
 ```
 
@@ -432,7 +432,7 @@ OpenAPI 规范(以前的 Swagger 规范)提供了一种描述、生产、消费�
 *   当调用“每日平均”时-> `>>> daily_average([10.0, 12.0, 14.0])`
 *   然后返回平均温度-> `Get average temperature, :return: Average temperature`
 
-```
+```py
 `def daily_average(temperatures: List[float]) -> float:
     """
  Get average temperature
@@ -465,14 +465,14 @@ OpenAPI 规范(以前的 Swagger 规范)提供了一种描述、生产、消费�
 
 那么，我们开始吧。首先，创建一个新文件夹:
 
-```
+```py
 `$ mkdir flask_temperature
 $ cd flask_temperature` 
 ```
 
 接下来，用[诗歌](https://python-poetry.org)初始化你的项目:
 
-```
+```py
 `$ poetry init
 Package name [flask_temperature]:
 Version [0.1.0]:
@@ -488,13 +488,13 @@ Do you confirm generation? (yes/no) [yes]`
 
 之后，添加 Flask 和 Flask-RESTX:
 
-```
+```py
 `$ poetry add flask flask-restx` 
 ```
 
 现在，让我们创建文档化的 API。为 Flask 应用程序添加一个名为 *app.py* 的文件:
 
-```
+```py
 `import uuid
 
 from flask import Flask, request
@@ -535,7 +535,7 @@ Flask-RESTX 使用基于类的视图来组织资源、路由和 HTTP 方法。�
 
 更新 *app.py* :
 
-```
+```py
 `import uuid
 
 from flask import Flask, request

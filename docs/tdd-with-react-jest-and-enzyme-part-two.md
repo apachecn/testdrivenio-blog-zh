@@ -23,13 +23,13 @@
 
 在 *Keypad.spec.js* 中，从`numbers`测试开始:
 
-```
+```py
 `it('renders the values of numbers',  ()  =>  { wrapper.setProps({numbers:  ['0',  '1',  '2']}); expect(wrapper.find('.numbers-container').text()).toEqual('012'); });` 
 ```
 
 然后更新 *Keypad.jsx* ，通过添加一个`map`函数来遍历`numbers`数组以及一个容器`div`元素来容纳我们的新元素，从而通过测试:
 
-```
+```py
 `...
 const Keypad = ({
   callOperator,
@@ -55,19 +55,19 @@ const Keypad = ({
 
 更新 *Keypad.spec.js* 中的测试:
 
-```
+```py
 `it('should render 2 <div />\'s',  ()  =>  { expect(wrapper.find('div').length).toEqual(2); });` 
 ```
 
 全部通过！在 *Keypad.spec.js* 中对`operators`遵循相同的模式:
 
-```
+```py
 `it('renders the values of operators',  ()  =>  { wrapper.setProps({operators:  ['+',  '-',  '*',  '/']}); expect(wrapper.find('.operators-container').text()).toEqual('+-*/'); });` 
 ```
 
 然后在 *Keypad.jsx* 中，用我们对`numbers`所做的同样方式更新组件:
 
-```
+```py
 `...
 const Keypad = ({
   callOperator,
@@ -96,7 +96,7 @@ const Keypad = ({
 
 这个现在应该破`Keypad › should render 2 <div />'s`。更新 *Keypad.spec.js* 中的测试:
 
-```
+```py
 `it('should render 3 <div />\'s',  ()  =>  { expect(wrapper.find('div').length).toEqual(3); });` 
 ```
 
@@ -106,7 +106,7 @@ const Keypad = ({
 
 现在添加 CSS 变量和组件 CSS。导航到 *index.css* 并对`:root`范围进行更新:
 
-```
+```py
 `/*
 app variables
 */ :root  { /* background colors */ --calculator-background-color:  #696969; --display-background-color:  #1d1f1f; /* font */ --main-font:  'Orbitron',  sans-serif; /* font colors */ --display-text-color:  #23e000; /* font sizes */ --display-text-size:  4em; /* font weights */ --display-text-weight:  400; /* calculator dimensions */ --calculator-height:  72%; --calculator-width:  36%; /* display dimensions */ --display-height:  24%; --display-width:  92%; /* keypad dimensions */ --keypad-height:  72%; --keypad-width:  96%; } /*
@@ -116,7 +116,7 @@ media query for tablet or smaller screen
 
 将以下内容添加到 *Keypad.css* :
 
-```
+```py
 `.keypad-container  { display:  flex; flex-direction:  row; flex-wrap:  wrap; height:  var(--keypad-height); padding:  2%; width:  var(--keypad-width); } .numbers-container  { display:  flex; flex-direction:  row; flex-wrap:  wrap; height:  80%; width:  75%; } .operators-container  { display:  flex; flex-direction:  column; height:  80%; width:  25%; } .submit-container  { height:  20%; width:  100%; }` 
 ```
 
@@ -128,7 +128,7 @@ media query for tablet or smaller screen
 
 最后，将 *Keypad.css* 导入到 *Keypad.jsx* 中:
 
-```
+```py
 `import React from 'react';
 import PropTypes from 'prop-types';
 import './Keypad.css';
@@ -149,7 +149,7 @@ import './Keypad.css';
 
 将以下测试添加到 *Keypad.spec.js* :
 
-```
+```py
 `it('should render an instance of the Key component',  ()  =>  { expect(wrapper.find('Key').length).toEqual(1); });` 
 ```
 
@@ -157,7 +157,7 @@ import './Keypad.css';
 
 在“src/components/Key”中为`Key`组件创建测试套件文件，然后在 *Key.spec.js* 中为`Key`添加浅层渲染测试:
 
-```
+```py
 `import React from 'react';
 import { shallow } from 'enzyme';
 import Key from './Key';
@@ -183,7 +183,7 @@ describe('Key', () => {
 
 将组件添加到 *Key.jsx* :
 
-```
+```py
 `import React from 'react';
 import PropTypes from 'prop-types';
 
@@ -200,7 +200,7 @@ export default Key;`
 
 `Keypad › should render an instance of the Key component`应该还是失败了。
 
-```
+```py
  `PASS  src/components/Display/Display.spec.js
  PASS  src/components/Calculator/Calculator.spec.js
  PASS  src/components/App/App.spec.js
@@ -233,7 +233,7 @@ Ran all test suites related to changed files.`
 
 导入 *Keypad.jsx* 中的`Key`组件，更新`return`语句:
 
-```
+```py
 `...
 import Key from '../Key/Key';
 import './Keypad.css';
@@ -271,13 +271,13 @@ const Keypad = ({
 
 接下来，向 *Key.spec.jsx* 添加一个新的测试，检查`keyValue`的值是否存在:
 
-```
+```py
 `it('should render the value of keyValue',  ()  =>  { wrapper.setProps({  keyValue:  'test'  }); expect(wrapper.text()).toEqual('test'); });` 
 ```
 
 重构 *Key.jsx* 中的`Key`组件:
 
-```
+```py
 `const Key = ({ keyAction, keyType, keyValue }) => (
   <div className="key-container">
     <p className="key-value">
@@ -293,13 +293,13 @@ const Keypad = ({
 
 这是更新 CSS 变量和添加`Key` CSS 的好地方。导航到 *index.css* 并进行以下更新:
 
-```
+```py
 `:root  { /* background colors */ --action-key-color:  #545454; --action-key-color-hover:  #2a2a2a; --calculator-background-color:  #696969; --display-background-color:  #1d1f1f; --number-key-color:  #696969; --number-key-color-hover:  #3f3f3f; --submit-key-color:  #d18800; --submit-key-color-hover:  #aa6e00; ... /* font colors */ --display-text-color:  #23e000; --key-text-color:  #d3d3d3; /* font sizes */ --display-text-size:  4em; --key-text-size:  3em; /* font weights */ --display-text-weight:  400; --key-text-weight:  700; ... } ... @media  screen  and  (max-width:  1024px)  { :root  { /* font sizes */ --display-text-size:  10em; --key-text-size:  6em; ... } }` 
 ```
 
 完整的 *index.css* 文件现在应该是这样的:
 
-```
+```py
 `/*
 app variables
 */ :root  { /* background colors */ --action-key-color:  #545454; --action-key-color-hover:  #2a2a2a; --calculator-background-color:  #696969; --display-background-color:  #1d1f1f; --number-key-color:  #696969; --number-key-color-hover:  #3f3f3f; --submit-key-color:  #d18800; --submit-key-color-hover:  #aa6e00; /* font */ --main-font:  'Orbitron',  sans-serif; /* font colors */ --display-text-color:  #23e000; --key-text-color:  #d3d3d3; /* font sizes */ --display-text-size:  4em; --key-text-size:  3em; /* font weights */ --display-text-weight:  400; --key-text-weight:  700; /* calculator dimensions */ --calculator-height:  72%; --calculator-width:  36%; /* display dimensions */ --display-height:  24%; --display-width:  92%; /* keypad dimensions */ --keypad-height:  72%; --keypad-width:  96%; } /*
@@ -311,7 +311,7 @@ app CSS reset
 
 然后在 *Key.css* 中添加组件 CSS:
 
-```
+```py
 `.key-container  { align-items:  center; display:  flex; height:  25%; justify-content:  center; transition:  background-color  0.3s  linear; } .key-container:hover  { cursor:  pointer; } .operator-key  { background-color:  var(--action-key-color); width:  100%; } .operator-key:hover  { background-color:  var(--action-key-color-hover); } .number-key  { background-color:  var(--number-key-color); width:  calc(100%/3); } .number-key:hover  { background-color:  var(--number-key-color-hover); } .submit-key  { background-color:  var(--submit-key-color); height:  100%; width:  100%; } .submit-key:hover  { background-color:  var(--submit-key-color-hover); } .key-value  { color:  var(--key-text-color); font-family:  var(--main-font); font-size:  var(--key-text-size); font-weight:  var(--key-text-weight); }` 
 ```
 
@@ -319,7 +319,7 @@ app CSS reset
 
 最后，导入 CSS 并在 *Key.jsx* 中进行上述更新:
 
-```
+```py
 `import React from 'react';
 import PropTypes from 'prop-types';
 import './Key.css';
@@ -338,7 +338,7 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 
 组件 UI 完成后，我们可以添加快照测试。在 *Key.spec.js* 中的测试顶部，添加:
 
-```
+```py
 `it('should render correctly',  ()  =>  expect(wrapper).toMatchSnapshot());` 
 ```
 
@@ -348,13 +348,13 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 
 因为我们想要为`numbers`和`operators`数组的每个索引以及`submit`键呈现一个`Key`组件，所以重构 *Keypad.spec.js* 中的`Keypad › should render an instance of the Key component`测试:
 
-```
+```py
 `it('should render an instance of the Key component for each index of numbers, operators, and the submit Key',  ()  =>  { const  numbers  =  ['0',  '1']; const  operators  =  ['+',  '-']; const  submit  =  1; const  keyTotal  =  numbers.length  +  operators.length  +  submit; wrapper.setProps({  numbers,  operators  }); expect(wrapper.find('Key').length).toEqual(keyTotal); });` 
 ```
 
 重构 *Keypad.jsx* 的`return`语句中的地图函数和`Key`组件:
 
-```
+```py
 `...
 const Keypad = ({
   callOperator,
@@ -409,7 +409,7 @@ const Keypad = ({
 
 如果您检查测试运行程序，`Keypad › renders the values of operators`失败应该是这样的:
 
-```
+```py
 `● Keypad › renders the values of operators
 
   expect(received).toEqual(expected) // deep equality
@@ -431,7 +431,7 @@ const Keypad = ({
 
 更新 *Keypad.spec.js* 这样:
 
-```
+```py
 `import React from 'react';
 import { mount, shallow } from 'enzyme';
 import Keypad from './Keypad';
@@ -501,7 +501,7 @@ describe('mounted Keypad', () => {
 
 现在已经完成了`Keypad`组件的 UI，将快照测试添加到 *Keypad.spec.js* :
 
-```
+```py
 `it('should render correctly',  ()  =>  expect(wrapper).toMatchSnapshot());` 
 ```
 
@@ -511,13 +511,13 @@ describe('mounted Keypad', () => {
 
 将数字和运算符值添加到 *Calculator.jsx* 中的状态对象:
 
-```
+```py
 `... class  Calculator  extends  Component  { state  =  { //  value  to  be  displayed  in  <Display  /> displayValue:  '0', //  values  to  be  displayed  in  number  <Keys  /> numbers:  ['9',  '8',  '7',  '6',  '5',  '4',  '3',  '2',  '1',  '.',  '0','ce'], //  values  to  be  displayed  in  operator  <Keys  /> operators:  ['/',  'x',  '-',  '+'], //  operator  selected  for  math  operation selectedOperator:  '', //  stored  value  to  use  for  math  operation storedValue:  '', } ... } ...` 
 ```
 
 更改之后，`Calculator`快照中断，因为我们对`Calculator`的 UI 进行了更改。我们需要更新快照。这可以通过在任务运行程序中输入`u`或者在从命令行调用测试运行程序时传递`--updateSnapshot`标志来实现:
 
-```
+```py
 `$ npm test --updateSnapshot` 
 ```
 
@@ -543,19 +543,19 @@ describe('mounted Keypad', () => {
 
 在 *Calculator.spec.js* 中添加以下内容:
 
-```
+```py
 `describe('mounted Calculator',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  mount(<Calculator  />)); it('calls updateDisplay when a number key is clicked',  ()  =>  { const  spy  =  jest.spyOn(wrapper.instance(),  'updateDisplay'); wrapper.instance().forceUpdate(); expect(spy).toHaveBeenCalledTimes(0); wrapper.find('.number-key').first().simulate('click'); expect(spy).toHaveBeenCalledTimes(1); }); it('calls setOperator when an operator key is clicked',  ()  =>  { const  spy  =  jest.spyOn(wrapper.instance(),  'setOperator'); wrapper.instance().forceUpdate(); expect(spy).toHaveBeenCalledTimes(0); wrapper.find('.operator-key').first().simulate('click'); expect(spy).toHaveBeenCalledTimes(1); }); it('calls callOperator when the submit key is clicked',  ()  =>  { const  spy  =  jest.spyOn(wrapper.instance(),  'callOperator'); wrapper.instance().forceUpdate(); expect(spy).toHaveBeenCalledTimes(0); wrapper.find('.submit-key').simulate('click'); expect(spy).toHaveBeenCalledTimes(1); }); });` 
 ```
 
 不要忘记导入`mount`:
 
-```
+```py
 `import  {  mount,  shallow  }  from  'enzyme';` 
 ```
 
 现在重构 *Key.jsx* 来对`click`事件执行计算器方法:
 
-```
+```py
 `...
 const Key = ({ keyAction, keyType, keyValue }) => (
   <div
@@ -572,7 +572,7 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 
 测试将通过，但是`Key`快照失败。通过在测试运行程序中输入`u`或从命令行 run 更新`Key`快照:
 
-```
+```py
 `$ npm test --updateSnapshot` 
 ```
 
@@ -590,13 +590,13 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 
 导航到 *Calculator.spec.js* ，声明`describe`块，并在其中添加测试:
 
-```
+```py
 `describe('updateDisplay',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<Calculator  />)); it('updates displayValue',  ()  =>  { wrapper.instance().updateDisplay('5'); expect(wrapper.state('displayValue')).toEqual('5'); }); it('concatenates displayValue',  ()  =>  { wrapper.instance().updateDisplay('5'); wrapper.instance().updateDisplay('0'); expect(wrapper.state('displayValue')).toEqual('50'); }); it('removes leading "0" from displayValue',  ()  =>  { wrapper.instance().updateDisplay('0'); expect(wrapper.state('displayValue')).toEqual('0'); wrapper.instance().updateDisplay('5'); expect(wrapper.state('displayValue')).toEqual('5'); }); it('prevents multiple leading "0"s from displayValue',  ()  =>  { wrapper.instance().updateDisplay('0'); wrapper.instance().updateDisplay('0'); expect(wrapper.state('displayValue')).toEqual('0'); }); it('removes last char of displayValue',  ()  =>  { wrapper.instance().updateDisplay('5'); wrapper.instance().updateDisplay('0'); wrapper.instance().updateDisplay('ce'); expect(wrapper.state('displayValue')).toEqual('5'); }); it('prevents multiple instances of "." in displayValue',  ()  =>  { wrapper.instance().updateDisplay('.'); wrapper.instance().updateDisplay('.'); expect(wrapper.state('displayValue')).toEqual('.'); }); it('will set displayValue to "0" if displayValue is equal to an empty string',  ()  =>  { wrapper.instance().updateDisplay('ce'); expect(wrapper.state('displayValue')).toEqual('0'); }); });` 
 ```
 
 现在，导航到 *Calculator.jsx* 并更新`updateDisplay`:
 
-```
+```py
 `... class  Calculator  extends  Component  { ... updateDisplay  =  value  =>  { let  {  displayValue  }  =  this.state; //  prevent  multiple  occurences  of  '.' if  (value  ===  '.'  &&  displayValue.includes('.'))  value  =  ''; if  (value  ===  'ce')  { //  deletes  last  char  in  displayValue displayValue  =  displayValue.substr(0,  displayValue.length  -  1); //  set  displayValue  to  '0'  if  displayValue  is  empty  string if  (displayValue  ===  '')  displayValue  =  '0'; }  else  { //  replace  displayValue  with  value  if  displayValue  equal  to  '0' //  else  concatenate  displayValue  and  value displayValue  ===  '0'  ?  displayValue  =  value  :  displayValue  +=  value; } this.setState({  displayValue  }); } ... } ...` 
 ```
 
@@ -604,7 +604,7 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 > 
 > es5 示例:
 > 
-> ```
+> ```py
 > class Calculator extends Component {
 >   constructor(props) {
 >     this.state = {
@@ -623,7 +623,7 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 > 
 > es6 或更高版本示例:
 > 
-> ```
+> ```py
 > class Calculator extends Component {
 >   state = {
 >     displayValue: '0',
@@ -649,13 +649,13 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 
 导航到 *Calculator.spec.js* ，添加`describe`块以及测试:
 
-```
+```py
 `describe('setOperator',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<Calculator  />)); it('updates the value of selectedOperator',  ()  =>  { wrapper.instance().setOperator('+'); expect(wrapper.state('selectedOperator')).toEqual('+'); wrapper.instance().setOperator('/'); expect(wrapper.state('selectedOperator')).toEqual('/'); }); it('updates the value of storedValue to the value of displayValue',  ()  =>  { wrapper.setState({  displayValue:  '5'  }); wrapper.instance().setOperator('+'); expect(wrapper.state('storedValue')).toEqual('5'); }); it('updates the value of displayValue to "0"',  ()  =>  { wrapper.setState({  displayValue:  '5'  }); wrapper.instance().setOperator('+'); expect(wrapper.state('displayValue')).toEqual('0'); }); it('selectedOperator is not an empty string, does not update storedValue',  ()  =>  { wrapper.setState({  displayValue:  '5'  }); wrapper.instance().setOperator('+'); expect(wrapper.state('storedValue')).toEqual('5'); wrapper.instance().setOperator('-'); expect(wrapper.state('storedValue')).toEqual('5'); }); });` 
 ```
 
 导航到 *Calculator.jsx* 。更新`setOperator`方法:
 
-```
+```py
 `... class  Calculator  extends  Component  { ... setOperator  =  value  =>  { let  {  displayValue,  selectedOperator,  storedValue  }  =  this.state; //  check  if  a  value  is  already  present  for  selectedOperator if  (selectedOperator  ===  '')  { //  update  storedValue  to  the  value  of  displayValue storedValue  =  displayValue; //  reset  the  value  of  displayValue  to  '0' displayValue  =  '0'; //  update  the  value  of  selectedOperator  to  the  given  value selectedOperator  =  value; }  else  { //  if  selectedOperator  is  not  an  empty  string //  update  the  value  of  selectedOperator  to  the  given  value selectedOperator  =  value; } this.setState({  displayValue,  selectedOperator,  storedValue  }); } ... } export  default  Calculator;` 
 ```
 
@@ -669,13 +669,13 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 
 导航到 *Calculator.spec.js* ，并在文件底部添加新的`describe`块:
 
-```
+```py
 `describe('callOperator',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<Calculator  />)); it('updates displayValue to the sum of storedValue and displayValue',  ()  =>  { wrapper.setState({  storedValue:  '3'  }); wrapper.setState({  displayValue:  '2'  }); wrapper.setState({  selectedOperator:  '+'  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('5'); }); it('updates displayValue to the difference of storedValue and displayValue',  ()  =>  { wrapper.setState({  storedValue:  '3'  }); wrapper.setState({  displayValue:  '2'  }); wrapper.setState({  selectedOperator:  '-'  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('1'); }); it('updates displayValue to the product of storedValue and displayValue',  ()  =>  { wrapper.setState({  storedValue:  '3'  }); wrapper.setState({  displayValue:  '2'  }); wrapper.setState({  selectedOperator:  'x'  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('6'); }); it('updates displayValue to the quotient of storedValue and displayValue',  ()  =>  { wrapper.setState({  storedValue:  '3'  }); wrapper.setState({  displayValue:  '2'  }); wrapper.setState({  selectedOperator:  '/'  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('1.5'); }); it('updates displayValue to "0" if operation results in "NaN"',  ()  =>  { wrapper.setState({  storedValue:  '3'  }); wrapper.setState({  displayValue:  'string'  }); wrapper.setState({  selectedOperator:  '/'  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('0'); }); it('updates displayValue to "0" if operation results in "Infinity"',  ()  =>  { wrapper.setState({  storedValue:  '7'  }); wrapper.setState({  displayValue:  '0'  }); wrapper.setState({  selectedOperator:  '/'  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('0'); }); it('updates displayValue to "0" if selectedOperator does not match cases',  ()  =>  { wrapper.setState({  storedValue:  '7'  }); wrapper.setState({  displayValue:  '10'  }); wrapper.setState({  selectedOperator:  'string'  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('0'); }); it('updates displayValue to "0" if called with no value for storedValue or selectedOperator',  ()  =>  { wrapper.setState({  storedValue:  ''  }); wrapper.setState({  displayValue:  '10'  }); wrapper.setState({  selectedOperator:  ''  }); wrapper.instance().callOperator(); expect(wrapper.state('displayValue')).toEqual('0'); }); });` 
 ```
 
 导航到 *Calculator.jsx* ，然后更新`callOperator`方法:
 
-```
+```py
 `class  Calculator  extends  Component  { ... callOperator  =  ()  =>  { let  {  displayValue,  selectedOperator,  storedValue  }  =  this.state; //  temp  variable  for  updating  state  storedValue const  updateStoredValue  =  displayValue; //  parse  strings  for  operations displayValue  =  parseInt(displayValue,  10); storedValue  =  parseInt(storedValue,  10); //  performs  selected  operation switch  (selectedOperator)  { case  '+': displayValue  =  storedValue  +  displayValue; break; case  '-': displayValue  =  storedValue  -  displayValue; break; case  'x': displayValue  =  storedValue  *  displayValue; break; case  '/': displayValue  =  storedValue  /  displayValue; break; default: //  set  displayValue  to  zero  if  no  case  matches displayValue  =  '0'; } //  converts  displayValue  to  a  string displayValue  =  displayValue.toString(); //  reset  selectedOperator selectedOperator  =  ''; //  check  for  'NaN'  or  'Infinity',  if  true  set  displayValue  to  '0' if  (displayValue  ===  'NaN'  ||  displayValue  ===  'Infinity')  displayValue  =  '0'; this.setState({  displayValue,  selectedOperator,  storedValue:  updateStoredValue  }); } ... } export  default  Calculator;` 
 ```
 
@@ -685,7 +685,7 @@ const Key = ({ keyAction, keyType, keyValue }) => (
 
 所有测试都应该通过！
 
-```
+```py
  `PASS  src/components/App/App.spec.js
  PASS  src/components/Keypad/Keypad.spec.js
  PASS  src/components/Key/Key.spec.js

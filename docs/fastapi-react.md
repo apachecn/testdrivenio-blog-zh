@@ -49,21 +49,21 @@ React 是一个开源的、基于组件的 JavaScript UI 库，用于构建前�
 
 首先创建一个新文件夹来保存名为“fastapi-react”的项目:
 
-```
+```py
 `$ mkdir fastapi-react
 $ cd fastapi-react` 
 ```
 
 在“fastapi-react”文件夹中，创建一个新文件夹来存放后端:
 
-```
+```py
 `$ mkdir backend
 $ cd backend` 
 ```
 
 接下来，创建并激活虚拟环境:
 
-```
+```py
 `$ python3.10 -m venv venv
 $ source venv/bin/activate
 $ export PYTHONPATH=$PWD` 
@@ -73,7 +73,7 @@ $ export PYTHONPATH=$PWD`
 
 Install FastAPI:
 
-```
+```py
 `(venv)$ pip install fastapi==0.78.0 uvicorn==0.17.6` 
 ```
 
@@ -81,7 +81,7 @@ Install FastAPI:
 
 接下来，在“后端”文件夹中创建以下文件和文件夹:
 
-```
+```py
 `└── backend
     ├── main.py
     └── app
@@ -91,7 +91,7 @@ Install FastAPI:
 
 在 *main.py* 文件中，定义运行应用程序的入口点:
 
-```
+```py
 `import uvicorn
 
 if __name__ == "__main__":
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
 在通过入口点文件启动服务器之前，在 *backend/app/api.py* 中创建一个基本路由:
 
-```
+```py
 `from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -136,7 +136,7 @@ async def read_root() -> dict:
 
 在浏览器中导航至 [http://localhost:8000](http://localhost:8000) 。您应该看到:
 
-```
+```py
 `{ "message":  "Welcome to your todo list." }` 
 ```
 
@@ -154,7 +154,7 @@ async def read_root() -> dict:
 
 安装完成后，在“src”文件夹中创建一个名为“components”的新文件夹，用于存放应用程序的组件，以及两个组件， *Header.jsx* 和 *Todos.jsx* :
 
-```
+```py
 `$ cd src
 $ mkdir components
 $ cd components
@@ -163,7 +163,7 @@ $ touch {Header,Todos}.jsx`
 
 我们将从 *Header.jsx* 文件中的`Header`组件开始:
 
-```
+```py
 `import React from "react";
 import { Heading, Flex, Divider } from "@chakra-ui/react";
 
@@ -192,7 +192,7 @@ export default Header;`
 
 接下来，让我们重写 *index.js* 中的基本组件。将前面的代码替换为:
 
-```
+```py
 `import React from "react";
 import { render } from 'react-dom';
 import { ChakraProvider } from "@chakra-ui/react";
@@ -231,7 +231,7 @@ render(<App />, rootElement)`
 
 首先将待办事项列表添加到 *backend/app/api.py* :
 
-```
+```py
 `todos = [
     {
         "id": "1",
@@ -248,7 +248,7 @@ render(<App />, rootElement)`
 
 然后，添加路由处理程序:
 
-```
+```py
 `@app.get("/todo", tags=["todos"])
 async def get_todos() -> dict:
     return { "data": todos }` 
@@ -262,7 +262,7 @@ async def get_todos() -> dict:
 
 在 *Todos.jsx* 组件中，首先导入 React、`useState()`和`useEffect()`钩子，以及一些 Chakra UI 组件:
 
-```
+```py
 `import  React,  {  useEffect,  useState  }  from  "react"; import  { Box, Button, Flex, Input, InputGroup, Modal, ModalBody, ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalOverlay, Stack, Text, useDisclosure }  from  "@chakra-ui/react";` 
 ```
 
@@ -272,7 +272,7 @@ async def get_todos() -> dict:
 
 接下来，创建一个跨所有组件管理全局状态活动的上下文:
 
-```
+```py
 `const  TodosContext  =  React.createContext({ todos:  [],  fetchTodos:  ()  =>  {} })` 
 ```
 
@@ -282,7 +282,7 @@ async def get_todos() -> dict:
 
 接下来，添加`Todos`组件:
 
-```
+```py
 `export  default  function  Todos()  { const  [todos,  setTodos]  =  useState([]) const  fetchTodos  =  async  ()  =>  { const  response  =  await  fetch("http://localhost:8000/todo") const  todos  =  await  response.json() setTodos(todos.data) } }` 
 ```
 
@@ -290,13 +290,13 @@ async def get_todos() -> dict:
 
 接下来，在`Todos`组件中，使用`fetchTodos`函数检索 todos，并通过迭代 todos 状态变量来呈现数据:
 
-```
+```py
 `useEffect(()  =>  { fetchTodos() },  []) return  ( <TodosContext.Provider  value={{todos,  fetchTodos}}> <Stack  spacing={5}> {todos.map((todo)  =>  ( <b>{todo.item}</b> ))} </Stack> </TodosContext.Provider> )` 
 ```
 
 *Todos.jsx* 现在应该是这样的:
 
-```
+```py
 `import React, { useEffect, useState } from "react";
 import {
     Box,
@@ -344,7 +344,7 @@ export default function Todos() {
 
 导入 *index.js* 文件中的`Todos`组件并渲染:
 
-```
+```py
 `import React from "react";
 import { render } from 'react-dom';
 import { ChakraProvider } from "@chakra-ui/react";
@@ -377,7 +377,7 @@ render(<App />, rootElement)`
 
 首先添加一个新的路由处理程序来处理向 *backend/app/api.py* 添加新 todo 的 POST 请求:
 
-```
+```py
 `@app.post("/todo", tags=["todos"])
 async def add_todo(todo: dict) -> dict:
     todos.append(todo)
@@ -388,7 +388,7 @@ async def add_todo(todo: dict) -> dict:
 
 随着后端的运行，您可以使用`curl`在新的终端选项卡中测试 POST 路由:
 
-```
+```py
 `$ curl -X POST http://localhost:8000/todo -d \
     '{"id": "3", "item": "Buy some testdriven courses."}' \
     -H 'Content-Type: application/json'` 
@@ -396,7 +396,7 @@ async def add_todo(todo: dict) -> dict:
 
 您应该看到:
 
-```
+```py
 `{ "data: [
  "Todo  added."
  ]" }` 
@@ -410,7 +410,7 @@ async def add_todo(todo: dict) -> dict:
 
 首先添加用于向*frontend/src/components/todos . jsx*添加新 todo 的 shell:
 
-```
+```py
 `function  AddTodo()  { const  [item,  setItem]  =  React.useState("") const  {todos,  fetchTodos}  =  React.useContext(TodosContext) }` 
 ```
 
@@ -418,7 +418,7 @@ async def add_todo(todo: dict) -> dict:
 
 接下来，向`AddTodo`添加从表单获取输入和处理表单提交的函数:
 
-```
+```py
 `const  handleInput  =  event  =>  { setItem(event.target.value) } const  handleSubmit  =  (event)  =>  { const  newTodo  =  { "id":  todos.length  +  1, "item":  item } fetch("http://localhost:8000/todo",  { method:  "POST", headers:  {  "Content-Type":  "application/json"  }, body:  JSON.stringify(newTodo) }).then(fetchTodos) }` 
 ```
 
@@ -426,7 +426,7 @@ async def add_todo(todo: dict) -> dict:
 
 就在`handleSubmit`函数之后，返回要呈现的表单:
 
-```
+```py
 `return (
   <form onSubmit={handleSubmit}>
     <InputGroup size="md">
@@ -446,7 +446,7 @@ async def add_todo(todo: dict) -> dict:
 
 完整的`AddTodo`组件现在应该看起来像这样:
 
-```
+```py
 `function AddTodo() {
   const [item, setItem] = React.useState("")
   const {todos, fetchTodos} = React.useContext(TodosContext)
@@ -486,7 +486,7 @@ async def add_todo(todo: dict) -> dict:
 
 接下来，将`AddTodo`组件添加到`Todos`组件，如下所示:
 
-```
+```py
 `export default function Todos() {
   const [todos, setTodos] = useState([])
   const fetchTodos = async () => {
@@ -524,7 +524,7 @@ async def add_todo(todo: dict) -> dict:
 
 添加更新路由:
 
-```
+```py
 `@app.put("/todo/{id}", tags=["todos"])
 async def update_todo(id: int, body: dict) -> dict:
     for todo in todos:
@@ -545,7 +545,7 @@ async def update_todo(id: int, body: dict) -> dict:
 
 首先在*frontend/src/components/todos . jsx*中定义组件`UpdateTodo`，并向其传递两个属性值`item`和`id`:
 
-```
+```py
 `function  UpdateTodo({item,  id})  { const  {isOpen,  onOpen,  onClose}  =  useDisclosure() const  [todo,  setTodo]  =  useState(item) const  {fetchTodos}  =  React.useContext(TodosContext) }` 
 ```
 
@@ -553,7 +553,7 @@ async def update_todo(id: int, body: dict) -> dict:
 
 现在，让我们编写负责发送 PUT 请求的函数。在`UpdateTodo`组件主体中，在状态和上下文变量之后，添加以下内容:
 
-```
+```py
 `const  updateTodo  =  async  ()  =>  { await  fetch(`http://localhost:8000/todo/${id}`,  { method:  "PUT", headers:  {  "Content-Type":  "application/json"  }, body:  JSON.stringify({  item:  todo  }) }) onClose() await  fetchTodos() }` 
 ```
 
@@ -561,7 +561,7 @@ async def update_todo(id: int, body: dict) -> dict:
 
 接下来，渲染模态:
 
-```
+```py
 `return (
   <>
     <Button h="1.5rem" size="sm" onClick={onOpen}>Update Todo</Button>
@@ -596,7 +596,7 @@ async def update_todo(id: int, body: dict) -> dict:
 
 完整的组件现在应该看起来像这样:
 
-```
+```py
 `function UpdateTodo({item, id}) {
   const {isOpen, onOpen, onClose} = useDisclosure()
   const [todo, setTodo] = useState(item)
@@ -645,7 +645,7 @@ async def update_todo(id: int, body: dict) -> dict:
 
 在将组件添加到`Todos`组件之前，让我们添加一个用于渲染 todos 的助手组件来稍微清理一下:
 
-```
+```py
 `function TodoHelper({item, id, fetchTodos}) {
   return (
     <Box p={1} shadow="sm">
@@ -666,7 +666,7 @@ async def update_todo(id: int, body: dict) -> dict:
 
 替换`Todos`组件内`return`块中的代码:
 
-```
+```py
 `return (
   <TodosContext.Provider value={{todos, fetchTodos}}>
     <AddTodo />
@@ -695,7 +695,7 @@ async def update_todo(id: int, body: dict) -> dict:
 
 最后，添加删除路径:
 
-```
+```py
 `@app.delete("/todo/{id}", tags=["todos"])
 async def delete_todo(id: int) -> dict:
     for todo in todos:
@@ -714,7 +714,7 @@ async def delete_todo(id: int) -> dict:
 
 让我们编写一个用于删除 todo 的组件，它将在`TodoHelper`组件中使用:
 
-```
+```py
 `function DeleteTodo({id}) {
   const {fetchTodos} = React.useContext(TodosContext)
 
@@ -737,7 +737,7 @@ async def delete_todo(id: int) -> dict:
 
 接下来，将`DeleteTodo`组件添加到`TodoHelper`中:
 
-```
+```py
 `function TodoHelper({item, id, fetchTodos}) {
   return (
     <Box p={1} shadow="sm">

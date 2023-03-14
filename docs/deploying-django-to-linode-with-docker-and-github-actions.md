@@ -18,7 +18,7 @@
 
 首先克隆 [GitHub repo](https://github.com/testdrivenio/django-github-linode) 并将当前目录更改为其根目录:
 
-```
+```py
 `$ git clone [[email protected]](/cdn-cgi/l/email-protection):testdrivenio/django-github-linode.git --branch base --single-branch
 $ cd django-github-linode` 
 ```
@@ -27,7 +27,7 @@ $ cd django-github-linode`
 
 要进行本地测试，构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -55,7 +55,7 @@ $ cd django-github-linode`
 
 构建并标记容器:
 
-```
+```py
 `$ docker build -f app/Dockerfile -t ghcr.io/<USERNAME>/<REPOSITORY_NAME>/web:latest ./app
 
 # Example
@@ -64,7 +64,7 @@ $ docker build -f app/Dockerfile -t ghcr.io/testdrivenio/django-github-linode/we
 
 接下来，使用您的个人访问令牌登录 GitHub 包:
 
-```
+```py
 `$ docker login ghcr.io -u <USERNAME> -p <TOKEN>
 
 # Example
@@ -73,7 +73,7 @@ $ docker login ghcr.io -u testdrivenio -p ghp_PMRZCha1GF0mgaZnF1B0lAyEJUk4MY1iro
 
 最后，将图像推送到 GitHub 包的[容器注册表](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)中。
 
-```
+```py
 `$ docker push ghcr.io/<USERNAME>/<REPOSITORY_NAME>/web:latest
 
 # Example
@@ -82,7 +82,7 @@ $ docker push ghcr.io/testdrivenio/django-github-linode/web:latest`
 
 现在，您应该可以在以下网址之一看到该包(取决于您使用的是个人帐户还是组织):
 
-```
+```py
 `# Personal account
 https://github.com/<USERNAME>?tab=packages
 
@@ -120,7 +120,7 @@ https://github.com/orgs/<ORGANIZATION_NAME>/packages`
 
 > 如果您愿意，可以随意使用现有的 SSH 密钥。
 
-```
+```py
 `$ cat ~/.ssh/id_rsa.pub
 $ vi ~/.ssh/authorized_keys
 $ chmod 600 ~/.ssh/authorized_keys
@@ -141,7 +141,7 @@ $ chmod 600 ~/.ssh/id_rsa`
 
 要连接到新创建的 Linode 实例并检查 Docker 版本，请运行:
 
-```
+```py
 `$ ssh -o StrictHostKeyChecking=no [[email protected]](/cdn-cgi/l/email-protection)<YOUR_INSTANCE_IP> docker --version
 
 Docker version 20.10.17, build 100c701` 
@@ -181,7 +181,7 @@ Docker version 20.10.17, build 100c701`
 
 要配置 GitHub 动作，首先需要创建一个“.github”目录。接下来，在该目录中创建“工作流”目录，并在“工作流”中创建 *main.yml* :
 
-```
+```py
 `.github
 └── workflows
     └── main.yml` 
@@ -193,7 +193,7 @@ Docker version 20.10.17, build 100c701`
 
 将以下内容放入*。github/workflows/main.yml* :
 
-```
+```py
 `name:  Continuous  Integration  and  Delivery on:  [push] env: WEB_IMAGE:  ghcr.io/$(echo  $GITHUB_REPOSITORY  |  tr  '[:upper:]'  '[:lower:]')/web NGINX_IMAGE:  ghcr.io/$(echo  $GITHUB_REPOSITORY  |  tr  '[:upper:]'  '[:lower:]')/nginx jobs: build: name:  Build  Docker  Images runs-on:  ubuntu-latest steps: -  name:  Checkout  master uses:  actions/checkout@v1 -  name:  Add  environment  variables  to  .env run:  | echo  "DEBUG=0"  >>  .env echo  "SQL_ENGINE=django.db.backends.postgresql"  >>  .env echo  "DATABASE=postgres"  >>  .env echo  "SECRET_KEY=${{ secrets.SECRET_KEY }}"  >>  .env echo  "SQL_DATABASE=${{ secrets.SQL_DATABASE }}"  >>  .env echo  "SQL_USER=${{ secrets.SQL_USER }}"  >>  .env echo  "SQL_PASSWORD=${{ secrets.SQL_PASSWORD }}"  >>  .env echo  "SQL_HOST=${{ secrets.SQL_HOST }}"  >>  .env echo  "SQL_PORT=${{ secrets.SQL_PORT }}"  >>  .env -  name:  Set  environment  variables run:  | echo  "WEB_IMAGE=$(echo ${{env.WEB_IMAGE}} )"  >>  $GITHUB_ENV echo  "NGINX_IMAGE=$(echo ${{env.NGINX_IMAGE}} )"  >>  $GITHUB_ENV -  name:  Log  in  to  GitHub  Packages run:  echo  ${PERSONAL_ACCESS_TOKEN}  |  docker  login  ghcr.io  -u  ${{  secrets.NAMESPACE  }}  --password-stdin env: PERSONAL_ACCESS_TOKEN:  ${{  secrets.PERSONAL_ACCESS_TOKEN  }} -  name:  Pull  images run:  | docker  pull  ${{  env.WEB_IMAGE  }}  ||  true docker  pull  ${{  env.NGINX_IMAGE  }}  ||  true -  name:  Build  images run:  | docker-compose  -f  docker-compose.ci.yml  build -  name:  Push  images run:  | docker  push  ${{  env.WEB_IMAGE  }} docker  push  ${{  env.NGINX_IMAGE  }}` 
 ```
 
@@ -203,7 +203,7 @@ Docker version 20.10.17, build 100c701`
 
 导航至:
 
-```
+```py
 `https://github.com/<USERNAME|ORGANIZATION_NAME>/<REPOSITORY_NAME></settings
 
 # Example
@@ -227,7 +227,7 @@ https://github.com/testdrivenio/django-github-linode/settings`
 
 接下来，在 Django 设置中将您的 Linode 的 IP 地址添加到`ALLOWED_HOSTS`:
 
-```
+```py
 `# app/hello_django/settings.py
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '<your Linode IP>']` 
@@ -243,7 +243,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '<your Linode IP>']`
 
 接下来，在`build`作业之后添加一个名为`deploy`的新作业:
 
-```
+```py
 `deploy: name:  Deploy  to  Linode runs-on:  ubuntu-latest needs:  build steps: -  name:  Checkout  master uses:  actions/checkout@v1 -  name:  Add  environment  variables  to  .env run:  | echo  "DEBUG=0"  >>  .env echo  "SQL_ENGINE=django.db.backends.postgresql"  >>  .env echo  "DATABASE=postgres"  >>  .env echo  "SECRET_KEY=${{ secrets.SECRET_KEY }}"  >>  .env echo  "SQL_DATABASE=${{ secrets.SQL_DATABASE }}"  >>  .env echo  "SQL_USER=${{ secrets.SQL_USER }}"  >>  .env echo  "SQL_PASSWORD=${{ secrets.SQL_PASSWORD }}"  >>  .env echo  "SQL_HOST=${{ secrets.SQL_HOST }}"  >>  .env echo  "SQL_PORT=${{ secrets.SQL_PORT }}"  >>  .env echo  "WEB_IMAGE=${{ env.WEB_IMAGE }}"  >>  .env echo  "NGINX_IMAGE=${{ env.NGINX_IMAGE }}"  >>  .env echo  "NAMESPACE=${{ secrets.NAMESPACE }}"  >>  .env echo  "PERSONAL_ACCESS_TOKEN=${{ secrets.PERSONAL_ACCESS_TOKEN }}"  >>  .env -  name:  Add  the  private  SSH  key  to  the  ssh-agent env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | mkdir  -p  ~/.ssh ssh-agent  -a  $SSH_AUTH_SOCK  >  /dev/null ssh-keyscan  github.com  >>  ~/.ssh/known_hosts ssh-add  -  <<<  "${{ secrets.PRIVATE_KEY }}" -  name:  Build  and  deploy  images  on  Linode env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | scp  -o  StrictHostKeyChecking=no  -r  ./.env  ./docker-compose.prod.yml  root@${{  secrets.LINODE_IP_ADDRESS  }}:/app ssh  -o  StrictHostKeyChecking=no  root@${{  secrets.LINODE_IP_ADDRESS  }}  <<  'ENDSSH' cd  /app source  .env docker  login  ghcr.io  -u  $NAMESPACE  -p  $PERSONAL_ACCESS_TOKEN docker  pull  $WEB_IMAGE docker  pull  $NGINX_IMAGE sudo  docker-compose  -f  docker-compose.prod.yml  up  -d ENDSSH` 
 ```
 
@@ -275,13 +275,13 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '<your Linode IP>']`
 
 > 如果你使用`main`作为默认分支，确保用`main`替换`master`。
 
-```
+```py
 `deploy: name:  Deploy  to  Linode runs-on:  ubuntu-latest needs:  build if:  github.ref  ==  'refs/heads/master' steps: -  name:  Checkout  master uses:  actions/checkout@v1 -  name:  Add  environment  variables  to  .env run:  | echo  "DEBUG=0"  >>  .env echo  "SQL_ENGINE=django.db.backends.postgresql"  >>  .env echo  "DATABASE=postgres"  >>  .env echo  "SECRET_KEY=${{ secrets.SECRET_KEY }}"  >>  .env echo  "SQL_DATABASE=${{ secrets.SQL_DATABASE }}"  >>  .env echo  "SQL_USER=${{ secrets.SQL_USER }}"  >>  .env echo  "SQL_PASSWORD=${{ secrets.SQL_PASSWORD }}"  >>  .env echo  "SQL_HOST=${{ secrets.SQL_HOST }}"  >>  .env echo  "SQL_PORT=${{ secrets.SQL_PORT }}"  >>  .env echo  "WEB_IMAGE=${{ env.WEB_IMAGE }}"  >>  .env echo  "NGINX_IMAGE=${{ env.NGINX_IMAGE }}"  >>  .env echo  "NAMESPACE=${{ secrets.NAMESPACE }}"  >>  .env echo  "PERSONAL_ACCESS_TOKEN=${{ secrets.PERSONAL_ACCESS_TOKEN }}"  >>  .env -  name:  Add  the  private  SSH  key  to  the  ssh-agent env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | mkdir  -p  ~/.ssh ssh-agent  -a  $SSH_AUTH_SOCK  >  /dev/null ssh-keyscan  github.com  >>  ~/.ssh/known_hosts ssh-add  -  <<<  "${{ secrets.PRIVATE_KEY }}" -  name:  Build  and  deploy  images  on  Linode env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | scp  -o  StrictHostKeyChecking=no  -r  ./.env  ./docker-compose.prod.yml  root@${{  secrets.LINODE_IP_ADDRESS  }}:/app ssh  -o  StrictHostKeyChecking=no  root@${{  secrets.LINODE_IP_ADDRESS  }}  <<  'ENDSSH' cd  /app source  .env docker  login  ghcr.io  -u  $NAMESPACE  -p  $PERSONAL_ACCESS_TOKEN docker  pull  $WEB_IMAGE docker  pull  $NGINX_IMAGE sudo  docker-compose  -f  docker-compose.prod.yml  up  -d ENDSSH` 
 ```
 
 为了测试它是否工作，创建一个新的`dev`分支。然后将 *app/hello_django/urls.py* 中的`hello world`消息改为`hello linode`:
 
-```
+```py
 `def home(request):
     return JsonResponse({"hello": "linode"})` 
 ```

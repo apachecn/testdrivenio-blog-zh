@@ -24,7 +24,7 @@
 
 从 [django-search](https://github.com/testdrivenio/django-search) repo 中克隆出 [base](https://github.com/testdrivenio/django-search/tree/base) 分支；
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/django-search --branch base --single-branch
 $ cd django-search` 
 ```
@@ -33,13 +33,13 @@ $ cd django-search`
 
 从项目根目录，创建映像并启动 Docker 容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 接下来，应用迁移并创建超级用户:
 
-```
+```py
 `$ docker-compose exec web python manage.py makemigrations
 $ docker-compose exec web python manage.py migrate
 $ docker-compose exec web python manage.py createsuperuser` 
@@ -53,7 +53,7 @@ $ docker-compose exec web python manage.py createsuperuser`
 
 注意 *quotes/models.py* 中的`Quote`型号:
 
-```
+```py
 `from django.db import models
 
 class Quote(models.Model):
@@ -66,7 +66,7 @@ class Quote(models.Model):
 
 接下来，运行以下管理命令，将 10，000 个报价添加到数据库中:
 
-```
+```py
 `$ docker-compose exec web python manage.py add_quotes` 
 ```
 
@@ -78,7 +78,7 @@ class Quote(models.Model):
 
 在*quotes/templates/quote . html*文件中，您有一个带有搜索输入字段的基本表单:
 
-```
+```py
 `<form action="{% url 'search_results' %}" method="get">
   <input
     type="search"
@@ -99,7 +99,7 @@ class Quote(models.Model):
 
 例如，使用 or 操作符，在*报价/视图. py* 中覆盖`SearchResultsList`的默认`QuerySet`，如下所示:
 
-```
+```py
 `class SearchResultsList(ListView):
     model = Quote
     context_object_name = "quotes"
@@ -116,7 +116,7 @@ class Quote(models.Model):
 
 不要忘记重要的一点:
 
-```
+```py
 `from django.db.models import Q` 
 ```
 
@@ -168,7 +168,7 @@ class Quote(models.Model):
 
 要利用 Django 的 Postgres 全文搜索，请将`django.contrib.postgres`添加到您的`INSTALLED_APPS`列表中:
 
-```
+```py
 `INSTALLED_APPS = [
     ...
 
@@ -182,7 +182,7 @@ class Quote(models.Model):
 
 像这样更新`SearchResultsList`视图功能下的`get_queryset`功能:
 
-```
+```py
 `class SearchResultsList(ListView):
     model = Quote
     context_object_name = "quotes"
@@ -205,7 +205,7 @@ class Quote(models.Model):
 
 再次更新`SearchResultsList`:
 
-```
+```py
 `class SearchResultsList(ListView):
     model = Quote
     context_object_name = "quotes"
@@ -222,7 +222,7 @@ class Quote(models.Model):
 
 确保添加导入:
 
-```
+```py
 `from django.contrib.postgres.search import SearchVector` 
 ```
 
@@ -236,7 +236,7 @@ class Quote(models.Model):
 
 更新`SearchResultsList`:
 
-```
+```py
 `class SearchResultsList(ListView):
     model = Quote
     context_object_name = "quotes"
@@ -263,7 +263,7 @@ class Quote(models.Model):
 
 添加导入:
 
-```
+```py
 `from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank` 
 ```
 
@@ -279,7 +279,7 @@ class Quote(models.Model):
 
 更新`SearchResultsList`:
 
-```
+```py
 `class SearchResultsList(ListView):
     model = Quote
     context_object_name = "quotes"
@@ -306,7 +306,7 @@ class Quote(models.Model):
 
 再次更新`SearchResultsList`:
 
-```
+```py
 `class SearchResultsList(ListView):
     model = Quote
     context_object_name = "quotes"
@@ -327,13 +327,13 @@ class Quote(models.Model):
 
 确保添加导入:
 
-```
+```py
 `from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank, SearchHeadline` 
 ```
 
 在尝试一些搜索之前，更新*quotes/templates/search . html*中的`<li></li>`，如下所示:
 
-```
+```py
 `<li>{{ quote.headline | safe }} - <b>By <i>{{ quote.name }}</i></b></li>` 
 ```
 
@@ -352,7 +352,7 @@ class Quote(models.Model):
 
 首先向 *quotes/models.py* 中的`Quote`模型添加一个新的 [SearchVectorField](https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/search/#searchvectorfield) 字段:
 
-```
+```py
 `from django.contrib.postgres.search import SearchVectorField  # new
 from django.db import models
 
@@ -367,13 +367,13 @@ class Quote(models.Model):
 
 创建迁移文件:
 
-```
+```py
 `$ docker-compose exec web python manage.py makemigrations` 
 ```
 
 现在，只有当数据库中已经存在`quote`或`name`对象时，才能填充该字段。因此，每当`quote`或`name`字段被更新时，我们需要添加一个触发器来更新`search_vector`字段。为此，在“报价/迁移”中创建一个名为*0003 _ search _ vector _ trigger . py*的定制迁移文件:
 
-```
+```py
 `from django.contrib.postgres.search import SearchVector
 from django.db import migrations
 
@@ -414,13 +414,13 @@ class Migration(migrations.Migration):
 
 应用迁移:
 
-```
+```py
 `$ docker-compose exec web python manage.py migrate` 
 ```
 
 要使用新字段进行搜索，请像这样更新`SearchResultsList`:
 
-```
+```py
 `class SearchResultsList(ListView):
     model = Quote
     context_object_name = "quotes"
@@ -433,7 +433,7 @@ class Migration(migrations.Migration):
 
 再次更新*quotes/templates/search . html*中的`<li></li>`:
 
-```
+```py
 `<li>{{ quote.quote | safe }} - <b>By <i>{{ quote.name }}</i></b></li>` 
 ```
 
@@ -443,7 +443,7 @@ class Migration(migrations.Migration):
 
 更新`Quote`型号:
 
-```
+```py
 `from django.contrib.postgres.indexes import GinIndex  # new
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
@@ -465,7 +465,7 @@ class Quote(models.Model):
 
 最后一次创建和应用迁移:
 
-```
+```py
 `$ docker-compose exec web python manage.py makemigrations
 $ docker-compose exec web python manage.py migrate` 
 ```

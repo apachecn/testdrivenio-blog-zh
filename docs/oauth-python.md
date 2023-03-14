@@ -80,7 +80,7 @@ OAuth2 协议可用于不同类型的应用程序，但它最常用于 web、移
 
 以下是一个示例 URL:
 
-```
+```py
 `https://api.authorization-server.com/authorize
   ?response_type=code
   &client_id=123
@@ -102,7 +102,7 @@ OAuth2 协议可用于不同类型的应用程序，但它最常用于 web、移
 
 下面是一个重定向 URL 示例:
 
-```
+```py
 `https://your-web-app.com/redirect
   ?code=123456
   &state=1234-zyxa-9134-wpst` 
@@ -126,7 +126,7 @@ web 应用程序向授权服务器的令牌端点发送一个 HTTP POST 请求�
 
 下面是一个请求 URL 示例:
 
-```
+```py
 `https://api.authorization-server.com/token
   grant_type=authorization_code
   &code=123456
@@ -143,7 +143,7 @@ web 应用程序向授权服务器的令牌端点发送一个 HTTP POST 请求�
 
 例如:
 
-```
+```py
 `{ "access_token":  "KtsgPkCR7Y9b8F3fHo8MKg83ECKbJq31clcB", "expires_in":  3600, "token_type":  "bearer" }` 
 ```
 
@@ -159,7 +159,7 @@ web 应用程序通常使用以下凭证向资源服务器发送 HTTP GET 请求
 
 例如:
 
-```
+```py
 `GET /user HTTP/1.1
 Host: api.resource-server.com
 Authorization: Bearer access_token` 
@@ -173,7 +173,7 @@ Authorization: Bearer access_token`
 
 例如:
 
-```
+```py
 `{ "name":  "Aaron Smith", "bio":  "Software Engineer", "avatar_url":  "http://api.resource-server.com/image/aaron_smith" }` 
 ```
 
@@ -187,7 +187,7 @@ OAuthLib 提供了一个 [WebApplicationClient](https://oauthlib.readthedocs.io/
 
 例如:
 
-```
+```py
 `from oauthlib.oauth2 import WebApplicationClient
 
 client_id = 'xxxxx'
@@ -198,7 +198,7 @@ client = WebApplicationClient(client_id)`
 
 例如:
 
-```
+```py
 `authorization_url = 'https://api.authorization-server.com/authorize'
 
 url = client.prepare_request_uri(
@@ -211,7 +211,7 @@ url = client.prepare_request_uri(
 
 打印时，`url`将返回:
 
-```
+```py
 `https://api.authorization-server.com/authorize
   ?response_type=code
   &client_id=xxxxx
@@ -230,7 +230,7 @@ web 应用程序可以将用户重定向到该 URL。此时，授权服务器将
 
 例如:
 
-```
+```py
 `data = client.prepare_request_body(
   code = 'yyyyyyy',
   redirect_uri = 'https://your-web-app.com/redirect',
@@ -241,7 +241,7 @@ web 应用程序可以将用户重定向到该 URL。此时，授权服务器将
 
 打印时，`data`将返回:
 
-```
+```py
 `grant_type=authorization_code
   &client_id=xxxxx
   &client_secret=zzzzzzz
@@ -255,20 +255,20 @@ web 应用程序可以将用户重定向到该 URL。此时，授权服务器将
 
 例如:
 
-```
+```py
 `token_url = 'https://api.authorization-server.com/token'
 response = requests.post(token_url, data=data)` 
 ```
 
 OAuthLib 的`WebApplicationClient`类还提供了一个[parse _ request _ body _ response()](https://oauthlib.readthedocs.io/en/latest/_modules/oauthlib/oauth2/rfc6749/clients/base.html#Client.parse_request_body_response)方法来帮助我们将响应数据作为 Python 字典进行管理。例如，我们可以将`response.text`传递给这个方法，它会将字典保存在`client.token`中:
 
-```
+```py
 `client.parse_request_body_response(response.text)` 
 ```
 
 `client.token`的值可能如下所示:
 
-```
+```py
 `{
    'access_token': 'KtsgPkCR7Y9b8F3fHo8MKg83ECKbJq31clcB',
    'scope': ['read:user'],
@@ -284,7 +284,7 @@ Web 应用程序流的最后一步是从资源服务器检索所需的受保护�
 
 例如:
 
-```
+```py
 `header = {
     'Authorization': 'Bearer {}'.format(client.token['access_token'])
 }
@@ -294,7 +294,7 @@ response = requests.get('https://api.resource-server.com/user', headers=header)`
 
 通过`response.json()`，JSON 格式的响应可能如下所示:
 
-```
+```py
 `{ "name":  "Aaron Smith", "bio":  "Software Engineer", "avatar_url":  "http://api.resource-server.com/user/images/aaron_smith/" }` 
 ```
 

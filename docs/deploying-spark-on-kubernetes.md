@@ -19,7 +19,7 @@ Minikube 是一个用于在本地运行单节点 Kubernetes 集群的工具。
 
 默认情况下，Minikube 虚拟机配置为使用 1GB 内存和 2 个 CPU 内核。这对于 Spark 作业来说是不够的，所以一定要在你的 Docker [客户端](https://docs.docker.com/docker-for-mac/#advanced)(对于 HyperKit)或者直接在 VirtualBox 中增加内存。然后，当您启动 Minikube 时，将内存和 CPU 选项传递给它:
 
-```
+```py
 `$ minikube start --vm-driver=hyperkit --memory 8192 --cpus 4
 
 or
@@ -33,7 +33,7 @@ $ minikube start --memory 8192 --cpus 4`
 
 *Dockerfile* :
 
-```
+```py
 `# base image
 FROM  openjdk:11
 
@@ -67,7 +67,7 @@ ENV  PATH $PATH:/opt/spark/bin`
 
 建立形象:
 
-```
+```py
 `$ eval $(minikube docker-env)
 $ docker build -f docker/Dockerfile -t spark-hadoop:3.2.0 ./docker` 
 ```
@@ -76,7 +76,7 @@ $ docker build -f docker/Dockerfile -t spark-hadoop:3.2.0 ./docker`
 
 查看:
 
-```
+```py
 `$ docker image ls spark-hadoop
 
 REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
@@ -87,26 +87,26 @@ spark-hadoop        3.2.0               8f3ccdadd795        11 minutes ago      
 
 *spark-master-deployment . YAML*:
 
-```
+```py
 `kind:  Deployment apiVersion:  apps/v1 metadata: name:  spark-master spec: replicas:  1 selector: matchLabels: component:  spark-master template: metadata: labels: component:  spark-master spec: containers: -  name:  spark-master image:  spark-hadoop:3.2.0 command:  ["/spark-master"] ports: -  containerPort:  7077 -  containerPort:  8080 resources: requests: cpu:  100m` 
 ```
 
 *spark-master-service . YAML*:
 
-```
+```py
 `kind:  Service apiVersion:  v1 metadata: name:  spark-master spec: ports: -  name:  webui port:  8080 targetPort:  8080 -  name:  spark port:  7077 targetPort:  7077 selector: component:  spark-master` 
 ```
 
 创建 Spark 主部署并启动服务:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/spark-master-deployment.yaml
 $ kubectl create -f ./kubernetes/spark-master-service.yaml` 
 ```
 
 验证:
 
-```
+```py
 `$ kubectl get deployments
 
 NAME           READY   UP-TO-DATE   AVAILABLE   AGE
@@ -122,19 +122,19 @@ spark-master-dbc47bc9-tlgfs   1/1     Running   0          3m8s`
 
 spark-worker-deployment . YAML:
 
-```
+```py
 `kind:  Deployment apiVersion:  apps/v1 metadata: name:  spark-worker spec: replicas:  2 selector: matchLabels: component:  spark-worker template: metadata: labels: component:  spark-worker spec: containers: -  name:  spark-worker image:  spark-hadoop:3.2.0 command:  ["/spark-worker"] ports: -  containerPort:  8081 resources: requests: cpu:  100m` 
 ```
 
 创建 Spark worker 部署:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/spark-worker-deployment.yaml` 
 ```
 
 验证:
 
-```
+```py
 `$ kubectl get deployments
 
 NAME           READY   UP-TO-DATE   AVAILABLE   AGE
@@ -155,19 +155,19 @@ spark-worker-795dc47587-g9n64   1/1     Running   0          25s`
 
 *minikube-ingress.yaml* :
 
-```
+```py
 `apiVersion:  networking.k8s.io/v1 kind:  Ingress metadata: name:  minikube-ingress annotations: spec: rules: -  host:  spark-kubernetes http: paths: -  pathType:  Prefix path:  / backend: service: name:  spark-master port: number:  8080` 
 ```
 
 启用入口[插件](https://github.com/kubernetes/minikube/tree/master/deploy/addons/ingress):
 
-```
+```py
 `$ minikube addons enable ingress` 
 ```
 
 创建入口对象:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/minikube-ingress.yaml` 
 ```
 
@@ -175,7 +175,7 @@ spark-worker-795dc47587-g9n64   1/1     Running   0          25s`
 
 将条目添加到/etc/hosts:
 
-```
+```py
 `$ echo "$(minikube ip) spark-kubernetes" | sudo tee -a /etc/hosts` 
 ```
 
@@ -187,7 +187,7 @@ spark-worker-795dc47587-g9n64   1/1     Running   0          25s`
 
 要进行测试，从主容器运行 PySpark shell:
 
-```
+```py
 `$ kubectl get pods -o wide
 
 NAME                            READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
@@ -201,7 +201,7 @@ $ kubectl exec spark-master-dbc47bc9-t6v84 -it -- \
 
 然后在 PySpark 提示符出现后运行以下代码:
 
-```
+```py
 `words = 'the quick brown fox jumps over the\
  lazy dog the quick brown fox jumps over the lazy dog'
 sc = SparkContext.getOrCreate()
@@ -214,7 +214,7 @@ sc.stop()`
 
 您应该看到:
 
-```
+```py
 `{'brown': 2, 'lazy': 2, 'over': 2, 'fox': 2, 'dog': 2, 'quick': 2, 'the': 4, 'jumps': 2}` 
 ```
 

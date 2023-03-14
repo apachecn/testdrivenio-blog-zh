@@ -14,7 +14,7 @@ Python 3.11 发布于[2021 年](https://www.python.org/downloads/release/python-
 
 如果您有 Docker，您可以快速构建一个 Python 3.11 shell 来使用本文中的示例，如下所示:
 
-```
+```py
 `$ docker run -it --rm python:3.11` 
 ```
 
@@ -38,7 +38,7 @@ Python 3.11 比以往任何时候都快！正如[发布说明](https://docs.pyth
 
 您可以通过检查生成的字节码来观察这一点:
 
-```
+```py
 `import dis
 from random import random
 
@@ -77,7 +77,7 @@ dis.dis(dollars_to_pounds, adaptive=True)
 
 Python 终于支持了一个`Self`类型。因此，现在您可以轻松地键入类方法和 dunder 方法:
 
-```
+```py
 `from typing import Self
 from dataclasses import dataclass
 
@@ -103,7 +103,7 @@ print(Car.from_dict({"manufacture": "Alfa Romeo", "model": "Stelvio"}))
 
 另一个改进是用于类型化词典的`NotRequired`类型:
 
-```
+```py
 `from typing import TypedDict, NotRequired
 
 class Car(TypedDict):
@@ -126,7 +126,7 @@ car3: Car = {"model": "Stelvio"}  # ERROR (missing required field manufacture)`
 
 [举例](https://docs.python.org/3/whatsnew/3.11.html#pep-675-arbitrary-literal-string-type):
 
-```
+```py
 `def run_query(sql: LiteralString) -> ...
     ...
 
@@ -159,7 +159,7 @@ def caller(
 
 有语法错误的代码:
 
-```
+```py
 `def average_grade(grades):
     return sum(grades) / len(grades)
 
@@ -168,14 +168,14 @@ average_grade([])`
 
 Python 3.10 中的错误:
 
-```
+```py
  `return sum(grades) / len(grades)
 ZeroDivisionError: division by zero` 
 ```
 
 Python 3.11 中的错误:
 
-```
+```py
  `return sum(grades) / len(grades)
            ~~~~~~~~~~~~^~~~~~~~~~~~~
 ZeroDivisionError: division by zero` 
@@ -185,7 +185,7 @@ ZeroDivisionError: division by zero`
 
 Python 3.10:
 
-```
+```py
 `def send_email_to_contact(contact, subject, content):
     print(f"Sending email to {contact['emails']['address']} with subject={subject.title()} and {content=}")
 
@@ -215,7 +215,7 @@ send_email_to_contact({"emails": {"address": "[[email protected]](/cdn-cgi/l/em
 
 Python 3.11:
 
-```
+```py
 `def send_email_to_contact(contact, subject, content):
     print(f"Sending email to {contact['emails']['address']} with subject={subject.title()} and {content=}")
 
@@ -257,7 +257,7 @@ send_email_to_contact({"emails": {"address": "[[email protected]](/cdn-cgi/l/em
 
 `add_note`被添加到`BaseExceptions`。这允许您在创建异常后向其添加额外的上下文。例如:
 
-```
+```py
 `try:
     raise ValueError()
 except ValueError as exc:
@@ -280,13 +280,13 @@ Python 现在有了一个用于解析 [TOML](https://toml.io/) 文件的库，�
 
 例如，假设您有下面的 *pyproject.toml* 文件:
 
-```
+```py
 `[tool.poetry] name  =  "example" version  =  "0.1.0" description  =  "" authors  =  [] [tool.poetry.dependencies] python  =  "^3.11" [tool.poetry.dev-dependencies] [build-system] requires  =  ["poetry-core>=1.0.0"] build-backend  =  "poetry.core.masonry.api"` 
 ```
 
 您可以像这样加载文件:
 
-```
+```py
 `import pprint
 import tomllib
 

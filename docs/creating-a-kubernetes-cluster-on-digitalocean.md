@@ -17,13 +17,13 @@
 
 安装:
 
-```
+```py
 `$ pip install fabric==2.6.0` 
 ```
 
 验证版本:
 
-```
+```py
 `$ fab --version
 
 Fabric 2.6.0
@@ -33,7 +33,7 @@ Invoke 1.6.0`
 
 通过将以下代码添加到名为 *fabfile.py* 的新文件中进行测试:
 
-```
+```py
 `from fabric import task
 
 @task
@@ -45,7 +45,7 @@ def ping(ctx, output):
 
 尝试一下:
 
-```
+```py
 `$ fab ping --output="world"
 
 pong!
@@ -60,19 +60,19 @@ hello world!`
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=<YOUR_DIGITAL_OCEAN_ACCESS_TOKEN>` 
 ```
 
 接下来，为了以编程方式与 API 交互，安装 [python-digitalocean](https://github.com/koalalorenzo/python-digitalocean) 模块:
 
-```
+```py
 `$ pip install python-digitalocean==1.17.0` 
 ```
 
 现在，让我们创建另一个任务来旋转三个 droplets:一个用于 Kubernetes master，两个用于 workers。更新 *fabfile.py* 这样:
 
-```
+```py
 `import os
 
 from digitalocean import Droplet, Manager
@@ -113,7 +113,7 @@ def create_droplets(ctx):
 
 注意传递给 Droplet 类的参数。本质上，这将在 NYC3 区域创建三个 Ubuntu 20.04 droplets，每个都有 4 GB 的内存。它还会给每个 droplet 添加 *[所有](https://github.com/koalalorenzo/python-digitalocean#creating-a-new-droplet-with-all-your-ssh-keys)* SSH 密钥。您可能希望更新它，以便只包含您专门为此项目创建的 SSH 密钥:
 
-```
+```py
 `@task
 def create_droplets(ctx):
     """
@@ -144,7 +144,7 @@ def create_droplets(ctx):
 
 创造水滴:
 
-```
+```py
 `$ fab create-droplets
 
 node-1 has been created.
@@ -154,7 +154,7 @@ node-3 has been created.`
 
 接下来，让我们添加一个任务来检查每个 droplet 的状态，以确保在开始安装 Docker 和 Kubernetes 之前，每个 droplet 都已启动并准备就绪:
 
-```
+```py
 `@task
 def wait_for_droplets(ctx):
     """Wait for each droplet to be ready and active"""
@@ -172,7 +172,7 @@ def wait_for_droplets(ctx):
 
 添加`get_droplet_status`辅助函数:
 
-```
+```py
 `def get_droplet_status(node):
     """Given a droplet's tag name, return the status of the droplet"""
     manager = Manager(token=DIGITAL_OCEAN_ACCESS_TOKEN)
@@ -184,7 +184,7 @@ def wait_for_droplets(ctx):
 
 在我们测试之前，添加另一个任务来销毁液滴:
 
-```
+```py
 `@task
 def destroy_droplets(ctx):
     """Destroy the droplets - node-1, node-2, node-3"""
@@ -199,7 +199,7 @@ def destroy_droplets(ctx):
 
 摧毁我们刚刚创造的三个液滴:
 
-```
+```py
 `$ fab destroy-droplets
 
 node-1 has been destroyed.
@@ -209,7 +209,7 @@ node-3 has been destroyed.`
 
 然后，调出三个新液滴，并验证它们是否可以运行:
 
-```
+```py
 `$ fab create-droplets
 
 node-1 has been created.
@@ -239,7 +239,7 @@ node-3 is ready.`
 
 首先添加一个任务，在`hosts`环境变量中设置主机地址:
 
-```
+```py
 `@@task
 def get_addresses(ctx, type):
     """Get IP address"""
@@ -269,7 +269,7 @@ def get_addresses(ctx, type):
 
 运行:
 
-```
+```py
 `$ fab get-addresses --type=all
 
 165.227.96.238
@@ -290,7 +290,7 @@ Host addresses - ['165.227.96.238', '134.122.8.106', '134.122.8.204']`
 
 添加一个将 Docker 安装到 fabfile 的任务:
 
-```
+```py
 `@task
 def install_docker(ctx):
     """Install Docker"""
@@ -302,7 +302,7 @@ def install_docker(ctx):
 
 让我们禁用交换文件:
 
-```
+```py
 `@task
 def disable_selinux_swap(ctx):
     """
@@ -315,7 +315,7 @@ def disable_selinux_swap(ctx):
 
 安装库:
 
-```
+```py
 `@task
 def install_kubernetes(ctx):
     """Install Kubernetes"""
@@ -336,7 +336,7 @@ def install_kubernetes(ctx):
 
 与其分别运行这些任务，不如创建一个主`provision_machines`任务:
 
-```
+```py
 `@task
 def provision_machines(ctx):
     for conn in get_connections(hosts):
@@ -347,7 +347,7 @@ def provision_machines(ctx):
 
 添加`get_connections`辅助函数:
 
-```
+```py
 `def get_connections(hosts):
     for host in hosts:
         yield Connection(
@@ -357,13 +357,13 @@ def provision_machines(ctx):
 
 更新导入:
 
-```
+```py
 `from fabric import Connection, task` 
 ```
 
 运行:
 
-```
+```py
 `$ fab get-addresses --type=all provision-machines` 
 ```
 
@@ -373,7 +373,7 @@ def provision_machines(ctx):
 
 初始化 Kubernetes 集群并部署[法兰绒](https://github.com/coreos/flannel)网络:
 
-```
+```py
 `@task
 def configure_master(ctx):
     """
@@ -392,7 +392,7 @@ def configure_master(ctx):
 
 保存加入令牌:
 
-```
+```py
 `@task
 def get_join_key(ctx):
     sudo_command_res = ctx.sudo("kubeadm token create --print-join-command")
@@ -405,7 +405,7 @@ def get_join_key(ctx):
 
 添加以下导入内容:
 
-```
+```py
 `import re
 import sys
 from contextlib import contextmanager` 
@@ -413,7 +413,7 @@ from contextlib import contextmanager`
 
 创建`stdout_redirected`上下文管理器:
 
-```
+```py
 `@contextmanager
 def stdout_redirected(new_stdout):
     save_stdout = sys.stdout
@@ -426,7 +426,7 @@ def stdout_redirected(new_stdout):
 
 再次添加一个父任务来运行这些任务:
 
-```
+```py
 `@task
 def create_cluster(ctx):
     for conn in get_connections(hosts):
@@ -436,13 +436,13 @@ def create_cluster(ctx):
 
 运行它:
 
-```
+```py
 `$ fab get-addresses --type=master create-cluster` 
 ```
 
 这将需要一两分钟来运行。一旦完成，join token 命令应该输出到屏幕并保存到一个 *join.txt* 文件:
 
-```
+```py
 `kubeadm join 165.227.96.238:6443 --token mvk32y.7z7i5x3viga4f4kn --discovery-token-ca-cert-hash sha256:f358dfc00ae7160fff3cb8fa3e3a3c8865f3c5b83c1f242fc9e51efe94108960` 
 ```
 
@@ -450,7 +450,7 @@ def create_cluster(ctx):
 
 使用上面保存的 join 命令，添加一个任务，将 workers“加入”到 master:
 
-```
+```py
 `@task
 def configure_worker_node(ctx):
     """Join a worker to the cluster"""
@@ -462,7 +462,7 @@ def configure_worker_node(ctx):
 
 在两个工作节点上运行此命令:
 
-```
+```py
 `$ fab get-addresses --type=workers configure-worker-node` 
 ```
 
@@ -470,7 +470,7 @@ def configure_worker_node(ctx):
 
 最后，为了确保集群启动并运行，添加一个任务来查看节点:
 
-```
+```py
 `@task
 def get_nodes(ctx):
     for conn in get_connections(hosts):
@@ -479,13 +479,13 @@ def get_nodes(ctx):
 
 运行:
 
-```
+```py
 `$ fab get-addresses --type=master get-nodes` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `NAME     STATUS   ROLES                  AGE    VERSION
 node-1   Ready    control-plane,master   3m6s   v1.21.1
 node-2   Ready    <none>                 84s    v1.21.1
@@ -494,7 +494,7 @@ node-3   Ready    <none>                 77s    v1.21.1`
 
 完成后清除水滴:
 
-```
+```py
 `$ fab destroy-droplets
 
 node-1 has been destroyed.
@@ -506,7 +506,7 @@ node-3 has been destroyed.`
 
 最后一件事:添加一个 *create.sh* 脚本来自动化整个过程:
 
-```
+```py
 `#!/bin/bash
 
 echo "Creating droplets..."

@@ -35,7 +35,7 @@ Django Channels (或者仅仅是 Channels)扩展了 [Django](https://www.djangop
 
 首先创建一个新目录，并建立一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-channels-example && cd django-channels-example
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -46,13 +46,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`chat`的新 Django 应用程序:
 
-```
+```py
 `(env)$ python manage.py startapp chat` 
 ```
 
 在`INSTALLED_APPS`下的 *core/settings.py* 中注册 app:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -70,7 +70,7 @@ INSTALLED_APPS = [
 
 接下来，让我们在 *chat/models.py* 中创建两个 Django 模型`Room`和`Message`:
 
-```
+```py
 `# chat/models.py
 
 from django.contrib.auth.models import User
@@ -111,14 +111,14 @@ class Message(models.Model):
 
 运行`makemigrations`和`migrate`命令来同步数据库:
 
-```
+```py
 `(env)$ python manage.py makemigrations
 (env)$ python manage.py migrate` 
 ```
 
 在 *chat/admin.py* 中注册模型，以便可以从 Django 管理面板访问它们:
 
-```
+```py
 `# chat/admin.py
 
 from django.contrib import admin
@@ -138,7 +138,7 @@ web 应用程序将有以下两个 URL:
 
 将以下视图添加到 *chat/views.py* 中:
 
-```
+```py
 `# chat/views.py
 
 from django.shortcuts import render
@@ -159,7 +159,7 @@ def room_view(request, room_name):
 
 在`chat`应用内创建一个 *urls.py* 文件:
 
-```
+```py
 `# chat/urls.py
 
 from django.urls import path
@@ -174,7 +174,7 @@ urlpatterns = [
 
 用`chat`应用程序更新项目级的 *urls.py* 文件:
 
-```
+```py
 `# core/urls.py
 
 from django.contrib import admin
@@ -190,7 +190,7 @@ urlpatterns = [
 
 在“聊天”中名为“模板”的新文件夹中创建一个*index.html*文件:
 
-```
+```py
 `<!-- chat/templates/index.html -->
 
 {% load static %}
@@ -232,7 +232,7 @@ urlpatterns = [
 
 接下来，在同一个文件夹中添加*room.html*:
 
-```
+```py
 `<!-- chat/templates/room.html -->
 
 {% load static %}
@@ -280,19 +280,19 @@ urlpatterns = [
 
 *index.js* :
 
-```
+```py
 `// chat/static/index.js console.log("Sanity check from index.js."); // focus 'roomInput' when user opens the page document.querySelector("#roomInput").focus(); // submit if the user presses the enter key document.querySelector("#roomInput").onkeyup  =  function(e)  { if  (e.keyCode  ===  13)  {  // enter key document.querySelector("#roomConnect").click(); } }; // redirect to '/room/<roomInput>/' document.querySelector("#roomConnect").onclick  =  function()  { let  roomName  =  document.querySelector("#roomInput").value; window.location.pathname  =  "chat/"  +  roomName  +  "/"; } // redirect to '/room/<roomSelect>/' document.querySelector("#roomSelect").onchange  =  function()  { let  roomName  =  document.querySelector("#roomSelect").value.split(" (")[0]; window.location.pathname  =  "chat/"  +  roomName  +  "/"; }` 
 ```
 
 *room.js* :
 
-```
+```py
 `// chat/static/room.js console.log("Sanity check from room.js."); const  roomName  =  JSON.parse(document.getElementById('roomName').textContent); let  chatLog  =  document.querySelector("#chatLog"); let  chatMessageInput  =  document.querySelector("#chatMessageInput"); let  chatMessageSend  =  document.querySelector("#chatMessageSend"); let  onlineUsersSelector  =  document.querySelector("#onlineUsersSelector"); // adds a new option to 'onlineUsersSelector' function  onlineUsersSelectorAdd(value)  { if  (document.querySelector("option[value='"  +  value  +  "']"))  return; let  newOption  =  document.createElement("option"); newOption.value  =  value; newOption.innerHTML  =  value; onlineUsersSelector.appendChild(newOption); } // removes an option from 'onlineUsersSelector' function  onlineUsersSelectorRemove(value)  { let  oldOption  =  document.querySelector("option[value='"  +  value  +  "']"); if  (oldOption  !==  null)  oldOption.remove(); } // focus 'chatMessageInput' when user opens the page chatMessageInput.focus(); // submit if the user presses the enter key chatMessageInput.onkeyup  =  function(e)  { if  (e.keyCode  ===  13)  {  // enter key chatMessageSend.click(); } }; // clear the 'chatMessageInput' and forward the message chatMessageSend.onclick  =  function()  { if  (chatMessageInput.value.length  ===  0)  return; // TODO: forward the message to the WebSocket chatMessageInput.value  =  ""; };` 
 ```
 
 您最终的“聊天”应用程序目录结构应该如下所示:
 
-```
+```py
 `chat
 ├── __init__.py
 ├── admin.py
@@ -318,7 +318,7 @@ urlpatterns = [
 
 启动 Django 开发服务器:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
@@ -328,7 +328,7 @@ urlpatterns = [
 
 要确保静态文件配置正确，请打开“开发人员控制台”。您应该看到健全性检查:
 
-```
+```py
 `Sanity check from index.js.` 
 ```
 
@@ -344,13 +344,13 @@ urlpatterns = [
 
 首先安装软件包:
 
-```
+```py
 `(env)$ pip install channels==3.0.4` 
 ```
 
 然后，将`channels`添加到 *core/settings.py* 内的`INSTALLED_APPS`中:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -367,7 +367,7 @@ INSTALLED_APPS = [
 
 因为我们将使用 WebSockets 而不是 HTTP 从客户端到服务器进行通信，所以我们需要用 *core/asgi.py* 中的 [ProtocolTypeRouter](https://channels.readthedocs.io/en/latest/topics/routing.html#protocoltyperouter) 包装我们的 ASGI 配置:
 
-```
+```py
 `# core/asgi.py
 
 import os
@@ -388,7 +388,7 @@ application = ProtocolTypeRouter({
 
 接下来，我们需要让 Django 知道我们的 ASGI 应用程序的位置。将以下内容添加到您的 *core/settings.py* 文件中，就在`WSGI_APPLICATION`设置的下面:
 
-```
+```py
 `# core/settings.py
 
 WSGI_APPLICATION = 'core.wsgi.application'
@@ -397,7 +397,7 @@ ASGI_APPLICATION = 'core.asgi.application'  # new`
 
 当您现在运行开发服务器时，您将看到 Channels 正在被使用:
 
-```
+```py
 `Starting ASGI/Channels version 3.0.4 development server at http://127.0.0.1:8000/` 
 ```
 
@@ -411,7 +411,7 @@ ASGI_APPLICATION = 'core.asgi.application'  # new`
 
 由于这一层需要 [Redis](https://redis.io/) ，运行下面的命令让它启动并运行 [Docker](https://www.docker.com/) :
 
-```
+```py
 `(env)$ docker run -p 6379:6379 -d redis:5` 
 ```
 
@@ -421,13 +421,13 @@ ASGI_APPLICATION = 'core.asgi.application'  # new`
 
 要从 Django 连接到 Redis，我们需要安装一个名为 [channels_redis](https://github.com/django/channels_redis) 的附加包:
 
-```
+```py
 `(env)$ pip install channels_redis==3.3.1` 
 ```
 
 之后，在 *core/settings.py* 中配置图层如下:
 
-```
+```py
 `# core/settings.py
 
 CHANNEL_LAYERS = {
@@ -444,13 +444,13 @@ CHANNEL_LAYERS = {
 
 要测试一切是否按预期运行，请打开 Django shell:
 
-```
+```py
 `(env)$ python manage.py shell` 
 ```
 
 然后运行:
 
-```
+```py
 `>>> import channels.layers
 >>> channel_layer = channels.layers.get_channel_layer()
 >>>
@@ -474,7 +474,7 @@ CHANNEL_LAYERS = {
 
 在“聊天”中创建一个名为 *consumers.py* 的新文件:
 
-```
+```py
 `# chat/consumers.py
 
 import json
@@ -549,7 +549,7 @@ Channels 提供了不同的[路由](https://channels.readthedocs.io/en/stable/to
 
 向“聊天”添加一个 *routing.py* 文件:
 
-```
+```py
 `# chat/routing.py
 
 from django.urls import re_path
@@ -563,7 +563,7 @@ websocket_urlpatterns = [
 
 在 *core/asgi.py* 中注册 *routing.py* 文件:
 
-```
+```py
 `# core/asgi.py
 
 import os
@@ -596,7 +596,7 @@ WebSockets 非常容易使用。首先，您需要通过提供一个`url`来建�
 
 要将 WebSockets 集成到应用程序中，请将以下内容添加到 *room.js* 的底部:
 
-```
+```py
 `// chat/static/room.js let  chatSocket  =  null; function  connect()  { chatSocket  =  new  WebSocket("ws://"  +  window.location.host  +  "/ws/chat/"  +  roomName  +  "/"); chatSocket.onopen  =  function(e)  { console.log("Successfully connected to the WebSocket."); } chatSocket.onclose  =  function(e)  { console.log("WebSocket connection closed unexpectedly. Trying to reconnect in 2s..."); setTimeout(function()  { console.log("Reconnecting..."); connect(); },  2000); }; chatSocket.onmessage  =  function(e)  { const  data  =  JSON.parse(e.data); console.log(data); switch  (data.type)  { case  "chat_message": chatLog.value  +=  data.message  +  "\n"; break; default: console.error("Unknown message type!"); break; } // scroll 'chatLog' to the bottom chatLog.scrollTop  =  chatLog.scrollHeight; }; chatSocket.onerror  =  function(err)  { console.log("WebSocket encountered an error: "  +  err.message); console.log("Closing the socket."); chatSocket.close(); } } connect();` 
 ```
 
@@ -604,13 +604,13 @@ WebSockets 非常容易使用。首先，您需要通过提供一个`url`来建�
 
 最后，将`chatMessageSend.onclickForm`中的 TODO 更改为以下内容:
 
-```
+```py
 `// chat/static/room.js chatSocket.send(JSON.stringify({ "message":  chatMessageInput.value, }));` 
 ```
 
 完整的处理程序现在应该如下所示:
 
-```
+```py
 `// chat/static/room.js chatMessageSend.onclick  =  function()  { if  (chatMessageInput.value.length  ===  0)  return; chatSocket.send(JSON.stringify({ "message":  chatMessageInput.value, })); chatMessageInput.value  =  ""; };` 
 ```
 
@@ -630,7 +630,7 @@ Channels 附带了一个用于 Django 会话和名为`AuthMiddlewareStack`的[�
 
 要使用它，我们唯一要做的就是把`URLRouter`包在 *core/asgi.py* 里面，就像这样:
 
-```
+```py
 `# core/asgi.py
 
 import os
@@ -655,7 +655,7 @@ application = ProtocolTypeRouter({
 
 现在，只要经过身份验证的客户端加入，用户对象就会被添加到该范围。可以这样访问它:
 
-```
+```py
 `user = self.scope['user']` 
 ```
 
@@ -668,7 +668,7 @@ application = ProtocolTypeRouter({
 
 将 *chat/consumers.py* 更改如下:
 
-```
+```py
 `# chat/consumers.py
 
 import json
@@ -734,7 +734,7 @@ class ChatConsumer(WebsocketConsumer):
 
 接下来，让我们修改 *room.js* 来显示用户的用户名。在`chatSocket.onMessage`中，添加以下内容:
 
-```
+```py
 `// chat/static/room.js chatSocket.onmessage  =  function(e)  { const  data  =  JSON.parse(e.data); console.log(data); switch  (data.type)  { case  "chat_message": chatLog.value  +=  data.user  +  ": "  +  data.message  +  "\n";  // new break; default: console.error("Unknown message type!"); break; } // scroll 'chatLog' to the bottom chatLog.scrollTop  =  chatLog.scrollHeight; };` 
 ```
 
@@ -742,13 +742,13 @@ class ChatConsumer(WebsocketConsumer):
 
 创建一个超级用户，用于测试:
 
-```
+```py
 `(env)$ python manage.py createsuperuser` 
 ```
 
 运行服务器:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
@@ -772,7 +772,7 @@ class ChatConsumer(WebsocketConsumer):
 
 在`ChatConsumer`中的`connect`方法的末尾添加:
 
-```
+```py
 `# chat/consumers.py
 
 def connect(self):
@@ -798,7 +798,7 @@ def connect(self):
 
 在`ChatConsumer`中的`disconnect`方法的末尾添加:
 
-```
+```py
 `# chat/consumers.py
 
 def disconnect(self, close_code):
@@ -818,7 +818,7 @@ def disconnect(self, close_code):
 
 因为我们添加了新的消息类型，所以我们还需要添加通道层的方法。在 *chat/consumers.py* 末尾添加:
 
-```
+```py
 `# chat/consumers.py
 
 def user_join(self, event):
@@ -834,7 +834,7 @@ def user_leave(self, event):
 
 为了处理来自前端的消息，将以下情况添加到`chatSocket.onmessage`处理程序中的 switch 语句中:
 
-```
+```py
 `// chat/static/room.js switch  (data.type)  { // ... case  "user_list": for  (let  i  =  0;  i  <  data.users.length;  i++)  { onlineUsersSelectorAdd(data.users[i]); } break; case  "user_join": chatLog.value  +=  data.user  +  " joined the room.\n"; onlineUsersSelectorAdd(data.user); break; case  "user_leave": chatLog.value  +=  data.user  +  " left the room.\n"; onlineUsersSelectorRemove(data.user); break; // ...` 
 ```
 
@@ -865,7 +865,7 @@ Channels 包不允许直接过滤，所以没有从一个客户端向另一个�
 
 修改 *chat/consumers.py* 。
 
-```
+```py
 `# chat/consumers.py
 
 class ChatConsumer(WebsocketConsumer):
@@ -915,7 +915,7 @@ class ChatConsumer(WebsocketConsumer):
 
 接下来，修改`receive()`来处理私有消息:
 
-```
+```py
 `# chat/consumers.py
 
 def receive(self, text_data=None, bytes_data=None):
@@ -963,7 +963,7 @@ def receive(self, text_data=None, bytes_data=None):
 
 在 *chat/consumers.py* 的末尾增加以下方法:
 
-```
+```py
 `# chat/consumers.py
 
 def private_message(self, event):
@@ -979,13 +979,13 @@ def private_message_delivered(self, event):
 
 为了在前端处理私有消息，在`switch(data.type)`语句中添加`private_message`和`private_message_delivered`案例:
 
-```
+```py
 `// chat/static/room.js switch  (data.type)  { // ... case  "private_message": chatLog.value  +=  "PM from "  +  data.user  +  ": "  +  data.message  +  "\n"; break; case  "private_message_delivered": chatLog.value  +=  "PM to "  +  data.target  +  ": "  +  data.message  +  "\n"; break; // ... }` 
 ```
 
 为了使聊天更加方便，我们可以在用户点击`onlineUsersSelector`中的一个在线用户时，将消息输入改为`pm %USERNAME%`。将以下处理程序添加到底部:
 
-```
+```py
 `// chat/static/room.js onlineUsersSelector.onchange  =  function()  { chatMessageInput.value  =  "/pm "  +  onlineUsersSelector.value  +  " "; onlineUsersSelector.value  =  null; chatMessageInput.focus(); };` 
 ```
 

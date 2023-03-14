@@ -8,7 +8,7 @@
 
 首先创建一个项目目录:
 
-```
+```py
 `$ mkdir fastapi-docker-traefik && cd fastapi-docker-traefik
 $ python3.11 -m venv venv
 $ source venv/bin/activate` 
@@ -18,7 +18,7 @@ $ source venv/bin/activate`
 
 然后，创建以下文件和文件夹:
 
-```
+```py
 `├── app
 │   ├── __init__.py
 │   └── main.py
@@ -27,27 +27,27 @@ $ source venv/bin/activate`
 
 > 以下命令将创建项目结构:
 > 
-> ```
+> ```py
 > `$ mkdir app && \
 >   touch app/__init__.py app/main.py requirements.txt` 
 > ```
 
 将 ASGI 服务器 [FastAPI](https://fastapi.tiangolo.com/) 和[uvicon](https://www.uvicorn.org/)添加到 *requirements.txt* :
 
-```
+```py
 `fastapi==0.89.1
 uvicorn==0.20.0` 
 ```
 
 安装它们:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 接下来，让我们在 *app/main.py* 中创建一个简单的 FastAPI 应用程序:
 
-```
+```py
 `# app/main.py
 
 from fastapi import FastAPI
@@ -61,7 +61,7 @@ def read_root():
 
 运行应用程序:
 
-```
+```py
 `(venv)$ uvicorn app.main:app` 
 ```
 
@@ -73,7 +73,7 @@ def read_root():
 
 安装 [Docker](https://docs.docker.com/install/) ，如果你还没有的话，那么添加一个 *Dockerfile* 到项目根目录:
 
-```
+```py
 `# Dockerfile
 
 # pull the official docker image
@@ -105,7 +105,7 @@ COPY  . .`
 
 接下来，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `# docker-compose.yml version:  '3.8' services: web: build:  . command:  uvicorn app.main:app --host 0.0.0.0 volumes: -  .:/app ports: -  8008:8000` 
 ```
 
@@ -125,7 +125,7 @@ COPY  . .`
 
 首先，向 *docker-compose.yml* 添加一个名为`db`的新服务:
 
-```
+```py
 `# docker-compose.yml version:  '3.8' services: web: build:  . command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0' volumes: -  .:/app ports: -  8008:8000 environment: -  DATABASE_URL=postgresql://fastapi_traefik:[[email protected]](/cdn-cgi/l/email-protection):5432/fastapi_traefik depends_on: -  db db: image:  postgres:15-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=fastapi_traefik -  POSTGRES_PASSWORD=fastapi_traefik -  POSTGRES_DB=fastapi_traefik volumes: postgres_data:` 
 ```
 
@@ -137,7 +137,7 @@ COPY  . .`
 
 注意`web`服务中的新命令:
 
-```
+```py
 `bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0'` 
 ```
 
@@ -145,7 +145,7 @@ COPY  . .`
 
 接下来，将一个名为 *config.py* 的新文件添加到“app”目录中，在这里我们将定义特定于环境的[配置](https://fastapi.tiangolo.com/advanced/settings/)变量:
 
-```
+```py
 `# app/config.py
 
 import os
@@ -168,7 +168,7 @@ settings = Settings()`
 
 在 *requirements.txt* 中添加 [ormar](https://collerek.github.io/ormar/) ，一个 Python 的异步迷你 ORM，以及 asyncpg 和 psycopg2:
 
-```
+```py
 `asyncpg==0.27.0
 fastapi==0.89.1
 ormar==0.12.1
@@ -180,7 +180,7 @@ uvicorn==0.20.0`
 
 接下来，创建一个 *app/db.py* 文件来建立一个模型:
 
-```
+```py
 `# app/db.py
 
 import databases
@@ -216,7 +216,7 @@ ormar 使用 [SQLAlchemy](https://www.sqlalchemy.org/) 创建数据库/表格并
 
 接下来，更新 *app/main.py* 以连接到数据库并添加一个虚拟用户:
 
-```
+```py
 `# app/main.py
 
 from fastapi import FastAPI
@@ -250,13 +250,13 @@ shutdown 事件关闭所有与数据库的连接。我们还添加了一条路�
 
 构建新的映像并旋转两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 确保`users`表已创建:
 
-```
+```py
 `$ docker-compose exec db psql --username=fastapi_traefik --dbname=fastapi_traefik
 
 psql (15.1)
@@ -289,13 +289,13 @@ fastapi_traefik=# \q`
 
 您也可以通过运行以下命令来检查该卷是否已创建:
 
-```
+```py
 `$ docker volume inspect fastapi-docker-traefik_postgres_data` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `[
     {
         "CreatedAt": "2023-01-31T15:59:10Z",
@@ -321,7 +321,7 @@ fastapi_traefik=# \q`
 
 创建一个名为 *Dockerfile.prod* 的新 Dockerfile，用于生产构建:
 
-```
+```py
 `# Dockerfile.prod
 
 FROM  tiangolo/uvicorn-gunicorn:python3.11-slim
@@ -336,7 +336,7 @@ COPY  . .`
 
 接下来，为生产创建一个名为 *docker-compose.prod.yml* 的新合成文件:
 
-```
+```py
 `# docker-compose.prod.yml version:  '3.8' services: web: build: context:  . dockerfile:  Dockerfile.prod ports: -  8009:80 environment: -  DATABASE_URL=postgresql://fastapi_traefik_prod:[[email protected]](/cdn-cgi/l/email-protection):5432/fastapi_traefik_prod depends_on: -  db db: image:  postgres:15-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=fastapi_traefik_prod -  POSTGRES_PASSWORD=fastapi_traefik_prod -  POSTGRES_DB=fastapi_traefik_prod volumes: postgres_data_prod:` 
 ```
 
@@ -346,7 +346,7 @@ COPY  . .`
 
 修改 *Dockerfile.prod* 如下:
 
-```
+```py
 `# Dockerfile.prod
 
 FROM  tiangolo/uvicorn-gunicorn:python3.11-slim
@@ -361,7 +361,7 @@ COPY  . .`
 
 然后，将一个 *prestart.sh* 文件添加到项目的根目录:
 
-```
+```py
 `# prestart.sh
 
 echo "Waiting for postgres connection"
@@ -381,7 +381,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 然后，构建生产映像并启动容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -409,7 +409,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 添加一个名为 *traefik.dev.toml* 的新文件:
 
-```
+```py
 `# traefik.dev.toml # listen on port 80 [entryPoints] [entryPoints.web] address  =  ":80" # Traefik dashboard over http [api] insecure  =  true [log] level  =  "DEBUG" [accessLog] # containers are not discovered automatically [providers] [providers.docker] exposedByDefault  =  false` 
 ```
 
@@ -417,7 +417,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 接下来，更新 *docker-compose.yml* 文件，以便 Traefik 发现我们的`web`服务并添加一个新的`traefik`服务:
 
-```
+```py
 `# docker-compose.yml version:  '3.8' services: web: build:  . command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0' volumes: -  .:/app expose:  # new -  8000 environment: -  DATABASE_URL=postgresql://fastapi_traefik:[[email protected]](/cdn-cgi/l/email-protection):5432/fastapi_traefik depends_on: -  db labels:  # new -  "traefik.enable=true" -  "traefik.http.routers.fastapi.rule=Host(`fastapi.localhost`)" db: image:  postgres:15-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=fastapi_traefik -  POSTGRES_PASSWORD=fastapi_traefik -  POSTGRES_DB=fastapi_traefik traefik:  # new image:  traefik:v2.9.6 ports: -  8008:80 -  8081:8080 volumes: -  "./traefik.dev.toml:/etc/traefik/traefik.toml" -  "/var/run/docker.sock:/var/run/docker.sock:ro" volumes: postgres_data:` 
 ```
 
@@ -433,14 +433,14 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 要进行测试，首先取下任何现有的容器:
 
-```
+```py
 `$ docker-compose down -v
 $ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
 构建新的开发映像并启动容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -448,7 +448,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 您也可以通过 cURL 进行测试:
 
-```
+```py
 `$ curl -H Host:fastapi.localhost http://0.0.0.0:8008` 
 ```
 
@@ -470,7 +470,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 首先将 Traefik 配置的生产版本添加到名为 *traefik.prod.toml* 的文件中:
 
-```
+```py
 `# traefik.prod.toml [entryPoints] [entryPoints.web] address  =  ":80" [entryPoints.web.http] [entryPoints.web.http.redirections] [entryPoints.web.http.redirections.entryPoint] to  =  "websecure" scheme  =  "https" [entryPoints.websecure] address  =  ":443" [accessLog] [api] dashboard  =  true [providers] [providers.docker] exposedByDefault  =  false [certificatesResolvers.letsencrypt.acme] email  =  "[[email protected]](/cdn-cgi/l/email-protection)" storage  =  "/certificates/acme.json" [certificatesResolvers.letsencrypt.acme.httpChallenge] entryPoint  =  "web"` 
 ```
 
@@ -486,7 +486,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 最后，请注意:
 
-```
+```py
 `[certificatesResolvers.letsencrypt.acme] email  =  "[[email protected]](/cdn-cgi/l/email-protection)" storage  =  "/certificates/acme.json" [certificatesResolvers.letsencrypt.acme.httpChallenge] entryPoint  =  "web"` 
 ```
 
@@ -501,7 +501,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 接下来，像这样更新 *docker-compose.prod.yml* :
 
-```
+```py
 `# docker-compose.prod.yml version:  '3.8' services: web: build: context:  . dockerfile:  Dockerfile.prod expose:  # new -  80 environment: -  DATABASE_URL=postgresql://fastapi_traefik_prod:[[email protected]](/cdn-cgi/l/email-protection):5432/fastapi_traefik_prod depends_on: -  db labels:  # new -  "traefik.enable=true" -  "traefik.http.routers.fastapi.rule=Host(`fastapi-traefik.your-domain.com`)" -  "traefik.http.routers.fastapi.tls=true" -  "traefik.http.routers.fastapi.tls.certresolver=letsencrypt" db: image:  postgres:15-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=fastapi_traefik_prod -  POSTGRES_PASSWORD=fastapi_traefik_prod -  POSTGRES_DB=fastapi_traefik_prod traefik:  # new build: context:  . dockerfile:  Dockerfile.traefik ports: -  80:80 -  443:443 volumes: -  "/var/run/docker.sock:/var/run/docker.sock:ro" -  "./traefik-public-certificates:/certificates" labels: -  "traefik.enable=true" -  "traefik.http.routers.dashboard.rule=Host(`dashboard-fastapi-traefik.your-domain.com`)  &&  (PathPrefix(`/`)" -  "traefik.http.routers.dashboard.tls=true" -  "traefik.http.routers.dashboard.tls.certresolver=letsencrypt" -  "[[email protected]](/cdn-cgi/l/email-protection)" -  "traefik.http.routers.dashboard.middlewares=auth" -  "traefik.http.middlewares.auth.basicauth.users=testuser:$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1" volumes: postgres_data_prod: traefik-public-certificates:` 
 ```
 
@@ -527,7 +527,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 您可以使用 htpasswd 实用程序创建新的密码哈希:
 
-```
+```py
 `# username: testuser
 # password: password
 
@@ -537,14 +537,14 @@ testuser:$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1`
 
 随意使用一个`env_file`来存储用户名和密码作为环境变量
 
-```
+```py
 `USERNAME=testuser
 HASHED_PASSWORD=$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1` 
 ```
 
 最后，添加一个名为 *Dockerfile.traefik* 的新 Dockerfile:
 
-```
+```py
 `# Dockerfile.traefik
 
 FROM  traefik:v2.9.6
@@ -554,7 +554,7 @@ COPY  ./traefik.prod.toml ./etc/traefik/traefik.toml`
 
 接下来，旋转新容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 

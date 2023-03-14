@@ -55,7 +55,7 @@
 
 首先，克隆 GitHub 项目报告的内容:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/django-on-docker django-on-docker-letsencrypt
 $ cd django-on-docker-letsencrypt` 
 ```
@@ -66,7 +66,7 @@ $ cd django-on-docker-letsencrypt`
 
 首先，要在 HTTPS 代理后面运行 Django 应用程序，您需要将 [SECURE_PROXY_SSL_HEADER](https://docs.djangoproject.com/en/3.2/ref/settings/#secure-proxy-ssl-header) 设置添加到 *settings.py* :
 
-```
+```py
 `SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")` 
 ```
 
@@ -78,13 +78,13 @@ $ cd django-on-docker-letsencrypt`
 
 让我们添加一个新的 Docker Compose 文件用于测试，名为*Docker-Compose . staging . yml*:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./app dockerfile:  Dockerfile.prod command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles expose: -  8000 env_file: -  ./.env.staging depends_on: -  db db: image:  postgres:13.0-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ env_file: -  ./.env.staging.db nginx-proxy: container_name:  nginx-proxy build:  nginx restart:  always ports: -  443:443 -  80:80 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  /var/run/docker.sock:/tmp/docker.sock:ro depends_on: -  web nginx-proxy-letsencrypt: image:  jrcs/letsencrypt-nginx-proxy-companion env_file: -  ./.env.staging.proxy-companion volumes: -  /var/run/docker.sock:/var/run/docker.sock:ro -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  acme:/etc/acme.sh depends_on: -  nginx-proxy volumes: postgres_data: static_volume: media_volume: certs: html: vhost: acme:` 
 ```
 
 为`db`容器添加一个 *.env.staging.db* 文件:
 
-```
+```py
 `POSTGRES_USER=hello_django
 POSTGRES_PASSWORD=hello_django
 POSTGRES_DB=hello_django_prod` 
@@ -106,7 +106,7 @@ POSTGRES_DB=hello_django_prod`
 
 继续为`web`容器添加一个 *.env.staging* 文件:
 
-```
+```py
 `DEBUG=0
 SECRET_KEY=change_me
 DJANGO_ALLOWED_HOSTS=<YOUR_DOMAIN.COM>
@@ -138,7 +138,7 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 首先，添加名为“vhost.d”的目录。然后，在该目录中添加一个名为 *default* 的文件来提供静态和媒体文件:
 
-```
+```py
 `location /static/ {
   alias /home/app/web/staticfiles/;
   add_header Access-Control-Allow-Origin *;
@@ -152,20 +152,20 @@ location /media/ {
 
 符合任何这些模式的请求将从静态或媒体文件夹中得到服务。它们不会被代理到其他容器。`web`和`nginx-proxy`容器共享静态和媒体文件所在的卷:
 
-```
+```py
 `static_volume:/home/app/web/staticfiles
 media_volume:/home/app/web/mediafiles` 
 ```
 
 将一个 *custom.conf* 文件添加到“nginx”文件夹中，以保存自定义代理范围的配置:
 
-```
+```py
 `client_max_body_size 10M;` 
 ```
 
 更新 *nginx/Dockerfile* :
 
-```
+```py
 `FROM  jwilder/nginx-proxy:0.9
 COPY  vhost.d/default /etc/nginx/vhost.d/default
 COPY  custom.conf /etc/nginx/conf.d/custom.conf` 
@@ -175,7 +175,7 @@ COPY  custom.conf /etc/nginx/conf.d/custom.conf`
 
 您的“nginx”目录现在应该如下所示:
 
-```
+```py
 `└── nginx
     ├── Dockerfile
     ├── custom.conf
@@ -199,7 +199,7 @@ COPY  custom.conf /etc/nginx/conf.d/custom.conf`
 
 添加一个*. env . staging . proxy-companion*文件:
 
-```
+```py
 `DEFAULT_EMAIL=youremail@yourdomain.com ACME_CA_URI=https://acme-staging-v02.api.letsencrypt.org/directory NGINX_PROXY_CONTAINER=nginx-proxy` 
 ```
 
@@ -217,7 +217,7 @@ COPY  custom.conf /etc/nginx/conf.d/custom.conf`
 
 假设在您的实例上创建了一个项目目录，如*/home/my user/django-on-docker*，用 SCP 复制文件和文件夹:
 
-```
+```py
 `$ scp -r $(pwd)/{app,nginx,.env.staging,.env.staging.db,.env.staging.proxy-companion,docker-compose.staging.yml} [[email protected]](/cdn-cgi/l/email-protection):/path/to/django-on-docker` 
 ```
 
@@ -225,7 +225,7 @@ COPY  custom.conf /etc/nginx/conf.d/custom.conf`
 
 这时，您就可以构建映像并旋转容器了:
 
-```
+```py
 `$ docker-compose -f docker-compose.staging.yml up -d --build` 
 ```
 
@@ -245,14 +245,14 @@ COPY  custom.conf /etc/nginx/conf.d/custom.conf`
 
 关闭现有容器并退出实例:
 
-```
+```py
 `$ docker-compose -f docker-compose.staging.yml down -v
 $ exit` 
 ```
 
 回到您的本地机器上，更新*docker-composite . product . yml*:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./app dockerfile:  Dockerfile.prod command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles expose: -  8000 env_file: -  ./.env.prod depends_on: -  db db: image:  postgres:13.0-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ env_file: -  ./.env.prod.db nginx-proxy: container_name:  nginx-proxy build:  nginx restart:  always ports: -  443:443 -  80:80 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  /var/run/docker.sock:/tmp/docker.sock:ro depends_on: -  web nginx-proxy-letsencrypt: image:  jrcs/letsencrypt-nginx-proxy-companion env_file: -  ./.env.prod.proxy-companion volumes: -  /var/run/docker.sock:/var/run/docker.sock:ro -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  acme:/etc/acme.sh depends_on: -  nginx-proxy volumes: postgres_data: static_volume: media_volume: certs: html: vhost: acme:` 
 ```
 
@@ -260,7 +260,7 @@ $ exit`
 
 *.env.prod* :
 
-```
+```py
 `DEBUG=0
 SECRET_KEY=change_me
 DJANGO_ALLOWED_HOSTS=<YOUR_DOMAIN.COM>
@@ -278,7 +278,7 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 *.env.prod.db* :
 
-```
+```py
 `POSTGRES_USER=hello_django
 POSTGRES_PASSWORD=hello_django
 POSTGRES_DB=hello_django_prod` 
@@ -286,7 +286,7 @@ POSTGRES_DB=hello_django_prod`
 
 *. env . prod . proxy-companion*:
 
-```
+```py
 `DEFAULT_EMAIL=youremail@yourdomain.co NGINX_PROXY_CONTAINER=nginx-proxy` 
 ```
 
@@ -296,7 +296,7 @@ POSTGRES_DB=hello_django_prod`
 
 使用 SCP 将新文件和文件夹复制到您的实例中:
 
-```
+```py
 `$ scp $(pwd)/{.env.prod,.env.prod.db,.env.prod.proxy-companion,docker-compose.prod.yml} [[email protected]](/cdn-cgi/l/email-protection):/path/to/django-on-docker` 
 ```
 
@@ -304,7 +304,7 @@ POSTGRES_DB=hello_django_prod`
 
 构建图像并旋转容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -314,7 +314,7 @@ POSTGRES_DB=hello_django_prod`
 
 > 想要查看证书创建过程的运行情况，请查看日志:
 > 
-> ```
+> ```py
 > `$ docker-compose -f docker-compose.prod.yml logs nginx-proxy-letsencrypt` 
 > ```
 

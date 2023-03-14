@@ -15,7 +15,7 @@
 
 如果你想继续的话，复制回购协议。从命令行运行以下命令:
 
-```
+```py
 `$ git clone [[email protected]](/cdn-cgi/l/email-protection):testdrivenio/concurrent-web-scraping.git
 $ cd concurrent-web-scraping
 
@@ -34,7 +34,7 @@ $ source env/bin/activate
 
 *script.py* :
 
-```
+```py
 `import datetime
 import sys
 from time import sleep, time
@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
 让我们从主块开始。在确定 Chrome 是否应该在 headless 模式下运行并定义一些变量后，浏览器通过 *scrapers/scraper.py* 中的`get_driver()`进行初始化:
 
-```
+```py
 `if __name__ == "__main__":
 
     # headless mode?
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
 然后配置一个`while`回路来控制整个刮刀的流量。
 
-```
+```py
 `if __name__ == "__main__":
 
     # headless mode?
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
 在这个循环中，`run_process()`被调用，它管理 [WebDriver](https://developer.mozilla.org/en-US/docs/Web/WebDriver) 的连接和抓取功能。
 
-```
+```py
 `def run_process(filename, browser):
     if connect_to_base(browser):
         sleep(2)
@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
 在`run_process()`中，浏览器实例传递给了`connect_to_base()`。
 
-```
+```py
 `def run_process(filename, browser):
 
     ########
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
 这个函数试图连接到 wikipedia，然后使用 Selenium 的显式等待功能来确保带有`id='content'`的元素在继续之前已经加载。
 
-```
+```py
 `def connect_to_base(browser):
     base_url = "https://en.wikipedia.org/wiki/Special:Random"
     connection_attempts = 0
@@ -212,7 +212,7 @@ if __name__ == "__main__":
 
 为了模拟人类用户，在浏览器连接到维基百科后会调用`sleep(2)`。
 
-```
+```py
 `def run_process(filename, browser):
     if connect_to_base(browser):
 
@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
 一旦页面被加载并且`sleep(2)`被执行，浏览器获取 HTML 源，然后传递给`parse_html()`。
 
-```
+```py
 `def run_process(filename, browser):
     if connect_to_base(browser):
         sleep(2)
@@ -250,7 +250,7 @@ if __name__ == "__main__":
 
 使用 Beautiful Soup 解析 HTML，生成包含适当数据的字典列表。
 
-```
+```py
 `def parse_html(html):
     # create soup object
     soup = BeautifulSoup(html, "html.parser")
@@ -270,7 +270,7 @@ if __name__ == "__main__":
 
 该函数还将文章 URL 传递给`get_load_time()`，由它加载 URL 并记录随后的加载时间。
 
-```
+```py
 `def get_load_time(article_url):
     try:
         # set headers
@@ -291,7 +291,7 @@ if __name__ == "__main__":
 
 输出被添加到 CSV 文件中。
 
-```
+```py
 `def run_process(filename, browser):
     if connect_to_base(browser):
         sleep(2)
@@ -308,7 +308,7 @@ if __name__ == "__main__":
 
 `write_to_file()`:
 
-```
+```py
 `def write_to_file(output_list, filename):
     for row in output_list:
         with open(Path(BASE_DIR).joinpath(filename), "a") as csvfile:
@@ -319,7 +319,7 @@ if __name__ == "__main__":
 
 最后，回到`while`循环中，`current_attempt`递增，过程再次开始。
 
-```
+```py
 `if __name__ == "__main__":
 
     # headless mode?
@@ -359,7 +359,7 @@ if __name__ == "__main__":
 
 运行大约需要 57 秒:
 
-```
+```py
 `(env)$ python script.py
 
 Scraping Wikipedia #1 time(s)...
@@ -393,7 +393,7 @@ Elapsed run time: 57.36561393737793 seconds`
 
 *test/test_scraper.py* :
 
-```
+```py
 `from pathlib import Path
 
 import pytest
@@ -420,7 +420,7 @@ def test_output_is_a_list_of_dicts(html_output):
 
 确保一切正常:
 
-```
+```py
 `(env)$ python -m pytest test/test_scraper.py
 
 ================================ test session starts =================================
@@ -437,7 +437,7 @@ test/test_scraper.py ...                                                       [
 
 *test/test _ scraper _ mock . py*:
 
-```
+```py
 `from pathlib import Path
 
 import pytest
@@ -468,7 +468,7 @@ def test_output_is_a_list_of_dicts(html_output):
 
 测试:
 
-```
+```py
 `(env)$ python -m pytest test/test_scraper_mock.py
 
 ================================ test session starts =================================
@@ -485,7 +485,7 @@ test/test_scraper.py ...                                                       [
 
 现在有趣的部分来了！通过对脚本进行一些修改，我们可以加快速度:
 
-```
+```py
 `import datetime
 import sys
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -542,7 +542,7 @@ if __name__ == "__main__":
 
 值得注意的是，您可以通过`ProcessPoolExecutor`轻松切换到多处理，因为`ProcessPoolExecutor`和`ThreadPoolExecutor`实现了相同的接口:
 
-```
+```py
 `# scrape and crawl
 with ProcessPoolExecutor() as executor:
     for number in range(1, 21):
@@ -557,7 +557,7 @@ with ProcessPoolExecutor() as executor:
 
 运行:
 
-```
+```py
 `(env)$ python script_concurrent.py
 
 Elapsed run time: 11.831077098846436 seconds` 
@@ -567,7 +567,7 @@ Elapsed run time: 11.831077098846436 seconds`
 
 为了进一步加快速度，我们可以通过传入`headless`命令行参数在无头模式下运行 Chrome:
 
-```
+```py
 `(env)$ python script_concurrent.py headless
 
 Running in headless mode

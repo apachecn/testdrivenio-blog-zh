@@ -12,7 +12,7 @@
 
 假设您设置了一个使用[应用程序工厂](https://flask.palletsprojects.com/en/2.2.x/patterns/appfactories/)功能模式的 Flask 项目，导入并配置 WhiteNoise:
 
-```
+```py
 `import os
 
 from flask import Flask, jsonify
@@ -51,7 +51,7 @@ def create_app(script_info=None):
 
 您的项目结构现在应该看起来像这样:
 
-```
+```py
 `├── app.py
 ├── static
 │   └── bootstrap.css
@@ -60,7 +60,7 @@ def create_app(script_info=None):
 
 接下来，将下面的脚本——名为*compress . py*——添加到您的项目根中，该脚本压缩“static”目录中的文件，然后将它们复制到“staticfiles”目录中:
 
-```
+```py
 `import os
 import gzip
 
@@ -143,14 +143,14 @@ if __name__ == "__main__":
 
 接下来，将一个伪 PNG 文件添加到“static”目录中，以确保它在压缩脚本中被跳过，然后运行该脚本:
 
-```
+```py
 `$ touch static/test.png
 $ python compress.py` 
 ```
 
 您应该看到:
 
-```
+```py
 `Removing files from staticfiles
 
 Compressing bootstrap.css
@@ -163,7 +163,7 @@ Saving test.png`
 
 “staticfiles”目录现在应该被填充:
 
-```
+```py
 `├── app.py
 ├── compress.py
 ├── static
@@ -177,20 +177,20 @@ Saving test.png`
 
 要验证这是否有效，安装并运行 [Gunicorn](https://gunicorn.org/) :
 
-```
+```py
 `$ pip install gunicorn
 $ gunicorn "app:create_app()" -b 127.0.0.1:5000` 
 ```
 
 现在，要用 cURL 测试 WhiteNoise 的 [gzip 功能](http://whitenoise.evans.io/en/stable/base.html#compression-support)，运行:
 
-```
+```py
 `$ curl -I -H "Accept-Encoding: gzip" http://localhost:5000/assets/bootstrap.css` 
 ```
 
 您应该会看到以下响应:
 
-```
+```py
 `HTTP/1.1 200 OK
 Server: gunicorn
 Date: Mon, 13 Feb 2023 18:21:35 GMT
@@ -223,13 +223,13 @@ CloudFront 完全配置您的发行版通常需要大约 15 分钟。但是，�
 
 要进行测试，获取与 CloudFront 发行版相关的 URL 并运行:
 
-```
+```py
 `$ curl -I -H "Accept-Encoding: gzip" https://dxquy3iqeuay6.cloudfront.net/assets/bootstrap.css` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `HTTP/2 200
 content-type: text/css; charset="utf-8"
 content-length: 25881
@@ -249,7 +249,7 @@ x-amz-cf-id: _aLbrgkskBos4G1tjMFR34__rgmmBSkxaCNGiSdMBmxauX4f4CFO1Q==`
 
 现在，您可以使用 Flask 应用程序中提供的 CloudFront 域来处理静态文件请求:
 
-```
+```py
 `import os
 from urllib.parse import urljoin
 
@@ -292,7 +292,7 @@ def create_app(script_info=None):
 
 添加新的处理程序:
 
-```
+```py
 `import os
 from urllib.parse import urljoin
 
@@ -333,7 +333,7 @@ def create_app(script_info=None):
 
 在项目根目录下创建一个名为“templates”的新目录，并向该目录添加一个*index.html*文件:
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="en">
 <head>

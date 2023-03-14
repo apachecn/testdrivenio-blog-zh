@@ -94,7 +94,7 @@
 
 应用程序构建完成后，您将看到类似于以下内容的成功消息:
 
-```
+```py
 `vite v2.9.14 dev server running at:
 
  > Local: http://localhost:3000/
@@ -183,7 +183,7 @@ Vitest 是一个单元测试框架，其目标是与框架无关的，因此它�
 
 单元测试文件应该放在*组件*文件夹( *src/components/__tests__* )的子文件夹中:
 
-```
+```py
 `$ tree -d -L 2
 .
 ├── node_modules
@@ -198,7 +198,7 @@ Vitest 是一个单元测试框架，其目标是与框架无关的，因此它�
 
 Vitest 可用于运行单元测试，如下所示:
 
-```
+```py
 `$ npm run test:unit
 
 ✓ src/components/__tests__/WeatherFooter.spec.js (1)
@@ -217,7 +217,7 @@ Test Files  6 passed (6)
 
 Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.html#watch-mode)下运行测试，这意味着每次保存到一个适用的文件时，测试套件都会被重新执行。要更改此配置，使 Vitest 只运行一次(没有“监视模式”)，请更新 *package.json* 中的`test:unit`配置，以包含`run`参数:
 
-```
+```py
 `"test:unit":  "vitest run --environment jsdom",` 
 ```
 
@@ -229,7 +229,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 让我们直接看一个 Vue 中单元测试文件的例子！第一个单元测试文件位于*src/components/_ _ tests _ _/weather header . spec . js*中，它测试`WeatherHeader`组件:
 
-```
+```py
 `import  {  describe,  it,  expect  }  from  'vitest' import  {  shallowMount  }  from  '@vue/test-utils' import  WeatherHeader  from  '../WeatherHeader.vue' describe('WeatherHeader.vue Test',  ()  =>  { it('renders message when component is created',  ()  =>  { // render the component const  wrapper  =  shallowMount(WeatherHeader,  { propsData:  { title:  'Vue Project' } }) // check that the title is rendered expect(wrapper.text()).toMatch('Vue Project') }) })` 
 ```
 
@@ -267,7 +267,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 使用 Vitest 进行单元测试的好处是有几个内置的鼓励添加注释的方法。例如，`describe`的第一个参数应该清楚地解释哪个 Vue 组件正在被测试:
 
-```
+```py
 `describe('WeatherHeader.vue Test',  ()  =>  {  ...  })` 
 ```
 
@@ -277,7 +277,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 至于实际的单元测试，第一步是安装 Vue 组件，以便可以对其进行测试:
 
-```
+```py
 `// render the component const  wrapper  =  shallowMount(WeatherHeader,  { propsData:  { title:  'Vue Project' } })` 
 ```
 
@@ -287,7 +287,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 单元测试中执行的实际检查是:
 
-```
+```py
 `// check that the title is rendered expect(wrapper.text()).toMatch('Vue Project')` 
 ```
 
@@ -318,7 +318,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 此外，`not`限定符可以用于大多数检查:
 
-```
+```py
 `expect(wrapper.text()).not.toMatch('Node Project')` 
 ```
 
@@ -330,7 +330,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 下面是单元测试文件的概要(在*src/components/_ _ tests _ _/weather result . spec . js*中定义):
 
-```
+```py
 `import  {  describe,  it,  expect,  beforeEach,  afterEach  }  from  'vitest' import  {  shallowMount,  flushPromises  }  from  '@vue/test-utils' import  WeatherResult  from  '@/components/WeatherResult.vue' describe('WeatherResult.vue Implementation Test',  ()  =>  { let  wrapper  =  null // SETUP - run before to each unit test beforeEach(()  =>  { // render the component wrapper  =  shallowMount(WeatherResult,  { propsData:  { city:  '', weatherSummary:  '', weatherDescription:  '', currentTemperature:  0.0, lowTemperature:  0.0, highTemperature:  0.0 } }) }) // TEARDOWN - run after to each unit test afterEach(()  =>  { wrapper.unmount() }) it('initializes with correct elements',  ()  =>  {  ...  }) it('processes valid props data',  async  ()  =>  {  ...  }) it('emits a custom event when the Clear Weather Data button is clicked',  ()  =>  {  ...  }) })` 
 ```
 
@@ -347,7 +347,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 在这个例子中，`beforeEach()`函数使用一组默认的属性数据来呈现组件:
 
-```
+```py
 `// SETUP - run before to each unit test beforeEach(()  =>  { // render the component wrapper  =  shallowMount(WeatherResult,  { propsData:  { city:  '', weatherSummary:  '', weatherDescription:  '', currentTemperature:  0.0, lowTemperature:  0.0, highTemperature:  0.0 } }) })` 
 ```
 
@@ -355,13 +355,13 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 在这个例子中，`afterEach()`函数卸载单元测试中使用的`wrapper`，这样`wrapper`可以在`beforeEach()`中为下一个单元测试重新初始化:
 
-```
+```py
 `// TEARDOWN - run after to each unit test afterEach(()  =>  { wrapper.unmount() })` 
 ```
 
 如果希望运行在整个单元测试套件运行之前或之后执行的代码，可以使用:
 
-```
+```py
 `beforeAll(()  =>  { /* Runs before all tests */ }) afterAll(()  =>  { /* Runs after all tests */ })` 
 ```
 
@@ -369,7 +369,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 第一个单元测试检查`WeatherResult`组件的初始状态:
 
-```
+```py
 `it('initializes with correct elements',  ()  =>  { // check that the heading text is rendered expect(wrapper.findAll('h2').length).toEqual(2) expect(wrapper.findAll('h2').at(0).text()).toMatch('Weather Summary') expect(wrapper.findAll('h2').at(1).text()).toMatch('Temperatures') // check that 6 fields of data for the temperature are displayed expect(wrapper.findAll('p').length).toEqual(6) expect(wrapper.findAll('p').at(0).text()).toMatch('City:') expect(wrapper.findAll('p').at(1).text()).toMatch('Summary:') expect(wrapper.findAll('p').at(2).text()).toMatch('Details:') expect(wrapper.findAll('p').at(3).text()).toMatch('Current: 0° F') expect(wrapper.findAll('p').at(4).text()).toMatch('High (Today): 0° F') expect(wrapper.findAll('p').at(5).text()).toMatch('Low (Today): 0° F') })` 
 ```
 
@@ -382,7 +382,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 第二个单元测试检查作为正确数据传入的有效数据是否被`WeatherResult`组件正确处理:
 
-```
+```py
 `it('processes valid props data',  async  ()  =>  { // Update the props passed in to the WeatherResult component wrapper.setProps({ city:  'Chicago', weatherSummary:  'Cloudy', weatherDescription:  'Cloudy with a chance of rain', currentTemperature:  45.1, lowTemperature:  42.0, highTemperature:  47.7 }) // Wait until the DOM updates await  flushPromises() // check that the prop data is stored as expected within the component expect(wrapper.vm.city).toMatch('Chicago') expect(wrapper.vm.weatherSummary).toMatch('Cloudy') expect(wrapper.vm.weatherDescription).toMatch('Cloudy with a chance of rain') expect(wrapper.vm.currentTemperature).toEqual(45.1) expect(wrapper.vm.lowTemperature).toBeCloseTo(42.0) expect(wrapper.vm.highTemperature).toBe(47.7) // check that the heading text is rendered expect(wrapper.findAll('h2').length).toEqual(2) expect(wrapper.findAll('h2').at(0).text()).toMatch('Weather Summary') expect(wrapper.findAll('h2').at(1).text()).toMatch('Temperatures') // check that 6 fields of data for the temperature are displayed expect(wrapper.findAll('p').length).toEqual(6) expect(wrapper.findAll('p').at(0).text()).toMatch('City: Chicago') expect(wrapper.findAll('p').at(1).text()).toMatch('Summary: Cloudy') expect(wrapper.findAll('p').at(2).text()).toMatch('Details: Cloudy with a chance of rain') expect(wrapper.findAll('p').at(3).text()).toMatch('Current: 45.1° F') expect(wrapper.findAll('p').at(4).text()).toMatch('High (Today): 47.7° F') expect(wrapper.findAll('p').at(5).text()).toMatch('Low (Today): 42° F') })` 
 ```
 
@@ -390,7 +390,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 为了确保 prop 数据在`WeatherResult`中引起预期的更新，测试需要等待所有的 DOM 更新生效:
 
-```
+```py
 `// Wait until the DOM updates await  flushPromises()` 
 ```
 
@@ -406,7 +406,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 第三个单元测试检查当用户点击“清除天气数据”按钮时，`WeatherResult`组件发出了`clear-weather-data`事件:
 
-```
+```py
 `it('emits a custom event when the Clear Weather Data button is clicked',  ()  =>  { // trigger an event when the 'Clear Weather Data' button is clicked wrapper.findAll('button').at(0).trigger('click') // check that 1 occurrence of the event has been emitted expect(wrapper.emitted('clear-weather-data')).toBeTruthy() expect(wrapper.emitted('clear-weather-data').length).toBe(1) })` 
 ```
 
@@ -418,7 +418,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 在`App`组件中，当用户搜索一个城市的天气时，HTTP GET 调用 [Open Weather](https://openweathermap.org) 通过名为 [Axios](https://github.com/axios/axios) 的第三方库检索数据:
 
-```
+```py
 `const  searchCity  =  (inputCity)  =>  { // GET request for user data axios.get('http://api.openweathermap.org/data/2.5/weather?q='  +  inputCity  +  '&units=imperial&APPID='  +  openweathermapApiKey.value) .then((response)  =>  { // handle success console.log(response) weatherData.value.city  =  response.data.name weatherData.value.weatherSummary  =  response.data.weather[0].main weatherData.value.weatherDescription  =  response.data.weather[0].description weatherData.value.currentTemperature  =  response.data.main.temp weatherData.value.lowTemperature  =  response.data.main.temp_min weatherData.value.highTemperature  =  response.data.main.temp_max validWeatherData.value  =  true }) .catch((error)  =>  { // handle error messageType.value  =  'Error' messageToDisplay.value  =  'ERROR! Unable to retrieve weather data for '  +  inputCity  +  '!' console.log(error.message) resetData() }) .finally((response)  =>  { // always executed console.log('HTTP GET Finished!') }) }` 
 ```
 
@@ -455,13 +455,13 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 首先，我们需要`import`Axios 库:
 
-```
+```py
 `import  {  describe,  it,  expect,  beforeEach,  afterEach,  vi  }  from  'vitest' import  {  shallowMount,  mount,  flushPromises  }  from  '@vue/test-utils' import  App  from  '../../App.vue' import  axios  from  'axios'` 
 ```
 
 但是，我们不想像在源代码中那样使用实际的 Axios 库( *App.vue* )。相反，我们想创建一个 Axios 库的**模拟**，这样我们就不会实际调用外部 API:
 
-```
+```py
 `// Mock the axios library vi.mock("axios",  ()  =>  { return  { default:  { get:  vi.fn(), }, }; });` 
 ```
 
@@ -474,7 +474,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 首先，让我们处理 HTTP GET 请求成功的名义情况。
 
-```
+```py
 `describe('Implementation Test for App.vue with Successful HTTP GET',  ()  =>  { let  wrapper  =  null beforeEach(()  =>  { const  responseGet  =  {  data: { name:  'Chicago', weather:  [ { main:  'Cloudy', description:  'Cloudy with a chance of rain' } ], main:  { temp:  56.3, temp_min:  53.8, temp_max:  58.6 } } } // Set the mock call to GET to return a successful GET response axios.get.mockResolvedValue(responseGet) // render the component wrapper  =  shallowMount(App) }) afterEach(()  =>  { axios.get.mockReset() wrapper.unmount() }) ... })` 
 ```
 
@@ -482,7 +482,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 在`beforeEach()`函数中，我们设置当`axios.get()`被调用时应该发生的响应。响应是预先录制的天气数据，看起来类似于我们从开放天气中获得的数据，如果我们实际上发出请求的话。这一节的重点是:
 
-```
+```py
 `// Set the mock call to GET to return a successful GET response axios.get.mockResolvedValue(responseGet)` 
 ```
 
@@ -490,7 +490,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 单元测试套件的下一部分定义了`afterEach()`函数:
 
-```
+```py
 `afterEach(()  =>  { axios.get.mockReset() wrapper.unmount() })` 
 ```
 
@@ -500,7 +500,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 现在我们可以定义单元测试了:
 
-```
+```py
 `it('does load the weather data when a successful HTTP GET occurs',  async  ()  =>  { wrapper.vm.searchCity('Chicago') // Wait until the DOM updates await  flushPromises() expect(axios.get).toHaveBeenCalledTimes(1) expect(axios.get).toBeCalledWith(expect.stringMatching(/Chicago/)) // check that the user data is properly set expect(wrapper.vm.weatherData.city).toMatch('Chicago') expect(wrapper.vm.weatherData.weatherSummary).toMatch('Cloudy') expect(wrapper.vm.weatherData.weatherDescription).toMatch('Cloudy with a chance of rain') expect(wrapper.vm.weatherData.currentTemperature).toEqual(56.3) expect(wrapper.vm.weatherData.lowTemperature).toEqual(53.8) expect(wrapper.vm.weatherData.highTemperature).toEqual(58.6) expect(wrapper.vm.validWeatherData).toBe(true) })` 
 ```
 
@@ -508,25 +508,25 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 单元测试通过调用`searchCity()`函数开始:
 
-```
+```py
 `wrapper.vm.searchCity('Chicago')` 
 ```
 
 为了确保`searchCity()`函数在`App`组件中引起预期的更新，测试需要等待所有的承诺被解析，并且等待 DOM 更新生效:
 
-```
+```py
 `// Wait until all Promises are resolved and the DOM updates await  flushPromises()` 
 ```
 
 我们检查了`axios.get()`只被调用了一次，并且 HTTP GET 调用包含了正确的城市名:
 
-```
+```py
 `expect(axios.get).toHaveBeenCalledTimes(1) expect(axios.get).toBeCalledWith(expect.stringMatching(/Chicago/))` 
 ```
 
 为了非常彻底，天气数据还检查了在这个单元测试中呈现的`App`组件的实例，以确保它与从`axios.get()`的模拟返回的预先封装的数据相匹配:
 
-```
+```py
 `// check that the user data is properly set expect(wrapper.vm.weatherData.city).toMatch('Chicago') expect(wrapper.vm.weatherData.weatherSummary).toMatch('Cloudy') expect(wrapper.vm.weatherData.weatherDescription).toMatch('Cloudy with a chance of rain') expect(wrapper.vm.weatherData.currentTemperature).toEqual(56.3) expect(wrapper.vm.weatherData.lowTemperature).toEqual(53.8) expect(wrapper.vm.weatherData.highTemperature).toEqual(58.6) expect(wrapper.vm.validWeatherData).toBe(true)` 
 ```
 
@@ -534,7 +534,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 虽然测试事情是否按预期进行很好，但是检查我们的软件如何对负面情况做出反应也很重要。记住这一点，让我们创建第二个单元测试套件来检查失败的 HTTP GET 请求:
 
-```
+```py
 `describe('Implementation Test for App.vue with Failed HTTP GET',  ()  =>  {  ...  })` 
 ```
 
@@ -546,7 +546,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 这个单元测试套件中的`beforeEach()`函数非常不同:
 
-```
+```py
 `beforeEach(()  =>  { // Set the mock call to GET to return a failed GET request axios.get.mockRejectedValue(new  Error('BAD REQUEST')) // Render the component wrapper  =  shallowMount(App) })` 
 ```
 
@@ -554,7 +554,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 这个单元测试套件的`afterEach()`函数与另一个单元测试套件相同:
 
-```
+```py
 `afterEach(()  =>  { axios.get.mockReset() wrapper.unmount() })` 
 ```
 
@@ -562,7 +562,7 @@ Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.htm
 
 下面是测试失败的 HTTP GET 请求的单元测试函数:
 
-```
+```py
 `it('does not load the weather data when a failed HTTP GET occurs',  async  ()  =>  { wrapper.vm.searchCity('Chicago') expect(axios.get).toHaveBeenCalledTimes(1) expect(axios.get).toBeCalledWith(expect.stringMatching(/Chicago/)) // Wait until the DOM updates await  flushPromises() // Check that there is no user data loaded when the GET request fails expect(wrapper.vm.weatherData.city).toMatch(/^$/) expect(wrapper.vm.weatherData.weatherSummary).toMatch(/^$/) expect(wrapper.vm.weatherData.weatherDescription).toMatch(/^$/) expect(wrapper.vm.weatherData.currentTemperature).toEqual(0) expect(wrapper.vm.weatherData.lowTemperature).toEqual(0) expect(wrapper.vm.weatherData.highTemperature).toEqual(0) expect(wrapper.vm.validWeatherData).toBe(false) // check that the banner message indicates failure expect(wrapper.vm.messageToDisplay).toMatch('ERROR! Unable to retrieve weather data for Chicago!') expect(wrapper.vm.messageType).toMatch('Error') })` 
 ```
 
@@ -582,13 +582,13 @@ Vitest 通过使用`--coverage`标志来提供代码覆盖率。
 
 为了方便地运行带有覆盖率结果的 Vitest，我喜欢在 *package.json* 的`script`部分包含以下项目:
 
-```
+```py
 `{ "name":  "vue-weather-app", "version":  "1.0.0", "scripts":  { ... "test:unit":  "vitest run --environment jsdom", "test:coverage":  "vitest run --environment jsdom --coverage", "test:ui":  "vitest --environment jsdom --coverage --ui" }, ... }` 
 ```
 
 运行`npm run test:unit`时，执行单元测试:
 
-```
+```py
 `$ npm run test:unit
 ...
  ✓ src/components/__tests__/WeatherBanner.spec.js (5)
@@ -605,7 +605,7 @@ Test Files  6 passed (6)
 
 当`npm run test:coverage`运行时，执行单元测试并报告覆盖率:
 
-```
+```py
 `$ npm run test:coverage
 ...
 Test Files  6 passed (6)
@@ -633,7 +633,7 @@ All files           |   99.15 |    96.55 |     100 |   99.15 |
 
 在浏览了许多不同的单元测试文件之后，我推荐 Vue 组件的单元测试文件采用以下结构:
 
-```
+```py
 `import  {  describe,  it,  expect,  beforeEach,  afterEach,  vi  }  from  'vitest' import  {  shallowMount  }  from  '@vue/test-utils' import  App  from  '@/App.vue'  // Import Vue component to test import  axios  from  'axios'  // Import libraries to mock // Mock the axios library vi.mock("axios",  ()  =>  { return  { default:  { get:  vi.fn(), }, }; }); describe('Tests for the ... Component',  ()  =>  { let  wrapper  =  null beforeEach(()  =>  { // set any initial data and create the mocks of libraries // render the component wrapper  =  shallowMount(App) }) afterEach(()  =>  { axios.get.mockReset() wrapper.unmount() }) it('check successful events',  ()  =>  {  ...  }) it('check failure events',  ()  =>  {  ...  }) })` 
 ```
 

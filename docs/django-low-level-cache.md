@@ -42,14 +42,14 @@ Django 中的缓存可以在不同的层次上实现(或者站点的不同部分
 
 从 GitHub 上的[django-低级缓存](https://github.com/testdrivenio/django-low-level-cache) repo 中克隆基础项目:
 
-```
+```py
 `$ git clone -b base https://github.com/testdrivenio/django-low-level-cache
 $ cd django-low-level-cache` 
 ```
 
 创建(并激活)虚拟环境，并满足以下要求:
 
-```
+```py
 `$ python3.9 -m venv venv
 $ source venv/bin/activate
 (venv)$ pip install -r requirements.txt` 
@@ -57,7 +57,7 @@ $ source venv/bin/activate
 
 应用 Django 迁移，将一些产品数据加载到数据库中，并启动服务器:
 
-```
+```py
 `(venv)$ python manage.py migrate
 (venv)$ python manage.py seed_db
 (venv)$ python manage.py runserver` 
@@ -79,7 +79,7 @@ $ source venv/bin/activate
 
 对于 Django 使用 Redis 作为缓存后端，需要 django-redis 依赖关系。它已经安装好了，所以你只需要将自定义后端添加到 *settings.py* 文件中:
 
-```
+```py
 `CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -93,13 +93,13 @@ $ source venv/bin/activate
 
 现在，当您再次运行服务器时，Redis 将被用作缓存后端:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
 翻到代码。 *products/views.py* 中的`HomePageView`视图简单地列出了数据库中的所有产品:
 
-```
+```py
 `class HomePageView(View):
     template_name = 'products/home.html'
 
@@ -117,13 +117,13 @@ $ source venv/bin/activate
 
 首先，将导入添加到 *products/views.py* 的顶部:
 
-```
+```py
 `from django.core.cache import cache` 
 ```
 
 然后，向视图添加用于缓存产品的代码:
 
-```
+```py
 `class HomePageView(View):
     template_name = 'products/home.html'
 
@@ -179,7 +179,7 @@ $ source venv/bin/activate
 
 要设置处理缓存失效的信号，首先更新 *products/apps.py* ，如下所示:
 
-```
+```py
 `from django.apps import AppConfig
 
 class ProductsConfig(AppConfig):
@@ -191,7 +191,7 @@ class ProductsConfig(AppConfig):
 
 接下来，在“产品”目录中创建一个名为 *signals.py* 的文件:
 
-```
+```py
 `from django.core.cache import cache
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
@@ -223,7 +223,7 @@ def object_post_save_handler(sender, **kwargs):
 
 如果您像这样更新一个项目，就会触发`post_save`信号:
 
-```
+```py
 `product = Product.objects.get(id=1)
 product.title = 'A new title'
 product.save()` 
@@ -231,13 +231,13 @@ product.save()`
 
 但是，如果您通过`QuerySet`对模型执行`update`，则`post_save`不会被触发:
 
-```
+```py
 `Product.objects.filter(id=1).update(title='A new title')` 
 ```
 
 记下`ProductUpdateView`:
 
-```
+```py
 `class ProductUpdateView(UpdateView):
     model = Product
     fields = ['title', 'price']
@@ -255,7 +255,7 @@ product.save()`
 
 因此，为了触发`post_save`，让我们覆盖 queryset `update()`方法。首先创建一个自定义`QuerySet`和一个自定义`Manager`。在 *products/models.py* 的顶部，添加以下几行:
 
-```
+```py
 `from django.core.cache import cache             # NEW
 from django.db import models
 from django.db.models import QuerySet, Manager  # NEW
@@ -264,7 +264,7 @@ from django.utils import timezone               # NEW`
 
 接下来，让我们将下面的代码添加到 *products/models.py* 的`Product`类的正上方:
 
-```
+```py
 `class CustomQuerySet(QuerySet):
     def update(self, **kwargs):
         cache.delete('product_objects')
@@ -279,7 +279,7 @@ class CustomManager(Manager):
 
 为了让我们的代码使用它，您还需要像这样更新`Product`:
 
-```
+```py
 `class Product(models.Model):
     title = models.CharField(max_length=200, blank=False)
     price = models.CharField(max_length=20, blank=False)
@@ -294,7 +294,7 @@ class CustomManager(Manager):
 
 完整文件:
 
-```
+```py
 `from django.core.cache import cache
 from django.db import models
 from django.db.models import QuerySet, Manager
@@ -331,7 +331,7 @@ class Product(models.Model):
 
 要切换到使用 Django 生命周期，关闭服务器，然后像这样更新 *products/app.py* :
 
-```
+```py
 `from django.apps import AppConfig
 
 class ProductsConfig(AppConfig):
@@ -340,19 +340,19 @@ class ProductsConfig(AppConfig):
 
 接下来，将 Django 生命周期添加到 *requirements.txt* :
 
-```
+```py
 `Django==3.1.13 django-debug-toolbar==3.2.1 django-lifecycle==0.9.1  # NEW django-redis==5.0.0 redis==3.5.3` 
 ```
 
 安装新要求:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 要使用生命周期挂钩，请像这样更新 *products/models.py* :
 
-```
+```py
 `from django.core.cache import cache
 from django.db import models
 from django.db.models import QuerySet, Manager
@@ -400,7 +400,7 @@ class Product(LifecycleModel):              # NEW
 
 与`django signals`一样，如果我们像前面提到的例子那样通过`QuerySet`更新，钩子不会触发:
 
-```
+```py
 `Product.objects.filter(id=1).update(title="A new title")` 
 ```
 
@@ -426,7 +426,7 @@ class Product(LifecycleModel):              # NEW
 
 **例子**
 
-```
+```py
 `>>> from django.core.cache import cache
 >>> cache.get_or_set('my_key', 'my new value')
 'my new value'` 
@@ -434,7 +434,7 @@ class Product(LifecycleModel):              # NEW
 
 我们可以在视图中使用它，而不是使用 if 语句:
 
-```
+```py
 `# current implementation
 product_objects = cache.get('product_objects')
 
@@ -456,7 +456,7 @@ product_objects = cache.get_or_set('product_objects', product_objects)`
 
 **例子**
 
-```
+```py
 `>>> cache.set_many({'my_first_key': 1, 'my_second_key': 2, 'my_third_key': 3})` 
 ```
 
@@ -470,7 +470,7 @@ product_objects = cache.get_or_set('product_objects', product_objects)`
 
 **例子**
 
-```
+```py
 `>>> cache.get_many(['my_key', 'my_first_key', 'my_second_key', 'my_third_key'])
 OrderedDict([('my_key', 'my new value'), ('my_first_key', 1), ('my_second_key', 2), ('my_third_key', 3)])` 
 ```
@@ -485,7 +485,7 @@ OrderedDict([('my_key', 'my new value'), ('my_first_key', 1), ('my_second_key', 
 
 **例子**
 
-```
+```py
 `>>> cache.set('sample', 'just a sample', timeout=120)
 >>> cache.touch('sample', timeout=180)` 
 ```
@@ -498,7 +498,7 @@ OrderedDict([('my_key', 'my new value'), ('my_first_key', 1), ('my_second_key', 
 
 **语法**
 
-```
+```py
 `cache.incr(key, delta=1, version=None)
 
 cache.decr(key, delta=1, version=None)` 
@@ -506,7 +506,7 @@ cache.decr(key, delta=1, version=None)`
 
 **例子**
 
-```
+```py
 `>>> cache.set('my_first_key', 1)
 >>> cache.incr('my_first_key')
 2

@@ -14,7 +14,7 @@ Telegram 提供了一个创建看起来相对容易使用的机器人的 API，�
 
 首先，这个机器人根本不做什么。在我点击对话链接之前，我从终端使用 [HTTPie](https://httpie.org/) 检查了状态(你可以使用 curl，或者浏览器，或者你喜欢的任何东西...我只是更喜欢 HTTPie 的格式化输出):
 
-```
+```py
 `# curl https://api.telegram.org/bot<TOKEN>/getUpdates
 $ http https://api.telegram.org/bot<TOKEN>/getUpdates
 HTTP/1.1 200 OK
@@ -38,7 +38,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
 上面的状态显示机器人还活着，但是没有任何当前对话。我点击了僵尸父亲消息中的链接([t.me/testdriven_test_bot](https://t.me/testdriven_test_bot))并开始了对话，然后再次检查了状态:
 
-```
+```py
 `# curl https://api.telegram.org/bot<TOKEN>/getUpdates
 $ http https://api.telegram.org/bot<TOKEN>/getUpdates
 HTTP/1.1 200 OK
@@ -61,7 +61,7 @@ HTTP/1.1 200 OK
 
 我刚刚开始的对话现在出现了，我需要对话 id(在本例中为`488404184`),下面我称之为`<CHAT_ID>`。现在我有了令牌和聊天 id，我将测试发送一条消息:
 
-```
+```py
 `# curl -s -X POST https://api.telegram.org/bot<TOKEN>/sendMessage \
 #            -d chat_id=<CHAT_ID> \
 #            -d text="The bot speaks"
@@ -109,7 +109,7 @@ HTTP/1.1 200 OK
 
 接下来，我在我的 *.travis.yml* 文件中添加了一个`after_script`步骤。我可以很容易地直接在构建脚本文件本身中完成一个简单的通知，但是我想添加一些额外的细节。因此，我选择编写一个单独的 shell 脚本来封装它，然后在我的构建配置文件中引用该脚本:
 
-```
+```py
 `after_script: -  bash ./telegram_notification.sh` 
 ```
 
@@ -117,7 +117,7 @@ HTTP/1.1 200 OK
 
 在我的项目根目录中，我创建了一个名为`telegram_notification.sh`的 bash 脚本:
 
-```
+```py
 `#!/bin/sh
 
 # Get the token from Travis environment vars and build the bot URL:

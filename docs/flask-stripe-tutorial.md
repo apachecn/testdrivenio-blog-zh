@@ -30,7 +30,7 @@ Stripe 目前有三种接受一次性付款的策略:
 
 创建一个新的项目文件夹，创建并激活一个虚拟环境，并安装 Flask:
 
-```
+```py
 `$ mkdir flask-stripe-checkout && cd flask-stripe-checkout
 $ python3.10 -m venv env
 $ source env/bin/activate
@@ -41,7 +41,7 @@ $ source env/bin/activate
 
 接下来，创建一个名为 *app.py* 的文件，并添加一个基本的“Hello World”应用程序的代码:
 
-```
+```py
 `# app.py
 
 from flask import Flask, jsonify
@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
 启动服务器:
 
-```
+```py
 `(env)$ FLASK_ENV=development python app.py` 
 ```
 
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
 条纹时间到了。从安装开始:
 
-```
+```py
 `(env)$ pip install stripe` 
 ```
 
@@ -86,14 +86,14 @@ if __name__ == "__main__":
 
 将您的[测试 API 键](https://stripe.com/docs/keys#test-live-modes)存储为环境变量，如下所示:
 
-```
+```py
 `(env)$ export STRIPE_PUBLISHABLE_KEY=<YOUR_STRIPE_PUBLISHABLE_KEY>
 (env)$ export STRIPE_SECRET_KEY=<YOUR_STRIPE_SECRET_KEY>` 
 ```
 
 接下来，将条带密钥添加到您的应用程序中:
 
-```
+```py
 `# app.py
 
 import os
@@ -170,13 +170,13 @@ if __name__ == "__main__":
 
 添加一个名为“static”的新文件夹，然后向该文件夹添加一个名为 *main.js* 的新文件:
 
-```
+```py
 `// static/main.js console.log("Sanity check!");` 
 ```
 
 接下来，向 *app.py* 添加一条新路线，该路线提供了一个【index.html】模板*:*
 
-```
+```py
 `# app.py
 
 @app.route("/")
@@ -186,13 +186,13 @@ def index():
 
 确保也导入`render_template`:
 
-```
+```py
 `from flask import Flask, jsonify, render_template` 
 ```
 
 对于模板，首先添加一个名为“templates”的新文件夹，然后添加一个名为*base.html*的基础模板，其中包含了提供 *main.js* 静态文件的脚本标签:
 
-```
+```py
 `<!-- templates/base.html -->
 
 <!DOCTYPE html>
@@ -213,7 +213,7 @@ def index():
 
 接下来，向名为*index.html*的新模板添加一个支付按钮:
 
-```
+```py
 `<!-- templates/index.html -->
 
 {% extends "base.html" %}
@@ -229,7 +229,7 @@ def index():
 
 再次运行开发服务器:
 
-```
+```py
 `(env)$ FLASK_ENV=development python app.py` 
 ```
 
@@ -241,7 +241,7 @@ def index():
 
 接下来，向 *app.py* 添加一个新的路由来处理 AJAX 请求:
 
-```
+```py
 `# app.py
 
 @app.route("/config")
@@ -254,7 +254,7 @@ def get_publishable_key():
 
 接下来，使用[获取 API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) 向 *static/main.js* 中的新`/config`端点发出 AJAX 请求:
 
-```
+```py
 `// static/main.js console.log("Sanity check!"); // new // Get Stripe publishable key fetch("/config") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { // Initialize Stripe.js const  stripe  =  Stripe(data.publicKey); });` 
 ```
 
@@ -262,7 +262,7 @@ def get_publishable_key():
 
 将 [Stripe.js](https://stripe.com/docs/js) 包含在 *templates/base.html* 中，就像这样:
 
-```
+```py
 `<!-- templates/base.html -->
 
 <!DOCTYPE html>
@@ -314,7 +314,7 @@ def get_publishable_key():
 
 首先，添加新路由:
 
-```
+```py
 `# app.py
 
 @app.route("/create-checkout-session")
@@ -364,7 +364,7 @@ def create_checkout_session():
 
 将事件处理程序和后续 AJAX 请求添加到 *static/main.js* :
 
-```
+```py
 `// static/main.js console.log("Sanity check!"); // Get Stripe publishable key fetch("/config") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { // Initialize Stripe.js const  stripe  =  Stripe(data.publicKey); // new // Event handler document.querySelector("#submitBtn").addEventListener("click",  ()  =>  { // Get Checkout Session ID fetch("/create-checkout-session") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { console.log(data); // Redirect to Stripe Checkout return  stripe.redirectToCheckout({sessionId:  data.sessionId}) }) .then((res)  =>  { console.log(res); }); }); });` 
 ```
 
@@ -413,7 +413,7 @@ def create_checkout_session():
 
 成功模板:
 
-```
+```py
 `<!-- templates/success.html -->
 
 {% extends "base.html" %}
@@ -429,7 +429,7 @@ def create_checkout_session():
 
 已取消的模板:
 
-```
+```py
 `<!-- templates/cancelled.html -->
 
 {% extends "base.html" %}
@@ -445,7 +445,7 @@ def create_checkout_session():
 
 路线:
 
-```
+```py
 `# app.py
 
 @app.route("/success")
@@ -509,7 +509,7 @@ def cancelled():
 
 创建一个名为`stripe_webhook`的新路径，它会在每次支付成功时打印一条消息:
 
-```
+```py
 `# app.py
 
 @app.route("/webhook", methods=["POST"])
@@ -541,7 +541,7 @@ def stripe_webhook():
 
 确保将`request`导入添加到顶部:
 
-```
+```py
 `from flask import Flask, jsonify, render_template, request` 
 ```
 
@@ -553,7 +553,7 @@ def stripe_webhook():
 
 此命令应生成一个配对代码:
 
-```
+```py
 `Your pairing code is: peach-loves-classy-cozy
 This pairing code verifies your authentication with Stripe.
 Press Enter to open the browser (^C to quit)` 
@@ -561,7 +561,7 @@ Press Enter to open the browser (^C to quit)`
 
 通过按 Enter，CLI 将打开您的默认 web 浏览器，并请求访问您的帐户信息的权限。请继续并允许访问。回到您的终端，您应该看到类似于以下内容的内容:
 
-```
+```py
 `> Done! The Stripe CLI is configured for Flask Stripe Test with account id acct_<ACCOUNT_ID>
 
 Please note: this key will expire after 90 days, at which point you'll need to re-authenticate.` 
@@ -569,25 +569,25 @@ Please note: this key will expire after 90 days, at which point you'll need to r
 
 接下来，我们可以开始侦听条带事件，并使用以下命令将它们转发到我们的端点:
 
-```
+```py
 `$ stripe listen --forward-to 127.0.0.1:5000/webhook` 
 ```
 
 这也将生成一个 webhook 签名密码:
 
-```
+```py
 `> Ready! Your webhook signing secret is whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (^C to quit)` 
 ```
 
 为了初始化端点，将密码保存为另一个环境变量，如下所示:
 
-```
+```py
 `(env)$ export STRIPE_ENDPOINT_SECRET=<YOUR_STRIPE_ENDPOINT_SECRET>` 
 ```
 
 接下来，像这样将它添加到`stripe_keys`字典中:
 
-```
+```py
 `# app.py
 
 stripe_keys = {
@@ -605,7 +605,7 @@ Stripe 现在会将事件转发到我们的端点。要测试，通过`4242 4242
 > 
 > 例如:
 > 
-> ```
+> ```py
 > @app.route("/create-checkout-session")
 > def create_checkout_session():
 >     domain_url = "http://127.0.0.1:5000/"

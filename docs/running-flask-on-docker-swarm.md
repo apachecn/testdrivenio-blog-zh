@@ -62,20 +62,20 @@
 
 从[烧瓶-docker-swarm](https://github.com/testdrivenio/flask-docker-swarm) repo 中克隆出[碱基](https://github.com/testdrivenio/flask-docker-swarm/tree/base)分支；
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/flask-docker-swarm --branch base --single-branch
 $ cd flask-docker-swarm` 
 ```
 
 构建映像并在本地旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 创建并植入数据库`users`表:
 
-```
+```py
 `$ docker-compose run web python manage.py recreate_db
 $ docker-compose run web python manage.py seed_db` 
 ```
@@ -84,26 +84,26 @@ $ docker-compose run web python manage.py seed_db`
 
 [http://localhost/ping](http://localhost/ping) :
 
-```
+```py
 `{ "container_id":  "3c9dc22aa37a", "message":  "pong!", "status":  "success" }` 
 ```
 
 > `container_id`是运行应用程序的 Docker 容器的 ID:
 > 
-> ```
+> ```py
 > $ docker ps --filter name=flask-docker-swarm_web --format "{{.ID}}"
 > 3c9dc22aa37a 
 > ```
 
 [http://localhost/users](http://localhost/users) :
 
-```
+```py
 `{ "container_id":  "3c9dc22aa37a", "status":  "success", "users":  [{ "active":  true, "admin":  false, "email":  "[[email protected]](/cdn-cgi/l/email-protection)", "id":  1, "username":  "michael" }] }` 
 ```
 
 在继续之前，快速浏览一下代码:
 
-```
+```py
 `├── README.md
 ├── docker-compose.yml
 └── services
@@ -134,7 +134,7 @@ $ docker-compose run web python manage.py seed_db`
 
 构建、标记和推送图像到 Docker Hub:
 
-```
+```py
 `$ docker build -t mjhea0/flask-docker-swarm_web:latest -f ./services/web/Dockerfile ./services/web
 $ docker push mjhea0/flask-docker-swarm_web:latest
 
@@ -151,7 +151,7 @@ $ docker push mjhea0/flask-docker-swarm_nginx:latest`
 
 接下来，让我们建立一个新的 Docker 组合文件，用于 Docker Swarm:
 
-```
+```py
 `version:  '3.8' services: web: image:  mjhea0/flask-docker-swarm_web:latest deploy: replicas:  1 restart_policy: condition:  on-failure placement: constraints:  [node.role == worker] expose: -  5000 environment: -  FLASK_ENV=production -  APP_SETTINGS=project.config.ProductionConfig -  DB_USER=postgres -  DB_PASSWORD=postgres -  SECRET_CODE=myprecious depends_on: -  db networks: -  app db: image:  mjhea0/flask-docker-swarm_db:latest deploy: replicas:  1 restart_policy: condition:  on-failure placement: constraints:  [node.role == manager] volumes: -  data-volume:/var/lib/postgresql/data expose: -  5432 environment: -  POSTGRES_USER=postgres -  POSTGRES_PASSWORD=postgres networks: -  app nginx: image:  mjhea0/flask-docker-swarm_nginx:latest deploy: replicas:  1 restart_policy: condition:  on-failure placement: constraints:  [node.role == worker] ports: -  80:80 depends_on: -  web networks: -  app networks: app: driver:  overlay volumes: data-volume: driver:  local` 
 ```
 
@@ -167,13 +167,13 @@ $ docker push mjhea0/flask-docker-swarm_nginx:latest`
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
 旋转四个数字海洋液滴:
 
-```
+```py
 `$ for i in 1 2 3 4; do
     docker-machine create \
       --driver digitalocean \
@@ -187,13 +187,13 @@ $ docker push mjhea0/flask-docker-swarm_nginx:latest`
 
 这需要几分钟时间。一旦完成，在`node-1`初始化[群模式](https://docs.docker.com/engine/swarm/):
 
-```
+```py
 `$ docker-machine ssh node-1 -- docker swarm init --advertise-addr $(docker-machine ip node-1)` 
 ```
 
 从上一个命令的输出中获取 join 令牌，然后将剩余的节点作为 workers 添加到群中:
 
-```
+```py
 `$ for i in 2 3 4; do
     docker-machine ssh node-$i \
       -- docker swarm join --token YOUR_JOIN_TOKEN;
@@ -202,20 +202,20 @@ done`
 
 将 Docker 守护进程指向`node-1`并部署堆栈:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker stack deploy --compose-file=docker-compose-swarm.yml flask` 
 ```
 
 列出堆栈中的服务:
 
-```
+```py
 `$ docker stack ps -f "desired-state=running" flask` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `ID              NAME            IMAGE                                    NODE         DESIRED STATE       CURRENT STATE
 uz84le3651f8    flask_nginx.1   mjhea0/flask-docker-swarm_nginx:latest   node-3       Running             Running 23 seconds ago
 nv365bhsoek1    flask_web.1     mjhea0/flask-docker-swarm_web:latest     node-2       Running             Running 32 seconds ago
@@ -224,27 +224,27 @@ uyl11jk2h71d    flask_db.1      mjhea0/flask-docker-swarm_db:latest      node-1 
 
 现在，为了根据`web`服务中提供的模式更新数据库，我们首先需要将 Docker 守护进程指向运行`flask_web`的节点:
 
-```
+```py
 `$ NODE=$(docker service ps -f "desired-state=running" --format "{{.Node}}" flask_web)
 $ eval $(docker-machine env $NODE)` 
 ```
 
 将`flask_web`的容器 ID 分配给一个变量:
 
-```
+```py
 `$ CONTAINER_ID=$(docker ps --filter name=flask_web --format "{{.ID}}")` 
 ```
 
 创建数据库表并应用种子:
 
-```
+```py
 `$ docker container exec -it $CONTAINER_ID python manage.py recreate_db
 $ docker container exec -it $CONTAINER_ID python manage.py seed_db` 
 ```
 
 最后，将 Docker 守护进程指向`node-1`，并检索与运行`flask_nginx`的机器相关联的 IP:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker-machine ip $(docker service ps -f "desired-state=running" --format "{{.Node}}" flask_nginx)` 
 ```
@@ -256,7 +256,7 @@ $ docker-machine ip $(docker service ps -f "desired-state=running" --format "{{.
 
 让我们向集群添加另一个 web 应用程序:
 
-```
+```py
 `$ docker service scale flask_web=2
 
 flask_web scaled to 2
@@ -268,7 +268,7 @@ verify: Service converged`
 
 确认服务确实可以扩展:
 
-```
+```py
 `$ docker stack ps -f "desired-state=running" flask
 
 ID              NAME            IMAGE                                    NODE         DESIRED STATE       CURRENT STATE
@@ -280,13 +280,13 @@ n8ld0xkm3pd0    flask_web.2     mjhea0/flask-docker-swarm_web:latest     node-4 
 
 向服务提出一些请求:
 
-```
+```py
 `$ for ((i=1;i<=10;i++)); do curl http://YOUR_MACHINE_IP/ping; done` 
 ```
 
 您应该看到不同的`container_id`被返回，表明请求通过两个副本之间的循环算法被适当地路由:
 
-```
+```py
 `{"container_id":"3e984eb707ea","message":"pong!","status":"success"}
 {"container_id":"e47de2a13a2e","message":"pong!","status":"success"}
 {"container_id":"3e984eb707ea","message":"pong!","status":"success"}
@@ -311,13 +311,13 @@ Docker Swarm Visualizer 是一款开源工具，用于监控 Docker Swarm 集群
 
 将服务添加到 *docker-compose-swarm.yml* :
 
-```
+```py
 `visualizer: image:  dockersamples/visualizer:latest ports: -  8080:8080 volumes: -  "/var/run/docker.sock:/var/run/docker.sock" deploy: placement: constraints:  [node.role == manager] networks: -  app` 
 ```
 
 将 Docker 守护进程指向`node-1`并更新堆栈:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker stack deploy --compose-file=docker-compose-swarm.yml flask` 
 ```
@@ -328,7 +328,7 @@ $ docker stack deploy --compose-file=docker-compose-swarm.yml flask`
 
 再添加两个`flask_web`的副本:
 
-```
+```py
 `$ docker service scale flask_web=3` 
 ```
 
@@ -342,7 +342,7 @@ Docker 可以从自己的数据库([外部](https://github.com/compose-spec/comp
 
 在*services/web/project/API/main . py*文件中，记下`/secret`路径。如果请求有效载荷中的`secret`与`SECRET_CODE`变量相同，则响应有效载荷中的消息将等于`yay!`。否则，它将等于`nay!`。
 
-```
+```py
 `# yay
 {
   "container_id": "6f91a81a6357",
@@ -360,7 +360,7 @@ Docker 可以从自己的数据库([外部](https://github.com/compose-spec/comp
 
 测试终端中的`/secret`端点:
 
-```
+```py
 `$ curl -X POST http://YOUR_MACHINE_IP/secret \
     -d '{"secret": "myprecious"}' \
     -H 'Content-Type: application/json'` 
@@ -368,7 +368,7 @@ Docker 可以从自己的数据库([外部](https://github.com/compose-spec/comp
 
 您应该看到:
 
-```
+```py
 `{
   "container_id": "6f91a81a6357",
   "message": "yay!",
@@ -378,7 +378,7 @@ Docker 可以从自己的数据库([外部](https://github.com/compose-spec/comp
 
 让我们更新一下`SECRET_CODE`，让它由 Docker Secret 而不是环境变量来设置。首先从 manager 节点创建一个新的密码:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ echo "foobar" | docker secret create secret_code -` 
 ```
@@ -387,20 +387,20 @@ $ echo "foobar" | docker secret create secret_code -`
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `ID                          NAME             DRIVER    CREATED             UPDATED
 za3pg2cbbf92gi9u1v0af16e3   secret_code                15 seconds ago      15 seconds ago` 
 ```
 
 接下来，删除`SECRET_CODE`环境变量，并将`secrets`配置添加到 *docker-compose-swarm-yml* 中的`web`服务中:
 
-```
+```py
 `web: image:  mjhea0/flask-docker-swarm_web:latest deploy: replicas:  1 restart_policy: condition:  on-failure placement: constraints:  [node.role == worker] expose: -  5000 environment: -  FLASK_ENV=production -  APP_SETTINGS=project.config.ProductionConfig -  DB_USER=postgres -  DB_PASSWORD=postgres secrets: -  secret_code depends_on: -  db networks: -  app` 
 ```
 
 在文件的底部，将秘密的来源定义为`external`，就在`volumes`声明的下面:
 
-```
+```py
 `secrets: secret_code: external:  true` 
 ```
 
@@ -412,32 +412,32 @@ za3pg2cbbf92gi9u1v0af16e3   secret_code                15 seconds ago      15 se
 
 改变:
 
-```
+```py
 `SECRET_CODE = os.environ.get("SECRET_CODE")` 
 ```
 
 收件人:
 
-```
+```py
 `SECRET_CODE = open("/run/secrets/secret_code", "r").read().strip()` 
 ```
 
 将 Docker 环境重置回本地主机:
 
-```
+```py
 `$ eval $(docker-machine env -u)` 
 ```
 
 重新构建映像并将新版本推送到 Docker Hub:
 
-```
+```py
 `$ docker build -t mjhea0/flask-docker-swarm_web:latest -f ./services/web/Dockerfile ./services/web
 $ docker push mjhea0/flask-docker-swarm_web:latest` 
 ```
 
 将守护程序指向管理器，然后更新服务:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker stack deploy --compose-file=docker-compose-swarm.yml flask` 
 ```
@@ -446,7 +446,7 @@ $ docker stack deploy --compose-file=docker-compose-swarm.yml flask`
 
 再次测试:
 
-```
+```py
 `$ curl -X POST http://YOUR_MACHINE_IP/secret \
     -d '{"secret": "foobar"}' \
     -H 'Content-Type: application/json'
@@ -472,7 +472,7 @@ $ docker stack deploy --compose-file=docker-compose-swarm.yml flask`
 
 像这样更新 *docker-compose-swarm.yml* 中的`web`服务:
 
-```
+```py
 `web: image:  mjhea0/flask-docker-swarm_web:latest deploy: replicas:  1 restart_policy: condition:  on-failure placement: constraints:  [node.role == worker] expose: -  5000 environment: -  FLASK_ENV=production -  APP_SETTINGS=project.config.ProductionConfig -  DB_USER=postgres -  DB_PASSWORD=postgres secrets: -  secret_code depends_on: -  db networks: -  app healthcheck: test:  curl --fail http://localhost:5000/ping || exit 1 interval:  10s timeout:  2s retries:  5` 
 ```
 
@@ -487,7 +487,7 @@ $ docker stack deploy --compose-file=docker-compose-swarm.yml flask`
 
 像这样更新 *Dockerfile* :
 
-```
+```py
 `###########
 # BUILDER #
 ###########
@@ -550,33 +550,33 @@ CMD gunicorn --log-level=debug -b 0.0.0.0:5000 manage:app`
 
 再次，重置 Docker 环境:
 
-```
+```py
 `$ eval $(docker-machine env -u)` 
 ```
 
 建立并推广新形象:
 
-```
+```py
 `$ docker build -t mjhea0/flask-docker-swarm_web:latest -f ./services/web/Dockerfile ./services/web
 $ docker push mjhea0/flask-docker-swarm_web:latest` 
 ```
 
 更新服务:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker stack deploy --compose-file=docker-compose-swarm.yml flask` 
 ```
 
 然后，找到`flask_web`服务所在的节点:
 
-```
+```py
 `$ docker service ps flask_web` 
 ```
 
 将守护程序指向该节点:
 
-```
+```py
 `$ eval $(docker-machine env <NODE>)` 
 ```
 
@@ -586,31 +586,31 @@ $ docker stack deploy --compose-file=docker-compose-swarm.yml flask`
 
 然后运行:
 
-```
+```py
 `$ docker inspect --format='{{json .State.Health}}' <CONTAINER_ID>` 
 ```
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{ "Status":  "healthy", "FailingStreak":  0, "Log":  [ { "Start":  "2021-02-23T03:31:44.886509504Z", "End":  "2021-02-23T03:31:45.104507568Z", "ExitCode":  0, "Output":  "  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100    69  100    69    0     0  11629      0 --:--:-- --:--:-- --:--:-- 13800\n{\"container_id\":\"a6127b1f469d\",\"message\":\"pong!\",\"status\":\"success\"}\n" } ] }` 
 ```
 
 想看看失败的健康检查吗？将 *docker-compose-swarm.yml* 中的`test`命令更新为 ping 端口 5001 而不是 5000:
 
-```
+```py
 `healthcheck: test:  curl --fail http://localhost:5001/ping || exit 1 interval:  10s timeout:  2s retries:  5` 
 ```
 
 就像之前一样，更新服务，然后找到`flask_web`服务所在的节点和容器 id。然后，运行:
 
-```
+```py
 `$ docker inspect --format='{{json .State.Health}}' <CONTAINER_ID>` 
 ```
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{ "Status":  "starting", "FailingStreak":  1, "Log":  [ { "Start":  "2021-02-23T03:34:39.644618421Z", "End":  "2021-02-23T03:34:39.784855122Z", "ExitCode":  1, "Output":  "  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0curl: (7) Failed to connect to localhost port 5001: Connection refused\n" } ] }` 
 ```
 
@@ -626,7 +626,7 @@ Docker Swarm Visualizer 仪表盘中的服务也应该关闭。
 
 在日志记录方面，您可以运行以下命令(从节点管理器)来访问在多个节点上运行的服务的日志:
 
-```
+```py
 `$ docker service logs -f SERVICE_NAME` 
 ```
 
@@ -634,7 +634,7 @@ Docker Swarm Visualizer 仪表盘中的服务也应该关闭。
 
 尝试一下:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker service logs -f flask_web` 
 ```
@@ -651,7 +651,7 @@ $ docker service logs -f flask_web`
 
 关闭堆栈并移除节点:
 
-```
+```py
 `$ docker stack rm flask
 $ docker-machine rm node-1 node-2 node-3 node-4 -y` 
 ```
@@ -669,7 +669,7 @@ $ docker-machine rm node-1 node-2 node-3 node-4 -y`
 
 将名为 *deploy.sh* 的新文件添加到项目根目录:
 
-```
+```py
 `#!/bin/bash
 
 echo "Spinning up four droplets..."
@@ -722,7 +722,7 @@ docker-machine ip $(docker service ps -f "desired-state=running" --format "{{.No
 
 完成后将水滴带下来:
 
-```
+```py
 `$ docker-machine rm node-1 node-2 node-3 node-4 -y` 
 ```
 

@@ -35,7 +35,7 @@
 
 从 [django-celery-beat](https://github.com/testdrivenio/django-celery-beat) repo 中克隆出基地项目，然后检查[基地](https://github.com/testdrivenio/django-celery-beat/tree/base)分支:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/django-celery-beat --branch base --single-branch
 $ cd django-celery-beat` 
 ```
@@ -44,13 +44,13 @@ $ cd django-celery-beat`
 
 从项目根目录，创建映像并启动 Docker 容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 接下来，应用迁移:
 
-```
+```py
 `$ docker-compose exec web python manage.py migrate` 
 ```
 
@@ -58,7 +58,7 @@ $ cd django-celery-beat`
 
 在继续之前，快速浏览一下项目结构:
 
-```
+```py
 `├── .gitignore
 ├── docker-compose.yml
 └── project
@@ -97,7 +97,7 @@ $ cd django-celery-beat`
 
 我们首先将依赖项添加到 *requirements.txt* 文件中:
 
-```
+```py
 `Django==3.2.4
 celery==5.1.2
 redis==3.5.3` 
@@ -105,19 +105,19 @@ redis==3.5.3`
 
 接下来，将以下内容添加到 *docker-compose.yml* 文件的末尾:
 
-```
+```py
 `redis: image:  redis:alpine celery: build:  ./project command:  celery -A core worker -l info volumes: -  ./project/:/usr/src/app/ environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] depends_on: -  redis celery-beat: build:  ./project command:  celery -A core beat -l info volumes: -  ./project/:/usr/src/app/ environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] depends_on: -  redis` 
 ```
 
 我们还需要更新 web 服务的`depends_on`部分:
 
-```
+```py
 `web: build:  ./project command:  python manage.py runserver 0.0.0.0:8000 volumes: -  ./project/:/usr/src/app/ ports: -  1337:8000 environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] depends_on: -  redis  # NEW` 
 ```
 
 完整的 *docker-compose.yml* 文件现在应该是这样的:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./project command:  python manage.py runserver 0.0.0.0:8000 volumes: -  ./project/:/usr/src/app/ ports: -  1337:8000 environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] depends_on: -  redis redis: image:  redis:alpine celery: build:  ./project command:  celery -A core worker -l info volumes: -  ./project/:/usr/src/app/ environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] depends_on: -  redis celery-beat: build:  ./project command:  celery -A core beat -l info volumes: -  ./project/:/usr/src/app/ environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] depends_on: -  redis` 
 ```
 
@@ -129,7 +129,7 @@ redis==3.5.3`
 
 在“core”目录中，创建一个 *celery.py* 文件，并添加以下代码:
 
-```
+```py
 `import os
 
 from celery import Celery
@@ -150,7 +150,7 @@ app.autodiscover_tasks()`
 
 将以下代码添加到 *core/__init__。py* :
 
-```
+```py
 `from .celery import app as celery_app
 
 __all__ = ("celery_app",)` 
@@ -158,20 +158,20 @@ __all__ = ("celery_app",)`
 
 最后，用以下 Celery 设置更新 *core/settings.py* 文件，以便它可以连接到 Redis:
 
-```
+```py
 `CELERY_BROKER_URL = "redis://redis:6379"
 CELERY_RESULT_BACKEND = "redis://redis:6379"` 
 ```
 
 构建新容器以确保一切正常工作:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 查看每个服务的日志，看它们是否准备好，没有错误:
 
-```
+```py
 `$ docker-compose logs 'web'
 $ docker-compose logs 'celery'
 $ docker-compose logs 'celery-beat'
@@ -186,7 +186,7 @@ $ docker-compose logs 'redis'`
 
 创建一个名为 *core/tasks.py* 的新文件，并为一个刚刚登录到控制台的示例任务添加以下代码:
 
-```
+```py
 `from celery import shared_task
 from celery.utils.log import get_task_logger
 
@@ -201,7 +201,7 @@ def sample_task():
 
 在您的 *settings.py* 文件的末尾，添加以下代码来调度`sample_task`每分钟运行一次，使用芹菜节拍:
 
-```
+```py
 `CELERY_BEAT_SCHEDULE = {
     "sample_task": {
         "task": "core.tasks.sample_task",
@@ -217,7 +217,7 @@ def sample_task():
 
 确保添加导入:
 
-```
+```py
 `from celery.schedules import crontab
 
 import core.tasks` 
@@ -225,19 +225,19 @@ import core.tasks`
 
 重新启动容器以获取新设置:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 完成后，看看容器中的芹菜段:
 
-```
+```py
 `$ docker-compose logs -f 'celery'` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `celery_1  |  -------------- [queues]
 celery_1  |                 .> celery           exchange=celery(direct) key=celery
 celery_1  |
@@ -250,7 +250,7 @@ celery_1  |   . core.tasks.sample_task`
 
 每分钟您都应该在日志中看到一行，以“sample task 刚刚运行”结束：
 
-```
+```py
 `celery_1  | [2021-07-01 03:06:00,003: INFO/MainProcess]
               Task core.tasks.sample_task[b8041b6c-bf9b-47ce-ab00-c37c1e837bc7] received
 celery_1  | [2021-07-01 03:06:00,004: INFO/ForkPoolWorker-8]
@@ -276,7 +276,7 @@ Django 提供了[个](https://docs.djangoproject.com/en/3.2/ref/django-admin/#av
 
 首先创建一个名为*orders/management/commands/my _ custom _ command . py*的新文件。然后，添加运行它所需的最少代码:
 
-```
+```py
 `from django.core.management.base import BaseCommand, CommandError
 
 class Command(BaseCommand):
@@ -294,7 +294,7 @@ class Command(BaseCommand):
 
 所以，添加一个`self.stdout.write`命令:
 
-```
+```py
 `from django.core.management.base import BaseCommand, CommandError
 
 class Command(BaseCommand):
@@ -306,13 +306,13 @@ class Command(BaseCommand):
 
 要进行测试，从命令行运行:
 
-```
+```py
 `$ docker-compose exec web python manage.py my_custom_command` 
 ```
 
 您应该看到:
 
-```
+```py
 `My sample command just ran.` 
 ```
 
@@ -328,13 +328,13 @@ class Command(BaseCommand):
 
 首先，我们将通过这个项目中包含的 fixture 向数据库添加一些产品和订单:
 
-```
+```py
 `$ docker-compose exec web python manage.py loaddata products.json` 
 ```
 
 接下来，通过 Django 管理界面添加一些样本订单。为此，首先创建一个超级用户:
 
-```
+```py
 `$ docker-compose exec web python manage.py createsuperuser` 
 ```
 
@@ -344,7 +344,7 @@ class Command(BaseCommand):
 
 创建一个名为*orders/management/commands/email _ report . py*的文件:
 
-```
+```py
 `from datetime import timedelta, time, datetime
 
 from django.core.mail import mail_admins
@@ -389,13 +389,13 @@ class Command(BaseCommand):
 
 现在应该可以从终端运行我们的新命令了。
 
-```
+```py
 `$ docker-compose exec web python manage.py email_report` 
 ```
 
 输出应该如下所示:
 
-```
+```py
 `Content-Type: text/plain; charset="utf-8"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -418,7 +418,7 @@ E-mail Report was sent.`
 
 向 *core/tasks.py* 添加新任务:
 
-```
+```py
 `from celery import shared_task
 from celery.utils.log import get_task_logger
 from django.core.management import call_command # NEW
@@ -439,7 +439,7 @@ def send_email_report():
 
 要调度该任务，请打开 *core/settings.py* 文件，并更新`CELERY_BEAT_SCHEDULE`设置以包含新任务:
 
-```
+```py
 `CELERY_BEAT_SCHEDULE = {
     "sample_task": {
         "task": "core.tasks.sample_task",
@@ -456,19 +456,19 @@ def send_email_report():
 
 重新启动容器以确保新设置生效:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 打开与`celery`服务相关的日志:
 
-```
+```py
 `$ docker-compose logs -f 'celery'` 
 ```
 
 您应该会看到列出的`send_email_report`:
 
-```
+```py
 `celery_1  |  -------------- [queues]
 celery_1  |                 .> celery           exchange=celery(direct) key=celery
 celery_1  |
@@ -480,7 +480,7 @@ celery_1  |   . core.tasks.send_email_report`
 
 大约一分钟后，您应该看到电子邮件报告已发送:
 
-```
+```py
 `celery_1  | [2021-07-01 12:22:00,071: WARNING/ForkPoolWorker-8] Content-Type: text/plain; charset="utf-8"
 celery_1  | MIME-Version: 1.0
 celery_1  | Content-Transfer-Encoding: 7bit

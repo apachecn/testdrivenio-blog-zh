@@ -29,7 +29,7 @@
 
 ### 分页器
 
-```
+```py
 `from django.contrib.auth.models import User
 
 for num in range(43):
@@ -40,7 +40,7 @@ for num in range(43):
 
 接下来，我们将导入`Paginator`类并创建一个新实例:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 
@@ -70,7 +70,7 @@ print(paginator.num_pages)  # => 5`
 
 如果您不希望在最后一个页面上只有三个用户，您可以像这样使用[孤儿](https://docs.djangoproject.com/en/4.0/ref/paginator/#django.core.paginator.Paginator.orphans)参数来将最后三个用户添加到前一个页面:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 
@@ -87,7 +87,7 @@ print(paginator.num_pages)  # => 4`
 
 在 Django 查询集被分解成`Page`个对象之后。然后我们可以使用`page()`方法通过传递页码来访问每个页面的数据:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 
@@ -106,7 +106,7 @@ print(page_obj)  # => <Page 1 of 5>`
 
 如果页面不存在会怎么样？
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 
@@ -119,14 +119,14 @@ page_obj = paginator.page(99)`
 
 您应该看到:
 
-```
+```py
  `raise EmptyPage(_('That page contains no results'))
 django.core.paginator.EmptyPage: That page contains no results` 
 ```
 
 因此，像这样捕捉一个`EmptyPage`异常是一个好主意:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.core.paginator import EmptyPage, Paginator
 
@@ -147,7 +147,7 @@ except EmptyPage:
 
 也就是说，如果您不想显式处理`EmptyPage`或`PageNotAnInteger`异常，您可以使用 [get_page()](https://docs.djangoproject.com/en/4.0/ref/paginator/#django.core.paginator.Paginator.get_page) 方法来代替`page()`:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 
@@ -164,7 +164,7 @@ print(page_obj)  # => <Page 5 of 5>`
 
 同样，如果页面不是一个有效的数字，默认情况下`get_page()`将返回第一页:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 
@@ -192,7 +192,7 @@ print(page_obj)  # => <Page 1 of 5>`
 
 接下来，让我们看看如何在基于函数的视图中使用分页:
 
-```
+```py
 `from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.shortcuts import render
 
@@ -228,7 +228,7 @@ def index(request):
 
 在基于类的视图中实现分页的示例:
 
-```
+```py
 `from django.views.generic import ListView
 
 from . models import Employee
@@ -258,7 +258,7 @@ class Index(ListView):
 
 *index.html*:
 
-```
+```py
 `<!doctype html>
 <html lang="en">
   <head>
@@ -288,7 +288,7 @@ class Index(ListView):
 
 *pagination.html*:
 
-```
+```py
 `<div>
   <span>
     {% if page_obj.has_previous %}
@@ -312,7 +312,7 @@ class Index(ListView):
 
 *pagination.html*:
 
-```
+```py
 `{% if page_obj.has_previous %}
  <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
 {% else %}
@@ -342,7 +342,7 @@ class Index(ListView):
 
 *pagination.html*:
 
-```
+```py
 `{% if page_obj.has_previous %}
   <a href="?page={{ page_obj.previous_page_number }}">« Previous page</a>
 

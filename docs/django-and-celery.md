@@ -55,7 +55,7 @@
 
 从 [django-celery](https://github.com/testdrivenio/django-celery) repo 中克隆出基础项目，然后将 [v1](https://github.com/testdrivenio/django-celery/tree/v1) 标签签出到主分支:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/django-celery --branch v1 --single-branch
 $ cd django-celery
 $ git checkout v1 -b master` 
@@ -65,7 +65,7 @@ $ git checkout v1 -b master`
 
 从项目根目录，创建映像并启动 Docker 容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -75,7 +75,7 @@ $ git checkout v1 -b master`
 
 确保测试也通过:
 
-```
+```py
 `$ docker-compose exec web python -m pytest
 
 =============================== test session starts ===============================
@@ -92,7 +92,7 @@ tests/test_tasks.py .                                                       [100
 
 在继续之前，快速浏览一下项目结构:
 
-```
+```py
 `├── .gitignore
 ├── LICENSE
 ├── README.md
@@ -133,13 +133,13 @@ tests/test_tasks.py .                                                       [100
 
 在 *project/static/main.js* 中设置了一个事件处理程序来监听按钮点击。点击时，一个 AJAX POST 请求被发送到具有适当任务类型的服务器:`1`、`2`或`3`。
 
-```
+```py
 `$('.button').on('click',  function()  { $.ajax({ url:  '/tasks/', data:  {  type:  $(this).data('type')  }, method:  'POST', }) .done((res)  =>  { getStatus(res.task_id); }) .fail((err)  =>  { console.log(err); }); });` 
 ```
 
 在服务器端，已经配置了一个视图来处理 *project/tasks/views.py* 中的请求:
 
-```
+```py
 `@csrf_exempt
 def run_task(request):
     if request.POST:
@@ -153,7 +153,7 @@ def run_task(request):
 
 首先将 Celery 和 Redis 添加到 *project/requirements.txt* 文件中:
 
-```
+```py
 `Django==4.1.4
 pytest==7.2.0
 pytest-django==4.5.2
@@ -166,7 +166,7 @@ Celery 使用消息[代理](https://docs.celeryq.dev/en/stable/getting-started/b
 
 Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.celeryq.dev/en/latest/userguide/workers.html)添加到 *docker-compose.yml* 文件中，如下所示:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./project command:  python manage.py runserver 0.0.0.0:8000 volumes: -  ./project:/usr/src/app/ ports: -  1337:8000 environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  redis celery: build:  ./project command:  celery --app=core worker --loglevel=info volumes: -  ./project:/usr/src/app environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis redis: image:  redis:7-alpine` 
 ```
 
@@ -178,14 +178,14 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 在项目的设置模块中，在底部添加以下内容，告诉 Celery 使用 Redis 作为代理和后端:
 
-```
+```py
 `CELERY_BROKER_URL = os.environ.get("CELERY_BROKER", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_BROKER", "redis://redis:6379/0")` 
 ```
 
 接下来，在“项目/任务”中创建一个名为 *sample_tasks.py* 的新文件:
 
-```
+```py
 `# project/tasks/sample_tasks.py
 
 import time
@@ -204,7 +204,7 @@ def create_task(task_type):
 
 现在，向“项目/核心”添加一个 *celery.py* 文件:
 
-```
+```py
 `import os
 
 from celery import Celery
@@ -224,7 +224,7 @@ app.autodiscover_tasks()`
 
 更新*项目/核心/__init__。py* 以便在 Django 启动时自动导入 Celery 应用程序:
 
-```
+```py
 `from .celery import app as celery_app
 
 __all__ = ("celery_app",)` 
@@ -234,7 +234,7 @@ __all__ = ("celery_app",)`
 
 更新视图以启动任务，并使用 id:
 
-```
+```py
 `# project/tasks/views.py
 
 @csrf_exempt
@@ -247,25 +247,25 @@ def run_task(request):
 
 不要忘记导入任务:
 
-```
+```py
 `from tasks.sample_tasks import create_task` 
 ```
 
 构建映像并旋转新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 要触发新任务，请运行:
 
-```
+```py
 `$ curl -F type=0 http://localhost:1337/tasks/` 
 ```
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{
   "task_id": "6f025ed9-09be-4cbb-be10-1dce919797de"
 }` 
@@ -275,13 +275,13 @@ def run_task(request):
 
 回到客户端的事件处理程序:
 
-```
+```py
 `// project/static/main.js $('.button').on('click',  function()  { $.ajax({ url:  '/tasks/', data:  {  type:  $(this).data('type')  }, method:  'POST', }) .done((res)  =>  { getStatus(res.task_id); }) .fail((err)  =>  { console.log(err); }); });` 
 ```
 
 当响应从最初的 AJAX 请求返回时，我们继续每秒调用带有任务 id 的`getStatus()`:
 
-```
+```py
 `function  getStatus(taskID)  { $.ajax({ url:  `/tasks/${taskID}/`, method:  'GET' }) .done((res)  =>  { const  html  =  `
  <tr>
  <td>${res.task_id}</td>
@@ -294,7 +294,7 @@ def run_task(request):
 
 更新`get_status`视图以返回状态:
 
-```
+```py
 `# project/tasks/views.py
 
 @csrf_exempt
@@ -310,25 +310,25 @@ def get_status(request, task_id):
 
 导入[异步结果](https://docs.celeryq.dev/en/latest/reference/celery.result.html):
 
-```
+```py
 `from celery.result import AsyncResult` 
 ```
 
 更新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 触发新任务:
 
-```
+```py
 `$ curl -F type=1 http://localhost:1337/tasks/` 
 ```
 
 然后，从响应中获取`task_id`并调用更新的端点来查看状态:
 
-```
+```py
 `$ curl http://localhost:1337/tasks/25278457-0957-4b0b-b1da-2600525f812f/
 
 {
@@ -346,7 +346,7 @@ def get_status(request, task_id):
 
 更新 *docker-compose.yml* 中的`celery`服务，以便将芹菜日志转储到一个日志文件:
 
-```
+```py
 `celery: build:  ./project command:  celery --app=core worker --loglevel=info --logfile=logs/celery.log volumes: -  ./project:/usr/src/app environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis` 
 ```
 
@@ -354,13 +354,13 @@ def get_status(request, task_id):
 
 更新:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 由于我们设置了一个卷，您应该看到日志文件在本地被填满:
 
-```
+```py
 `[2022-12-15 18:15:20,338: INFO/MainProcess] Connected to redis://redis:6379/0
 [2022-12-15 18:15:21,328: INFO/MainProcess] mingle: searching for neighbors
 [2022-12-15 18:15:23,342: INFO/MainProcess] mingle: all alone
@@ -379,7 +379,7 @@ def get_status(request, task_id):
 
 添加到 *requirements.txt* :
 
-```
+```py
 `Django==4.1.4
 pytest==7.2.0
 pytest-django==4.5.2
@@ -391,13 +391,13 @@ flower==1.2.0`
 
 然后，向 *docker-compose.yml* 添加一个新服务:
 
-```
+```py
 `dashboard: build:  ./project command:  celery flower -A core --port=5555 --broker=redis://redis:6379/0 ports: -  5555:5555 environment: -  DEBUG=1 -  SECRET_KEY=dbaa1_i7%*[[email protected]](/cdn-cgi/l/email-protection)(-a_r([[email protected]](/cdn-cgi/l/email-protection)%m -  DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis -  celery` 
 ```
 
 测试一下:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -411,7 +411,7 @@ flower==1.2.0`
 
 试着增加几个工人，看看会有什么影响:
 
-```
+```py
 `$ docker-compose up -d --build --scale celery=3` 
 ```
 
@@ -419,7 +419,7 @@ flower==1.2.0`
 
 让我们从最基本的测试开始:
 
-```
+```py
 `def test_task():
     assert sample_tasks.create_task.run(1)
     assert sample_tasks.create_task.run(2)
@@ -428,19 +428,19 @@ flower==1.2.0`
 
 将上述测试用例添加到*project/tests/test _ tasks . py*中，然后添加以下导入:
 
-```
+```py
 `from tasks import sample_tasks` 
 ```
 
 单独运行测试:
 
-```
+```py
 `$ docker-compose exec web python -m pytest -k "test_task and not test_home"` 
 ```
 
 运行应该需要大约一分钟:
 
-```
+```py
 `=============================== test session starts ===============================
 platform linux -- Python 3.11.1, pytest-7.2.0, pluggy-1.0.0
 django: settings: core.settings (from ini)
@@ -457,7 +457,7 @@ tests/test_tasks.py .                                                       [100
 
 想要模仿`.run`方法来加快速度吗？
 
-```
+```py
 `@patch("tasks.sample_tasks.create_task.run")
 def test_mock_task(mock_run):
     assert sample_tasks.create_task.run(1)
@@ -472,13 +472,13 @@ def test_mock_task(mock_run):
 
 导入:
 
-```
+```py
 `from unittest.mock import patch` 
 ```
 
 测试:
 
-```
+```py
 `$ docker-compose exec web python -m pytest -k "test_mock_task"
 
 =============================== test session starts ===============================
@@ -497,7 +497,7 @@ tests/test_tasks.py .                                                       [100
 
 全面整合测试怎么样？
 
-```
+```py
 `def test_task_status(client):
     response = client.post(reverse("run_task"), {"type": 0})
     content = json.loads(response.content)
@@ -518,7 +518,7 @@ tests/test_tasks.py .                                                       [100
 
 请记住，这个测试使用开发中使用的相同的代理和后端。您可能想要实例化一个新的 Celery 应用程序来进行测试:
 
-```
+```py
 `app = celery.Celery('tests', broker=CELERY_TEST_BROKER, backend=CELERY_TEST_BACKEND)` 
 ```
 

@@ -51,7 +51,7 @@ Render 是一个易于使用的[平台即服务](https://en.wikipedia.org/wiki/P
 
 Flask development 服务器运行时使用:
 
-```
+```py
 `$ flask --app app --debug run` 
 ```
 
@@ -81,7 +81,7 @@ Flask 开发服务器非常适合在本地提供 Flask 应用程序。顾名思�
 
 在您的虚拟环境中，安装 Gunicorn:
 
-```
+```py
 `# pip
 (venv)$ pip install gunicorn
 (venv)$ pip freeze > requirements.txt` 
@@ -99,7 +99,7 @@ Flask 开发服务器非常适合在本地提供 Flask 应用程序。顾名思�
 
 首先，与 PostgreSQL 数据库交互需要两个 Python 包:
 
-```
+```py
 `(venv)$ pip install psycopg2-binary
 (venv)$ pip freeze > requirements.txt` 
 ```
@@ -108,7 +108,7 @@ Flask 开发服务器非常适合在本地提供 Flask 应用程序。顾名思�
 
 此外，您需要确保您的 Flask 应用程序利用环境变量(如`DATABASE_URL`)来确定数据库的 URI:
 
-```
+```py
 `class Config(object):
     ...
     # Since SQLAlchemy 1.4.x has removed support for the 'postgres://' URI scheme,
@@ -130,7 +130,7 @@ Flask 开发服务器非常适合在本地提供 Flask 应用程序。顾名思�
 
 但是，Flask 应用程序可以配置为利用 Gunicorn 记录器:
 
-```
+```py
 `if app.config['LOG_WITH_GUNICORN']:
     gunicorn_error_logger = logging.getLogger('gunicorn.error')
     app.logger.handlers.extend(gunicorn_error_logger.handlers)
@@ -147,7 +147,7 @@ else:
 
 通常，在首次初始化 Flask 应用程序时，应该创建一个 CLI 命令来初始化数据库:
 
-```
+```py
 `@app.cli.command('init_db')
 def initialize_database():
     """Initialize the database."""
@@ -160,7 +160,7 @@ def initialize_database():
 
 因此，这个问题的解决方案是在创建 Flask 应用程序时检查数据库是否需要初始化:
 
-```
+```py
 `# Check if the database needs to be initialized
 engine = sa.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
 inspector = sa.inspect(engine)

@@ -35,14 +35,14 @@
 
 从 [flask-vue-crud](https://github.com/testdrivenio/flask-vue-crud) repo 中克隆基础 Flask 和 Vue 项目:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/flask-vue-crud flask-vue-stripe
 $ cd flask-vue-stripe` 
 ```
 
 创建并激活虚拟环境，然后启动 Flask 应用程序:
 
-```
+```py
 `$ cd server
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -58,7 +58,7 @@ $ source env/bin/activate
 
 然后，安装依赖项并在不同的终端选项卡中运行 Vue 应用程序:
 
-```
+```py
 `$ cd client
 $ npm install
 $ npm run serve` 
@@ -90,7 +90,7 @@ $ npm run serve`
 
 首先将`price`添加到 *server/app.py* 中`BOOKS`列表的每个字典中:
 
-```
+```py
 `BOOKS = [
     {
         'id': uuid.uuid4().hex,
@@ -118,7 +118,7 @@ $ npm run serve`
 
 然后，更新`Books`组件中的表，*client/src/components/books . vue*，以显示购买价格:
 
-```
+```py
 `<table class="table table-hover">
   <thead>
     <tr>
@@ -166,7 +166,7 @@ $ npm run serve`
 
 在`addBookModal`中增加一个新的`b-form-group`，介于作者和读者`b-form-group`之间 s:
 
-```
+```py
 `<b-form-group id="form-price-group"
               label="Purchase price:"
               label-for="form-price-input">
@@ -182,7 +182,7 @@ $ npm run serve`
 
 模式现在应该看起来像这样:
 
-```
+```py
 `<!-- add book modal -->
 <b-modal ref="addBookModal"
         id="book-modal"
@@ -235,7 +235,7 @@ $ npm run serve`
 
 然后，将`price`添加到状态:
 
-```
+```py
 `addBookForm:  { title:  '', author:  '', read:  [], price:  '', },` 
 ```
 
@@ -245,19 +245,19 @@ $ npm run serve`
 
 将`price`添加到`onSubmit`方法中的`payload`中，如下所示:
 
-```
+```py
 `onSubmit(evt)  { evt.preventDefault(); this.$refs.addBookModal.hide(); let  read  =  false; if  (this.addBookForm.read[0])  read  =  true; const  payload  =  { title:  this.addBookForm.title, author:  this.addBookForm.author, read,  // property shorthand price:  this.addBookForm.price, }; this.addBook(payload); this.initForm(); },` 
 ```
 
 在最终用户提交表单或点击“重置”按钮后，更新`initForm`以清除值:
 
-```
+```py
 `initForm()  { this.addBookForm.title  =  ''; this.addBookForm.author  =  ''; this.addBookForm.read  =  []; this.addBookForm.price  =  ''; this.editForm.id  =  ''; this.editForm.title  =  ''; this.editForm.author  =  ''; this.editForm.read  =  []; },` 
 ```
 
 最后，更新 *server/app.py* 中的路线:
 
-```
+```py
 `@app.route('/books', methods=['GET', 'POST'])
 def all_books():
     response_object = {'status': 'success'}
@@ -298,7 +298,7 @@ def all_books():
 
 在`Books`组件中添加一个“购买”按钮，就在“删除”按钮的下面:
 
-```
+```py
 `<td>
   <div class="btn-group" role="group">
     <button type="button"
@@ -323,7 +323,7 @@ def all_books():
 
 接下来，将`purchaseBook`添加到组件的`methods`中:
 
-```
+```py
 `purchaseBook(bookId)  { console.log(bookId); },` 
 ```
 
@@ -339,7 +339,7 @@ def all_books():
 
 安装条带 Python 库:
 
-```
+```py
 `(env)$ pip install stripe==2.55.1` 
 ```
 
@@ -349,14 +349,14 @@ def all_books():
 
 在运行服务器的终端窗口中将它们设置为环境变量:
 
-```
+```py
 `(env)$ export STRIPE_PUBLISHABLE_KEY=<YOUR_STRIPE_PUBLISHABLE_KEY>
 (env)$ export STRIPE_SECRET_KEY=<YOUR_STRIPE_SECRET_KEY>` 
 ```
 
 将条带库导入到 *server/app.py* 中，并将密钥分配给`stripe.api_key`，以便在与 API 交互时自动使用它们:
 
-```
+```py
 `import os
 import uuid
 
@@ -392,7 +392,7 @@ if __name__ == '__main__':
 
 接下来，添加一个返回可发布密钥的新路由处理程序:
 
-```
+```py
 `@app.route('/config')
 def get_publishable_key():
     stripe_config = {'publicKey': stripe_keys['publishable_key']}
@@ -405,7 +405,7 @@ def get_publishable_key():
 
 转向客户端，将 [Stripe.js](https://stripe.com/docs/js) 添加到 *client/public/index.html* :
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="">
   <head>
@@ -428,13 +428,13 @@ def get_publishable_key():
 
 接下来，向名为`getStripePublishableKey`的`Books`组件添加一个新方法:
 
-```
+```py
 `getStripePublishableKey()  { fetch('http://localhost:5000/config') .then((result)  =>  result.json()) .then((data)  =>  { // Initialize Stripe.js this.stripe  =  Stripe(data.publicKey);  // eslint-disable-line no-undef }); },` 
 ```
 
 在`created`钩子中调用这个方法:
 
-```
+```py
 `created()  { this.getBooks(); this.getStripePublishableKey(); },` 
 ```
 
@@ -444,7 +444,7 @@ def get_publishable_key():
 
 将`stripe`添加到“状态:
 
-```
+```py
 `data()  { return  { books:  [], addBookForm:  { title:  '', author:  '', read:  [], price:  '', }, message:  '', showMessage:  false, editForm:  { id:  '', title:  '', author:  '', read:  [], price:  '', }, stripe:  null, }; },` 
 ```
 
@@ -456,7 +456,7 @@ def get_publishable_key():
 
 添加以下路由处理程序:
 
-```
+```py
 `@app.route('/create-checkout-session', methods=['POST'])
 def create_checkout_session():
     domain_url = 'http://localhost:8080'
@@ -509,7 +509,7 @@ def create_checkout_session():
 
 在客户端，更新`purchaseBook`方法:
 
-```
+```py
 `purchaseBook(bookId)  { // Get Checkout Session ID fetch('http://localhost:5000/create-checkout-session',  { method:  'POST', headers:  { 'Content-Type':  'application/json', }, body:  JSON.stringify({  book_id:  bookId  }), }) .then((result)  =>  result.json()) .then((data)  =>  { console.log(data); // Redirect to Stripe Checkout return  this.stripe.redirectToCheckout({  sessionId:  data.sessionId  }); }) .then((res)  =>  { console.log(res); }); },` 
 ```
 
@@ -544,7 +544,7 @@ def create_checkout_session():
 
 将名为 *OrderSuccess.vue* 的新组件文件添加到“client/src/components”中:
 
-```
+```py
 `<template>
   <div class="container">
     <div class="row">
@@ -560,7 +560,7 @@ def create_checkout_session():
 
 更新*客户端/src/路由器*中的路由器:
 
-```
+```py
 `import  Vue  from  'vue'; import  Router  from  'vue-router'; import  Books  from  '../components/Books.vue'; import  OrderSuccess  from  '../components/OrderSuccess.vue'; import  Ping  from  '../components/Ping.vue'; Vue.use(Router); export  default  new  Router({ mode:  'history', base:  process.env.BASE_URL, routes:  [ { path:  '/', name:  'Books', component:  Books, }, { path:  '/ping', name:  'Ping', component:  Ping, }, { path:  '/success', name:  'OrderSuccess', component:  OrderSuccess, }, ], });` 
 ```
 
@@ -568,13 +568,13 @@ def create_checkout_session():
 
 最后，您可以使用`session_id`查询参数显示关于购买的信息:
 
-```
+```py
 `http://localhost:8080/success?session_id=cs_test_a1qw4pxWK9mF2SDvbiQXqg5quq4yZYUvjNkqPq1H3wbUclXOue0hES6lWl` 
 ```
 
 您可以像这样访问它:
 
-```
+```py
 `<script> export  default  { mounted()  { console.log(this.$route.query.session_id); }, }; </script>` 
 ```
 
@@ -584,7 +584,7 @@ def create_checkout_session():
 
 对于`/canceled`重定向，添加一个名为*client/src/components/order canceled . vue*的新组件:
 
-```
+```py
 `<template>
   <div class="container">
     <div class="row">
@@ -600,7 +600,7 @@ def create_checkout_session():
 
 然后，更新路由器:
 
-```
+```py
 `import  Vue  from  'vue'; import  Router  from  'vue-router'; import  Books  from  '../components/Books.vue'; import  OrderCanceled  from  '../components/OrderCanceled.vue'; import  OrderSuccess  from  '../components/OrderSuccess.vue'; import  Ping  from  '../components/Ping.vue'; Vue.use(Router); export  default  new  Router({ mode:  'history', base:  process.env.BASE_URL, routes:  [ { path:  '/', name:  'Books', component:  Books, }, { path:  '/ping', name:  'Ping', component:  Ping, }, { path:  '/success', name:  'OrderSuccess', component:  OrderSuccess, }, { path:  '/canceled', name:  'OrderCanceled', component:  OrderCanceled, }, ], });` 
 ```
 

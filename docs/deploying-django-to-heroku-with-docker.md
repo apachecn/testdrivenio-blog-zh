@@ -65,7 +65,7 @@
 
 创建一个项目目录，创建并激活一个新的虚拟环境，并安装 Django:
 
-```
+```py
 `$ mkdir django-heroku-docker
 $ cd django-heroku-docker
 
@@ -79,7 +79,7 @@ $ source env/bin/activate
 
 接下来，创建一个新的 Django 项目，应用迁移，并运行服务器:
 
-```
+```py
 `(env)$ django-admin startproject hello_django .
 (env)$ python manage.py migrate
 (env)$ python manage.py runserver` 
@@ -91,7 +91,7 @@ $ source env/bin/activate
 
 将 Dockerfile 文件添加到项目根目录:
 
-```
+```py
 `# pull official base image
 FROM  python:3.10-alpine
 
@@ -133,14 +133,14 @@ CMD  gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT`
 
 创建一个 *requirements.txt* 文件:
 
-```
+```py
 `Django==3.2.9
 gunicorn==20.1.0` 
 ```
 
 然后加一个*。dockerignore* 文件:
 
-```
+```py
 `__pycache__
 *.pyc
 env/
@@ -149,7 +149,7 @@ db.sqlite3`
 
 更新 *settings.py* 中的`SECRET_KEY`、`DEBUG`和`ALLOWED_HOSTS`变量:
 
-```
+```py
 `SECRET_KEY = os.environ.get('SECRET_KEY', default='foo')
 
 DEBUG = int(os.environ.get('DEBUG', default=0))
@@ -161,21 +161,21 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1']`
 
 要进行本地测试，构建映像并运行容器，确保传入适当的环境变量:
 
-```
+```py
 `$ docker build -t web:latest .
 $ docker run -d --name django-heroku -e "PORT=8765" -e "DEBUG=1" -p 8007:8765 web:latest` 
 ```
 
 确保应用程序正在浏览器中的 [http://localhost:8007/](http://localhost:8007/) 上运行。完成后，停止并移除正在运行的容器:
 
-```
+```py
 `$ docker stop django-heroku
 $ docker rm django-heroku` 
 ```
 
 添加 a *。git ignore〔t1〕:*
 
-```
+```py
 `__pycache__
 *.pyc
 env/
@@ -186,7 +186,7 @@ db.sqlite3`
 
 在“hello_django”目录中添加一个 *views.py* 文件:
 
-```
+```py
 `from django.http import JsonResponse
 
 def ping(request):
@@ -196,7 +196,7 @@ def ping(request):
 
 接下来，更新 *urls.py* :
 
-```
+```py
 `from django.contrib import admin
 from django.urls import path
 
@@ -210,7 +210,7 @@ urlpatterns = [
 
 在调试模式关闭的情况下再次测试:
 
-```
+```py
 `$ docker build -t web:latest .
 $ docker run -d --name django-heroku -e "PORT=8765" -e "DEBUG=0" -p 8007:8765 web:latest` 
 ```
@@ -219,7 +219,7 @@ $ docker run -d --name django-heroku -e "PORT=8765" -e "DEBUG=0" -p 8007:8765 we
 
 完成后，停止并移除正在运行的容器:
 
-```
+```py
 `$ docker stop django-heroku
 $ docker rm django-heroku` 
 ```
@@ -228,7 +228,7 @@ $ docker rm django-heroku`
 
 如果您想使用[whiten noise](http://whitenoise.evans.io)来管理您的静态资产，首先将该包添加到 *requirements.txt* 文件中:
 
-```
+```py
 `Django==3.2.9
 gunicorn==20.1.0
 whitenoise==5.3.0` 
@@ -236,7 +236,7 @@ whitenoise==5.3.0`
 
 像这样更新 *settings.py* 中的中间件:
 
-```
+```py
 `MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # new
@@ -251,19 +251,19 @@ whitenoise==5.3.0`
 
 然后用`STATIC_ROOT`配置静态文件的处理:
 
-```
+```py
 `STATIC_ROOT = BASE_DIR / 'staticfiles'` 
 ```
 
 最后，添加压缩和缓存支持:
 
-```
+```py
 `STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'` 
 ```
 
 将`collectstatic`命令添加到 Dockerfile 文件:
 
-```
+```py
 `# pull official base image
 FROM  python:3.10-alpine
 
@@ -301,21 +301,21 @@ CMD  gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT`
 
 要进行测试，构建新的映像并旋转新的容器:
 
-```
+```py
 `$ docker build -t web:latest .
 $ docker run -d --name django-heroku -e "PORT=8765" -e "DEBUG=1" -p 8007:8765 web:latest` 
 ```
 
 运行以下命令时，您应该能够查看静态文件:
 
-```
+```py
 `$ docker exec django-heroku ls /app/staticfiles
 $ docker exec django-heroku ls /app/staticfiles/admin` 
 ```
 
 停止，然后再次移除运行中的容器:
 
-```
+```py
 `$ docker stop django-heroku
 $ docker rm django-heroku` 
 ```
@@ -326,7 +326,7 @@ $ docker rm django-heroku`
 
 将依赖项添加到需求文件中:
 
-```
+```py
 `Django==3.2.9
 dj-database-url==0.5.0
 gunicorn==20.1.0
@@ -335,7 +335,7 @@ whitenoise==5.3.0`
 
 然后，如果`DATABASE_URL`存在，对设置进行以下更改以更新数据库配置:
 
-```
+```py
 `DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -360,7 +360,7 @@ DATABASES['default'].update(db_from_env)`
 
 创建新应用程序:
 
-```
+```py
 `$ heroku create
 Creating app... done, ⬢ limitless-atoll-51647
 https://limitless-atoll-51647.herokuapp.com/ | https://git.heroku.com/limitless-atoll-51647.git` 
@@ -368,7 +368,7 @@ https://limitless-atoll-51647.herokuapp.com/ | https://git.heroku.com/limitless-
 
 添加`SECRET_KEY`环境变量:
 
-```
+```py
 `$ heroku config:set SECRET_KEY=SOME_SECRET_VALUE -a limitless-atoll-51647` 
 ```
 
@@ -376,7 +376,7 @@ https://limitless-atoll-51647.herokuapp.com/ | https://git.heroku.com/limitless-
 
 将上述 Heroku 网址添加到 *hello_django/settings.py* 中的`ALLOWED_HOSTS`列表中，如下所示:
 
-```
+```py
 `ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'limitless-atoll-51647.herokuapp.com']` 
 ```
 
@@ -401,7 +401,7 @@ https://limitless-atoll-51647.herokuapp.com/ | https://git.heroku.com/limitless-
 
 重新构建 Docker 映像，并用以下格式对其进行标记:
 
-```
+```py
 `registry.heroku.com/<app>/<process-type>` 
 ```
 
@@ -409,19 +409,19 @@ https://limitless-atoll-51647.herokuapp.com/ | https://git.heroku.com/limitless-
 
 例如:
 
-```
+```py
 `$ docker build -t registry.heroku.com/limitless-atoll-51647/web .` 
 ```
 
 将图像推送到注册表:
 
-```
+```py
 `$ docker push registry.heroku.com/limitless-atoll-51647/web` 
 ```
 
 发布图像:
 
-```
+```py
 `$ heroku container:release -a limitless-atoll-51647 web` 
 ```
 
@@ -433,7 +433,7 @@ https://limitless-atoll-51647.herokuapp.com/ | https://git.heroku.com/limitless-
 
 您还应该能够查看静态文件:
 
-```
+```py
 `$ heroku run ls /app/staticfiles -a limitless-atoll-51647
 $ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647` 
 ```
@@ -450,13 +450,13 @@ $ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647`
 
 将应用程序的[堆栈](https://devcenter.heroku.com/articles/stack)设置为容器:
 
-```
+```py
 `$ heroku stack:set container -a limitless-atoll-51647` 
 ```
 
 将一个 *heroku.yml* 文件添加到项目根目录:
 
-```
+```py
 `build: docker: web:  Dockerfile` 
 ```
 
@@ -472,7 +472,7 @@ $ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647`
 
 > 值得注意的是，`gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT`命令可以从 docker 文件中删除，并添加到`run`阶段下的 *heroku.yml* 文件中:
 > 
-> ```
+> ```py
 > `build:
 >   docker:
 >     web: Dockerfile
@@ -484,7 +484,7 @@ $ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647`
 
 接下来，从 beta CLI 通道安装`heroku-manifest`插件:
 
-```
+```py
 `$ heroku update beta
 $ heroku plugins:install @heroku-cli/plugin-manifest` 
 ```
@@ -493,7 +493,7 @@ $ heroku plugins:install @heroku-cli/plugin-manifest`
 
 然后，添加 Heroku 遥控器:
 
-```
+```py
 `$ heroku git:remote -a limitless-atoll-51647` 
 ```
 
@@ -507,7 +507,7 @@ $ heroku plugins:install @heroku-cli/plugin-manifest`
 
 您还应该能够查看静态文件:
 
-```
+```py
 `$ heroku run ls /app/staticfiles -a limitless-atoll-51647
 $ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647` 
 ```
@@ -518,7 +518,7 @@ $ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647`
 
 创建数据库:
 
-```
+```py
 `$ heroku addons:create heroku-postgresql:hobby-dev -a limitless-atoll-51647` 
 ```
 
@@ -526,14 +526,14 @@ $ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647`
 
 数据库启动后，运行迁移:
 
-```
+```py
 `$ heroku run python manage.py makemigrations -a limitless-atoll-51647
 $ heroku run python manage.py migrate -a limitless-atoll-51647` 
 ```
 
 然后，跳转到 psql 来查看新创建的表:
 
-```
+```py
 `$ heroku pg:psql -a limitless-atoll-51647
 
 # \dt
@@ -575,13 +575,13 @@ $ heroku run python manage.py migrate -a limitless-atoll-51647`
 
 *。gitlab-ci.yml* :
 
-```
+```py
 `image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 HEROKU_APP_NAME:  <APP_NAME> HEROKU_REGISTRY_IMAGE:  registry.heroku.com/${HEROKU_APP_NAME}/web stages: -  build_and_deploy build_and_deploy: stage:  build_and_deploy script: -  apk add --no-cache curl -  docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com -  docker pull $HEROKU_REGISTRY_IMAGE || true -  docker build --cache-from $HEROKU_REGISTRY_IMAGE --tag $HEROKU_REGISTRY_IMAGE --file ./Dockerfile "." -  docker push $HEROKU_REGISTRY_IMAGE -  chmod +x ./release.sh -  ./release.sh` 
 ```
 
 *release.sh* :
 
-```
+```py
 `#!/bin/sh
 
 IMAGE_ID=$(docker inspect ${HEROKU_REGISTRY_IMAGE} --format={{.Id}})
@@ -613,7 +613,7 @@ curl -n -X PATCH https://api.heroku.com/apps/$HEROKU_APP_NAME/formation \
 
 *。gitlab-ci.yml* :
 
-```
+```py
 `variables: HEROKU_APP_NAME:  <APP_NAME> stages: -  deploy deploy: stage:  deploy script: -  apt-get update -qy -  apt-get install -y ruby-dev -  gem install dpl -  dpl --provider=heroku --app=$HEROKU_APP_NAME --api-key=$HEROKU_AUTH_TOKEN` 
 ```
 
@@ -638,7 +638,7 @@ curl -n -X PATCH https://api.heroku.com/apps/$HEROKU_APP_NAME/formation \
 
 更新*。gitlab-ci.yml* 像这样:
 
-```
+```py
 `stages: -  build -  test -  deploy variables: IMAGE:  ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME} build: stage:  build image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 script: -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $IMAGE:latest || true -  docker build --cache-from $IMAGE:latest --tag $IMAGE:latest --file ./Dockerfile "." -  docker push $IMAGE:latest test: stage:  test image:  $IMAGE:latest services: -  postgres:latest variables: POSTGRES_DB:  test POSTGRES_USER:  runner POSTGRES_PASSWORD:  "" DATABASE_URL:  postgresql://[[email protected]](/cdn-cgi/l/email-protection):5432/test script: -  python manage.py test -  flake8 hello_django --max-line-length=100 -  black hello_django --check -  isort hello_django --check --profile black deploy: stage:  deploy image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 HEROKU_APP_NAME:  <APP_NAME> HEROKU_REGISTRY_IMAGE:  registry.heroku.com/${HEROKU_APP_NAME}/web script: -  apk add --no-cache curl -  docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com -  docker pull $HEROKU_REGISTRY_IMAGE || true -  docker build --cache-from $HEROKU_REGISTRY_IMAGE --tag $HEROKU_REGISTRY_IMAGE --file ./Dockerfile "." -  docker push $HEROKU_REGISTRY_IMAGE -  chmod +x ./release.sh -  ./release.sh` 
 ```
 
@@ -666,7 +666,7 @@ curl -n -X PATCH https://api.heroku.com/apps/$HEROKU_APP_NAME/formation \
 
 将新的依赖项添加到需求文件中:
 
-```
+```py
 `# prod
 Django==3.2.9
 dj-database-url==0.5.0
@@ -681,7 +681,7 @@ isort==5.10.1`
 
 在推进到 GitLab 之前，在本地运行 Django 测试:
 
-```
+```py
 `$ source env/bin/activate
 (env)$ pip install -r requirements.txt
 (env)$ python manage.py test
@@ -696,7 +696,7 @@ OK`
 
 确保 Flake8 通过，然后根据 Black 和 isort 的建议更新源代码:
 
-```
+```py
 `(env)$ flake8 hello_django --max-line-length=100
 (env)$ black hello_django
 (env)$ isort hello_django --profile black` 
@@ -710,7 +710,7 @@ OK`
 
 更新*。gitlab-ci.yml* 像这样:
 
-```
+```py
 `stages: -  build -  test -  deploy variables: IMAGE:  ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME} build: stage:  build image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 script: -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $IMAGE:latest || true -  docker build --cache-from $IMAGE:latest --tag $IMAGE:latest --file ./Dockerfile "." -  docker push $IMAGE:latest test: stage:  test image:  $IMAGE:latest services: -  postgres:latest variables: POSTGRES_DB:  test POSTGRES_USER:  runner POSTGRES_PASSWORD:  "" DATABASE_URL:  postgresql://[[email protected]](/cdn-cgi/l/email-protection):5432/test script: -  python manage.py test -  flake8 hello_django --max-line-length=100 -  black hello_django --check -  isort hello_django --check --profile black deploy: stage:  deploy variables: HEROKU_APP_NAME:  <APP_NAME> script: -  apt-get update -qy -  apt-get install -y ruby-dev -  gem install dpl -  dpl --provider=heroku --app=$HEROKU_APP_NAME --api-key=$HEROKU_AUTH_TOKEN` 
 ```
 
@@ -734,7 +734,7 @@ OK`
 
 将新的依赖项添加到需求文件中:
 
-```
+```py
 `# prod
 Django==3.2.9
 dj-database-url==0.5.0
@@ -749,7 +749,7 @@ isort==5.10.1`
 
 在推进到 GitLab 之前，在本地运行 Django 测试:
 
-```
+```py
 `$ source env/bin/activate
 (env)$ pip install -r requirements.txt
 (env)$ python manage.py test
@@ -764,7 +764,7 @@ OK`
 
 确保 Flake8 通过，然后根据 Black 和 isort 的建议更新源代码:
 
-```
+```py
 `(env)$ flake8 hello_django --max-line-length=100
 (env)$ black hello_django
 (env)$ isort hello_django --profile black` 
@@ -776,7 +776,7 @@ OK`
 
 最后，像这样更新 Dockerfile 以使用[多阶段构建](https://docs.docker.com/develop/develop-images/multistage-build/)来减小最终的图像大小:
 
-```
+```py
 `FROM  python:3.10-alpine  AS  build-python
 RUN  apk update && apk add --virtual build-essential gcc python3-dev musl-dev postgresql-dev
 RUN  python -m venv /opt/venv
@@ -808,7 +808,7 @@ CMD  gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT`
 
 *。gitlab-ci.yml* :
 
-```
+```py
 `stages: -  build -  test -  deploy variables: IMAGE:  ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME} HEROKU_APP_NAME:  <APP_NAME> HEROKU_REGISTRY_IMAGE:  registry.heroku.com/${HEROKU_APP_NAME}/web build: stage:  build image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 script: -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $IMAGE:build-python || true -  docker pull $IMAGE:production || true -  docker build --target build-python --cache-from $IMAGE:build-python --tag $IMAGE:build-python --file ./Dockerfile "." -  docker build --cache-from $IMAGE:production --tag $IMAGE:production --tag $HEROKU_REGISTRY_IMAGE --file ./Dockerfile "." -  docker push $IMAGE:build-python -  docker push $IMAGE:production test: stage:  test image:  $IMAGE:production services: -  postgres:latest variables: POSTGRES_DB:  test POSTGRES_USER:  runner POSTGRES_PASSWORD:  "" DATABASE_URL:  postgresql://[[email protected]](/cdn-cgi/l/email-protection):5432/test script: -  python manage.py test -  flake8 hello_django --max-line-length=100 -  black hello_django --check -  isort hello_django --check --profile black deploy: stage:  deploy image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 script: -  apk add --no-cache curl -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $IMAGE:build-python || true -  docker pull $IMAGE:production || true -  docker build --target build-python --cache-from $IMAGE:build-python --tag $IMAGE:build-python --file ./Dockerfile "." -  docker build --cache-from $IMAGE:production --tag $IMAGE:production --tag $HEROKU_REGISTRY_IMAGE --file ./Dockerfile "." -  docker push $IMAGE:build-python -  docker push $IMAGE:production -  docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com -  docker push $HEROKU_REGISTRY_IMAGE -  chmod +x ./release.sh -  ./release.sh` 
 ```
 
@@ -824,7 +824,7 @@ CMD  gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT`
 
 *。gitlab-ci.yml* :
 
-```
+```py
 `stages: -  build -  test -  deploy variables: IMAGE:  ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME} HEROKU_APP_NAME:  <APP_NAME> build: stage:  build image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 script: -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $IMAGE:build-python || true -  docker pull $IMAGE:production || true -  docker build --target build-python --cache-from $IMAGE:build-python --tag $IMAGE:build-python --file ./Dockerfile "." -  docker build --cache-from $IMAGE:production --tag $IMAGE:production --file ./Dockerfile "." -  docker push $IMAGE:build-python -  docker push $IMAGE:production test: stage:  test image:  $IMAGE:production services: -  postgres:latest variables: POSTGRES_DB:  test POSTGRES_USER:  runner POSTGRES_PASSWORD:  "" DATABASE_URL:  postgresql://[[email protected]](/cdn-cgi/l/email-protection):5432/test script: -  python manage.py test -  flake8 hello_django --max-line-length=100 -  black hello_django --check -  isort hello_django --check --profile black deploy: stage:  deploy script: -  apt-get update -qy -  apt-get install -y ruby-dev -  gem install dpl -  dpl --provider=heroku --app=$HEROKU_APP_NAME --api-key=$HEROKU_AUTH_TOKEN` 
 ```
 

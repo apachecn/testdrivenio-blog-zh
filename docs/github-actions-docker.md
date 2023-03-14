@@ -24,7 +24,7 @@ GitHub Actions 是一个持续集成和交付(CI/CD)解决方案，与 GitHub �
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
@@ -32,7 +32,7 @@ GitHub Actions 是一个持续集成和交付(CI/CD)解决方案，与 GitHub �
 
 旋转出一个叫做`runner-node`的小液滴:
 
-```
+```py
 `$ docker-machine create \
     --driver digitalocean \
     --digitalocean-access-token $DIGITAL_OCEAN_ACCESS_TOKEN \
@@ -47,13 +47,13 @@ GitHub Actions 是一个持续集成和交付(CI/CD)解决方案，与 GitHub �
 
 SSH 进入 droplet:
 
-```
+```py
 `$ docker-machine ssh runner-node` 
 ```
 
 添加以下 docker 文件，注意注释:
 
-```
+```py
 `# base
 FROM  ubuntu:18.04
 
@@ -94,7 +94,7 @@ ENTRYPOINT  ["./start.sh"]`
 
 同样添加 *start.sh* 文件:
 
-```
+```py
 `#!/bin/bash
 
 ORGANIZATION=$ORGANIZATION
@@ -123,7 +123,7 @@ trap 'cleanup; exit 143' TERM
 
 注意到:
 
-```
+```py
 `cleanup() {
     echo "Removing runner..."
     ./config.sh remove --unattended --token ${REG_TOKEN}
@@ -141,7 +141,7 @@ trap 'cleanup; exit 143' TERM
 
 构建映像并在分离模式下旋转容器:
 
-```
+```py
 `$ docker build --tag runner-image .
 
 $ docker run \
@@ -158,7 +158,7 @@ $ docker run \
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `--------------------------------------------------------------------------------
 |        ____ _ _   _   _       _          _        _   _                      |
 |       / ___(_) |_| | | |_   _| |__      / \   ___| |_(_) ___  _ __  ___      |
@@ -201,13 +201,13 @@ Enter name of work folder: [press Enter for _work]
 
 例如:
 
-```
+```py
 `name:  Sample Python on:  [push] jobs: build: runs-on:  [self-hosted] steps: -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Install dependencies run:  | python3 -m pip install --upgrade pip pip3 install pytest -  name:  Test with pytest run:  | python3 -m pytest` 
 ```
 
 然后，运行新的构建。回到您的终端，在 Docker 日志中，您应该看到作业的状态:
 
-```
+```py
 `2021-10-24 00:46:26Z: Running job: build
 2021-10-24 00:46:34Z: Job build completed with result: Succeeded` 
 ```
@@ -218,7 +218,7 @@ Enter name of work folder: [press Enter for _work]
 
 再次查看日志。您应该看到:
 
-```
+```py
 `Removing runner...
 
 # Runner removal
@@ -240,7 +240,7 @@ Enter name of work folder: [press Enter for _work]
 
 首先将下面的 *docker-compose.yml* 文件添加到框中:
 
-```
+```py
 `version:  '3' services: runner: build:  . environment: -  ORGANIZATION=<YOUR-GITHUB-ORGANIZATION> -  ACCESS_TOKEN=<YOUR-GITHUB-ACCESS-TOKEN>` 
 ```
 
@@ -250,7 +250,7 @@ Enter name of work folder: [press Enter for _work]
 
 启动两个容器实例:
 
-```
+```py
 `$ docker-compose up --scale runner=2 -d` 
 ```
 
@@ -262,7 +262,7 @@ Enter name of work folder: [press Enter for _work]
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `runner_2  | 2021-10-24 00:52:56Z: Running job: build
 runner_1  | 2021-10-24 00:52:58Z: Running job: build
 runner_2  | 2021-10-24 00:53:04Z: Job build completed with result: Succeeded
@@ -271,13 +271,13 @@ runner_1  | 2021-10-24 00:53:11Z: Job build completed with result: Succeeded`
 
 你可以像这样缩小:
 
-```
+```py
 `$ docker-compose up --scale runner=1 -d` 
 ```
 
 退出 SSH 会话并销毁机器/液滴:
 
-```
+```py
 `$ docker-machine rm runner-node -y
 $ eval $(docker-machine env -u)` 
 ```
@@ -290,13 +290,13 @@ $ eval $(docker-machine env -u)`
 
 将数字海洋访问令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
 旋转三个新的数字海洋液滴:
 
-```
+```py
 `$ for i in 1 2 3; do
     docker-machine create \
       --driver digitalocean \
@@ -311,13 +311,13 @@ $ eval $(docker-machine env -u)`
 
 在第一个节点`runner-node-1`上初始化[群模式](https://docs.docker.com/engine/swarm/):
 
-```
+```py
 `$ docker-machine ssh runner-node-1 -- docker swarm init --advertise-addr $(docker-machine ip runner-node-1)` 
 ```
 
 使用上一个命令输出中的 join 令牌将剩余的两个节点作为 workers 添加到群中:
 
-```
+```py
 `$ for i in 2 3; do
     docker-machine ssh runner-node-$i -- docker swarm join --token YOUR_JOIN_TOKEN HOST:PORT;
   done` 
@@ -325,7 +325,7 @@ $ eval $(docker-machine env -u)`
 
 例如:
 
-```
+```py
 `$ for i in 2 3; do
     docker-machine ssh runner-node-$i -- docker swarm join --token SWMTKN-1-4a341wv2n8c2c0cn3f9d0nwxndpohwuyr58vtal63wx90spfoo-09vdgcfarp6oqxnncgfjyrh0i 161.35.12.185:2377;
   done` 
@@ -333,7 +333,7 @@ $ eval $(docker-machine env -u)`
 
 您应该看到:
 
-```
+```py
 `This node joined a swarm as a worker.
 This node joined a swarm as a worker.` 
 ```
@@ -344,7 +344,7 @@ This node joined a swarm as a worker.`
 
 Dockerfile:
 
-```
+```py
 `# base
 FROM  ubuntu:18.04
 
@@ -383,7 +383,7 @@ ENTRYPOINT  ["./start.sh"]`
 
 *start.sh* :
 
-```
+```py
 `#!/bin/bash
 
 ORGANIZATION=$ORGANIZATION
@@ -408,13 +408,13 @@ trap 'cleanup; exit 143' TERM
 
 建立形象:
 
-```
+```py
 `$ docker build --tag <your-docker-hub-username>/actions-image:latest .` 
 ```
 
 确保用您的 Docker Hub 用户名替换`<your-docker-hub-username>`。然后，将映像推送到注册表:
 
-```
+```py
 `$ docker push <your-docker-hub-username>/actions-image:latest` 
 ```
 
@@ -422,7 +422,7 @@ trap 'cleanup; exit 143' TERM
 
 要部署堆栈，首先添加一个 Docker 合成文件:
 
-```
+```py
 `version:  '3' services: runner: image:  <your-docker-hub-username>/actions-image:latest deploy: mode:  replicated replicas:  1 placement: constraints: -  node.role == worker environment: -  ORGANIZATION=<YOUR-GITHUB-ORGANIZATION> -  ACCESS_TOKEN=<YOUR-GITHUB-ACCESS-TOKEN>` 
 ```
 
@@ -430,20 +430,20 @@ trap 'cleanup; exit 143' TERM
 
 将 Docker 守护进程指向`runner-node-1`并部署堆栈:
 
-```
+```py
 `$ eval $(docker-machine env runner-node-1)
 $ docker stack deploy --compose-file=docker-compose.yml actions` 
 ```
 
 列出堆栈中的服务:
 
-```
+```py
 `$ docker stack ps -f "desired-state=running" actions` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `ID                  NAME                IMAGE                         NODE                DESIRED STATE
 xhh3r8rfhh46        actions_runner.1    mjhea0/actions-image:latest   runner-node-2       Running` 
 ```
@@ -454,7 +454,7 @@ xhh3r8rfhh46        actions_runner.1    mjhea0/actions-image:latest   runner-nod
 
 让我们再添加两个节点:
 
-```
+```py
 `$ docker service scale actions_runner=3
 
 actions_runner scaled to 3
@@ -473,7 +473,7 @@ verify: Service converged`
 
 缩小到单个流道:
 
-```
+```py
 `$ docker service scale actions_runner=1
 
 actions_runner scaled to 1
@@ -488,6 +488,6 @@ verify: Service converged`
 
 完成后，将机器/液滴取下:
 
-```
+```py
 `$ docker-machine rm runner-node-1 runner-node-2 runner-node-3 -y` 
 ```

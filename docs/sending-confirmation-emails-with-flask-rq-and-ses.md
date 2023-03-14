@@ -27,14 +27,14 @@
 
 要按照本教程编写代码，请克隆基础项目:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/flask-ses-rq --branch base --single-branch
 $ cd flask-ses-rq` 
 ```
 
 快速检查代码和整个项目结构:
 
-```
+```py
 `├── Dockerfile
 ├── docker-compose.yml
 ├── manage.py
@@ -70,7 +70,7 @@ $ cd flask-ses-rq`
 
 然后，启动应用程序:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -78,7 +78,7 @@ $ cd flask-ses-rq`
 
 创建数据库表:
 
-```
+```py
 `$ docker-compose run users python manage.py create_db` 
 ```
 
@@ -92,7 +92,7 @@ $ cd flask-ses-rq`
 
 运行测试:
 
-```
+```py
 `$ docker-compose run users python manage.py test
 
 ----------------------------------------------------------------------
@@ -127,7 +127,7 @@ OK`
 
 首先启动两个新流程:Redis 和一个 worker。像这样更新 *docker-compose.yml* 文件:
 
-```
+```py
 `version:  '3.8' services: users: build:  . image:  users container_name:  users ports: -  5003:5000 command:  python manage.py run -h 0.0.0.0 volumes: -  .:/usr/src/app environment: -  FLASK_DEBUG=1 -  APP_SETTINGS=project.server.config.DevelopmentConfig -  DATABASE_URL=postgresql://postgres:[[email protected]](/cdn-cgi/l/email-protection):5432/users_dev -  DATABASE_TEST_URL=postgresql://postgres:[[email protected]](/cdn-cgi/l/email-protection):5432/users_test -  SECRET_KEY=my_precious depends_on: -  users-db -  redis users-db: container_name:  users-db build: context:  ./project/db dockerfile:  Dockerfile expose: -  5432 environment: -  POSTGRES_USER=postgres -  POSTGRES_PASSWORD=postgres worker: image:  users command:  python manage.py run_worker volumes: -  .:/usr/src/app environment: -  FLASK_DEBUG=1 -  APP_SETTINGS=project.server.config.DevelopmentConfig -  DATABASE_URL=postgresql://postgres:[[email protected]](/cdn-cgi/l/email-protection):5432/users_dev -  DATABASE_TEST_URL=postgresql://postgres:[[email protected]](/cdn-cgi/l/email-protection):5432/users_test -  SECRET_KEY=my_precious depends_on: -  users-db -  redis redis: image:  redis:6-alpine` 
 ```
 
@@ -137,7 +137,7 @@ OK`
 
 在“project/server/main”中的一个名为 *tasks.py* 的文件中添加一个新任务:
 
-```
+```py
 `# project/server/main/tasks.py
 
 import time
@@ -159,7 +159,7 @@ def send_email(email):
 
 更新视图以连接到 Redis 并对任务进行排队:
 
-```
+```py
 `@main_blueprint.route('/', methods=['GET', 'POST'])
 def home():
     form = RegisterForm(request.form)
@@ -184,7 +184,7 @@ def home():
 
 更新导入:
 
-```
+```py
 `import redis
 from flask import render_template, Blueprint, url_for, \
     redirect, flash, request, current_app
@@ -199,7 +199,7 @@ from project.server.main.tasks import send_email`
 
 将配置添加到 *project/server/config.py* 中的`BaseConfig`:
 
-```
+```py
 `class BaseConfig(object):
     """Base configuration."""
     SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -215,7 +215,7 @@ from project.server.main.tasks import send_email`
 
 接下来，让我们向 *manage.py* 添加一个自定义 CLI 命令来触发 worker 进程，该进程用于处理我们添加到队列中的任务:
 
-```
+```py
 `@cli.command('run_worker')
 def run_worker():
     redis_url = app.config['REDIS_URL']
@@ -227,7 +227,7 @@ def run_worker():
 
 不要忘记进口:
 
-```
+```py
 `import redis
 from rq import Connection, Worker` 
 ```
@@ -236,7 +236,7 @@ from rq import Connection, Worker`
 
 旋转新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -256,7 +256,7 @@ from rq import Connection, Worker`
 
 我们可以使用 [Jinja](http://jinja.pocoo.org/) 在服务器上生成模板。
 
-```
+```py
 `Thanks for signing up. Please follow the link to activate your account.
 {{ confirm_url }} Cheers!` 
 ```
@@ -271,7 +271,7 @@ from rq import Connection, Worker`
 
 将名为 *utils.py* 的新文件添加到“项目/服务器/main”中:
 
-```
+```py
 `# project/server/main/utils.py
 
 from itsdangerous import URLSafeTimedSerializer
@@ -309,7 +309,7 @@ def generate_url(endpoint, token):
 
 *test_utils.py* :
 
-```
+```py
 `# project/server/tests/test_utils.py
 
 import time
@@ -361,7 +361,7 @@ if __name__ == '__main__':
 
 运行测试:
 
-```
+```py
 `$ docker-compose run users python manage.py test
 
 ----------------------------------------------------------------------
@@ -374,7 +374,7 @@ OK`
 
 接下来，对视图进行一些更新:
 
-```
+```py
 `@main_blueprint.route('/', methods=['GET', 'POST'])
 def home():
     form = RegisterForm(request.form)
@@ -405,7 +405,7 @@ def home():
 
 确保导入`encode_token`和`generate_url`:
 
-```
+```py
 `from project.server.main.utils import encode_token, generate_url` 
 ```
 
@@ -413,7 +413,7 @@ def home():
 
 最后，将`body`作为参数添加到`send_email`中:
 
-```
+```py
 `def send_email(email, body):
     time.sleep(10)  # simulate long-running process
     user = User.query.filter_by(email=email).first()
@@ -428,7 +428,7 @@ def home():
 
 接下来，让我们添加`confirm_email`视图来处理令牌，如果合适的话，更新用户模型:
 
-```
+```py
 `@main_blueprint.route('/confirm/<token>')
 def confirm_email(token):
     email = decode_token(token)
@@ -448,7 +448,7 @@ def confirm_email(token):
 
 导入`decode_token`:
 
-```
+```py
 `from project.server.main.utils import encode_token, generate_url, decode_token` 
 ```
 
@@ -458,7 +458,7 @@ def confirm_email(token):
 
 要手动测试，首先关闭容器和体积。然后，旋转容器，创建数据库表，并打开`worker`的 Docker 日志:
 
-```
+```py
 `$ docker-compose down -v
 $ docker-compose up -d --build
 $ docker-compose run users python manage.py create_db
@@ -467,7 +467,7 @@ $ docker-compose logs -f worker`
 
 然后，从浏览器中添加一个新的电子邮件地址。您应该看到任务成功启动和完成:
 
-```
+```py
 `21:16:49 default: project.server.main.tasks.send_email(
   '[[email protected]](/cdn-cgi/l/email-protection)',
   'Thanks for signing up. Please follow the link to activate your account.\nh...
@@ -514,7 +514,7 @@ $ docker-compose logs -f worker`
 
 更新`send_email`:
 
-```
+```py
 `def send_email(email, body):
     # time.sleep(10)  # simulate long-running process
     ses = boto3.client(
@@ -545,13 +545,13 @@ $ docker-compose logs -f worker`
 
 更新 *docker-compose.yml* 中`worker`的环境变量，确保更新值:
 
-```
+```py
 `-  SES_REGION=us-east-2 -  SES_EMAIL_SOURCE=your_email -  AWS_ACCESS_KEY_ID=your_access_key_id -  AWS_SECRET_ACCESS_KEY=your_secret_access_key` 
 ```
 
 > 值得注意的是，默认情况下，`Boto3`将检查`AWS_ACCESS_KEY_ID`和`AWS_SECRET_ACCESS_KEY`环境变量以获取凭证。因此，在创建 SES 客户端资源时，我们不需要显式地传递它们。换句话说，只要定义了这些环境变量，我们就可以简化代码:
 > 
-> ```
+> ```py
 > ses = boto3.client('ses', region_name=os.getenv('SES_REGION')) 
 > ```
 > 
@@ -561,7 +561,7 @@ $ docker-compose logs -f worker`
 
 更新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -575,7 +575,7 @@ $ docker-compose logs -f worker`
 
 记住:如果你仍然处于沙盒模式，你只能发送电子邮件到验证过的地址。如果您尝试向未经验证的地址发送电子邮件，任务将会失败:
 
-```
+```py
 `raise error_class(parsed_response, operation_name)
 botocore.errorfactory.MessageRejected: An error occurred (MessageRejected) when calling the SendEmail operation:
 Email address is not verified. The following identities failed the check in region US-EAST-2: [[email protected]](/cdn-cgi/l/email-protection)` 
@@ -583,13 +583,13 @@ Email address is not verified. The following identities failed the check in regi
 
 此外，由于您可能使用单个电子邮件地址进行测试，您可能希望删除模型上的唯一约束。否则，您需要在两次测试之间从数据库中删除用户。
 
-```
+```py
 `email = db.Column(db.String(255), unique=False, nullable=False)` 
 ```
 
 虽然惟一的约束是`False`，但是您可能还想确保来自`confirm_email`视图的以下代码有效:
 
-```
+```py
 `if user.confirmed:
     flash('Account already confirmed.', 'success')
     return redirect(url_for('main.home'))` 

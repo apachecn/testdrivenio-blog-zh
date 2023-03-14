@@ -41,7 +41,7 @@ Django 最初只支持基于函数的视图(fbv)，但它们很难扩展，没�
 
 FBV 的一个例子是这样的:
 
-```
+```py
 `from django.shortcuts import render, redirect
 from django.views import View
 
@@ -63,7 +63,7 @@ fbv 的下一个缺点是它们的扩展性不好。随着您的代码库变得�
 
 为了使用 fbv，我们必须将它们注册在 *urls.py* 中，如下所示:
 
-```
+```py
 `urlpatterns = [
     path('create/', task_create_view, name='task-create'),
 ]` 
@@ -77,7 +77,7 @@ fbv 的下一个缺点是它们的扩展性不好。随着您的代码库变得�
 
 首先，我们将初始化我们的项目，定义我们的模型，创建 HTML 模板，然后开始处理 *views.py* 。我们可能会得到这样的结果:
 
-```
+```py
 `# todo/views.py
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -170,7 +170,7 @@ def task_delete_view(request, pk):
 
 让我们把之前的 FBV 例子改写成 CBV:
 
-```
+```py
 `from django.shortcuts import render, redirect
 from django.views import View
 
@@ -198,7 +198,7 @@ class TaskCreateView(View):
 
 因为 Django 的 URL 解析器需要一个可调用的函数，所以在 *urls.py* 中注册它们时，我们需要调用 [as_view()](https://docs.djangoproject.com/en/4.0/ref/class-based-views/base/#django.views.generic.base.View.as_view) :
 
-```
+```py
 `urlpatterns = [
     path('create/', TaskCreateView.as_view(), name='task-create'),
 ]` 
@@ -220,7 +220,7 @@ CBVs 的代码流稍微复杂一些，因为一些事情发生在后台。如果
 
 现在，让我们重写 todo 应用程序，只使用 CBVs:
 
-```
+```py
 `# todo/views.py
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -299,7 +299,7 @@ class TaskDeleteView(View):
 
 另外，我们不要忘记让我们的 *urls.py* 调用`as_view()`:
 
-```
+```py
 `# todo/urls.py
 
 from django.urls import path
@@ -327,7 +327,7 @@ urlpatterns = [
 
 让我们看一个例子:
 
-```
+```py
 `from django.views.generic import CreateView
 
 class TaskCreateView(CreateView):
@@ -375,7 +375,7 @@ class TaskCreateView(CreateView):
 
 现在，让我们使用 Django 的通用的基于类的视图最后一次重写 todo 应用程序:
 
-```
+```py
 `# todo/views.py
 
 from django.views.generic import ListView, DetailView, DeleteView, UpdateView, CreateView

@@ -89,7 +89,7 @@
 
 克隆出[flask-vue-kubernetes](https://github.com/testdrivenio/flask-vue-kubernetes)repo，然后构建映像并旋转容器:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/flask-vue-kubernetes
 $ cd flask-vue-kubernetes
 $ docker-compose up -d --build` 
@@ -97,7 +97,7 @@ $ docker-compose up -d --build`
 
 创建并植入数据库`books`表:
 
-```
+```py
 `$ docker-compose exec server python manage.py recreate_db
 $ docker-compose exec server python manage.py seed_db` 
 ```
@@ -106,13 +106,13 @@ $ docker-compose exec server python manage.py seed_db`
 
 [http://localhost:5001/books/ping](http://localhost:5001/books/ping)
 
-```
+```py
 `{ "container_id":  "dee114fa81ea", "message":  "pong!", "status":  "success" }` 
 ```
 
 > `container_id`是应用程序运行所在的 Docker 容器的 id。
 
-```
+```py
 `$ docker ps --filter name=flask-vue-kubernetes_server --format "{{.ID}}"
 
 dee114fa81ea` 
@@ -120,7 +120,7 @@ dee114fa81ea`
 
 [http://localhost:5001/books](http://localhost:5001/books):
 
-```
+```py
 `{ "books":  [{ "author":  "J. K. Rowling", "id":  2, "read":  false, "title":  "Harry Potter and the Philosopher's Stone" },  { "author":  "Dr. Seuss", "id":  3, "read":  true, "title":  "Green Eggs and Ham" },  { "author":  "Jack Kerouac", "id":  1, "read":  false, "title":  "On the Road" }], "container_id":  "dee114fa81ea", "status":  "success" }` 
 ```
 
@@ -130,7 +130,7 @@ dee114fa81ea`
 
 在继续之前，快速浏览一下代码:
 
-```
+```py
 `├── .gitignore
 ├── README.md
 ├── deploy.sh
@@ -209,7 +209,7 @@ Minikube 是一个允许开发者在本地使用和运行 Kubernetes 集群的�
 
 如果你用的是 Mac，我们建议用 [Homebrew](https://brew.sh/) 安装 Kubectl 和 Minikube:
 
-```
+```py
 `$ brew update
 $ brew install kubectl
 $ brew install minikube` 
@@ -217,7 +217,7 @@ $ brew install minikube`
 
 然后，启动组合仪表并拉起 Minikube [仪表盘](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/):
 
-```
+```py
 `$ minikube config set vm-driver hyperkit
 $ minikube start
 $ minikube dashboard` 
@@ -233,7 +233,7 @@ $ minikube dashboard`
 
 例如:
 
-```
+```py
 `$ minikube stop; minikube delete
 $ rm /usr/local/bin/minikube
 $ rm -rf ~/.minikube
@@ -247,7 +247,7 @@ $ minikube start`
 
 示例:
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  flask spec: replicas:  1 template: metadata: labels: app:  flask spec: containers: -  name:  flask image:  mjhea0/flask-kubernetes:latest ports: -  containerPort:  5000` 
 ```
 
@@ -270,7 +270,7 @@ $ minikube start`
 
 注意*kubernetes/persistent-volume . yml*中的 YAML 文件:
 
-```
+```py
 `apiVersion:  v1 kind:  PersistentVolume metadata: name:  postgres-pv labels: type:  local spec: capacity: storage:  2Gi storageClassName:  standard accessModes: -  ReadWriteOnce hostPath: path:  "/data/postgres-pv"` 
 ```
 
@@ -280,7 +280,7 @@ $ minikube start`
 
 创建卷:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/persistent-volume.yml` 
 ```
 
@@ -288,7 +288,7 @@ $ minikube start`
 
 您应该看到:
 
-```
+```py
 `NAME         CAPACITY  ACCESS MODES  RECLAIM POLICY  STATUS     CLAIM   STORAGECLASS   REASON  AGE
 postgres-pv  2Gi       RWO           Retain          Available          standard               14s` 
 ```
@@ -299,19 +299,19 @@ postgres-pv  2Gi       RWO           Retain          Available          standard
 
 *立方/持久-体积索赔. yml* :
 
-```
+```py
 `apiVersion:  v1 kind:  PersistentVolumeClaim metadata: name:  postgres-pvc labels: type:  local spec: accessModes: -  ReadWriteOnce resources: requests: storage:  2Gi volumeName:  postgres-pv storageClassName:  standard` 
 ```
 
 创建体积索赔:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/persistent-volume-claim.yml` 
 ```
 
 查看详细信息:
 
-```
+```py
 `$ kubectl get pvc
 
 NAME           STATUS   VOLUME        CAPACITY   ACCESS MODES   STORAGECLASS   AGE
@@ -326,13 +326,13 @@ postgres-pvc   Bound    postgres-pv   2Gi        RWO            standard       1
 
 *立方/秘密。yml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Secret metadata: name:  postgres-credentials type:  Opaque data: user:  c2FtcGxl password:  cGxlYXNlY2hhbmdlbWU=` 
 ```
 
 `user`和`password`字段是 base64 编码的字符串([安全性通过模糊性](https://en.wikipedia.org/wiki/Security_through_obscurity)):
 
-```
+```py
 `$ echo -n "pleasechangeme" | base64
 cGxlYXNlY2hhbmdlbWU=
 
@@ -344,7 +344,7 @@ c2FtcGxl`
 
 添加机密对象:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/secret.yml` 
 ```
 
@@ -356,7 +356,7 @@ c2FtcGxl`
 
 *kubrintes/posters 部署. yml* :
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  postgres labels: name:  database spec: replicas:  1 selector: matchLabels: service:  postgres template: metadata: labels: service:  postgres spec: containers: -  name:  postgres image:  postgres:13-alpine env: -  name:  POSTGRES_USER valueFrom: secretKeyRef: name:  postgres-credentials key:  user -  name:  POSTGRES_PASSWORD valueFrom: secretKeyRef: name:  postgres-credentials key:  password volumeMounts: -  name:  postgres-volume-mount mountPath:  /var/lib/postgresql/data volumes: -  name:  postgres-volume-mount persistentVolumeClaim: claimName:  postgres-pvc restartPolicy:  Always` 
 ```
 
@@ -382,13 +382,13 @@ c2FtcGxl`
 
 创建部署:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/postgres-deployment.yml` 
 ```
 
 状态:
 
-```
+```py
 `$ kubectl get deployments
 
 NAME       READY   UP-TO-DATE   AVAILABLE   AGE
@@ -397,7 +397,7 @@ postgres   1/1     1            1           12s`
 
 *立方/研究生服务. yml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Service metadata: name:  postgres labels: service:  postgres spec: selector: service:  postgres type:  ClusterIP ports: -  port:  5432` 
 ```
 
@@ -418,13 +418,13 @@ postgres   1/1     1            1           12s`
 
 创建服务:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/postgres-service.yml` 
 ```
 
 使用 Pod 名称创建`books`数据库:
 
-```
+```py
 `$ kubectl get pods
 
 NAME                        READY   STATUS    RESTARTS   AGE
@@ -435,7 +435,7 @@ $ kubectl exec postgres-95566f9-xs2cf --stdin --tty -- createdb -U sample books`
 
 验证创建:
 
-```
+```py
 `$ kubectl exec postgres-95566f9-xs2cf --stdin --tty -- psql -U sample
 
 psql (13.2)
@@ -459,13 +459,13 @@ sample=#`
 
 您也可以通过以下方式获取 Pod 名称:
 
-```
+```py
 `$ kubectl get pod -l service=postgres -o jsonpath="{.items[0].metadata.name}"` 
 ```
 
 将值赋给变量，然后创建数据库:
 
-```
+```py
 `$ POD_NAME=$(kubectl get pod -l service=postgres -o jsonpath="{.items[0].metadata.name}")
 $ kubectl exec $POD_NAME --stdin --tty -- createdb -U sample books` 
 ```
@@ -480,7 +480,7 @@ $ kubectl exec $POD_NAME --stdin --tty -- createdb -U sample books`
 
 *立方/flask 部署. yml* :
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  flask labels: name:  flask spec: replicas:  1 selector: matchLabels: app:  flask template: metadata: labels: app:  flask spec: containers: -  name:  flask image:  mjhea0/flask-kubernetes:latest env: -  name:  FLASK_ENV value:  "development" -  name:  APP_SETTINGS value:  "project.config.DevelopmentConfig" -  name:  POSTGRES_USER valueFrom: secretKeyRef: name:  postgres-credentials key:  user -  name:  POSTGRES_PASSWORD valueFrom: secretKeyRef: name:  postgres-credentials key:  password restartPolicy:  Always` 
 ```
 
@@ -488,7 +488,7 @@ $ kubectl exec $POD_NAME --stdin --tty -- createdb -U sample books`
 
 例如:
 
-```
+```py
 `$ docker build -t <YOUR_DOCKER_HUB_NAME>/flask-kubernetes ./services/server
 $ docker push <YOUR_DOCKER_HUB_NAME>/flask-kubernetes` 
 ```
@@ -499,7 +499,7 @@ $ docker push <YOUR_DOCKER_HUB_NAME>/flask-kubernetes`
 
 创建部署:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/flask-deployment.yml` 
 ```
 
@@ -511,7 +511,7 @@ $ docker push <YOUR_DOCKER_HUB_NAME>/flask-kubernetes`
 
 *久效磷/flask-service.yml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Service metadata: name:  flask labels: service:  flask spec: selector: app:  flask ports: -  port:  5000 targetPort:  5000` 
 ```
 
@@ -519,7 +519,7 @@ $ docker push <YOUR_DOCKER_HUB_NAME>/flask-kubernetes`
 
 创建服务:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/flask-service.yml` 
 ```
 
@@ -529,7 +529,7 @@ $ docker push <YOUR_DOCKER_HUB_NAME>/flask-kubernetes`
 
 应用迁移并为数据库设定种子:
 
-```
+```py
 `$ kubectl get pods
 
 NAME                        READY     STATUS    RESTARTS   AGE
@@ -537,14 +537,14 @@ flask-66988cb97d-n88b4      1/1       Running   0          21m
 postgres-95566f9-xs2cf      1/1       Running   0          36m` 
 ```
 
-```
+```py
 `$ kubectl exec flask-66988cb97d-n88b4 --stdin --tty -- python manage.py recreate_db
 $ kubectl exec flask-66988cb97d-n88b4 --stdin --tty -- python manage.py seed_db` 
 ```
 
 验证:
 
-```
+```py
 `$ kubectl exec postgres-95566f9-xs2cf --stdin --tty -- psql -U sample
 
 psql (13.2)
@@ -575,7 +575,7 @@ books=# select * from books;
 
 *kubernetes/minikube-ingress . yml*:
 
-```
+```py
 `apiVersion:  networking.k8s.io/v1 kind:  Ingress metadata: name:  minikube-ingress annotations: spec: rules: -  host:  hello.world http: paths: -  path:  / pathType:  Prefix backend: service: name:  vue port: number:  8080 -  path:  /books pathType:  Prefix backend: service: name:  flask port: number:  5000` 
 ```
 
@@ -586,19 +586,19 @@ books=# select * from books;
 
 启用入口[插件](https://github.com/kubernetes/minikube/tree/master/deploy/addons/ingress):
 
-```
+```py
 `$ minikube addons enable ingress` 
 ```
 
 创建入口对象:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/minikube-ingress.yml` 
 ```
 
 > 如果您看到一个`Internal error occurred: failed calling webhook "validate.nginx.ingress.kubernetes.io"`错误，尝试移除`ValidatingWebhookConfiguration`:
 > 
-> ```
+> ```py
 > $ kubectl delete -A ValidatingWebhookConfiguration ingress-nginx-admission 
 > ```
 > 
@@ -608,7 +608,7 @@ books=# select * from books;
 
 向 */etc/hosts* 添加一个条目:
 
-```
+```py
 `$ echo "$(minikube ip) hello.world" | sudo tee -a /etc/hosts` 
 ```
 
@@ -616,13 +616,13 @@ books=# select * from books;
 
 [http://hello.world/books/ping](http://hello.world/books/ping):
 
-```
+```py
 `{ "container_id":  "flask-66988cb97d-n88b4", "message":"pong!",  "status": "success" }` 
 ```
 
 [http://hello.world/books](http://hello.world/books):
 
-```
+```py
 `{ "books":  [{ "author":  "Jack Kerouac", "id":  1, "read":  true, "title":  "On the Road" },  { "author":  "J. K. Rowling", "id":  2, "read":  false, "title":  "Harry Potter and the Philosopher's Stone" },  { "author":  "Dr. Seuss", "id":  3, "read":  true, "title":  "Green Eggs and Ham" }], "container_id":  "flask-66988cb97d-n88b4", "status":  "success" }` 
 ```
 
@@ -636,13 +636,13 @@ books=# select * from books;
 
 *立方/视图部署. yml* :
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  vue labels: name:  vue spec: replicas:  1 selector: matchLabels: app:  vue template: metadata: labels: app:  vue spec: containers: -  name:  vue image:  mjhea0/vue-kubernetes:latest restartPolicy:  Always` 
 ```
 
 同样，要么使用我的映像，要么构建您自己的映像并推送到 Docker Hub:
 
-```
+```py
 `$ docker build -t <YOUR_DOCKERHUB_NAME>/vue-kubernetes ./services/client \
     -f ./services/client/Dockerfile-minikube
 $ docker push <YOUR_DOCKERHUB_NAME>/vue-kubernetes` 
@@ -650,13 +650,13 @@ $ docker push <YOUR_DOCKERHUB_NAME>/vue-kubernetes`
 
 创建部署:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/vue-deployment.yml` 
 ```
 
 验证 Pod 是否已随部署一起创建:
 
-```
+```py
 `$ kubectl get deployments vue
 
 NAME   READY   UP-TO-DATE   AVAILABLE   AGE
@@ -674,13 +674,13 @@ vue-cd9d7d445-xl7wd         1/1     Running   0          2m32s`
 
 *立方/视图服务. yml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Service metadata: name:  vue labels: service:  vue name:  vue spec: selector: app:  vue ports: -  port:  8080 targetPort:  8080` 
 ```
 
 创建服务:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/vue-service.yml` 
 ```
 
@@ -694,20 +694,20 @@ Kubernetes 使其易于扩展，当流量负载变得超过单个单元的处理
 
 例如，让我们向集群添加另一个 Flask Pod:
 
-```
+```py
 `$ kubectl scale deployment flask --replicas=2` 
 ```
 
 确认:
 
-```
+```py
 `$ kubectl get deployments flask
 
 NAME    READY   UP-TO-DATE   AVAILABLE   AGE
 flask   2/2     2            2           11m` 
 ```
 
-```
+```py
 `$ kubectl get pods -o wide
 
 NAME                     READY   STATUS    RESTARTS   AGE     IP            NODE       NOMINATED NODE   READINESS GATES
@@ -719,13 +719,13 @@ vue-cd9d7d445-xl7wd      1/1     Running   0          5m18s   172.17.0.9    mini
 
 向服务提出一些请求:
 
-```
+```py
 `$ for ((i=1;i<=10;i++)); do curl http://hello.world/books/ping; done` 
 ```
 
 您应该看到不同的`container_id`被返回，表明请求通过两个副本之间的循环算法被适当地路由:
 
-```
+```py
 `{"container_id":"flask-66988cb97d-n88b4","message":"pong!","status":"success"}
 {"container_id":"flask-66988cb97d-hqpbh","message":"pong!","status":"success"}
 {"container_id":"flask-66988cb97d-hqpbh","message":"pong!","status":"success"}
@@ -772,7 +772,7 @@ vue-cd9d7d445-xl7wd      1/1     Running   0          5m18s   172.17.0.9    mini
 6.  应用了入口规则
 7.  创建 Vue 部署和服务
 
-```
+```py
 `#!/bin/bash
 
 echo "Creating the volume..."
@@ -815,7 +815,7 @@ kubectl create -f ./kubernetes/vue-service.yml`
 
 完成后，创建`books`数据库，应用迁移，并播种数据库:
 
-```
+```py
 `$ POD_NAME=$(kubectl get pod -l service=postgres -o jsonpath="{.items[0].metadata.name}")
 $ kubectl exec $POD_NAME --stdin --tty -- createdb -U sample books
 

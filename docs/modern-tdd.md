@@ -51,7 +51,7 @@
 
 就这样，让我们把手弄脏。您已经准备好了解所有这些在现实世界中意味着什么。pytest 最简单的测试如下所示:
 
-```
+```py
 `def another_sum(a, b):
     return a + b
 
@@ -63,7 +63,7 @@ def test_another_sum():
 
 为此项目创建一个新目录，并移入其中:
 
-```
+```py
 `$ mkdir testing_project
 $ cd testing_project` 
 ```
@@ -74,20 +74,20 @@ $ cd testing_project`
 
 第三，安装 pytest:
 
-```
+```py
 `(venv)$ pip install pytest` 
 ```
 
 之后，创建一个名为“sum”的新文件夹。添加一个 *__init__。py* 到新文件夹，把它变成一个包，连同一个*的另一个 _sum.py* 文件:
 
-```
+```py
 `def another_sum(a, b):
     return a + b` 
 ```
 
 添加另一个名为“tests”的文件夹，并添加以下文件和文件夹:
 
-```
+```py
 `└── tests
     ├── __init__.py
     └── test_sum
@@ -97,7 +97,7 @@ $ cd testing_project`
 
 您现在应该已经:
 
-```
+```py
 `├── sum
 │   ├── __init__.py
 │   └── another_sum.py
@@ -110,7 +110,7 @@ $ cd testing_project`
 
 在 *test_another_sum.py* 中添加:
 
-```
+```py
 `from sum.another_sum import another_sum
 
 def test_another_sum():
@@ -123,7 +123,7 @@ def test_another_sum():
 
 完整的项目结构现在应该看起来像这样:
 
-```
+```py
 `├── sum
 │   ├── __init__.py
 │   └── another_sum.py
@@ -144,13 +144,13 @@ def test_another_sum():
 
 您可以使用以下命令运行所有测试:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
 您应该会看到测试的结果，在本例中是针对`test_another_sum`:
 
-```
+```py
 `============================== test session starts ==============================
 platform darwin -- Python 3.10.1, pytest-7.0.1, pluggy-1.0.0
 rootdir: /testing_project/tests, configfile: pytest.ini
@@ -173,7 +173,7 @@ tests/test_sum.py/test_another_sum.py .                                 [100%]
 
 首先，让我们创建一个新项目:
 
-```
+```py
 `$ mkdir blog_app
 $ cd blog_app` 
 ```
@@ -182,7 +182,7 @@ $ cd blog_app`
 
 第三，安装 pytest 和 [pydantic](https://pydantic-docs.helpmanual.io/) ，一个数据解析和验证库:
 
-```
+```py
 `(venv)$ pip install pytest && pip install "pydantic[email]"` 
 ```
 
@@ -190,7 +190,7 @@ $ cd blog_app`
 
 接下来，创建以下文件和文件夹:
 
-```
+```py
 `blog_app
     ├── blog
     │   ├── __init__.py
@@ -204,7 +204,7 @@ $ cd blog_app`
 
 将以下代码添加到 *models.py* 中，用 pydantic 定义一个新的`Article`模型:
 
-```
+```py
 `import os
 import sqlite3
 import uuid
@@ -302,7 +302,7 @@ class Article(BaseModel):
 
 在“tests”文件夹中创建一个“test_article”包。然后，向其中添加一个名为 *test_commands.py* 的文件。
 
-```
+```py
 `blog_app
     ├── blog
     │   ├── __init__.py
@@ -319,7 +319,7 @@ class Article(BaseModel):
 
 将以下测试添加到 *test_commands.py* 中:
 
-```
+```py
 `import pytest
 
 from blog.models import Article
@@ -376,7 +376,7 @@ def test_create_article_already_exists():
 
 从您的项目目录运行测试，查看它们是否失败:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -384,7 +384,7 @@ def test_create_article_already_exists():
 
 将一个 *commands.py* 文件添加到“博客”文件夹中:
 
-```
+```py
 `from pydantic import BaseModel, EmailStr
 
 from blog.models import Article, NotFound
@@ -419,7 +419,7 @@ class CreateArticleCommand(BaseModel):
 
 一种选择是在测试中使用它们的返回值。例如:
 
-```
+```py
 `import random
 import pytest
 
@@ -438,7 +438,7 @@ def test_fixture_usage(random_name):
 
 您也可以使用`yield`而不是`return`在测试前和测试后运行夹具的一部分。例如:
 
-```
+```py
 `@pytest.fixture
 def some_fixture():
     # do something before your test
@@ -448,7 +448,7 @@ def some_fixture():
 
 现在，将下面的 fixture 添加到 *conftest.py* 中，这将在每次测试之前创建一个新的数据库，并在测试之后删除它:
 
-```
+```py
 `import os
 import tempfile
 
@@ -471,7 +471,7 @@ def database():
 
 再次运行测试:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -483,7 +483,7 @@ def database():
 
 下一个要求是列出所有文章。我们在这里将使用查询而不是命令，因此将名为 *test_queries.py* 的新文件添加到“test_article”文件夹中:
 
-```
+```py
 `from blog.models import Article
 from blog.queries import ListArticlesQuery
 
@@ -511,7 +511,7 @@ def test_list_articles():
 
 运行测试:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -519,7 +519,7 @@ def test_list_articles():
 
 将一个 *queries.py* 文件添加到“博客”文件夹中:
 
-```
+```py
 `blog_app
     ├── blog
     │   ├── __init__.py
@@ -539,7 +539,7 @@ def test_list_articles():
 
 现在我们可以实现我们的查询了:
 
-```
+```py
 `from typing import List
 
 from pydantic import BaseModel
@@ -558,7 +558,7 @@ class ListArticlesQuery(BaseModel):
 
 再次运行测试:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -568,7 +568,7 @@ class ListArticlesQuery(BaseModel):
 
 通过 ID 获取一篇文章的方法与列出所有文章的方法类似。为`GetArticleByIDQuery`添加一个新的测试到 *test_queries.py* 。：
 
-```
+```py
 `from blog.models import Article
 from blog.queries import ListArticlesQuery, GetArticleByIDQuery
 
@@ -614,13 +614,13 @@ def test_get_article_by_id():
 
 运行测试以确保它们失败:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
 接下来，将`GetArticleByIDQuery`添加到 *queries.py* :
 
-```
+```py
 `from typing import List
 
 from pydantic import BaseModel
@@ -645,7 +645,7 @@ class GetArticleByIDQuery(BaseModel):
 
 测试现在应该通过了:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -671,19 +671,19 @@ class GetArticleByIDQuery(BaseModel):
 
 *文章. json* :
 
-```
+```py
 `{ "$schema":  "http://json-schema.org/draft-07/schema#", "title":  "Article", "type":  "object", "properties":  { "id":  { "type":  "string" }, "author":  { "type":  "string" }, "title":  { "type":  "string" }, "content":  { "type":  "string" } }, "required":  ["id",  "author",  "title",  "content"] }` 
 ```
 
 *ArticleList.json* :
 
-```
+```py
 `{ "$schema":  "http://json-schema.org/draft-07/schema#", "title":  "ArticleList", "type":  "array", "items":  {"$ref":  "file:Article.json"} }` 
 ```
 
 [JSON 模式](https://json-schema.org/)用于定义来自 API 端点的响应。在继续之前，安装 [jsonschema](https://github.com/Julian/jsonschema) Python 库，它将用于根据定义的模式验证 JSON 有效负载，并安装 Flask:
 
-```
+```py
 `(venv)$ pip install jsonschema Flask` 
 ```
 
@@ -691,7 +691,7 @@ class GetArticleByIDQuery(BaseModel):
 
 将名为 *test_app.py* 的新文件添加到“test_article”中:
 
-```
+```py
 `import json
 import pathlib
 
@@ -793,7 +793,7 @@ def test_list_articles(client):
 
 运行测试以确保它们在这一点上失败:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -801,7 +801,7 @@ def test_list_articles(client):
 
 更新 *app.py* 这样:
 
-```
+```py
 `from flask import Flask, jsonify, request
 
 from blog.commands import CreateArticleCommand
@@ -841,7 +841,7 @@ if __name__ == "__main__":
 
 测试应该通过:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -849,7 +849,7 @@ if __name__ == "__main__":
 
 让我们编写测试来涵盖这样的情况。将以下内容添加到 *test_app.py* :
 
-```
+```py
 `@pytest.mark.parametrize(
     "data",
     [
@@ -891,13 +891,13 @@ def test_create_article_bad_request(client, data):
 
 此时测试应该会失败，因为我们还没有处理`ValidationError`:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
 因此，让我们在 *app.py* 中为 Flask 应用程序添加一个错误处理程序:
 
-```
+```py
 `from pydantic import ValidationError
 
 # Other code ...
@@ -917,7 +917,7 @@ def handle_validation_exception(error):
 
 既然错误得到了适当的处理，所有测试都应该通过:
 
-```
+```py
 `(venv)$ python -m pytest tests` 
 ```
 
@@ -925,19 +925,19 @@ def handle_validation_exception(error):
 
 现在，我们的应用程序已经测试完毕，是时候检查代码覆盖率了。因此，让我们为覆盖率安装一个名为 [pytest-cov](https://pytest-cov.readthedocs.io/en/latest/) 的 pytest 插件:
 
-```
+```py
 `(venv)$ pip install pytest-cov` 
 ```
 
 安装插件后，我们可以像这样检查我们的博客应用程序的代码覆盖率:
 
-```
+```py
 `(venv)$ python -m pytest tests --cov=blog` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `---------- coverage: platform darwin, python 3.10.1-final-0 ----------
 Name               Stmts   Miss  Cover
 --------------------------------------
@@ -962,13 +962,13 @@ TOTAL                110      2    98%`
 
 首先，安装[请求](https://requests.readthedocs.io/en/master/)库:
 
-```
+```py
 `(venv)$ pip install requests` 
 ```
 
 其次，向 *test_app.py* 添加一个新的测试:
 
-```
+```py
 `import requests
 # other code ...
 
@@ -999,7 +999,7 @@ def test_create_list_get(client):
 
 首先，通过将以下代码添加到 *pytest.ini* 中，向 pytest 注册一个名为`e2e`的[标记](https://docs.pytest.org/en/stable/how-to/mark.html#registering-marks):
 
-```
+```py
 `[pytest] markers  = e2e: marks tests as e2e (deselect with '-m "not e2e"')` 
 ```
 
@@ -1007,13 +1007,13 @@ pytest 标记用于排除某些测试的运行，或者包括与其位置无关�
 
 要仅运行 e2e 测试，请运行:
 
-```
+```py
 `(venv)$ python -m pytest tests -m 'e2e'` 
 ```
 
 运行除 *e2e* 之外的所有测试:
 
-```
+```py
 `(venv)$ python -m pytest tests -m 'not e2e'` 
 ```
 
@@ -1021,13 +1021,13 @@ pytest 标记用于排除某些测试的运行，或者包括与其位置无关�
 
 由于我们的 e2e 测试击中了一个现场服务器，我们需要旋转应用程序。在新的终端窗口中导航到项目，激活虚拟环境，然后运行应用程序:
 
-```
+```py
 `(venv)$ FLASK_APP=blog/app.py python -m flask run` 
 ```
 
 现在我们可以运行我们的 e2e 测试:
 
-```
+```py
 `(venv)$ python -m pytest tests -m 'e2e'` 
 ```
 
@@ -1035,7 +1035,7 @@ pytest 标记用于排除某些测试的运行，或者包括与其位置无关�
 
 向“博客”文件夹添加一个 *init_db.py* 文件:
 
-```
+```py
 `if __name__ == "__main__":
     from blog.models import Article
     Article.create_table()` 
@@ -1043,7 +1043,7 @@ pytest 标记用于排除某些测试的运行，或者包括与其位置无关�
 
 运行新脚本并再次启动服务器:
 
-```
+```py
 `(venv)$ python blog/init_db.py
 (venv)$ FLASK_APP=blog/app.py python -m flask run` 
 ```
@@ -1052,7 +1052,7 @@ pytest 标记用于排除某些测试的运行，或者包括与其位置无关�
 
 测试现在应该通过了:
 
-```
+```py
 `(venv)$ python -m pytest tests -m 'e2e'` 
 ```
 
@@ -1111,7 +1111,7 @@ pytest 标记用于排除某些测试的运行，或者包括与其位置无关�
 
 例如，如果我们将`get_by_id`和`get_by_title`的逻辑包装在一个叫做`_get_by_attribute`的“受保护”方法中，我们的测试仍然应该通过:
 
-```
+```py
 `# other code ...
 
 class Article(BaseModel):
@@ -1159,7 +1159,7 @@ class Article(BaseModel):
 
 例如，我们可以单独测试`Article`模型，并在我们对`CreateArticleCommand`的测试中模拟它，如下所示:
 
-```
+```py
 `def test_create_article(monkeypatch):
     """
  GIVEN CreateArticleCommand with valid properties author, title and content

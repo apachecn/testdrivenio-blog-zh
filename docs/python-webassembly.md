@@ -46,7 +46,7 @@ WebAssembly 并不是为了杀死 JavaScript 而设计的。它是 JavaScript �
 
 使用以下代码创建一个新的 HTML 文件:
 
-```
+```py
 `<head>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"></script>
   <script> async  function  main()  { let  pyodide  =  await  loadPyodide({ indexURL  :  "https://cdn.jsdelivr.net/pyodide/v0.20.0/full/" }); console.log(pyodide.runPython("print('Hello, world from the browser!')")); }; main(); </script>
@@ -55,7 +55,7 @@ WebAssembly 并不是为了杀死 JavaScript 而设计的。它是 JavaScript �
 
 在浏览器中打开文件。然后，在您浏览器的[开发工具](https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_are_browser_developer_tools)的控制台中，您应该执行如下操作:
 
-```
+```py
 `Loading distutils
 Loading distutils from https://cdn.jsdelivr.net/pyodide/v0.20.0/full/distutils.js
 Loaded distutils
@@ -108,14 +108,14 @@ Hello, world from the browser!`
 
 创建新项目:
 
-```
+```py
 `$ mkdir python_editor_wasm
 $ cd python_editor_wasm` 
 ```
 
 创建并激活虚拟环境:
 
-```
+```py
 `$ python3.10 -m venv env
 $ source env/bin/activate
 (env)$` 
@@ -125,7 +125,7 @@ $ source env/bin/activate
 
 在项目的根目录下创建一个名为 *app.py* 的文件，并添加以下代码:
 
-```
+```py
 `from flask import Flask, render_template
 
 app = Flask(__name__)
@@ -142,7 +142,7 @@ if __name__ == '__main__':
 
 *模板/索引. html* :
 
-```
+```py
 `<!doctype html>
 <html class="h-full bg-slate-900">
 <head>
@@ -199,7 +199,7 @@ UI 有三个重要的组件:
 
 *static/js/main.js* :
 
-```
+```py
 `// find the output element const  output  =  document.getElementById("output"); // initialize codemirror and pass configuration to support Python and the dracula theme const  editor  =  CodeMirror.fromTextArea( document.getElementById("code"),  { mode:  { name:  "python", version:  3, singleLineStringErrors:  false, }, theme:  "dracula", lineNumbers:  true, indentUnit:  4, matchBrackets:  true, } ); // set the initial value of the editor editor.setValue("print('Hello world')"); output.value  =  "Initializing...\n"; // add pyodide returned value to the output function  addToOutput(stdout)  { output.value  +=  ">>> "  +  "\n"  +  stdout  +  "\n"; } // clean the output section function  clearHistory()  { output.value  =  ""; } // init pyodide and show sys.version when it's loaded successfully async  function  main()  { let  pyodide  =  await  loadPyodide({ indexURL:  "https://cdn.jsdelivr.net/pyodide/v0.20.0/full/", }); output.value  =  pyodide.runPython(`
  import sys
  sys.version

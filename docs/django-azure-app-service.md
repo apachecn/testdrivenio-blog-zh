@@ -40,20 +40,20 @@ Azure App Service 提供了强大的扩展能力，允许应用程序根据流�
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装需求并迁移数据库:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt
 (venv)$ python manage.py migrate` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -73,7 +73,7 @@ Azure App Service 提供了强大的扩展能力，允许应用程序根据流�
 
 对于 Django 来说，要初始化环境更改，请更新 *settings.py* 的顶部，如下所示:
 
-```
+```py
 `# core/settings.py
 
 import os
@@ -89,7 +89,7 @@ load_dotenv(BASE_DIR / '.env')`
 
 接下来，从环境中加载`SECRET_KEY`、`DEBUG`、`ALLOWED_HOSTS`和其他设置:
 
-```
+```py
 `# core/settings.py
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -115,7 +115,7 @@ if SECURE_SSL_REDIRECT:
 
 稍后，当我们启动 Postgres 实例时，Azure 将为我们提供一个数据库连接字符串。它将具有以下格式:
 
-```
+```py
 `dbname=<db_name> host=<db_host> port=5432 user=<db_user> password=<db_password>` 
 ```
 
@@ -123,7 +123,7 @@ if SECURE_SSL_REDIRECT:
 
 导航到 *core/settings.py* 并像这样更改`DATABASES`:
 
-```
+```py
 `# core/settings.py
 
 DATABASES = {
@@ -200,7 +200,7 @@ Django 配置到此为止！
 
 连接字符串包含连接到数据库所需的所有信息。如前所述，让我们将其拆分为多个变量，并将它们作为单独的应用程序设置进行添加:
 
-```
+```py
 `DBNAME=<db_name>
 DBHOST=<db_host>
 DBUSER=<db_user>
@@ -213,7 +213,7 @@ DBPASS=<db_pass>`
 
 接下来，添加以下附加变量:
 
-```
+```py
 `DEBUG=1 SECRET_KEY=w7a8a@lj8nax7tem0caa2f2rjm2ahsascyf83sa5alyv68vea ALLOWED_HOSTS=localhost  127.0.0.1  [::1]  <your_app_url> CSRF_TRUSTED_ORIGINS=https://<your_app_url> SECURE_SSL_REDIRECT=0` 
 ```
 
@@ -256,7 +256,7 @@ App Service 让我们可以轻松地从浏览器 SSH 到我们的服务器。
 
 要使用 SSH，请导航到您的应用服务应用，然后在边栏上选择“开发工具> SSH”。接下来，单击“Go”按钮。Azure 将打开一个新的浏览器窗口，其中包含到服务器的活动 SSH 连接:
 
-```
+```py
  `_____
   /  _  \ __________ _________   ____
  /  /_\  \\___   /  |  \_  __ \_/ __ \
@@ -273,7 +273,7 @@ Note: Any data outside '/home' is not persisted
 
 让我们迁移数据库并创建一个超级用户:
 
-```
+```py
 `(antenv)$ python manage.py migrate
 (antenv)$ python manage.py createsuperuser` 
 ```
@@ -319,7 +319,7 @@ Azure 应用服务提供了一个短暂的文件系统。这意味着您的数�
 
 接下来，导航至您的应用程序服务应用程序配置，并添加以下两个应用程序设置:
 
-```
+```py
 `AZURE_ACCOUNT_NAME=<your_storage_account_name>
 AZURE_ACCOUNT_KEY=<your_storage_account_key>` 
 ```
@@ -332,7 +332,7 @@ AZURE_ACCOUNT_KEY=<your_storage_account_key>`
 
 将以下几行添加到 *requirements.txt*
 
-```
+```py
 `django-storages==1.13.2
 azure-core==1.26.3
 azure-storage-blob==12.14.1` 
@@ -340,7 +340,7 @@ azure-storage-blob==12.14.1`
 
 接下来，转到 *core/settings.py* 并更改静态和媒体文件设置，如下所示:
 
-```
+```py
 `# core/settings.py
 
 DEFAULT_FILE_STORAGE = 'core.azure_storage.AzureMediaStorage'
@@ -359,7 +359,7 @@ MEDIA_ROOT = BASE_DIR / 'mediafiles'`
 
 因为我们使用两个独立的容器，我们需要定义自己的`AzureMediaStorage`和`AzureStaticStorage`。在“核心”目录下(在 *settings.py* 旁边)新建一个名为 *azure_storage.py* 的文件，内容如下:
 
-```
+```py
 `# core/azure_storage.py
 
 import os
@@ -382,7 +382,7 @@ class AzureStaticStorage(AzureStorage):
 
 在您的应用程序重新部署后，SSH 进入服务器并尝试收集静态文件:
 
-```
+```py
 `(antenv)$ python manage.py collectstatic
 
 You have requested to collect static files at the destination
@@ -412,7 +412,7 @@ Type 'yes' to continue, or 'no' to cancel: yes
 
 输入所有细节后，Azure 会要求您验证您的域所有权。为此，您需要导航到您的域名注册商的 DNS 设置，并添加一个新的“CNAME 记录”，指向您的应用程序 URL 和一个 TXT 记录，如下所示:
 
-```
+```py
 `+----------+--------------+------------------------------------+-----------+ | Type     | Host         | Value                              | TTL       |
 +----------+--------------+------------------------------------+-----------+ | CNAME    | <some host> | <your_app_url> | Automatic |
 +----------+--------------+------------------------------------+-----------+ | TXT      | asuid.azure  | <your_txt_value> | Automatic |
@@ -421,7 +421,7 @@ Type 'yes' to continue, or 'no' to cancel: yes
 
 示例:
 
-```
+```py
 `+----------+--------------+------------------------------------+-----------+ | Type     | Host         | Value                              | TTL       |
 +----------+--------------+------------------------------------+-----------+ | CNAME    | azure        | django-images.azurewebsites.net    | Automatic |
 +----------+--------------+------------------------------------+-----------+ | TXT      | asuid.azure  | BXVJAHNLY3JLDG11Y2H3B3C6KQASDFF    | Automatic |
@@ -436,7 +436,7 @@ Azure 将一个自定义域链接到应用程序，并颁发 SSL 证书。您的
 
 我们需要做的最后一件事是改变`ALLOWED_HOSTS`和`CSRF_TRUSTED_ORIGINS`并启用`SECURE_SSL_REDIRECT`。导航至您的应用程序服务应用程序配置，并按如下方式进行更改:
 
-```
+```py
 `ALLOWED_HOSTS=localhost 127.0.0.1 [::1] <your_custom_domain>
 CSRF_TRUSTED_ORIGINS=https://<your_custom_domain>
 SECURE_SSL_REDIRECT=1` 

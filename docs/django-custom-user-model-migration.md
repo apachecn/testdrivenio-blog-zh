@@ -28,26 +28,26 @@ Django 的默认[用户模型](https://docs.djangoproject.com/en/4.1/ref/contrib
 
 克隆下来:
 
-```
+```py
 `$ git clone --single-branch --branch base [[email protected]](/cdn-cgi/l/email-protection):duplxey/django-custom-user.git
 $ cd django-custom-user` 
 ```
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装要求:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 旋转 Postgres Docker 容器:
 
-```
+```py
 `$ docker run --name django-todo-postgres -p 5432:5432 \
     -e POSTGRES_USER=django-todo -e POSTGRES_PASSWORD=complexpassword123 \
     -e POSTGRES_DB=django-todo -d postgres` 
@@ -57,26 +57,26 @@ $ cd django-custom-user`
 
 迁移数据库:
 
-```
+```py
 `(venv)$ python manage.py migrate` 
 ```
 
 装载夹具:
 
-```
+```py
 `(venv)$ python manage.py loaddata fixtures/auth.json --app auth
 (venv)$ python manage.py loaddata fixtures/todo.json --app todo` 
 ```
 
 这两个设备向数据库添加了一些用户、组和任务，并创建了一个具有以下凭证的超级用户:
 
-```
+```py
 `username:  admin password:  password` 
 ```
 
 接下来，运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -113,7 +113,7 @@ $ cd django-custom-user`
 
 要迁移到定制用户模型，我们首先需要去掉所有直接的`User`引用。为此，首先在*设置. py* 中添加一个名为`AUTH_USER_MODEL`的新属性，如下所示:
 
-```
+```py
 `# core/settings.py
 
 AUTH_USER_MODEL = 'auth.User'` 
@@ -125,7 +125,7 @@ AUTH_USER_MODEL = 'auth.User'`
 
 接下来，检查您的整个代码库，确保相应地用 [AUTH_USER_MODEL](https://docs.djangoproject.com/en/4.1/topics/auth/customizing/#substituting-a-custom-user-model) 或 [get_user_model()](https://docs.djangoproject.com/en/4.1/topics/auth/customizing/#django.contrib.auth.get_user_model) 替换所有的`User`引用:
 
-```
+```py
 `# todo/models.py
 
 class UserTask(GenericTask):
@@ -148,7 +148,7 @@ class GroupTask(GenericTask):
 
 不要忘记在文件顶部导入`AUTH_USER_MODEL`:
 
-```
+```py
 `from core.settings import AUTH_USER_MODEL` 
 ```
 
@@ -160,7 +160,7 @@ class GroupTask(GenericTask):
 
 我称它为*用户*，但是你可以选择一个不同的名字:
 
-```
+```py
 `(venv)$ python manage.py startapp users` 
 ```
 
@@ -168,7 +168,7 @@ class GroupTask(GenericTask):
 
 在 *settings.py* 中注册 app:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -191,7 +191,7 @@ INSTALLED_APPS = [
 
 在*用户*应用程序中创建一个空迁移:
 
-```
+```py
 `(venv)$ python manage.py makemigrations --empty users
 
 Migrations for 'users':
@@ -204,7 +204,7 @@ Migrations for 'users':
 
 迁移数据库，以便将空迁移添加到`django_migrations`表中:
 
-```
+```py
 `(venv)$ python manage.py migrate
 
 Operations to perform:
@@ -217,7 +217,7 @@ Running migrations:
 
 现在，删除空的迁移文件:
 
-```
+```py
 `(venv)$ rm users/migrations/0001_initial.py` 
 ```
 
@@ -225,7 +225,7 @@ Running migrations:
 
 转到 *users/models.py* ，定义自定义`User`模型，如下所示:
 
-```
+```py
 `# users/models.py
 
 from django.contrib.auth.models import AbstractUser
@@ -243,7 +243,7 @@ class User(AbstractUser):
 
 导航到您的 *settings.py* ，将`AUTH_USER_MODEL`指向刚刚创建的定制用户模型:
 
-```
+```py
 `# core/settings.py
 
 AUTH_USER_MODEL = 'users.User'` 
@@ -255,7 +255,7 @@ AUTH_USER_MODEL = 'users.User'`
 
 运行`makemigrations`生成初始`auth_user`迁移:
 
-```
+```py
 `(venv)$ python manage.py makemigrations
 
 Migrations for 'users':
@@ -271,7 +271,7 @@ Migrations for 'users':
 
 例如，要添加一个`phone`和`address`字段，请将以下内容添加到自定义用户模型中:
 
-```
+```py
 `# users/models.py
 
 class User(AbstractUser):
@@ -284,26 +284,26 @@ class User(AbstractUser):
 
 不要忘记在文件顶部导入`models`:
 
-```
+```py
 `from django.db import models` 
 ```
 
 接下来，进行迁移并迁移:
 
-```
+```py
 `(venv)$ python manage.py makemigrations
 (venv)$ python manage.py migrate` 
 ```
 
 要确保这些字段已经在数据库中得到反映，请将它们放入 Docker 容器:
 
-```
+```py
 `$ docker exec -it django-todo-postgres bash` 
 ```
 
 通过`psql`连接到数据库:
 
-```
+```py
 `[[email protected]](/cdn-cgi/l/email-protection):/# psql -U django-todo
 
 psql (14.5 (Debian 14.5-1.pgdg110+1))
@@ -312,7 +312,7 @@ Type "help" for help.`
 
 并检查`auth_user`表:
 
-```
+```py
 `django-todo=# \d+ auth_user
 
                                                                 Table "public.auth_user"
@@ -341,7 +341,7 @@ Type "help" for help.`
 
 最终的*用户/管理员副本*应该如下所示:
 
-```
+```py
 `# users/admin.py
 
 from django.contrib import admin
@@ -367,7 +367,7 @@ admin.site.register(User, CustomUserAdmin)`
 
 要重命名用户模型，只需更改类名，要重命名表，只需更改`db_table`属性:
 
-```
+```py
 `# users/models.py
 
 class User(AbstractUser):  # <-- you can change me
@@ -382,7 +382,7 @@ class User(AbstractUser):  # <-- you can change me
 
 完成更改后，运行:
 
-```
+```py
 `(venv)$ python manage.py makemigrations
 (venv)$ python manage.py migrate` 
 ```
@@ -391,7 +391,7 @@ class User(AbstractUser):  # <-- you can change me
 
 如果您决定重命名该表，最终的数据库结构将如下所示:
 
-```
+```py
 `django-todo=# \dt
 
                      List of relations

@@ -38,7 +38,7 @@
 
 例如:
 
-```
+```py
 `from fastapi import BackgroundTasks
 
 def send_email(email, message):
@@ -69,7 +69,7 @@ async def ping(background_tasks: BackgroundTasks):
 
 从 [fastapi-celery](https://github.com/testdrivenio/fastapi-celery) repo 中克隆出基础项目，然后将 [v1](https://github.com/testdrivenio/fastapi-celery/tree/v1) 标签签出到主分支:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/fastapi-celery --branch v1 --single-branch
 $ cd fastapi-celery
 $ git checkout v1 -b master` 
@@ -79,7 +79,7 @@ $ git checkout v1 -b master`
 
 从项目根目录，创建映像并启动 Docker 容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -89,7 +89,7 @@ $ git checkout v1 -b master`
 
 确保测试也通过:
 
-```
+```py
 `$ docker-compose exec web python -m pytest
 
 ================================== test session starts ===================================
@@ -104,7 +104,7 @@ tests/test_tasks.py .                                                           
 
 在继续之前，快速浏览一下项目结构:
 
-```
+```py
 `├── .gitignore
 ├── LICENSE
 ├── README.md
@@ -130,7 +130,7 @@ tests/test_tasks.py .                                                           
 
 在*project/templates/home . html*中设置了一个`onclick`事件处理程序来监听按钮点击:
 
-```
+```py
 `<div class="btn-group" role="group" aria-label="Basic example">
   <button type="button" class="btn btn-primary" onclick="handleClick(1)">Short</a>
   <button type="button" class="btn btn-primary" onclick="handleClick(2)">Medium</a>
@@ -140,13 +140,13 @@ tests/test_tasks.py .                                                           
 
 `onclick`调用 *project/static/main.js* 中的`handleClick`，它向服务器发送一个 AJAX POST 请求，并带有适当的任务类型:`1`、`2`或`3`。
 
-```
+```py
 `function  handleClick(type)  { fetch('/tasks',  { method:  'POST', headers:  { 'Content-Type':  'application/json' }, body:  JSON.stringify({  type:  type  }), }) .then(response  =>  response.json()) .then(res  =>  getStatus(res.data.task_id)); }` 
 ```
 
 在服务器端，已经配置了一个路由来处理 *project/main.py* 中的请求:
 
-```
+```py
 `@app.post("/tasks", status_code=201)
 def run_task(payload = Body(...)):
     task_type = payload["type"]
@@ -159,7 +159,7 @@ def run_task(payload = Body(...)):
 
 首先将 Celery 和 Redis 添加到 *requirements.txt* 文件中:
 
-```
+```py
 `aiofiles==0.6.0
 celery==4.4.7
 fastapi==0.64.0
@@ -176,7 +176,7 @@ Celery 使用消息[代理](https://docs.celeryq.dev/en/stable/getting-started/b
 
 Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.celeryq.dev/en/stable/userguide/workers.html)添加到 *docker-compose.yml* 文件中，如下所示:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./project ports: -  8004:8000 command:  uvicorn main:app --host 0.0.0.0 --reload volumes: -  ./project:/usr/src/app environment: -  CELERY_BROKER_URL=redis://redis:6379/0 -  CELERY_RESULT_BACKEND=redis://redis:6379/0 depends_on: -  redis worker: build:  ./project command:  celery worker --app=worker.celery --loglevel=info volumes: -  ./project:/usr/src/app environment: -  CELERY_BROKER_URL=redis://redis:6379/0 -  CELERY_RESULT_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis redis: image:  redis:6-alpine` 
 ```
 
@@ -188,7 +188,7 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 接下来，在“项目”中创建一个名为 *worker.py* 的新文件:
 
-```
+```py
 `import os
 import time
 
@@ -212,7 +212,7 @@ def create_task(task_type):
 
 更新路由处理程序以启动任务，并使用任务 ID 进行响应:
 
-```
+```py
 `@app.post("/tasks", status_code=201)
 def run_task(payload = Body(...)):
     task_type = payload["type"]
@@ -222,25 +222,25 @@ def run_task(payload = Body(...)):
 
 不要忘记导入任务:
 
-```
+```py
 `from worker import create_task` 
 ```
 
 构建映像并旋转新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 要触发新任务，请运行:
 
-```
+```py
 `$ curl http://localhost:8004/tasks -H "Content-Type: application/json" --data '{"type": 0}'` 
 ```
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{
   "task_id": "14049663-6257-4a1f-81e5-563c714e90af"
 }` 
@@ -250,13 +250,13 @@ def run_task(payload = Body(...)):
 
 回到客户端的`handleClick`功能:
 
-```
+```py
 `function  handleClick(type)  { fetch('/tasks',  { method:  'POST', headers:  { 'Content-Type':  'application/json' }, body:  JSON.stringify({  type:  type  }), }) .then(response  =>  response.json()) .then(res  =>  getStatus(res.data.task_id)); }` 
 ```
 
 当响应从最初的 AJAX 请求返回时，我们继续每秒调用带有任务 ID 的`getStatus()`:
 
-```
+```py
 `function  getStatus(taskID)  { fetch(`/tasks/${taskID}`,  { method:  'GET', headers:  { 'Content-Type':  'application/json' }, }) .then(response  =>  response.json()) .then(res  =>  { const  html  =  `
  <tr>
  <td>${taskID}</td>
@@ -269,7 +269,7 @@ def run_task(payload = Body(...)):
 
 更新`get_status`路线处理器以返回状态:
 
-```
+```py
 `@app.get("/tasks/{task_id}")
 def get_status(task_id):
     task_result = AsyncResult(task_id)
@@ -283,25 +283,25 @@ def get_status(task_id):
 
 导入[异步结果](https://docs.celeryq.dev/en/stable/reference/celery.result.html):
 
-```
+```py
 `from celery.result import AsyncResult` 
 ```
 
 更新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 触发新任务:
 
-```
+```py
 `$ curl http://localhost:8004/tasks -H "Content-Type: application/json" --data '{"type": 1}'` 
 ```
 
 然后，从响应中获取`task_id`并调用更新的端点来查看状态:
 
-```
+```py
 `$ curl http://localhost:8004/tasks/f3ae36f1-58b8-4c2b-bf5b-739c80e9d7ff
 
 {
@@ -319,7 +319,7 @@ def get_status(task_id):
 
 更新 *docker-compose.yml* 中的`worker`服务，以便将芹菜日志转储到一个日志文件:
 
-```
+```py
 `worker: build:  ./project command:  celery worker --app=worker.celery --loglevel=info --logfile=logs/celery.log volumes: -  ./project:/usr/src/app environment: -  CELERY_BROKER_URL=redis://redis:6379/0 -  CELERY_RESULT_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis` 
 ```
 
@@ -327,13 +327,13 @@ def get_status(task_id):
 
 更新:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 由于我们设置了一个卷，您应该看到日志文件在本地被填满:
 
-```
+```py
 `[2021-05-08 15:32:24,407: INFO/MainProcess] Connected to redis://redis:6379/0
 [2021-05-08 15:32:24,415: INFO/MainProcess] mingle: searching for neighbors
 [2021-05-08 15:32:25,434: INFO/MainProcess] mingle: all alone
@@ -351,7 +351,7 @@ def get_status(task_id):
 
 添加到 *requirements.txt* :
 
-```
+```py
 `aiofiles==0.6.0
 celery==4.4.7
 fastapi==0.64.0
@@ -365,13 +365,13 @@ uvicorn==0.13.4`
 
 然后，向 *docker-compose.yml* 添加一个新服务:
 
-```
+```py
 `dashboard: build:  ./project command:  flower --app=worker.celery --port=5555 --broker=redis://redis:6379/0 ports: -  5556:5555 environment: -  CELERY_BROKER_URL=redis://redis:6379/0 -  CELERY_RESULT_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis -  worker` 
 ```
 
 测试一下:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -385,7 +385,7 @@ uvicorn==0.13.4`
 
 试着增加几个工人，看看会有什么影响:
 
-```
+```py
 `$ docker-compose up -d --build --scale worker=3` 
 ```
 
@@ -393,7 +393,7 @@ uvicorn==0.13.4`
 
 让我们从最基本的测试开始:
 
-```
+```py
 `def test_task():
     assert create_task.run(1)
     assert create_task.run(2)
@@ -402,19 +402,19 @@ uvicorn==0.13.4`
 
 将上述测试用例添加到*project/tests/test _ tasks . py*中，然后添加以下导入:
 
-```
+```py
 `from worker import create_task` 
 ```
 
 单独运行测试:
 
-```
+```py
 `$ docker-compose exec web python -m pytest -k "test_task and not test_home"` 
 ```
 
 运行应该需要大约一分钟:
 
-```
+```py
 `================================== test session starts ===================================
 platform linux -- Python 3.9.5, pytest-6.2.4, py-1.10.0, pluggy-0.13.1
 rootdir: /usr/src/app
@@ -430,7 +430,7 @@ tests/test_tasks.py .                                                           
 
 想要模仿`.run`方法来加快速度吗？
 
-```
+```py
 `@patch("worker.create_task.run")
 def test_mock_task(mock_run):
     assert create_task.run(1)
@@ -445,13 +445,13 @@ def test_mock_task(mock_run):
 
 导入:
 
-```
+```py
 `from unittest.mock import patch, call` 
 ```
 
 测试:
 
-```
+```py
 `$ docker-compose exec web python -m pytest -k "test_mock_task"
 
 ================================== test session starts ===================================
@@ -469,7 +469,7 @@ tests/test_tasks.py .                                                           
 
 全面整合测试怎么样？
 
-```
+```py
 `def test_task_status(test_app):
     response = test_app.post(
         "/tasks",

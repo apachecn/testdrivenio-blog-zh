@@ -48,20 +48,20 @@ AWS 弹性豆茎不另收费。您只需为应用程序消耗的资源付费。
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装需求并迁移数据库:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt
 (venv)$ python manage.py migrate` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -84,7 +84,7 @@ AWS 弹性豆茎不另收费。您只需为应用程序消耗的资源付费。
 
 安装 EB CLI 后，您可以通过运行以下命令来检查版本:
 
-```
+```py
 `$ eb --version
 
 EB CLI 3.20.3 (Python 3.10.)` 
@@ -130,14 +130,14 @@ CodeCommit 是一个安全的、高度可伸缩的、托管的源代码控制服
 
 回答完所有问题后，您会注意到项目根目录下有一个隐藏的目录，名为。elasticbeanstalk”。该目录应该包含一个 *config.yml* 文件，其中包含您刚才提供的所有数据。
 
-```
+```py
 `.elasticbeanstalk
 └── config.yml` 
 ```
 
 该文件应包含类似以下内容:
 
-```
+```py
 `branch-defaults: master: environment:  null group_suffix:  null global: application_name:  django-images branch:  null default_ec2_keyname:  aws-eb default_platform:  Python 3.8 running on 64bit Amazon Linux 2 default_region:  us-west-2 include_git_submodules:  true instance_profile:  null platform_name:  null platform_version:  null profile:  eb-cli repository:  null sc:  git workspace_type:  Application` 
 ```
 
@@ -182,7 +182,7 @@ CodeCommit 是一个安全的、高度可伸缩的、托管的源代码控制服
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `|-- .elasticbeanstalk
 |   └-- config.yml
 |-- .gitignore
@@ -218,7 +218,7 @@ CodeCommit 是一个安全的、高度可伸缩的、托管的源代码控制服
 
 部署应用后，您可以通过运行以下命令来检查其状态:
 
-```
+```py
 `$ eb status
 
 Environment details for: django-images-env
@@ -264,7 +264,7 @@ Environment details for: django-images-env
 
 在项目根目录下创建一个名为“”的新文件夹。ebextensions”。在新创建的文件夹中创建一个名为 *01_django.config* 的文件:
 
-```
+```py
 `# .ebextensions/01_django.config option_settings: aws:elasticbeanstalk:application:environment: DJANGO_SETTINGS_MODULE:  "core.settings" PYTHONPATH:  "/var/app/current:$PYTHONPATH" aws:elasticbeanstalk:container:python: WSGIPath:  "core.wsgi:application"` 
 ```
 
@@ -284,7 +284,7 @@ Environment details for: django-images-env
 
 此时，您的项目结构应该如下所示:
 
-```
+```py
 `|-- .ebextensions
 |   └-- 01_django.config
 |-- .elasticbeanstalk
@@ -320,7 +320,7 @@ Environment details for: django-images-env
 
 在重新部署之前，我们必须做的另一件事是将我们的 CNAME 添加到 *core/settings.py* 中的`ALLOWED_HOSTS`:
 
-```
+```py
 `# core/settings.py
 
 ALLOWED_HOSTS = [
@@ -332,7 +332,7 @@ ALLOWED_HOSTS = [
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -345,7 +345,7 @@ $ eb deploy`
 
 哎哟。我们修复了以前的错误，但现在又出现了新的错误:
 
-```
+```py
 `NotSupportedError at /
 deterministic=True requires SQLite 3.8.3 or higher` 
 ```
@@ -360,7 +360,7 @@ Django 默认使用[的](https://docs.djangoproject.com/en/4.0/ref/databases/#sq
 
 首先，让 Postgres 在本地运行。您可以从 [PostgreSQL Downloads](https://www.postgresql.org/download/) 下载它，或者启动 Docker 容器:
 
-```
+```py
 `$ docker run --name django-images-postgres -p 5432:5432 \
     -e POSTGRES_USER=django-images -e POSTGRES_PASSWORD=complexpassword123 \
     -e POSTGRES_DB=django-images -d postgres` 
@@ -368,7 +368,7 @@ Django 默认使用[的](https://docs.djangoproject.com/en/4.0/ref/databases/#sq
 
 检查容器是否正在运行:
 
-```
+```py
 `$ docker ps -f name=django-images-postgres
 
 CONTAINER ID   IMAGE      COMMAND                  CREATED              STATUS              PORTS                    NAMES
@@ -377,7 +377,7 @@ c05621dac852   postgres   "docker-entrypoint.s…"   About a minute ago   Up Abo
 
 现在，让我们试着用 Django 应用程序连接它。在 *core/settings.py* 中，将`DATABASE`配置更改为以下内容:
 
-```
+```py
 `# core/settings.py
 
 DATABASES = {
@@ -394,13 +394,13 @@ DATABASES = {
 
 接下来，安装 Postgres 所需的 [psycopg2-binary](https://pypi.org/project/psycopg2-binary/) :
 
-```
+```py
 `(venv)$ pip install psycopg2-binary==2.9.3` 
 ```
 
 添加到 *requirements.txt* :
 
-```
+```py
 `Django==4.0.2
 Pillow==9.0.1
 django-tables2==2.4.1
@@ -410,14 +410,14 @@ psycopg2-binary==2.9.3`
 
 创建和应用迁移:
 
-```
+```py
 `(venv)$ python manage.py makemigrations
 (venv)$ python manage.py migrate` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -446,7 +446,7 @@ psycopg2-binary==2.9.3`
 
 环境更新完成后，EB 会自动将以下数据库凭证传递给我们的 Django 应用程序:
 
-```
+```py
 `RDS_DB_NAME
 RDS_USERNAME
 RDS_PASSWORD
@@ -456,7 +456,7 @@ RDS_PORT`
 
 我们现在可以使用 *core/settings.py* 中的这些变量来设置`DATABASE`:
 
-```
+```py
 `# core/settings.py
 
 if 'RDS_DB_NAME' in os.environ:
@@ -487,7 +487,7 @@ else:
 
 接下来，我们必须告诉 Elastic Beanstalk 在部署新的应用程序版本时运行`makemigrations`和`migrate`。我们可以通过编辑*来实现。EB extensions/01 _ django . config*文件。将以下内容添加到文件的底部:
 
-```
+```py
 `# .ebextensions/01_django.config container_commands: 01_makemigrations: command:  "source /var/app/venv/*/bin/activate && python3 manage.py makemigrations --noinput" leader_only:  true 02_migrate: command:  "source /var/app/venv/*/bin/activate && python3 manage.py migrate --noinput" leader_only:  true` 
 ```
 
@@ -500,7 +500,7 @@ else:
 
 让我们也添加一个命令来创建超级用户。我们可以使用 Django 直观的[定制命令框架](https://docs.djangoproject.com/en/4.0/howto/custom-management-commands/)来添加新命令。在“图像”应用程序中，创建以下文件和文件夹:
 
-```
+```py
 `└-- images
     └-- management
         |-- __init__.py
@@ -511,7 +511,7 @@ else:
 
 *create u . py*:
 
-```
+```py
 `# images/management/commands/createsu.py
 
 from django.contrib.auth.models import User
@@ -531,7 +531,7 @@ class Command(BaseCommand):
 
 接下来，将第三个容器命令添加到*。EB extensions/01 _ django . config*:
 
-```
+```py
 `# .ebextensions/01_django.config container_commands: 01_makemigrations: command:  "source /var/app/venv/*/bin/activate && python3 manage.py makemigrations --noinput" leader_only:  true 02_migrate: command:  "source /var/app/venv/*/bin/activate && python3 manage.py migrate --noinput" leader_only:  true # ------------------------------------- new ------------------------------------- 03_superuser: command:  "source /var/app/venv/*/bin/activate && python3 manage.py createsu" leader_only:  true # --------------------------------- end of new  ---------------------------------` 
 ```
 
@@ -539,7 +539,7 @@ class Command(BaseCommand):
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -581,7 +581,7 @@ AWS 将为您生成认证凭证。下载提供的*。csv* 文件。在下一步�
 
 接下来，我们需要设置以下环境变量:
 
-```
+```py
 `AWS_ACCESS_KEY_ID  -  your  ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY  -  your  SECRET_ACCESS_KEY AWS_S3_REGION_NAME  -  your  selected  S3  region AWS_STORAGE_BUCKET_NAME  -  your  bucket  name` 
 ```
 
@@ -595,7 +595,7 @@ AWS 将为您生成认证凭证。下载提供的*。csv* 文件。在下一步�
 
 将它们添加到 *requirements.txt* 文件中:
 
-```
+```py
 `Django==4.0.2
 Pillow==9.0.1
 django-tables2==2.4.1
@@ -607,7 +607,7 @@ django-storages==1.12.3`
 
 接下来，将新安装的 app 添加到 *core/settings.py* 中的`INSTALLED_APPS`:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -618,7 +618,7 @@ INSTALLED_APPS = [
 
 配置 django-storages 以使用由 Elastic Beanstalk 传递的环境变量:
 
-```
+```py
 `if 'AWS_STORAGE_BUCKET_NAME' in os.environ:
     STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
@@ -632,19 +632,19 @@ INSTALLED_APPS = [
 
 最后，我们需要在部署完成后运行`collectstatic`命令，因此将以下内容添加到 *01_django.config* 的底部:
 
-```
+```py
 `# .ebextensions/01_django.config # ... container_commands: # ... 04_collectstatic: command:  "source /var/app/venv/*/bin/activate && python3 manage.py collectstatic --noinput" leader_only:  true` 
 ```
 
 完整的文件现在应该如下所示:
 
-```
+```py
 `# .ebextensions/01_django.config option_settings: aws:elasticbeanstalk:application:environment: DJANGO_SETTINGS_MODULE:  "core.settings" PYTHONPATH:  "/var/app/current:$PYTHONPATH" aws:elasticbeanstalk:container:python: WSGIPath:  "core.wsgi:application" container_commands: 01_makemigrations: command:  "source /var/app/venv/*/bin/activate && python3 manage.py makemigrations --noinput" leader_only:  true 02_migrate: command:  "source /var/app/venv/*/bin/activate && python3 manage.py migrate --noinput" leader_only:  true 03_superuser: command:  "source /var/app/venv/*/bin/activate && python3 manage.py createsu" leader_only:  true 04_collectstatic: command:  "source /var/app/venv/*/bin/activate && python3 manage.py collectstatic --noinput" leader_only:  true` 
 ```
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -702,7 +702,7 @@ $ eb deploy`
 
 首先，将您的完全限定域添加到`ALLOWED_HOSTS`:
 
-```
+```py
 `# core/settings.py
 
 ALLOWED_HOSTS = [
@@ -713,7 +713,7 @@ ALLOWED_HOSTS = [
 
 最后，我们需要将所有流量从 HTTP 重定向到 HTTPS。有多种方法可以做到这一点，但最简单的方法是将 [Apache](https://httpd.apache.org/) 设置为代理主机。我们可以通过在*中的`option_settings`末尾添加以下内容来编程实现这一点。EB extensions/01 _ django . config*:
 
-```
+```py
 `# .ebextensions/01_django.config
 
 option_settings:
@@ -724,13 +724,13 @@ option_settings:
 
 您最终的 *01_django.config* 文件现在应该是这样的:
 
-```
+```py
 `# .ebextensions/01_django.config option_settings: aws:elasticbeanstalk:application:environment: DJANGO_SETTINGS_MODULE:  "core.settings" PYTHONPATH:  "/var/app/current:$PYTHONPATH" aws:elasticbeanstalk:container:python: WSGIPath:  "core.wsgi:application" aws:elasticbeanstalk:environment:proxy: ProxyServer:  apache container_commands: 01_makemigrations: command:  "source /var/app/venv/*/bin/activate && python3 manage.py makemigrations --noinput" leader_only:  true 02_migrate: command:  "source /var/app/venv/*/bin/activate && python3 manage.py migrate --noinput" leader_only:  true 03_superuser: command:  "source /var/app/venv/*/bin/activate && python3 manage.py createsu" leader_only:  true 04_collectstatic: command:  "source /var/app/venv/*/bin/activate && python3 manage.py collectstatic --noinput" leader_only:  true` 
 ```
 
 接下来，创建一个”。平台"文件夹中，并添加以下文件和文件夹:
 
-```
+```py
 `└-- .platform
     └-- httpd
         └-- conf.d
@@ -739,7 +739,7 @@ option_settings:
 
 *ssl_rewrite.conf* :
 
-```
+```py
 `# .platform/httpd/conf.d/ssl_rewrite.conf
 
 RewriteEngine On
@@ -750,7 +750,7 @@ RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R,L]
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `|-- .ebextensions
 |   └-- 01_django.config
 |-- .elasticbeanstalk
@@ -795,7 +795,7 @@ RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R,L]
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -816,7 +816,7 @@ $ eb deploy`
 
 从跑步开始:
 
-```
+```py
 `$ eb setenv DJANGO_SECRET_KEY='<replace me with your own secret key>' \
             DJANGO_DEBUG='1'` 
 ```
@@ -825,7 +825,7 @@ $ eb deploy`
 
 相应地更改 *core/settings.py* :
 
-```
+```py
 `# core/settings.py
 
 SECRET_KEY = os.environ.get(
@@ -838,7 +838,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', '1').lower() in ['true', 't', '1']`
 
 将更改提交给 git 并部署:
 
-```
+```py
 `$ git add .
 $ git commit -m "updates for eb"
 
@@ -857,7 +857,7 @@ $ eb deploy`
 
 例如:
 
-```
+```py
 `VARIABLE_NAME = os.environ['VARIABLE_NAME']` 
 ```
 
@@ -878,7 +878,7 @@ CLI:
 
 该命令将从以下文件中获取最后 100 行:
 
-```
+```py
 `/var/log/web.stdout.log /var/log/eb-hooks.log /var/log/nginx/access.log /var/log/nginx/error.log /var/log/eb-engine.log` 
 ```
 
@@ -886,7 +886,7 @@ CLI:
 
 我建议将日志传送到 [CloudWatch](https://aws.amazon.com/cloudwatch/) 。运行以下命令来启用此功能:
 
-```
+```py
 `$ eb logs --cloudwatch-logs enable` 
 ```
 

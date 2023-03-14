@@ -14,7 +14,7 @@
 
 从 Flask 2.0 开始，您可以使用`async` / `await`创建异步路由处理程序:
 
-```
+```py
 `import asyncio
 
 async def async_get_data():
@@ -113,7 +113,7 @@ async def get_data():
 
 这是一个在烧瓶路线中使用的 aiohttp 的例子:
 
-```
+```py
 `urls = ['https://www.kennedyrecipes.com',
         'https://www.kennedyrecipes.com/breakfast/pancakes/',
         'https://www.kennedyrecipes.com/breakfast/honey_bran_muffins/']
@@ -156,7 +156,7 @@ async def async_get_urls_v2():
 
 您可以像通常使用 [pytest](https://docs.pytest.org/) 一样测试异步路由处理程序，因为 Flask 处理所有的异步处理:
 
-```
+```py
 `@pytest.fixture(scope='module')
 def test_client():
     # Create a test client using the Flask application
@@ -180,7 +180,7 @@ def test_async_get_urls_v2(test_client):
 
 在 Flask 2.0 中，请求回调也可以是异步的:
 
-```
+```py
 `# Helper Functions
 
 async def load_user_from_database():
@@ -207,7 +207,7 @@ async def app_after_request(response):
 
 错误处理程序还有:
 
-```
+```py
 `# Helper Functions
 
 async def send_error_email(error):
@@ -227,7 +227,7 @@ async def internal_error(error):
 
 通过使用`asyncio.run()`管理 asyncio 事件循环，您可以在 Flask 1.x 中模拟 Flask 2.0 异步支持:
 
-```
+```py
 `# Helper Functions
 
 async def fetch_url(session, url):
@@ -274,7 +274,7 @@ def async_get_urls_v1():
 
 您可以使用 [pytest-asyncio](https://github.com/pytest-dev/pytest-asyncio) 来测试异步代码，如下所示:
 
-```
+```py
 `@pytest.mark.asyncio
 async def test_fetch_url():
     """

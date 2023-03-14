@@ -16,13 +16,13 @@
 
 首先创建一个新文件夹来保存名为“fastapi-jwt”的项目:
 
-```
+```py
 `$ mkdir fastapi-jwt && cd fastapi-jwt` 
 ```
 
 接下来，创建并激活虚拟环境:
 
-```
+```py
 `$ python3.11 -m venv venv
 $ source venv/bin/activate
 
@@ -33,13 +33,13 @@ $ source venv/bin/activate
 
 安装 FastAPI 和[uvicon](https://www.uvicorn.org/):
 
-```
+```py
 `(venv)$ pip install fastapi==0.89.1 uvicorn==0.20.0` 
 ```
 
 接下来，创建以下文件和文件夹:
 
-```
+```py
 `fastapi-jwt
 ├── app
 │   ├── __init__.py
@@ -52,7 +52,7 @@ $ source venv/bin/activate
 
 > 以下命令将创建项目结构:
 > 
-> ```
+> ```py
 > `(venv)$ mkdir app && \
 >         mkdir app/auth && \
 >         touch app/__init__.py app/api.py && \
@@ -61,7 +61,7 @@ $ source venv/bin/activate
 
 在 *main.py* 文件中，定义运行应用程序的入口点:
 
-```
+```py
 `# main.py
 
 import uvicorn
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
 在通过入口点文件启动服务器之前，在 *app/api.py* 中创建一个基本路径:
 
-```
+```py
 `# app/api.py
 
 from fastapi import FastAPI
@@ -90,7 +90,7 @@ async def read_root() -> dict:
 
 在浏览器中导航至 [http://localhost:8081](http://localhost:8081) 。您应该看到:
 
-```
+```py
 `{ "message":  "Welcome to your blog!" }` 
 ```
 
@@ -106,7 +106,7 @@ async def read_root() -> dict:
 
 在 *model.py* 中，添加:
 
-```
+```py
 `# app/model.py
 
 from pydantic import BaseModel, Field, EmailStr
@@ -131,7 +131,7 @@ class PostSchema(BaseModel):
 
 首先导入`PostSchema`，然后在 *app/api.py* 中添加一个虚拟帖子列表和一个空用户列表变量:
 
-```
+```py
 `# app/api.py
 
 from app.model import PostSchema
@@ -149,7 +149,7 @@ users = []`
 
 然后，添加路由处理程序，通过 ID 获取所有帖子和单个帖子:
 
-```
+```py
 `# app/api.py
 
 @app.get("/posts", tags=["posts"])
@@ -172,7 +172,7 @@ async def get_single_post(id: int) -> dict:
 
 *app/api.py* 现在应该是这样的:
 
-```
+```py
 `# app/api.py
 
 from fastapi import FastAPI
@@ -219,7 +219,7 @@ async def get_single_post(id: int) -> dict:
 
 在 GET routes 的正下方，添加以下用于创建新帖子的处理程序:
 
-```
+```py
 `# app/api.py
 
 @app.post("/posts", tags=["posts"])
@@ -235,7 +235,7 @@ async def add_post(post: PostSchema) -> dict:
 
 您也可以使用 curl 进行测试:
 
-```
+```py
 `$ curl -X POST http://localhost:8081/posts \
     -d  '{ "id": 2, "title": "Lorem Ipsum tres", "content": "content goes here"}' \
     -H 'Content-Type: application/json'` 
@@ -243,7 +243,7 @@ async def add_post(post: PostSchema) -> dict:
 
 您应该看到:
 
-```
+```py
 `{ "data":  [ "post added." ] }` 
 ```
 
@@ -253,7 +253,7 @@ async def add_post(post: PostSchema) -> dict:
 
 开始之前，安装 [PyJWT](https://pyjwt.readthedocs.io/) ，用于编码和解码 JWT。我们还将使用和 [python 解耦](https://github.com/henriquebastos/python-decouple/)来读取环境变量:
 
-```
+```py
 `(venv)$ pip install PyJWT==2.6.0 python-decouple==3.7` 
 ```
 
@@ -261,7 +261,7 @@ async def add_post(post: PostSchema) -> dict:
 
 JWT 处理程序将负责签名、编码、解码和返回 JWT 令牌。在“auth”文件夹中，创建一个名为 *auth_handler.py* 的文件:
 
-```
+```py
 `# app/auth/auth_handler.py
 
 import time
@@ -287,14 +287,14 @@ def token_response(token: str):
 
 接下来，创建一个名为*的环境文件。基本目录中的 env* :
 
-```
+```py
 `secret=please_please_update_me_please
 algorithm=HS256` 
 ```
 
 环境文件中的秘密应该替换为更强的内容，并且不应该被泄露。例如:
 
-```
+```py
 `>>> import os
 >>> import binascii
 >>> binascii.hexlify(os.urandom(24))
@@ -309,7 +309,7 @@ b'deff1952d59f883ece260e8683fed21ab0ad9a53323eca4f'`
 
 回到 *auth_handler.py* ，添加 JWT 字符串签名函数:
 
-```
+```py
 `# app/auth/auth_handler.py
 
 def signJWT(user_id: str) -> Dict[str, str]:
@@ -326,7 +326,7 @@ def signJWT(user_id: str) -> Dict[str, str]:
 
 接下来，添加`decodeJWT`功能:
 
-```
+```py
 `# app/auth/auth_handler.py
 
 def decodeJWT(token: str) -> dict:
@@ -347,7 +347,7 @@ def decodeJWT(token: str) -> dict:
 
 在 *model.py* 中，添加用户模式:
 
-```
+```py
 `# app/model.py
 
 class UserSchema(BaseModel):
@@ -379,7 +379,7 @@ class UserLoginSchema(BaseModel):
 
 接下来，更新 *app/api.py* 中的导入:
 
-```
+```py
 `# app/api.py
 
 from fastapi import FastAPI, Body
@@ -390,7 +390,7 @@ from app.auth.auth_handler import signJWT`
 
 添加用户注册路径:
 
-```
+```py
 `# app/api.py
 
 @app.post("/user/signup", tags=["user"])
@@ -401,7 +401,7 @@ async def create_user(user: UserSchema = Body(...)):
 
 因为我们使用的是[电子邮件验证器](https://pydantic-docs.helpmanual.io/usage/types/#pydantic-types)、`EmailStr`，安装[电子邮件验证器](https://github.com/JoshData/python-email-validator):
 
-```
+```py
 `(venv)$ pip install "pydantic[email]"` 
 ```
 
@@ -415,7 +415,7 @@ async def create_user(user: UserSchema = Body(...)):
 
 接下来，定义一个助手函数来检查用户是否存在:
 
-```
+```py
 `# app/api.py
 
 def check_user(data: UserLoginSchema):
@@ -429,7 +429,7 @@ def check_user(data: UserLoginSchema):
 
 接下来，定义登录路径:
 
-```
+```py
 `# app/api.py
 
 @app.post("/user/login", tags=["user"])
@@ -457,7 +457,7 @@ async def user_login(user: UserLoginSchema = Body(...)):
 
 在“auth”文件夹中创建一个名为 *auth_bearer.py* 的新文件:
 
-```
+```py
 `# app/auth/auth_bearer.py
 
 from fastapi import Request, HTTPException
@@ -516,7 +516,7 @@ class JWTBearer(HTTPBearer):
 
 首先通过添加`JWTBearer`类和`Depends`来更新导入:
 
-```
+```py
 `# app/api.py
 
 from fastapi import FastAPI, Body, Depends
@@ -528,7 +528,7 @@ from app.auth.auth_handler import signJWT`
 
 在`add_post`路线中，将`dependencies`参数添加到`@app`属性中，如下所示:
 
-```
+```py
 `# app/api.py
 
 @app.post("/posts", dependencies=[Depends(JWTBearer())], tags=["posts"])

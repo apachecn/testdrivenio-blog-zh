@@ -87,20 +87,20 @@
 
 从从[https://github.com/testdrivenio/node-kubernetes](https://github.com/testdrivenio/node-kubernetes)回购克隆应用程序开始:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/node-kubernetes
 $ cd node-kubernetes` 
 ```
 
 构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 应用迁移并为数据库设定种子:
 
-```
+```py
 `$ docker-compose exec web knex migrate:latest
 $ docker-compose exec web knex seed:run` 
 ```
@@ -109,7 +109,7 @@ $ docker-compose exec web knex seed:run`
 
 获取所有待办事项:
 
-```
+```py
 `$ curl http://localhost:3000/todos
 
 [
@@ -128,7 +128,7 @@ $ docker-compose exec web knex seed:run`
 
 添加新的待办事项:
 
-```
+```py
 `$ curl -d '{"title":"something exciting", "completed":"false"}' \
     -H "Content-Type: application/json" -X POST http://localhost:3000/todos
 
@@ -137,7 +137,7 @@ $ docker-compose exec web knex seed:run`
 
 获取一个待办事项:
 
-```
+```py
 `$ curl http://localhost:3000/todos/3
 
 [
@@ -151,7 +151,7 @@ $ docker-compose exec web knex seed:run`
 
 更新待办事项:
 
-```
+```py
 `$ curl -d '{"title":"something exciting", "completed":"true"}' \
     -H "Content-Type: application/json" -X PUT http://localhost:3000/todos/3
 
@@ -160,13 +160,13 @@ $ docker-compose exec web knex seed:run`
 
 删除待办事项:
 
-```
+```py
 `$ curl -X DELETE http://localhost:3000/todos/3` 
 ```
 
 在继续之前，快速浏览一下代码:
 
-```
+```py
 `├── .dockerignore
 ├── .gitignore
 ├── Dockerfile
@@ -208,14 +208,14 @@ $ docker-compose exec web knex seed:run`
 
 > 如果你在 Mac 上，我们建议安装带有[自制软件](https://brew.sh/)的 SDK:
 > 
-> ```
+> ```py
 > $ brew update
 > $ brew install google-cloud-sdk --cask 
 > ```
 
 测试:
 
-```
+```py
 `$ gcloud --version
 
 Google Cloud SDK 365.0.1
@@ -228,13 +228,13 @@ gsutil 5.5`
 
 设置项目:
 
-```
+```py
 `$ gcloud config set project <PROJECT_ID>` 
 ```
 
 最后，安装`kubectl`:
 
-```
+```py
 `$ gcloud components install kubectl` 
 ```
 
@@ -242,14 +242,14 @@ gsutil 5.5`
 
 接下来，我们在 [Kubernetes 引擎](https://console.cloud.google.com/kubernetes)上创建一个集群:
 
-```
+```py
 `$ gcloud container clusters create node-kubernetes \
     --num-nodes=3 --zone us-central1-a --machine-type g1-small` 
 ```
 
 这将在具有`g1-small` [机器](https://cloud.google.com/compute/docs/machine-types)的`us-central1-a` [区域](https://cloud.google.com/compute/docs/regions-zones/)中创建一个名为`node-kubernetes`的三节点集群。旋转起来需要几分钟。
 
-```
+```py
 `$ kubectl get nodes
 
 NAME                                             STATUS   ROLES    AGE   VERSION
@@ -262,7 +262,7 @@ gke-node-kubernetes-default-pool-139e0343-rxnc   Ready    <none>   75s   v1.21.5
 
 将`kubectl`客户端连接到集群:
 
-```
+```py
 `$ gcloud container clusters get-credentials node-kubernetes --zone us-central1-a
 
 Fetching cluster endpoint and auth data.
@@ -275,7 +275,7 @@ kubeconfig entry generated for node-kubernetes.`
 
 使用`gcr.io/<PROJECT_ID>/<IMAGE_NAME>:<TAG>` Docker 标签格式，为节点 API 构建本地 Docker 映像，然后将其推送到[容器注册表](https://cloud.google.com/container-registry/):
 
-```
+```py
 `$ gcloud auth configure-docker
 $ docker build -t gcr.io/<PROJECT_ID>/node-kubernetes:v0.0.1 .
 $ docker push gcr.io/<PROJECT_ID>/node-kubernetes:v0.0.1` 
@@ -291,7 +291,7 @@ $ docker push gcr.io/<PROJECT_ID>/node-kubernetes:v0.0.1`
 
 *kubernetes/node-deployment . YAML*:
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  node labels: name:  node spec: replicas:  1 selector: matchLabels: app:  node template: metadata: labels: app:  node spec: containers: -  name:  node image:  gcr.io/<PROJECT_ID>/node-kubernetes:v0.0.1 env: -  name:  NODE_ENV value:  "development" -  name:  PORT value:  "3000" restartPolicy:  Always` 
 ```
 
@@ -316,13 +316,13 @@ $ docker push gcr.io/<PROJECT_ID>/node-kubernetes:v0.0.1`
 
 创建:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/node-deployment.yaml` 
 ```
 
 验证:
 
-```
+```py
 `$ kubectl get deployments
 
 NAME   READY   UP-TO-DATE   AVAILABLE   AGE
@@ -336,7 +336,7 @@ node-59646c8856-72blj   1/1     Running   0          18s`
 
 您可以通过`kubectl logs <POD_NAME>`查看容器日志:
 
-```
+```py
 `$ kubectl logs node-6fbfd984d-7pg92
 
 > start
@@ -358,7 +358,7 @@ Listening on port: 3000`
 
 *库柏/节点服务。yaml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Service metadata: name:  node labels: service:  node spec: selector: app:  node type:  LoadBalancer ports: -  port:  3000` 
 ```
 
@@ -366,7 +366,7 @@ Listening on port: 3000`
 
 创建:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/node-service.yaml` 
 ```
 
@@ -376,7 +376,7 @@ Listening on port: 3000`
 
 获取外部 IP:
 
-```
+```py
 `$ kubectl get service node
 
 NAME   TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)          AGE
@@ -396,13 +396,13 @@ node   LoadBalancer   10.40.10.162   35.222.45.193   3000:31315/TCP   78s`
 
 *立方/秘密。yaml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Secret metadata: name:  postgres-credentials type:  Opaque data: user:  c2FtcGxl password:  cGxlYXNlY2hhbmdlbWU=` 
 ```
 
 用户和密码字段是 base64 编码的字符串:
 
-```
+```py
 `$ echo -n "pleasechangeme" | base64
 cGxlYXNlY2hhbmdlbWU=
 
@@ -412,13 +412,13 @@ c2FtcGxl`
 
 创造秘密:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/secret.yaml` 
 ```
 
 验证:
 
-```
+```py
 `$ kubectl describe secret postgres-credentials
 
 Name:         postgres-credentials
@@ -442,7 +442,7 @@ user:      6 bytes`
 
 创建一个[持久磁盘](https://cloud.google.com/persistent-disk/):
 
-```
+```py
 `$ gcloud compute disks create pg-data-disk --size 50GB --zone us-central1-a` 
 ```
 
@@ -450,7 +450,7 @@ user:      6 bytes`
 
 立方/体积。yaml :
 
-```
+```py
 `apiVersion:  v1 kind:  PersistentVolume metadata: name:  postgres-pv labels: name:  postgres-pv spec: capacity: storage:  50Gi storageClassName:  standard accessModes: -  ReadWriteOnce gcePersistentDisk: pdName:  pg-data-disk fsType:  ext4` 
 ```
 
@@ -458,13 +458,13 @@ user:      6 bytes`
 
 创建卷:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/volume.yaml` 
 ```
 
 检查状态:
 
-```
+```py
 `$ kubectl get pv
 
 NAME         CAPACITY  ACCESS MODES  RECLAIM POLICY  STATUS     CLAIM  STORAGECLASS  REASON  AGE
@@ -475,7 +475,7 @@ postgres-pv  50Gi      RWO           Retain          Available         standard 
 
 *立方/体积索赔. yaml* :
 
-```
+```py
 `apiVersion:  v1 kind:  PersistentVolumeClaim metadata: name:  postgres-pvc labels: type:  local spec: accessModes: -  ReadWriteOnce resources: requests: storage:  50Gi volumeName:  postgres-pv` 
 ```
 
@@ -483,13 +483,13 @@ postgres-pv  50Gi      RWO           Retain          Available         standard 
 
 创建:
 
-```
+```py
 `$ kubectl apply -f ./kubernetes/volume-claim.yaml` 
 ```
 
 查看:
 
-```
+```py
 `$ kubectl get pvc
 
 NAME           STATUS   VOLUME        CAPACITY   ACCESS MODES   STORAGECLASS   AGE
@@ -504,7 +504,7 @@ postgres-pvc   Bound    postgres-pv   50Gi       RWO            standard       6
 
 *库柏人/研究生部署。yaml* :
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  postgres labels: name:  database spec: replicas:  1 selector: matchLabels: service:  postgres template: metadata: labels: service:  postgres spec: containers: -  name:  postgres image:  postgres:14-alpine volumeMounts: -  name:  postgres-volume-mount mountPath:  /var/lib/postgresql/data subPath:  postgres env: -  name:  POSTGRES_USER valueFrom: secretKeyRef: name:  postgres-credentials key:  user -  name:  POSTGRES_PASSWORD valueFrom: secretKeyRef: name:  postgres-credentials key:  password restartPolicy:  Always volumes: -  name:  postgres-volume-mount persistentVolumeClaim: claimName:  postgres-pvc` 
 ```
 
@@ -514,13 +514,13 @@ postgres-pvc   Bound    postgres-pv   50Gi       RWO            standard       6
 
 创建:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/postgres-deployment.yaml` 
 ```
 
 验证:
 
-```
+```py
 `$ kubectl get pods
 
 NAME                        READY   STATUS    RESTARTS   AGE
@@ -532,13 +532,13 @@ postgres-64d485d86b-vtrlh   1/1     Running   0          25s`
 
 创建`todos`数据库:
 
-```
+```py
 `$ kubectl exec <POD_NAME> --stdin --tty -- createdb -U sample todos` 
 ```
 
 *立方/研究生服务。yaml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Service metadata: name:  postgres labels: service:  postgres spec: selector: service:  postgres type:  ClusterIP ports: -  port:  5432` 
 ```
 
@@ -546,7 +546,7 @@ postgres-64d485d86b-vtrlh   1/1     Running   0          25s`
 
 创建服务:
 
-```
+```py
 `$ kubectl create -f ./kubernetes/postgres-service.yaml` 
 ```
 
@@ -558,20 +558,20 @@ postgres-64d485d86b-vtrlh   1/1     Running   0          25s`
 
 *kubernetes/node-deployment-updated . YAML*:
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  node labels: name:  node spec: replicas:  1 selector: matchLabels: app:  node template: metadata: labels: app:  node spec: containers: -  name:  node image:  gcr.io/<PROJECT_ID>/node-kubernetes:v0.0.1  # update env: -  name:  NODE_ENV value:  "development" -  name:  PORT value:  "3000" -  name:  POSTGRES_USER valueFrom: secretKeyRef: name:  postgres-credentials key:  user -  name:  POSTGRES_PASSWORD valueFrom: secretKeyRef: name:  postgres-credentials key:  password restartPolicy:  Always` 
 ```
 
 创建:
 
-```
+```py
 `$ kubectl delete -f ./kubernetes/node-deployment.yaml
 $ kubectl create -f ./kubernetes/node-deployment-updated.yaml` 
 ```
 
 验证:
 
-```
+```py
 `$ kubectl get pods
 
 NAME                        READY   STATUS    RESTARTS   AGE
@@ -581,7 +581,7 @@ postgres-64d485d86b-vtrlh   1/1     Running   0          4m7s`
 
 使用节点窗格更新数据库:
 
-```
+```py
 `$ kubectl exec <POD_NAME> knex migrate:latest
 $ kubectl exec <POD_NAME> knex seed:run` 
 ```
@@ -593,7 +593,7 @@ $ kubectl exec <POD_NAME> knex seed:run`
 
 您现在应该可以看到 todos:
 
-```
+```py
 `[
   {
     "id": 1,
@@ -614,7 +614,7 @@ $ kubectl exec <POD_NAME> knex seed:run`
 
 完成后，确保关闭资源(集群、永久磁盘、容器注册表上的映像),以避免产生不必要的费用:
 
-```
+```py
 `$ kubectl delete -f ./kubernetes/node-service.yaml
 $ kubectl delete -f ./kubernetes/node-deployment-updated.yaml
 

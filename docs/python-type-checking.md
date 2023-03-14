@@ -61,21 +61,21 @@ Python 3.5 版中添加了类型提示。
 
 例如，假设您有以下函数来计算日平均温度:
 
-```
+```py
 `def daily_average(temperatures):
     return sum(temperatures) / len(temperatures)` 
 ```
 
 只要您像这样提供一个温度列表，该函数就会按预期工作，并返回预期的结果:
 
-```
+```py
 `average_temperature = daily_average([22.8, 19.6, 25.9])
 print(average_temperature)  # => 22.76666666666667` 
 ```
 
 如果用字典调用函数，其中键是测量的时间戳，值是温度，会发生什么？
 
-```
+```py
 `average_temperature = daily_average({1599125906: 22.8, 1599125706: 19.6, 1599126006: 25.9})
 print(average_temperature)  # => 1599125872.6666667` 
 ```
@@ -84,7 +84,7 @@ print(average_temperature)  # => 1599125872.6666667`
 
 为了避免这种混淆，可以通过注释参数和返回值来添加类型提示:
 
-```
+```py
 `def daily_average(temperatures: list[float]) -> float:
     return sum(temperatures) / len(temperatures)` 
 ```
@@ -94,7 +94,7 @@ print(average_temperature)  # => 1599125872.6666667`
 1.  `temperatures`应该是一个浮动列表:`temperatures: list[float]`
 2.  该函数应该返回一个浮点数:`-> float`
 
-```
+```py
 `print(daily_average.__annotations__)
 # {'temperatures': list[float], 'return': <class 'float'>}` 
 ```
@@ -107,7 +107,7 @@ print(average_temperature)  # => 1599125872.6666667`
 
 类型注释只是注释函数输入、函数输出和变量的语法:
 
-```
+```py
 `def sum_xy(x: 'an integer', y: 'another integer') -> int:
     return x + y
 
@@ -121,7 +121,7 @@ print(sum_xy.__annotations__)
 
 您可能想知道为什么有时会看到这样的代码:
 
-```
+```py
 `from typing import List
 
 def daily_average(temperatures: List[float]) -> float:
@@ -134,14 +134,14 @@ def daily_average(temperatures: List[float]) -> float:
 
 例如，可以使用 list 作为类型提示，如下所示:
 
-```
+```py
 `def daily_average(temperatures: list) -> float:
     return sum(temperatures) / len(temperatures)` 
 ```
 
 但是如果没有类型模块，就不可能定义列表元素的预期类型(`list[float]`)。对于字典和其他序列和复杂类型也是如此:
 
-```
+```py
 `from typing import Tuple, Dict
 
 def generate_map(points: Tuple[float, float]) -> Dict[str, int]:
@@ -152,7 +152,7 @@ def generate_map(points: Tuple[float, float]) -> Dict[str, int]:
 
 例如，您可能希望允许多种类型。为此，您可以使用 [Union](https://docs.python.org/3.7/library/typing.html#typing.Union) :
 
-```
+```py
 `from typing import Union
 
 def sum_ab(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
@@ -161,7 +161,7 @@ def sum_ab(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
 
 从 Python 3.9 开始，您可以像这样使用内置函数:
 
-```
+```py
 `def sort_names(names: list[str]) -> list[str]:
     return sorted(names)` 
 ```
@@ -174,13 +174,13 @@ mypy 是一个在编译时进行类型检查的工具。
 
 要检查 Python 模块，您可以像这样运行它:
 
-```
+```py
 `$ python -m mypy my_module.py` 
 ```
 
 所以，让我们再来看一下`daily_average`的例子:
 
-```
+```py
 `def daily_average(temperatures):
     return sum(temperatures) / len(temperatures)
 
@@ -191,13 +191,13 @@ average_temperature = daily_average(
 
 当使用 mypy 对此类代码进行类型检查时，不会报告任何错误，因为该函数不使用类型提示:
 
-```
+```py
 `Success: no issues found in 1 source file` 
 ```
 
 在以下位置添加类型提示:
 
-```
+```py
 `def daily_average(temperatures: list[float]) -> float:
     return sum(temperatures) / len(temperatures)
 
@@ -208,13 +208,13 @@ average_temperature = daily_average(
 
 再次运行 mypy:
 
-```
+```py
 `$ python -m mypy my_module.py` 
 ```
 
 您应该看到:
 
-```
+```py
 `my_module.py:6: error: Argument 1 to "daily_average" has incompatible
 type "Dict[int, float]"; expected "List[float]"  [arg-type]
 
@@ -241,7 +241,7 @@ mypy 识别出函数调用不正确。它报告了文件名、行号和错误描
 
 其实用起来挺简单的。例如，让我们用几个属性定义一个`Song`类:
 
-```
+```py
 `from datetime import date
 
 from pydantic import BaseModel
@@ -255,7 +255,7 @@ class Song(BaseModel):
 
 现在，当我们用有效数据初始化一个新的`Song`时，一切都按预期工作:
 
-```
+```py
 `song = Song(
     id=101,
     name='Bohemian Rhapsody',
@@ -272,7 +272,7 @@ print(song)
 
 然而，当我们试图用无效数据(`'1975-31-31'`)初始化新的`Song`时，会产生一个`ValidationError`:
 
-```
+```py
 `song = Song(
     id=101,
     name='Bohemian Rhapsody',
@@ -290,7 +290,7 @@ print(song)
 
 使用 pydantic，我们可以确保在我们的应用程序中只使用与定义的类型相匹配的数据。这不仅会导致更少的错误，而且您需要编写更少的测试。通过使用像 pydantic 这样的工具，我们不需要为用户发送完全错误的数据的情况编写测试。它由 pydantic 处理——引发了一个`ValidationError`。例如， [FastAPI](https://fastapi.tiangolo.com/tutorial/body/) 用 pydantic 验证 HTTP 请求和响应主体:
 
-```
+```py
 `from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -309,7 +309,7 @@ async def create_item(item: Item):
 
 除了利用类型提示进行数据验证之外，您还可以添加自定义验证器来确保数据的正确性。为属性添加自定义验证相当容易。例如，为了防止在`Song`类中出现风格重复，您可以像这样添加验证:
 
-```
+```py
 `from datetime import date
 
 from pydantic import BaseModel, validator
@@ -348,13 +348,13 @@ print(song)
 
 您还可以使用验证器方法在验证发生之前更改值。为此，将`pre=True`和`always=True`添加到`validator`装饰器中:
 
-```
+```py
 `@validator('genres', pre=True, always=True)` 
 ```
 
 例如，您可以将流派转换为小写，如下所示:
 
-```
+```py
 `from datetime import date
 
 from pydantic import BaseModel, validator
@@ -401,13 +401,13 @@ pydantic 还提供了更严格的类型，如`PositiveInt`和`EmailStr`，以使
 
 另一个值得一提的工具是 [marshmallow](https://marshmallow.readthedocs.io/en/stable/) ，它有助于验证复杂数据，并从/向本机 Python 类型加载/转储数据。安装与任何其他 Python 包一样:
 
-```
+```py
 `$ pip install marshmallow` 
 ```
 
 像 pydantic 一样，您可以向类添加类型验证:
 
-```
+```py
 `from marshmallow import Schema, fields, post_load
 
 class Song:
@@ -455,7 +455,7 @@ print(song)
 
 要将数据反序列化到一个`Song`对象中，需要向模式中添加一个用`@post_load` decorator 修饰的方法:
 
-```
+```py
 `class SongSchema(Schema):
     id = fields.Int()
     name = fields.Str()
@@ -471,7 +471,7 @@ print(song)
 
 像 pydantic 一样，您可以为模式中的每个属性添加自定义验证。例如，您可以防止重复，如下所示:
 
-```
+```py
 `import datetime
 
 from marshmallow import Schema, fields, post_load, ValidationError
@@ -539,7 +539,7 @@ pydantic 和 marshmallow 专注于数据验证和序列化，而 [typeguard](htt
 
 让我们来看看和之前一样的例子——一个`Song`类。这次我们用类型提示参数定义它的`__init__`方法:
 
-```
+```py
 `from datetime import date
 
 from typeguard import typechecked
@@ -575,7 +575,7 @@ print(song)
 
 当您想在运行时执行类型检查时，`typechecked` decorator 可以用于类和函数。运行这段代码将引发一个`TypeError`,因为流派是一个集合而不是一个列表。您可以类似地对函数使用装饰器，如下所示:
 
-```
+```py
 `from typeguard import typechecked
 
 @typechecked
@@ -585,7 +585,7 @@ def sum_ab(a: int, b: int) -> int:
 
 它还附带了一个 pytest 插件。要在运行测试时检查包`my_package`的类型，您可以运行以下命令:
 
-```
+```py
 `$ python -m pytest --typeguard-packages=my_package` 
 ```
 
@@ -597,14 +597,14 @@ def sum_ab(a: int, b: int) -> int:
 
 首先，创建一个新文件夹:
 
-```
+```py
 `$ mkdir flask_example
 $ cd flask_example` 
 ```
 
 接下来，用诗歌初始化您的项目:
 
-```
+```py
 `$ poetry init
 Package name [flask_example]:
 Version [0.1.0]:
@@ -620,14 +620,14 @@ Do you confirm generation? (yes/no) [yes]`
 
 之后，加入烧瓶、 [Flask-Pydantic](https://pypi.org/project/Flask-Pydantic/) 和 pytest:
 
-```
+```py
 `$ poetry add flask Flask-Pydantic
 $ poetry add --dev pytest` 
 ```
 
 创建一个名为 *test_app.py* 的文件来保存我们的测试:
 
-```
+```py
 `import json
 
 import pytest
@@ -676,7 +676,7 @@ def test_create_todo_bad_request(client):
 
 接下来，为 Flask 应用程序添加一个名为 *app.py* 的文件:
 
-```
+```py
 `import datetime
 
 from flask import Flask, request
@@ -744,13 +744,13 @@ if __name__ == "__main__":
 
 安装后，添加一个名为。将 pre-commit-config.yaml 提交到项目。要运行 mypy，请添加以下配置:
 
-```
+```py
 `repos: -  repo:  https://github.com/pre-commit/mirrors-mypy rev:  'v0.790' hooks: -  id:  mypy` 
 ```
 
 最后，要设置 git 挂钩脚本:
 
-```
+```py
 `(venv)$ pre-commit install` 
 ```
 

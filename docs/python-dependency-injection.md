@@ -40,7 +40,7 @@
 
 首先，创建(并激活)一个虚拟环境。然后，安装 [pytest](https://docs.pytest.org/) 和 [Matplotlib](https://matplotlib.org/) :
 
-```
+```py
 `(venv)$ pip install pytest matplotlib` 
 ```
 
@@ -59,7 +59,7 @@
 
 创建一个名为 *test_app.py* 的文件:
 
-```
+```py
 `import datetime
 from pathlib import Path
 
@@ -83,19 +83,19 @@ def test_read():
 
 运行测试以确保失败:
 
-```
+```py
 `(venv)$ python -m pytest .` 
 ```
 
 您应该看到:
 
-```
+```py
 `E   ModuleNotFoundError: No module named 'app'` 
 ```
 
 现在要实现`read`方法，为了让测试通过，添加名为 *app.py* 的新文件:
 
-```
+```py
 `import csv
 import datetime
 from pathlib import Path
@@ -121,7 +121,7 @@ class App:
 
 假设您已经下载了作为 *london.csv* 的[天气数据](https://www.urban-climate.net/content/images/Southwark_Files/Weather_Data_2009.csv)，测试现在应该通过了:
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -144,7 +144,7 @@ test_app.py .                                                                 [1
 
 为此向 *test_app.py* 添加一个测试:
 
-```
+```py
 `def test_draw(monkeypatch):
     plot_date_mock = MagicMock()
     show_mock = MagicMock()
@@ -163,7 +163,7 @@ test_app.py .                                                                 [1
 
 像这样更新导入:
 
-```
+```py
 `import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -183,7 +183,7 @@ from app import App`
 2.  它必须将这个字典转换成可以在绘图中使用的两个向量:日期和温度。
 3.  应该使用`matplotlib.dates.date2num`将日期转换成数字，以便在绘图中使用。
 
-```
+```py
 `def draw(self, temperatures_by_hour):
     dates = []
     temperatures = []
@@ -199,7 +199,7 @@ from app import App`
 
 进口:
 
-```
+```py
 `import csv
 import datetime
 from pathlib import Path
@@ -210,7 +210,7 @@ import matplotlib.pyplot`
 
 测试现在应该通过了:
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -225,7 +225,7 @@ test_app.py ..                                                                [1
 
 *app.py* :
 
-```
+```py
 `import csv
 import datetime
 from pathlib import Path
@@ -264,7 +264,7 @@ class App:
 
 *test_app.py* :
 
-```
+```py
 `import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -305,7 +305,7 @@ def test_draw(monkeypatch):
 
 打开 *app.py* 并在底部添加以下代码片段:
 
-```
+```py
 `if __name__ == '__main__':
     import sys
     file_name = sys.argv[1]
@@ -318,7 +318,7 @@ def test_draw(monkeypatch):
 
 运行应用程序:
 
-```
+```py
 `(venv)$ python app.py london.csv` 
 ```
 
@@ -336,7 +336,7 @@ def test_draw(monkeypatch):
 
 首先，创建名为*test _ urban _ climate _ CSV . py*的新文件:
 
-```
+```py
 `import datetime
 from pathlib import Path
 
@@ -356,7 +356,7 @@ def test_read():
 
 其次，添加一个名为 *urban_climate_csv.py* 的新文件。在该文件中，用一个`read`方法创建一个名为`DataSource`的类:
 
-```
+```py
 `import csv
 import datetime
 from pathlib import Path
@@ -382,7 +382,7 @@ class DataSource:
 
 例如:
 
-```
+```py
 `from open_weather_csv import DataSource
 from open_weather_json import DataSource
 from open_weather_api import DataSource
@@ -399,7 +399,7 @@ reader.read(url='https://foo.bar')`
 
 测试现在应该通过了:
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -417,7 +417,7 @@ test_urban_climate_csv.py .                                                   [1
 
 首先，更新 *test_app.py* 中`read`的测试:
 
-```
+```py
 `def test_read():
     hour = datetime.datetime.now().isoformat()
     temperature = 14.52
@@ -435,7 +435,7 @@ test_urban_climate_csv.py .                                                   [1
 
 也更新对`draw`的测试。同样，我们需要将数据源注入到`App`中，它可以是具有预期接口的“任何东西”——所以 *MagicMock* 会做:
 
-```
+```py
 `def test_draw(monkeypatch):
     plot_date_mock = MagicMock()
     show_mock = MagicMock()
@@ -454,7 +454,7 @@ test_urban_climate_csv.py .                                                   [1
 
 同样更新`App`类:
 
-```
+```py
 `import datetime
 
 import matplotlib.dates
@@ -485,7 +485,7 @@ class App:
 
 最后，我们需要在实例创建时将我们的数据源注入到`App`中。
 
-```
+```py
 `if __name__ == '__main__':
     import sys
     from urban_climate_csv import DataSource
@@ -497,13 +497,13 @@ class App:
 
 再次运行你的应用程序，以确保它仍按预期运行:
 
-```
+```py
 `(venv)$ python app.py london.csv` 
 ```
 
 更新*test _ urban _ climate _ CSV . py*中的`test_read`:
 
-```
+```py
 `import datetime
 
 from urban_climate_csv import DataSource
@@ -517,7 +517,7 @@ def test_read():
 
 测试通过了吗？
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -541,7 +541,7 @@ test_urban_climate_csv.py .                                                   [1
 
 添加一个名为*test _ open _ weather _ JSON . py*的新文件，并为一个`read`方法编写一个测试:
 
-```
+```py
 `import datetime
 
 from open_weather_json import DataSource
@@ -557,7 +557,7 @@ def test_read():
 
 在静态类型的语言中，像 Java 和 C#，所有的数据源都应该实现相同的接口——即`IDataSource`。多亏了 Python 中的 [duck typing](https://realpython.com/lessons/duck-typing/) ，我们可以实现同名的方法，这些方法为我们的每个数据源采用相同的参数(`**kwargs`):
 
-```
+```py
 `def read(self, **kwargs):
     return self.data_source.read(**kwargs)` 
 ```
@@ -566,7 +566,7 @@ def test_read():
 
 添加名为 *open_weather_json.py* 的新文件。：
 
-```
+```py
 `import json
 import datetime
 
@@ -590,7 +590,7 @@ class DataSource:
 
 接下来，更新 *app.py* 来使用这个数据源:
 
-```
+```py
 `if __name__ == '__main__':
     import sys
     from open_weather_json import DataSource
@@ -604,7 +604,7 @@ class DataSource:
 
 使用 *moscow.json* 作为参数再次运行您的应用程序:
 
-```
+```py
 `(venv)$ python app.py moscow.json` 
 ```
 
@@ -627,7 +627,7 @@ class DataSource:
 
 看看 *test_app.py* 中的`draw`方法的测试:
 
-```
+```py
 `def test_draw(monkeypatch):
     plot_date_mock = MagicMock()
     show_mock = MagicMock()
@@ -652,7 +652,7 @@ class DataSource:
 
 添加一个名为 *test_matplotlib_plot.py* 的新文件:
 
-```
+```py
 `import datetime
 from unittest.mock import MagicMock
 
@@ -678,7 +678,7 @@ def test_draw(monkeypatch):
 
 为了实现`Plot`类，添加一个名为 *matplotlib_plot.py* 的新文件:
 
-```
+```py
 `import matplotlib.dates
 import matplotlib.pyplot
 
@@ -700,7 +700,7 @@ class Plot:
 
 运行测试:
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -720,7 +720,7 @@ test_urban_climate_csv.py .                                                   [1
 
 首先，像这样更新 *test_app.py* :
 
-```
+```py
 `import datetime
 from unittest.mock import MagicMock
 
@@ -758,7 +758,7 @@ def test_draw():
 
 更新`App`类:
 
-```
+```py
 `import datetime
 
 class App:
@@ -789,7 +789,7 @@ class App:
 
 测试:
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -807,7 +807,7 @@ test_urban_climate_csv.py .                                                   [1
 
 更新再次运行应用程序的代码片段:
 
-```
+```py
 `if __name__ == '__main__':
     import sys
     from open_weather_json import DataSource
@@ -822,7 +822,7 @@ test_urban_climate_csv.py .                                                   [1
 
 再次运行你的应用程序，查看它是否仍在工作:
 
-```
+```py
 `(venv)$ python app.py moscow.json` 
 ```
 
@@ -830,13 +830,13 @@ test_urban_climate_csv.py .                                                   [1
 
 开始安装 [Plotly](https://github.com/plotly/plotly.py) :
 
-```
+```py
 `(venv)$ pip install plotly` 
 ```
 
 接下来，向名为 *test_plotly_plot.py* 的新字段添加一个新测试:
 
-```
+```py
 `import datetime
 from unittest.mock import MagicMock
 
@@ -864,7 +864,7 @@ def test_draw(monkeypatch):
 
 其次，添加名为 *plotly_plot.py* 的文件:
 
-```
+```py
 `import plotly.graph_objects
 
 class Plot:
@@ -881,7 +881,7 @@ class Plot:
 
 测试应该通过:
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -900,7 +900,7 @@ test_urban_climate_csv.py .                                                   [1
 
 更新运行片段以使用`plotly`:
 
-```
+```py
 `if __name__ == '__main__':
     import sys
     from open_weather_json import DataSource
@@ -913,7 +913,7 @@ test_urban_climate_csv.py .                                                   [1
 
 使用 *moscow.json* 运行您的应用程序，在浏览器中查看新的地块:
 
-```
+```py
 `(venv)$ python app.py moscow.json` 
 ```
 
@@ -923,7 +923,7 @@ test_urban_climate_csv.py .                                                   [1
 
 此时，我们可以轻松地在应用程序中添加和使用不同的数据源和绘图库。我们的测试不再与实现相结合。也就是说，我们仍然需要对代码进行编辑，以添加新的数据源或绘图库:
 
-```
+```py
 `if __name__ == '__main__':
     import sys
     from open_weather_json import DataSource
@@ -938,7 +938,7 @@ test_urban_climate_csv.py .                                                   [1
 
 我们将使用一个简单的 JSON 对象来配置应用程序:
 
-```
+```py
 `{ "data_source":  { "name":  "urban_climate_csv" }, "plot":  { "name":  "plotly_plot" } }` 
 ```
 
@@ -946,7 +946,7 @@ test_urban_climate_csv.py .                                                   [1
 
 向 *test_app.py* 添加新的测试:
 
-```
+```py
 `def test_configure():
     app = App.configure(
         'config.json'
@@ -959,7 +959,7 @@ test_urban_climate_csv.py .                                                   [1
 
 将`configure`添加到`App`类:
 
-```
+```py
 `import datetime
 import json
 
@@ -992,7 +992,7 @@ if __name__ == '__main__':
 
 `__import__`用于动态导入模块。例如，将`config['data_source']['name']`设置为`urban_climate_csv`相当于:
 
-```
+```py
 `import urban_climate_csv
 
 data_source = urban_climate_csv.DataSource()` 
@@ -1000,7 +1000,7 @@ data_source = urban_climate_csv.DataSource()`
 
 运行测试:
 
-```
+```py
 `(venv)$ python -m pytest .
 
 ================================ test session starts ====================================
@@ -1019,7 +1019,7 @@ test_urban_climate_csv.py .                                                   [1
 
 最后，更新 *app.py* 中的代码片段以使用新添加的方法:
 
-```
+```py
 `if __name__ == '__main__':
     import sys
     config_file = sys.argv[1]
@@ -1033,13 +1033,13 @@ test_urban_climate_csv.py .                                                   [1
 
 再次运行您的应用程序:
 
-```
+```py
 `(venv)$ python app.py config.json london.csv` 
 ```
 
 更新配置以使用`open_weather_json`作为数据源:
 
-```
+```py
 `{
   "data_source": {
     "name": "open_weather_json"
@@ -1052,7 +1052,7 @@ test_urban_climate_csv.py .                                                   [1
 
 运行应用程序:
 
-```
+```py
 `(venv)$ python app.py config.json moscow.json` 
 ```
 

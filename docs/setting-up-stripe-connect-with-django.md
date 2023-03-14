@@ -56,7 +56,7 @@
 
 首先，克隆出[django-stripe-connect](https://github.com/testdrivenio/django-stripe-connect)repo，然后检查主分支的 [v1](https://github.com/testdrivenio/django-stripe-connect/releases/tag/v1) 标记:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/django-stripe-connect --branch v1 --single-branch
 $ cd django-stripe-connect
 $ git checkout tags/v1 -b master` 
@@ -64,14 +64,14 @@ $ git checkout tags/v1 -b master`
 
 创建虚拟环境并安装依赖项:
 
-```
+```py
 `$ pipenv shell
 $ pipenv install` 
 ```
 
 应用迁移，创建超级用户，并将设备添加到数据库:
 
-```
+```py
 `$ python manage.py migrate
 $ python manage.py createsuperuser
 $ python manage.py loaddata fixtures/users.json
@@ -80,7 +80,7 @@ $ python manage.py loaddata fixtures/courses.json`
 
 运行服务器:
 
-```
+```py
 `$ python manage.py runserver` 
 ```
 
@@ -104,7 +104,7 @@ $ python manage.py loaddata fixtures/courses.json`
 
 在继续之前，快速浏览一下项目结构:
 
-```
+```py
 `├── Pipfile
 ├── Pipfile.lock
 ├── apps
@@ -153,7 +153,7 @@ $ python manage.py loaddata fixtures/courses.json`
 
 [Stripe Checkout](https://stripe.com/payments/checkout) 已经预配置好，还有 [Stripe Python 库](https://github.com/stripe/stripe-python)。为了处理支付，创建一个 Stripe 帐户(如果您还没有)，并将您的测试机密和测试可发布密钥添加到 *settings.py* 文件的底部:
 
-```
+```py
 `STRIPE_PUBLISHABLE_KEY = '<your test publishable key here>'
 STRIPE_SECRET_KEY = '<your test secret key here>'` 
 ```
@@ -180,7 +180,7 @@ STRIPE_SECRET_KEY = '<your test secret key here>'`
 
 将此添加到 *settings.py* 的底部:
 
-```
+```py
 `STRIPE_CONNECT_CLIENT_ID = '<your test connect client id here>'` 
 ```
 
@@ -198,7 +198,7 @@ STRIPE_SECRET_KEY = '<your test secret key here>'`
 
 将视图添加到 *apps/users/views.py* :
 
-```
+```py
 `import urllib
 
 from django.urls import reverse
@@ -234,7 +234,7 @@ class StripeAuthorizeView(View):
 
 更新 *my_project/urls.py* 中的项目级 URL:
 
-```
+```py
 `urlpatterns = [
     path('', TemplateView.as_view(template_name='home.html'), name='home'),
     path('login/', LoginView.as_view(template_name='login.html'), name='login'),
@@ -247,7 +247,7 @@ class StripeAuthorizeView(View):
 
 然后，通过向“应用/用户”添加一个 *urls.py* 文件来添加应用级 URL:
 
-```
+```py
 `from django.urls import path
 
 from .views import StripeAuthorizeView
@@ -259,7 +259,7 @@ urlpatterns = [
 
 将`href`添加到*home.html*模板中的“连接条纹账户”按钮:
 
-```
+```py
 `<a href="{% url 'authorize' %}" class="button is-info">Connect Stripe Account</a>` 
 ```
 
@@ -275,7 +275,7 @@ urlpatterns = [
 
 向 *apps/users/views.py* 添加新视图
 
-```
+```py
 `class StripeAuthorizeCallbackView(View):
 
     def get(self, request):
@@ -299,7 +299,7 @@ urlpatterns = [
 
 安装请求库:
 
-```
+```py
 `$ pipenv install requests==2.21.0` 
 ```
 
@@ -307,7 +307,7 @@ urlpatterns = [
 
 将回调 URL 添加到 *apps/users/urls.py*
 
-```
+```py
 `from django.urls import path
 
 from .views import StripeAuthorizeView, StripeAuthorizeCallbackView
@@ -328,7 +328,7 @@ urlpatterns = [
 
 在您的终端中，您应该会看到来自`print(resp.json())`的输出:
 
-```
+```py
 `{
   'access_token': 'sk_test_nKM42TMNPm6M3c98U07abQss',
   'livemode': False,
@@ -342,7 +342,7 @@ urlpatterns = [
 
 我们现在可以将`access_token`和`stripe_user_id`添加到`Seller`模型中:
 
-```
+```py
 `class StripeAuthorizeCallbackView(View):
 
     def get(self, request):
@@ -370,7 +370,7 @@ urlpatterns = [
 
 将导入添加到顶部:
 
-```
+```py
 `from .models import Seller` 
 ```
 
@@ -384,7 +384,7 @@ urlpatterns = [
 
 最后，如果用户已经连接了他们的条带帐户，则隐藏主页模板中的“连接条带帐户”按钮:
 
-```
+```py
 `{% if user.is_seller and not user.seller.stripe_user_id %}
   <a href="{% url 'authorize' %}" class="button is-info">Connect Stripe Account</a>
 {% endif %}` 
@@ -423,7 +423,7 @@ urlpatterns = [
 
 在 *apps/courses/views.py* 中更新`CourseChargeView`如下:
 
-```
+```py
 `class CourseChargeView(View):
 
     def post(self, request, *args, **kwargs):
@@ -450,7 +450,7 @@ urlpatterns = [
 
 也可以对一个[客户对象](https://stripe.com/docs/sources/customers)收费。想想你想让客户住在哪里——平台账户、关联账户，还是两者兼而有之？
 
-```
+```py
 `class CourseChargeView(View):
 
     def post(self, request, *args, **kwargs):
@@ -480,7 +480,7 @@ urlpatterns = [
 
 如果该客户已经存在于关联账户中，该怎么办？
 
-```
+```py
 `class CourseChargeView(View):
 
     def post(self, request, *args, **kwargs):
@@ -529,7 +529,7 @@ def get_or_create_customer(email, token, stripe_access_token, stripe_account):
 
 在进入下一个方法之前，让我们快速看一下平台如何在每笔交易中[收取便利费](https://stripe.com/docs/connect/direct-charges#collecting-fees):
 
-```
+```py
 `class CourseChargeView(View):
 
     def post(self, request, *args, **kwargs):
@@ -566,7 +566,7 @@ def get_or_create_customer(email, token, stripe_access_token, stripe_account):
 
 [目的地收费](https://stripe.com/docs/connect/destination-charges)当你(平台)想要维持对客户的所有权时效果最好。通过这种方法，平台帐户向客户收费，并负责支付 Stripe 费用以及任何潜在的退款或退款。
 
-```
+```py
 `class CourseChargeView(View):
 
     def post(self, request, *args, **kwargs):

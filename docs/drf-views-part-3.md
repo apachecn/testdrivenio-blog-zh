@@ -48,7 +48,7 @@
 
 `ViewSet`类利用了`APIView`类的优势。默认情况下，它不提供任何操作，但是您可以使用它来创建自己的视图集:
 
-```
+```py
 `from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
@@ -83,7 +83,7 @@ class ItemViewSet(ViewSet):
 
 例如:
 
-```
+```py
 `from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
@@ -141,7 +141,7 @@ DRF 有两个开箱即用的路由器:
 
 路由器也可以与 urlpatterns 结合使用:
 
-```
+```py
 `# urls.py
 
 from django.urls import path, include
@@ -175,7 +175,7 @@ urlpatterns = [
 
 路由器是如何将方法映射到操作的:
 
-```
+```py
 `# https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/routers.py#L83
 
 routes = [
@@ -230,7 +230,7 @@ routes = [
 
 这就是`ViewSet`和`GenericViewSet`类的创建方式:
 
-```
+```py
 `# https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/viewsets.py#L210
 class ViewSet(ViewSetMixin, views.APIView):
    pass
@@ -246,7 +246,7 @@ class GenericViewSet(ViewSetMixin, generics.GenericAPIView):
 
 ### 将 GenericViewSet 与 Mixins 一起使用
 
-```
+```py
 `from rest_framework import mixins, viewsets
 
 class ItemViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
@@ -263,7 +263,7 @@ class ItemViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Gen
 
 为了强调`GenericViewSet`相对于`ViewSet`的优势，我们将使用一个稍微复杂一点的例子:
 
-```
+```py
 `from rest_framework import status
 from rest_framework.permissions import DjangoObjectPermissions
 from rest_framework.response import Response
@@ -309,7 +309,7 @@ class ItemViewSet(GenericViewSet):
 
 `ModelViewSet`是所有视图中最容易使用的。您只需要三行代码:
 
-```
+```py
 `class ItemModelViewSet(ModelViewSet):
     serializer_class = ItemSerializer
     queryset = Item.objects.all()` 
@@ -317,7 +317,7 @@ class ItemViewSet(GenericViewSet):
 
 然后，在您将视图注册到路由器之后，您就可以开始了！
 
-```
+```py
 `# urls.py
 
 from django.urls import path, include
@@ -346,7 +346,7 @@ urlpatterns = [
 
 像`ModelViewSet`，`ReadOnlyModelViewSet`只需要`queryset`和`serializer_class`属性就可以工作:
 
-```
+```py
 `from rest_framework.viewsets import ReadOnlyModelViewSet
 
 class ItemReadOnlyViewSet(ReadOnlyModelViewSet):
@@ -378,7 +378,7 @@ class ItemReadOnlyViewSet(ReadOnlyModelViewSet):
 
 以下是如何通过扩展 **APIView** 来实现这一点:
 
-```
+```py
 `class ItemsList(APIView):
 
     def get(self, request, format=None):
@@ -417,7 +417,7 @@ class ItemDetail(APIView):
 
 下面是你如何用**具体的通用视图**做同样的事情:
 
-```
+```py
 `class ItemsListGeneric(ListCreateAPIView):
     queryset = Item.objects.all()
     serializer_class = ItemSerializer
@@ -429,7 +429,7 @@ class ItemDetailGeneric(RetrieveUpdateDestroyAPIView):
 
 以下是您需要使用`ModelViewSet`的代码行:
 
-```
+```py
 `class ItemsViewSet(ModelViewSet):
     serializer_class = ItemSerializer
     queryset = Item.objects.all()` 
@@ -437,7 +437,7 @@ class ItemDetailGeneric(RetrieveUpdateDestroyAPIView):
 
 最后，下面是各个 URL 配置的样子:
 
-```
+```py
 `# APIView
 
 from django.urls import path

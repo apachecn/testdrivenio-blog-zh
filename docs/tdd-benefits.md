@@ -30,7 +30,7 @@
 
 首先，创建(并激活)一个虚拟环境并安装 [pytest](https://docs.pytest.org/) :
 
-```
+```py
 `(venv)$ pip install pytest` 
 ```
 
@@ -44,7 +44,7 @@
 
 测试应该是这样的:
 
-```
+```py
 `class TestPhoneBook:
 
     def test_all(self):
@@ -72,7 +72,7 @@
 
 为了实现，添加一个名为 *phone_book.py* 的新文件:
 
-```
+```py
 `class PhoneBook:
 
     def __init__(self, records=None):
@@ -84,7 +84,7 @@
 
 将其导入到测试文件中:
 
-```
+```py
 `from phone_book import PhoneBook
 
 class TestPhoneBook:
@@ -116,7 +116,7 @@ class TestPhoneBook:
 *   当添加一个数字并调用`all`方法时
 *   那么新号码是返回号码的一部分
 
-```
+```py
 `from phone_book import PhoneBook
 
 class TestPhoneBook:
@@ -153,7 +153,7 @@ class TestPhoneBook:
 
 测试应该会失败，因为`add`方法还没有实现。
 
-```
+```py
 `class PhoneBook:
 
     def __init__(self, records=None):
@@ -180,7 +180,7 @@ class TestPhoneBook:
 
 由于我们关注的是*测试接口而不是底层实现*，我们可以在不破坏测试的情况下修改代码。
 
-```
+```py
 `class PhoneBook:
 
     def __init__(self, records=None):
@@ -198,7 +198,7 @@ class TestPhoneBook:
 
 这很好，但我们实际上可以加快速度，因为数字已经排序了。
 
-```
+```py
 `class PhoneBook:
 
     def __init__(self, records=None):
@@ -238,7 +238,7 @@ class TestPhoneBook:
 
 首先，定义一个节点:
 
-```
+```py
 `class Node:
 
     def __init__(self, data):
@@ -250,7 +250,7 @@ class TestPhoneBook:
 
 其次，添加一个插入方法:
 
-```
+```py
 `class Node:
 
     def __init__(self, data):
@@ -284,7 +284,7 @@ class TestPhoneBook:
 
 最后，添加有序遍历方法:
 
-```
+```py
 `class Node:
 
     def __init__(self, data):
@@ -320,7 +320,7 @@ class TestPhoneBook:
 
 有了它，我们可以将它实现到我们的`PhoneBook`:
 
-```
+```py
 `class Node:
 
     def __init__(self, data):

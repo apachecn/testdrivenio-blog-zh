@@ -8,7 +8,7 @@
 
 首先创建一个项目目录:
 
-```
+```py
 `$ mkdir flask-docker-traefik && cd flask-docker-traefik
 $ python3.9 -m venv venv
 $ source venv/bin/activate
@@ -19,7 +19,7 @@ $ source venv/bin/activate
 
 然后，创建以下文件和文件夹:
 
-```
+```py
 `└── services
     └── web
         ├── manage.py
@@ -32,13 +32,13 @@ $ source venv/bin/activate
 
 从“服务/web”安装软件包:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 接下来，让我们在 *__init.py__* 中创建一个简单的 Flask 应用程序:
 
-```
+```py
 `from flask import Flask, jsonify
 
 app = Flask(__name__)
@@ -50,7 +50,7 @@ def read_root():
 
 然后，要配置 Flask CLI 工具从命令行运行和管理应用程序，请将以下内容添加到 *services/web/manage.py* :
 
-```
+```py
 `from flask.cli import FlaskGroup
 
 from project import app
@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
 从“web”目录运行服务器:
 
-```
+```py
 `(venv)$ export FLASK_APP=project/__init__.py
 (venv)$ python manage.py run` 
 ```
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
 安装 [Docker](https://docs.docker.com/install/) ，如果你还没有，那么在“web”目录下添加一个 *Dockerfile* :
 
-```
+```py
 `# pull the official docker image
 FROM  python:3.9.5-slim
 
@@ -108,7 +108,7 @@ COPY  . .`
 
 接下来，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./services/web command:  python manage.py run -h 0.0.0.0 volumes: -  ./services/web/:/app ports: -  5000:5000 environment: -  FLASK_APP=project/__init__.py -  FLASK_ENV=development` 
 ```
 
@@ -128,7 +128,7 @@ COPY  . .`
 
 首先，向 *docker-compose.yml* 添加一个名为`db`的新服务:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./services/web command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; python manage.py run -h 0.0.0.0' volumes: -  ./services/web/:/app ports: -  5000:5000 environment: -  FLASK_APP=project/__init__.py -  FLASK_ENV=development -  DATABASE_URL=postgresql://hello_flask:[[email protected]](/cdn-cgi/l/email-protection):5432/hello_flask_dev depends_on: -  db db: image:  postgres:13-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ environment: -  POSTGRES_USER=hello_flask -  POSTGRES_PASSWORD=hello_flask -  POSTGRES_DB=hello_flask_dev volumes: postgres_data:` 
 ```
 
@@ -140,7 +140,7 @@ COPY  . .`
 
 注意`web`服务中的新命令:
 
-```
+```py
 `bash  -c  'while !</dev/tcp/db/5432; do sleep 1; done; python manage.py run -h 0.0.0.0'` 
 ```
 
@@ -148,7 +148,7 @@ COPY  . .`
 
 然后，将一个名为 *config.py* 的新文件添加到“项目”目录中，在这里我们将定义特定于环境的[配置](https://flask.palletsprojects.com/config/)变量:
 
-```
+```py
 `import os
 
 class Config(object):
@@ -160,7 +160,7 @@ class Config(object):
 
 更新 *__init__。py* 在 init 上拉入配置:
 
-```
+```py
 `from flask import Flask, jsonify
 
 app = Flask(__name__)
@@ -173,7 +173,7 @@ def read_root():
 
 将 [Flask-SQLAlchemy](https://flask-sqlalchemy.palletsprojects.com/) 和 [Psycopg2](https://www.psycopg.org/) 添加到 *requirements.txt* :
 
-```
+```py
 `Flask==2.0.1
 Flask-SQLAlchemy==2.5.1
 psycopg2-binary==2.8.6` 
@@ -181,7 +181,7 @@ psycopg2-binary==2.8.6`
 
 更新 *__init__。py* 再次创建一个新的`SQLAlchemy`实例并定义一个数据库模型:
 
-```
+```py
 `from dataclasses import dataclass
 
 from flask import Flask, jsonify
@@ -210,7 +210,7 @@ def read_root():
 
 最后，更新 *manage.py* :
 
-```
+```py
 `from flask.cli import FlaskGroup
 
 from project import app, db
@@ -231,19 +231,19 @@ if __name__ == "__main__":
 
 构建新的映像并旋转两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 创建表格:
 
-```
+```py
 `$ docker-compose exec web python manage.py create_db` 
 ```
 
 > 得到以下错误？
 > 
-> ```
+> ```py
 > sqlalchemy.exc.OperationalError: (psycopg2.OperationalError)
 > FATAL:  database "hello_flask_dev" does not exist 
 > ```
@@ -252,7 +252,7 @@ if __name__ == "__main__":
 
 确保`users`表已创建:
 
-```
+```py
 `$ docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev
 
 psql (13.3)
@@ -285,13 +285,13 @@ hello_flask_dev=# \q`
 
 您也可以通过运行以下命令来检查该卷是否已创建:
 
-```
+```py
 `$ docker volume inspect flask-docker-traefik_postgres_data` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `[
     {
         "CreatedAt": "2021-06-05T14:12:52Z",
@@ -311,7 +311,7 @@ hello_flask_dev=# \q`
 
 导航到 [http://127.0.0.1:5000](http://127.0.0.1:5000) 。健全性检查显示一个空列表。这是因为我们还没有填充`users`表。让我们添加一个 CLI 种子命令，用于将样本`users`添加到 *manage.py* 中的用户表:
 
-```
+```py
 `from flask.cli import FlaskGroup
 
 from project import User, app, db
@@ -336,7 +336,7 @@ if __name__ == "__main__":
 
 尝试一下:
 
-```
+```py
 `$ docker-compose exec web python manage.py seed_db` 
 ```
 
@@ -346,7 +346,7 @@ if __name__ == "__main__":
 
 接下来，对于生产环境，让我们将 [Gunicorn](https://gunicorn.org/) ，一个生产级的 WSGI 服务器，添加到需求文件中:
 
-```
+```py
 `Flask==2.0.1
 Flask-SQLAlchemy==2.5.1
 gunicorn==20.1.0
@@ -355,7 +355,7 @@ psycopg2-binary==2.8.6`
 
 因为我们仍然希望在开发中使用 Flask 的内置服务器，所以在项目根目录中创建一个名为 *docker-compose.prod.yml* 的新合成文件用于生产:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./services/web command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; gunicorn --bind 0.0.0.0:5000 manage:app' ports: -  5000:5000 environment: -  FLASK_APP=project/__init__.py -  FLASK_ENV=production -  DATABASE_URL=postgresql://hello_flask:[[email protected]](/cdn-cgi/l/email-protection):5432/hello_flask_prod depends_on: -  db db: image:  postgres:13-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ environment: -  POSTGRES_USER=hello_flask -  POSTGRES_PASSWORD=hello_flask -  POSTGRES_DB=hello_flask_prod volumes: postgres_data_prod:` 
 ```
 
@@ -367,13 +367,13 @@ psycopg2-binary==2.8.6`
 
 然后，构建生产映像并启动容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
 创建表格并应用种子:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db` 
 ```
@@ -386,7 +386,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db`
 
 在“web”目录中创建一个名为 *Dockerfile.prod* 的新 Dockerfile，用于生产构建:
 
-```
+```py
 `###########
 # BUILDER #
 ###########
@@ -459,13 +459,13 @@ USER  app`
 
 用 *Dockerfile.prod* 更新 docker-compose.prod.yml 文件中的`web`服务:
 
-```
+```py
 `web: build: context:  ./services/web dockerfile:  Dockerfile.prod command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; gunicorn --bind 0.0.0.0:5000 manage:app' ports: -  5000:5000 environment: -  FLASK_APP=project/__init__.py -  FLASK_ENV=production -  DATABASE_URL=postgresql://hello_flask:[[email protected]](/cdn-cgi/l/email-protection):5432/hello_flask_prod depends_on: -  db` 
 ```
 
 尝试一下:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db
@@ -494,7 +494,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db`
 
 将名为“traefik”的新文件夹与以下文件一起添加到“services”目录中:
 
-```
+```py
 `traefik
 ├── Dockerfile.traefik
 ├── traefik.dev.toml
@@ -503,7 +503,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db`
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `├── docker-compose.prod.yml
 ├── docker-compose.yml
 └── services
@@ -523,7 +523,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db`
 
 将以下内容添加到 *traefik.dev.toml* 中:
 
-```
+```py
 `# listen on port 80 [entryPoints] [entryPoints.web] address  =  ":80" # Traefik dashboard over http [api] insecure  =  true [log] level  =  "DEBUG" [accessLog] # containers are not discovered automatically [providers] [providers.docker] exposedByDefault  =  false` 
 ```
 
@@ -531,7 +531,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db`
 
 接下来，更新 *docker-compose.yml* 文件，以便 Traefik 发现我们的`web`服务并添加一个新的`traefik`服务:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./services/web command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; python manage.py run -h 0.0.0.0' volumes: -  ./services/web/:/app expose:  # new -  5000 environment: -  FLASK_APP=project/__init__.py -  FLASK_ENV=development -  DATABASE_URL=postgresql://hello_flask:[[email protected]](/cdn-cgi/l/email-protection):5432/hello_flask_dev depends_on: -  db labels:  # new -  "traefik.enable=true" -  "traefik.http.routers.flask.rule=Host(`flask.localhost`)" db: image:  postgres:13-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ environment: -  POSTGRES_USER=hello_flask -  POSTGRES_PASSWORD=hello_flask -  POSTGRES_DB=hello_flask_dev traefik:  # new image:  traefik:v2.2 ports: -  80:80 -  8081:8080 volumes: -  "./services/traefik/traefik.dev.toml:/etc/traefik/traefik.toml" -  "/var/run/docker.sock:/var/run/docker.sock:ro" volumes: postgres_data:` 
 ```
 
@@ -547,20 +547,20 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db`
 
 要进行测试，首先取下任何现有的容器:
 
-```
+```py
 `$ docker-compose down -v
 $ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
 构建新的开发映像并启动容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 创建表格并应用种子:
 
-```
+```py
 `$ docker-compose exec web python manage.py create_db
 $ docker-compose exec web python manage.py seed_db` 
 ```
@@ -569,7 +569,7 @@ $ docker-compose exec web python manage.py seed_db`
 
 您也可以通过 cURL 进行测试:
 
-```
+```py
 `$ curl -H Host:flask.localhost http://0.0.0.0` 
 ```
 
@@ -591,7 +591,7 @@ $ docker-compose exec web python manage.py seed_db`
 
 首先将 Traefik 配置的生产版本添加到 *traefik.prod.toml* :
 
-```
+```py
 `[entryPoints] [entryPoints.web] address  =  ":80" [entryPoints.web.http] [entryPoints.web.http.redirections] [entryPoints.web.http.redirections.entryPoint] to  =  "websecure" scheme  =  "https" [entryPoints.websecure] address  =  ":443" [accessLog] [api] dashboard  =  true [providers] [providers.docker] exposedByDefault  =  false [certificatesResolvers.letsencrypt.acme] email  =  "[[email protected]](/cdn-cgi/l/email-protection)" storage  =  "/certificates/acme.json" [certificatesResolvers.letsencrypt.acme.httpChallenge] entryPoint  =  "web"` 
 ```
 
@@ -607,7 +607,7 @@ $ docker-compose exec web python manage.py seed_db`
 
 最后，请注意:
 
-```
+```py
 `[certificatesResolvers.letsencrypt.acme] email  =  "[[email protected]](/cdn-cgi/l/email-protection)" storage  =  "/certificates/acme.json" [certificatesResolvers.letsencrypt.acme.httpChallenge] entryPoint  =  "web"` 
 ```
 
@@ -622,7 +622,7 @@ $ docker-compose exec web python manage.py seed_db`
 
 接下来，像这样更新 *docker-compose.prod.yml* :
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./services/web dockerfile:  Dockerfile.prod command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; gunicorn --bind 0.0.0.0:5000 manage:app' expose:  # new -  5000 environment: -  FLASK_APP=project/__init__.py -  FLASK_ENV=production -  DATABASE_URL=postgresql://hello_flask:[[email protected]](/cdn-cgi/l/email-protection):5432/hello_flask_prod depends_on: -  db labels:  # new -  "traefik.enable=true" -  "traefik.http.routers.flask.rule=Host(`flask-traefik.your-domain.com`)" -  "traefik.http.routers.flask.tls=true" -  "traefik.http.routers.flask.tls.certresolver=letsencrypt" db: image:  postgres:13-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ environment: -  POSTGRES_USER=hello_flask -  POSTGRES_PASSWORD=hello_flask -  POSTGRES_DB=hello_flask_prod traefik:  # new build: context:  ./services/traefik dockerfile:  Dockerfile.traefik ports: -  80:80 -  443:443 volumes: -  "/var/run/docker.sock:/var/run/docker.sock:ro" -  "./traefik-public-certificates:/certificates" labels: -  "traefik.enable=true" -  "traefik.http.routers.dashboard.rule=Host(`dashboard-flask-traefik.your-domain.com`)" -  "traefik.http.routers.dashboard.tls=true" -  "traefik.http.routers.dashboard.tls.certresolver=letsencrypt" -  "[[email protected]](/cdn-cgi/l/email-protection)" -  "traefik.http.routers.dashboard.middlewares=auth" -  "traefik.http.middlewares.auth.basicauth.users=testuser:$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1" volumes: postgres_data_prod: traefik-public-certificates:` 
 ```
 
@@ -648,7 +648,7 @@ $ docker-compose exec web python manage.py seed_db`
 
 您可以使用 htpasswd 实用程序创建新的密码哈希:
 
-```
+```py
 `# username: testuser
 # password: password
 
@@ -658,14 +658,14 @@ testuser:$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1`
 
 随意使用一个`env_file`来存储用户名和密码作为环境变量
 
-```
+```py
 `USERNAME=testuser
 HASHED_PASSWORD=$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1` 
 ```
 
 Update *Dockerfile.traefik* :
 
-```
+```py
 `FROM  traefik:v2.2
 
 COPY  ./traefik.prod.toml ./etc/traefik/traefik.toml` 
@@ -673,13 +673,13 @@ COPY  ./traefik.prod.toml ./etc/traefik/traefik.toml`
 
 接下来，旋转新容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
 创建表格并应用种子:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py seed_db` 
 ```

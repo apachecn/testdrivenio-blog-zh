@@ -10,7 +10,7 @@ Pydantic 是一个基于 Python 类型提示的用于数据验证和设置管理
 
 让我们看一个例子:
 
-```
+```py
 `from pydantic import BaseModel
 
 class Song(BaseModel):
@@ -25,7 +25,7 @@ class Song(BaseModel):
 
 然后在初始化时进行验证:
 
-```
+```py
 `>>> song = Song(id=1, name='I can almost see you')
 >> song.name
 'I can almost see you'
@@ -62,7 +62,7 @@ id
 
 首先建立一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-with-pydantic && cd django-with-pydantic
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -73,13 +73,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`blog`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp blog` 
 ```
 
 在`INSTALLED_APPS`下的 *core/settings.py* 中注册 app:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -99,7 +99,7 @@ INSTALLED_APPS = [
 
 将以下内容添加到 *blog/models.py* :
 
-```
+```py
 `# blog/models.py
 
 from django.contrib.auth.models import User
@@ -117,14 +117,14 @@ class Article(models.Model):
 
 创建然后应用迁移:
 
-```
+```py
 `(env)$ python manage.py makemigrations
 (env)$ python manage.py migrate` 
 ```
 
 在 *blog/admin.py* 中注册模型，这样就可以从 Django 管理面板访问它:
 
-```
+```py
 `# blog/admin.py
 
 from django.contrib import admin
@@ -138,7 +138,7 @@ admin.site.register(Article)`
 
 安装 Pydantic 和 Pydantic-Django:
 
-```
+```py
 `(env)$ pip install pydantic==1.7.3 pydantic-django==0.0.7` 
 ```
 
@@ -149,7 +149,7 @@ admin.site.register(Article)`
 
 创建一个名为 *blog/schemas.py* 的新文件:
 
-```
+```py
 `# blog/schemas.py
 
 from pydantic_django import ModelSchema
@@ -167,7 +167,7 @@ class ArticleSchema(ModelSchema):
 
 使用模式，您还可以通过将`exclude`或`include`传递给`Config`来定义特定模型中应该包含和不应该包含哪些字段。例如，排除`author`:
 
-```
+```py
 `class ArticleSchema(ModelSchema):
     class Config:
         model = Article
@@ -183,7 +183,7 @@ class ArticleSchema(ModelSchema):
 
 您还可以通过更改模式中的字段来使用模式覆盖 Django 模型属性。例如:
 
-```
+```py
 `class ArticleSchema(ModelSchema):
     title: Optional[str]
 
@@ -201,7 +201,7 @@ class ArticleSchema(ModelSchema):
 
 将以下视图添加到 *blog/views.py* :
 
-```
+```py
 `# blog/views.py
 
 import json
@@ -266,7 +266,7 @@ def get_all_articles(request):
 
 在“博客”中添加一个 *urls.py* 文件，并定义以下 URL:
 
-```
+```py
 `# blog/urls.py
 
 from django.urls import path
@@ -282,7 +282,7 @@ urlpatterns = [
 
 现在，让我们将我们的应用程序 URL 注册到基础项目:
 
-```
+```py
 `# core/urls.py
 
 from django.contrib import admin
@@ -299,19 +299,19 @@ urlpatterns = [
 
 要进行测试，首先创建一个超级用户:
 
-```
+```py
 `(env)$ python manage.py createsuperuser` 
 ```
 
 然后，运行开发服务器:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
 在新的终端窗口中，用 cURL 添加新文章:
 
-```
+```py
 `$ curl --header "Content-Type: application/json" --request POST \
   --data '{"author":"1","title":"Something Interesting", "content":"Really interesting."}' \
   http://localhost:8000/blog/articles/create/` 
@@ -319,7 +319,7 @@ urlpatterns = [
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{
     "article": {
         "id": 1,
@@ -339,7 +339,7 @@ urlpatterns = [
 
 向 *blog/schemas.py* 添加新模式:
 
-```
+```py
 `class ArticleResponseSchema(ModelSchema):
     class Config:
         model = Article
@@ -348,7 +348,7 @@ urlpatterns = [
 
 然后，更新视图:
 
-```
+```py
 `def get_all_articles(request):
     articles = Article.objects.all()
     data = []
@@ -364,7 +364,7 @@ urlpatterns = [
 
 不要忘记在进口:
 
-```
+```py
 `from blog.schemas import ArticleSchema, ArticleResponseSchema` 
 ```
 
@@ -378,7 +378,7 @@ Django Ninja 是一个使用 Django 和基于 Python 的类型提示构建 API �
 
 创建新的 Django 项目:
 
-```
+```py
 `$ mkdir django-with-ninja && cd django-with-ninja
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -389,13 +389,13 @@ $ source env/bin/activate
 
 创建一个名为`blog`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp blog` 
 ```
 
 在`INSTALLED_APPS`下的 *core/settings.py* 中注册 app:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -413,7 +413,7 @@ INSTALLED_APPS = [
 
 接下来，向 *blog/models.py* 添加一个`Article`模型:
 
-```
+```py
 `# blog/models.py
 
 from django.contrib.auth.models import User
@@ -431,14 +431,14 @@ class Article(models.Model):
 
 创建和应用迁移:
 
-```
+```py
 `(env)$ python manage.py makemigrations
 (env)$ python manage.py migrate` 
 ```
 
 在 *blog/admin.py* 中注册模型:
 
-```
+```py
 `# blog/admin.py
 
 from django.contrib import admin
@@ -451,7 +451,7 @@ admin.site.register(Article)`
 
 安装:
 
-```
+```py
 `(env)$ pip install django-ninja==0.10.1` 
 ```
 
@@ -461,7 +461,7 @@ admin.site.register(Article)`
 
 将以下内容添加到 *blog/schemas.py* :
 
-```
+```py
 `from datetime import datetime
 
 from ninja import Schema
@@ -493,7 +493,7 @@ Django Ninja 有一个[路由器](https://django-ninja.rest-framework.com/guides
 
 创建一个 *blog/api.py* 文件:
 
-```
+```py
 `# blog/api.py
 
 from typing import List
@@ -543,7 +543,7 @@ def get_articles(request):
 
 我们要做的最后一件事是创建一个新的`NinjaAPI`实例，并在 *core/urls.py* 中注册我们的 API 路由器:
 
-```
+```py
 `# core/urls.py
 
 from django.contrib import admin
@@ -570,7 +570,7 @@ urlpatterns = [
 
 创建超级用户，然后运行开发服务器:
 
-```
+```py
 `(env)$ python manage.py createsuperuser
 (env)$ python manage.py runserver` 
 ```

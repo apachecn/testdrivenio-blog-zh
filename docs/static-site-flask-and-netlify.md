@@ -157,7 +157,7 @@ Pelican 是用 Python 编写的最流行的静态站点生成器之一。它有�
 
 项目的文件夹结构是 Flask 项目的典型结构:
 
-```
+```py
 `├── project
 │   ├── build           # Static files are created here by Frozen-Flask!
 │   ├── blog            # Blueprint for blog posts
@@ -177,26 +177,26 @@ Pelican 是用 Python 编写的最流行的静态站点生成器之一。它有�
 
 首先，从[这个](https://gitlab.com/patkennedy79/flask-recipe-app) GitLab 仓库中下载源代码:
 
-```
+```py
 `$ git clone https://gitlab.com/patkennedy79/flask-recipe-app.git` 
 ```
 
 创建新的虚拟环境:
 
-```
+```py
 `$ cd flask-recipe-app
 $ python3 -m venv venv` 
 ```
 
 激活虚拟环境:
 
-```
+```py
 `$ source venv/bin/activate` 
 ```
 
 安装 requirements.txt 中指定的 Python 包:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
@@ -210,7 +210,7 @@ $ python3 -m venv venv`
 
 例如，使用以下变量和视图函数在*project/recipes/routes . py*中定义早餐食谱:
 
-```
+```py
 `from . import recipes_blueprint
 from flask import render_template, abort
 
@@ -254,7 +254,7 @@ Flask 附带了开箱即用的 [Jinja](https://flask.palletsprojects.com/en/2.2.
 
 基础模板在*project/templates/base . html*中定义:
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="en">
     <head>
@@ -301,7 +301,7 @@ Flask 附带了开箱即用的 [Jinja](https://flask.palletsprojects.com/en/2.2.
 
 例如，用于显示早餐食谱列表的模板(在*project/recipes/templates/recipes/breakfast . html*中定义)在基础模板上展开，以显示所有的早餐食谱:
 
-```
+```py
 `{% extends "base.html" %}
 
 {% block content %}
@@ -346,7 +346,7 @@ pytest 是 Python 的一个测试框架，用于编写、组织和运行测试�
 
 测试文件在*测试/功能/* 目录中指定。例如，早餐食谱的测试在*tests/functional/test _ recipes . py*中指定:
 
-```
+```py
 `"""
 This file (test_recipes.py) contains the functional tests for the `recipes` blueprint.
 """
@@ -382,7 +382,7 @@ def test_get_individual_breakfast_recipes(test_client):
 
 这些测试功能中的每一个都使用在*测试/conftest.py* 中定义的`test_client`夹具:
 
-```
+```py
 `import pytest
 from project import create_app
 
@@ -399,7 +399,7 @@ def test_client():
 
 他们应该通过:
 
-```
+```py
 `================================ test session starts =================================
 platform darwin -- Python 3.11.0, pytest-7.2.1, pluggy-1.0.0
 plugins: cov-4.0.0
@@ -426,7 +426,7 @@ freeze-Flask 将自动生成静态文件的所有 URL。例如:
 
 记下*项目/配方/路线. py* :
 
-```
+```py
 `@recipes_blueprint.route('/')
 def recipes():
     return render_template('recipes/recipes.html')
@@ -455,7 +455,7 @@ freezed-Flask 将自动为 GET routes 生成 URL，URL 中没有可变部分。�
 
 *app.py* 文件用于运行 Flask 开发服务器:
 
-```
+```py
 `from flask_frozen import Freezer
 from project import create_app
 
@@ -477,7 +477,7 @@ if __name__ == '__main__':
 
 启动开发服务器就像任何其他 Flask 应用程序一样:
 
-```
+```py
 `(venv)$ flask --app app --debug run` 
 ```
 
@@ -489,7 +489,7 @@ if __name__ == '__main__':
 
 一旦您准备好部署静态文件，您需要**构建**文件来生成包含应用程序内容的静态文件。顶层文件夹中的 *build.py* 脚本运行 Freezer-Flask 生成静态文件:
 
-```
+```py
 `from flask_frozen import Freezer
 from project import create_app
 
@@ -510,7 +510,7 @@ if __name__ == '__main__':
 
 该脚本基于 Flask 应用程序中的路径生成所有静态文件，并将它们写入“项目/构建”文件夹:
 
-```
+```py
 `(venv)$ tree -L 3 project/build
 project/build
 ├── breakfast

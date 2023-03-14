@@ -14,7 +14,7 @@
 
 创建一个新的项目目录并安装 Flask:
 
-```
+```py
 `$ mkdir flask-on-docker && cd flask-on-docker
 $ mkdir services && cd services
 $ mkdir web && cd web
@@ -32,7 +32,7 @@ $ source env/bin/activate
 
 添加一个 *__init__。py* 文件到" project "目录并配置第一条路由:
 
-```
+```py
 `from flask import Flask, jsonify
 
 app = Flask(__name__)
@@ -44,7 +44,7 @@ def hello_world():
 
 然后，要配置 Flask CLI 工具从命令行运行和管理应用程序，请将一个 *manage.py* 文件添加到“web”目录:
 
-```
+```py
 `from flask.cli import FlaskGroup
 
 from project import app
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
 从“web”目录运行服务器:
 
-```
+```py
 `(env)$ export FLASK_APP=project/__init__.py
 (env)$ python manage.py run` 
 ```
@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
 您的项目结构应该是这样的:
 
-```
+```py
 `└── services
     └── web
         ├── manage.py
@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
 安装 [Docker](https://docs.docker.com/install/) ，如果你还没有，那么在“web”目录下添加一个 *Dockerfile* :
 
-```
+```py
 `# pull official base image
 FROM  python:3.10.7-slim-buster
 
@@ -116,7 +116,7 @@ COPY  . /usr/src/app/`
 
 接下来，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./services/web command:  python manage.py run -h 0.0.0.0 volumes: -  ./services/web/:/usr/src/app/ ports: -  5000:5000 env_file: -  ./.env.dev` 
 ```
 
@@ -124,7 +124,7 @@ COPY  . /usr/src/app/`
 
 然后，在项目根目录下创建一个 *.env.dev* 文件来存储开发环境变量:
 
-```
+```py
 `FLASK_APP=project/__init__.py
 FLASK_DEBUG=1` 
 ```
@@ -143,7 +143,7 @@ FLASK_DEBUG=1`
 
 首先，向 *docker-compose.yml* 添加一个名为`db`的新服务:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./services/web command:  python manage.py run -h 0.0.0.0 volumes: -  ./services/web/:/usr/src/app/ ports: -  5000:5000 env_file: -  ./.env.dev depends_on: -  db db: image:  postgres:13-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ environment: -  POSTGRES_USER=hello_flask -  POSTGRES_PASSWORD=hello_flask -  POSTGRES_DB=hello_flask_dev volumes: postgres_data:` 
 ```
 
@@ -155,13 +155,13 @@ FLASK_DEBUG=1`
 
 向 *.env.dev* 添加一个`DATABASE_URL`环境变量:
 
-```
+```py
 `FLASK_APP=project/__init__.py FLASK_DEBUG=1 DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_dev` 
 ```
 
 然后，将一个名为 *config.py* 的新文件添加到“项目”目录中，在这里我们将定义特定于环境的[配置](https://flask.palletsprojects.com/config/)变量:
 
-```
+```py
 `import os
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -175,7 +175,7 @@ class Config(object):
 
 更新 *__init__。py* 在 init 上拉入配置:
 
-```
+```py
 `from flask import Flask, jsonify
 
 app = Flask(__name__)
@@ -188,7 +188,7 @@ def hello_world():
 
 将 [Flask-SQLAlchemy](https://flask-sqlalchemy.palletsprojects.com) 和 [Psycopg2](https://www.psycopg.org/) 添加到 *requirements.txt* :
 
-```
+```py
 `Flask==2.2.2
 Flask-SQLAlchemy==2.5.1
 psycopg2-binary==2.9.4` 
@@ -196,7 +196,7 @@ psycopg2-binary==2.9.4`
 
 更新 *__init__。py* 再次创建一个新的`SQLAlchemy`实例并定义一个数据库模型:
 
-```
+```py
 `from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
@@ -221,7 +221,7 @@ def hello_world():
 
 最后，更新 *manage.py* :
 
-```
+```py
 `from flask.cli import FlaskGroup
 
 from project import app, db
@@ -242,19 +242,19 @@ if __name__ == "__main__":
 
 构建新的映像并旋转两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 创建表格:
 
-```
+```py
 `$ docker-compose exec web python manage.py create_db` 
 ```
 
 > 得到以下错误？
 > 
-> ```
+> ```py
 > sqlalchemy.exc.OperationalError: (psycopg2.OperationalError)
 > FATAL:  database "hello_flask_dev" does not exist 
 > ```
@@ -263,7 +263,7 @@ if __name__ == "__main__":
 
 确保`users`表已创建:
 
-```
+```py
 `$ docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev
 
 psql (13.8)
@@ -296,13 +296,13 @@ hello_flask_dev=# \q`
 
 您也可以通过运行以下命令来检查该卷是否已创建:
 
-```
+```py
 `$ docker volume inspect flask-on-docker_postgres_data` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `[
     {
         "CreatedAt": "2022-10-11T14:43:49Z",
@@ -322,7 +322,7 @@ hello_flask_dev=# \q`
 
 接下来，将一个 *entrypoint.sh* 文件添加到“web”目录，以在创建数据库表并运行 Flask 开发服务器之前，验证 Postgres 是否已启动*和*是否健康*:*
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DATABASE" = "postgres" ]
@@ -345,13 +345,13 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 在本地更新文件权限:
 
-```
+```py
 `$ chmod +x services/web/entrypoint.sh` 
 ```
 
 然后，更新 Docker 文件安装 [Netcat](http://netcat.sourceforge.net/) ，复制 *entrypoint.sh* 文件，运行该文件作为 Docker [entrypoint](https://docs.docker.com/engine/reference/builder/#entrypoint) 命令:
 
-```
+```py
 `# pull official base image
 FROM  python:3.10.7-slim-buster
 
@@ -379,7 +379,7 @@ ENTRYPOINT  ["/usr/src/app/entrypoint.sh"]`
 
 将 *entrypoint.sh* 脚本的`SQL_HOST`、`SQL_PORT`和`DATABASE`环境变量添加到 *.env.dev* :
 
-```
+```py
 `FLASK_APP=project/__init__.py FLASK_DEBUG=1 DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_dev SQL_HOST=db SQL_PORT=5432 DATABASE=postgres` 
 ```
 
@@ -391,7 +391,7 @@ ENTRYPOINT  ["/usr/src/app/entrypoint.sh"]`
 
 让我们添加一个 CLI 种子命令，用于将示例用户添加到 *manage.py* 中的`users`表中:
 
-```
+```py
 `from flask.cli import FlaskGroup
 
 from project import app, db, User
@@ -415,7 +415,7 @@ if __name__ == "__main__":
 
 尝试一下:
 
-```
+```py
 `$ docker-compose exec web python manage.py seed_db
 
 $ docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev
@@ -437,7 +437,7 @@ hello_flask_dev=# \q`
 
 > 尽管添加了 Postgres，我们仍然可以通过不设置`DATABASE_URL`环境变量来为 Flask 创建一个独立的 Docker 映像。要进行测试，构建一个新的映像，然后运行一个新的容器:
 > 
-> ```
+> ```py
 > $ docker build -f ./services/web/Dockerfile -t hello_flask:latest ./services/web
 > $ docker run -p 5001:5000 \
 >     -e "FLASK_APP=project/__init__.py" -e "FLASK_DEBUG=1" \
@@ -450,7 +450,7 @@ hello_flask_dev=# \q`
 
 接下来，对于生产环境，让我们将 [Gunicorn](https://gunicorn.org/) ，一个生产级的 WSGI 服务器，添加到需求文件中:
 
-```
+```py
 `Flask==2.2.2
 Flask-SQLAlchemy==2.5.1
 gunicorn==20.1.0
@@ -459,7 +459,7 @@ psycopg2-binary==2.9.4`
 
 因为我们仍然希望在开发中使用 Flask 的内置服务器，所以为生产创建一个名为 *docker-compose.prod.yml* 的新合成文件:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./services/web command:  gunicorn --bind 0.0.0.0:5000 manage:app ports: -  5000:5000 env_file: -  ./.env.prod depends_on: -  db db: image:  postgres:13-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ env_file: -  ./.env.prod.db volumes: postgres_data_prod:` 
 ```
 
@@ -469,13 +469,13 @@ psycopg2-binary==2.9.4`
 
 *.env.prod* :
 
-```
+```py
 `FLASK_APP=project/__init__.py FLASK_DEBUG=0 DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_prod SQL_HOST=db SQL_PORT=5432 DATABASE=postgres` 
 ```
 
 *.env.prod.db* :
 
-```
+```py
 `POSTGRES_USER=hello_flask
 POSTGRES_PASSWORD=hello_flask
 POSTGRES_DB=hello_flask_prod` 
@@ -487,7 +487,7 @@ POSTGRES_DB=hello_flask_prod`
 
 然后，构建生产映像并启动容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -501,7 +501,7 @@ POSTGRES_DB=hello_flask_prod`
 
 entry point . prod . sh:
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DATABASE" = "postgres" ]
@@ -520,7 +520,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 > 或者，不创建新的入口点文件，您可以修改现有的文件，如下所示:
 > 
-> ```
+> ```py
 > #!/bin/sh
 > 
 > if [ "$DATABASE" = "postgres" ]
@@ -546,13 +546,13 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 在本地更新文件权限:
 
-```
+```py
 `$ chmod +x services/web/entrypoint.prod.sh` 
 ```
 
 要使用这个文件，创建一个名为 *Dockerfile.prod* 的新 Dockerfile，用于生产构建:
 
-```
+```py
 `###########
 # BUILDER #
 ###########
@@ -631,13 +631,13 @@ ENTRYPOINT  ["/home/app/web/entrypoint.prod.sh"]`
 
 更新 *docker-compose.prod.yml* 文件中的`web`服务，用 *Dockerfile.prod* 构建:
 
-```
+```py
 `web: build: context:  ./services/web dockerfile:  Dockerfile.prod command:  gunicorn --bind 0.0.0.0:5000 manage:app ports: -  5000:5000 env_file: -  ./.env.prod depends_on: -  db` 
 ```
 
 尝试一下:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db` 
@@ -649,13 +649,13 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db`
 
 将服务添加到 *docker-compose.prod.yml* :
 
-```
+```py
 `nginx: build:  ./services/nginx ports: -  1337:80 depends_on: -  web` 
 ```
 
 然后，在“服务”目录中，创建以下文件和文件夹:
 
-```
+```py
 `└── nginx
     ├── Dockerfile
     └── nginx.conf` 
@@ -663,7 +663,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db`
 
 *Dockerfile* :
 
-```
+```py
 `FROM  nginx:1.23-alpine
 
 RUN  rm /etc/nginx/conf.d/default.conf
@@ -672,7 +672,7 @@ COPY  nginx.conf /etc/nginx/conf.d`
 
 *engine . conf*:
 
-```
+```py
 `upstream hello_flask {
     server web:5000;
 }
@@ -695,7 +695,7 @@ server {
 
 然后，更新`web`服务，在 *docker-compose.prod.yml* 中，用`expose`替换`ports`:
 
-```
+```py
 `web: build: context:  ./services/web dockerfile:  Dockerfile.prod command:  gunicorn --bind 0.0.0.0:5000 manage:app expose: -  5000 env_file: -  ./.env.prod depends_on: -  db` 
 ```
 
@@ -705,7 +705,7 @@ server {
 
 再次测试:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db` 
@@ -715,7 +715,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db`
 
 您的项目结构现在应该看起来像这样:
 
-```
+```py
 `├── .env.dev
 ├── .env.prod
 ├── .env.prod.db
@@ -740,7 +740,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db`
 
 完成后将容器拿下来:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
@@ -754,7 +754,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py create_db`
 
 向 *__init__ 添加一个新的路由处理程序。py* :
 
-```
+```py
 `@app.route("/static/<path:filename>")
 def staticfiles(filename):
     return send_from_directory(app.config["STATIC_FOLDER"], filename)` 
@@ -762,13 +762,13 @@ def staticfiles(filename):
 
 不要忘记导入[发送自目录](https://flask.palletsprojects.com/api/#flask.send_from_directory):
 
-```
+```py
 `from flask import Flask, jsonify, send_from_directory` 
 ```
 
 最后，将`STATIC_FOLDER`配置添加到*服务/web/project/config.py*
 
-```
+```py
 `import os
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -783,7 +783,7 @@ class Config(object):
 
 将`APP_FOLDER`环境变量添加到 *.env.dev* :
 
-```
+```py
 `FLASK_APP=project/__init__.py FLASK_DEBUG=1 DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_dev SQL_HOST=db SQL_PORT=5432 DATABASE=postgres APP_FOLDER=/usr/src/app` 
 ```
 
@@ -793,13 +793,13 @@ class Config(object):
 
 对于生产，向 *docker-compose.prod.yml* 中的`web`和`nginx`服务添加一个卷，这样每个容器将共享一个名为“static”的目录:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./services/web dockerfile:  Dockerfile.prod command:  gunicorn --bind 0.0.0.0:5000 manage:app volumes: -  static_volume:/home/app/web/project/static expose: -  5000 env_file: -  ./.env.prod depends_on: -  db db: image:  postgres:13-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ env_file: -  ./.env.prod.db nginx: build:  ./services/nginx volumes: -  static_volume:/home/app/web/project/static ports: -  1337:80 depends_on: -  web volumes: postgres_data_prod: static_volume:` 
 ```
 
 接下来，更新 Nginx 配置，将静态文件请求路由到“static”文件夹:
 
-```
+```py
 `upstream hello_flask {
     server web:5000;
 }
@@ -824,7 +824,7 @@ server {
 
 将`APP_FOLDER`环境变量添加到 *.env.prod* :
 
-```
+```py
 `FLASK_APP=project/__init__.py FLASK_DEBUG=0 DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_prod SQL_HOST=db SQL_PORT=5432 DATABASE=postgres APP_FOLDER=/home/app/web` 
 ```
 
@@ -834,7 +834,7 @@ server {
 
 测试:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -844,20 +844,20 @@ server {
 
 您还可以通过`docker-compose -f docker-compose.prod.yml logs -f`在日志中验证对静态文件的请求是否通过 Nginx 成功提供:
 
-```
+```py
 `192.168.80.1 - - [11/Oct/2022:15:20:25 +0000] "GET /static/hello.txt HTTP/1.1" 200 4 "-"
 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36" "-"` 
 ```
 
 完成后带上容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
 为了测试对用户上传的媒体文件的处理，向 *__init__ 添加两个新的路由处理程序。py* :
 
-```
+```py
 `@app.route("/media/<path:filename>")
 def mediafiles(filename):
     return send_from_directory(app.config["MEDIA_FOLDER"], filename)
@@ -879,7 +879,7 @@ def upload_file():
 
 也更新导入:
 
-```
+```py
 `import os
 
 from flask import (
@@ -894,7 +894,7 @@ from werkzeug.utils import secure_filename`
 
 将`MEDIA_FOLDER`配置添加到*services/web/project/config . py*:
 
-```
+```py
 `import os
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -912,7 +912,7 @@ class Config(object):
 
 测试:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -922,13 +922,13 @@ class Config(object):
 
 对于生产，向`web`和`nginx`服务添加另一个卷:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./services/web dockerfile:  Dockerfile.prod command:  gunicorn --bind 0.0.0.0:5000 manage:app volumes: -  static_volume:/home/app/web/project/static -  media_volume:/home/app/web/project/media expose: -  5000 env_file: -  ./.env.prod depends_on: -  db db: image:  postgres:13-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ env_file: -  ./.env.prod.db nginx: build:  ./services/nginx volumes: -  static_volume:/home/app/web/project/static -  media_volume:/home/app/web/project/media ports: -  1337:80 depends_on: -  web volumes: postgres_data_prod: static_volume: media_volume:` 
 ```
 
 接下来，更新 Nginx 配置，将媒体文件请求路由到“media”文件夹:
 
-```
+```py
 `upstream hello_flask {
     server web:5000;
 }
@@ -957,7 +957,7 @@ server {
 
 重建:
 
-```
+```py
 `$ docker-compose down -v
 
 $ docker-compose -f docker-compose.prod.yml up -d --build

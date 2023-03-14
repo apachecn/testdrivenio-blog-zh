@@ -60,14 +60,14 @@ Vue 是一个开源的 JavaScript 框架，用于构建用户界面。它采用�
 
 首先创建一个新的项目目录:
 
-```
+```py
 `$ mkdir flask-vue-crud
 $ cd flask-vue-crud` 
 ```
 
 在“flask-vue-crud”中，创建一个名为“server”的新目录。然后，在“服务器”目录中创建并激活虚拟环境:
 
-```
+```py
 `$ python3.9 -m venv env
 $ source env/bin/activate
 (env)$` 
@@ -77,13 +77,13 @@ $ source env/bin/activate
 
 将烧瓶连同[烧瓶-CORS](http://flask-cors.readthedocs.io/) 延长件一起安装；
 
-```
+```py
 `(env)$ pip install Flask==1.1.2 Flask-Cors==3.0.10` 
 ```
 
 向新创建的“服务器”目录添加一个 *app.py* 文件:
 
-```
+```py
 `from flask import Flask, jsonify
 from flask_cors import CORS
 
@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
 这需要你回答几个关于这个项目的问题。
 
-```
+```py
 `Vue CLI v4.5.11
 ? Please pick a preset: (Use arrow keys)
 ❯ Default ([Vue 2] babel, eslint)
@@ -138,7 +138,7 @@ if __name__ == '__main__':
 
 使用向下箭头键选中“手动选择功能”，然后按 enter 键。接下来，您需要选择想要安装的功能。对于本教程，选择“选择 Vue 版本”、“Babel”、“Router”和“Linter / Formatter”，如下所示:
 
-```
+```py
 `Vue CLI v4.5.11
 ? Please pick a preset: Manually select features
 ? Check the features needed for your project:
@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `Vue CLI v4.5.11
 ? Please pick a preset: Manually select features
 ? Check the features needed for your project: Choose Vue version, Babel, Router, Linter
@@ -178,7 +178,7 @@ if __name__ == '__main__':
 
 index.html 文件是我们的 Vue 应用程序的起点。
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="">
   <head>
@@ -202,7 +202,7 @@ index.html 文件是我们的 Vue 应用程序的起点。
 
 请注意“src”文件夹中的文件夹:
 
-```
+```py
 `client/src
 ├── App.vue
 ├── assets
@@ -236,7 +236,7 @@ index.html 文件是我们的 Vue 应用程序的起点。
 
 启动开发服务器:
 
-```
+```py
 `$ cd client
 $ npm run serve` 
 ```
@@ -247,7 +247,7 @@ $ npm run serve`
 
 为了简单起见，删除“client/src/views”文件夹。然后，在“client/src/components”文件夹中添加一个名为 *Ping.vue* 的新组件:
 
-```
+```py
 `<template>
   <div>
     <p>{{ msg }}</p>
@@ -259,13 +259,13 @@ $ npm run serve`
 
 更新*client/src/router/index . js*，将“/ping”映射到`Ping`组件，如下所示:
 
-```
+```py
 `import  Vue  from  'vue'; import  Router  from  'vue-router'; import  Ping  from  '../components/Ping.vue'; Vue.use(Router); export  default  new  Router({ mode:  'history', base:  process.env.BASE_URL, routes:  [ { path:  '/ping', name:  'Ping', component:  Ping, }, ], });` 
 ```
 
 最后，在 *client/src/App.vue* 中，移除导航和样式:
 
-```
+```py
 `<template>
   <div id="app">
     <router-view/>
@@ -281,7 +281,7 @@ $ npm run serve`
 
 在 *Ping.vue* 中更新组件的`script`部分，如下所示:
 
-```
+```py
 `<script> import  axios  from  'axios'; export  default  { name:  'Ping', data()  { return  { msg:  '', }; }, methods:  { getMessage()  { const  path  =  'http://localhost:5000/ping'; axios.get(path) .then((res)  =>  { this.msg  =  res.data; }) .catch((error)  =>  { // eslint-disable-next-line console.error(error); }); }, }, created()  { this.getMessage(); }, }; </script>` 
 ```
 
@@ -297,19 +297,19 @@ $ npm run serve`
 
 将引导样式导入到 *client/src/main.js* :
 
-```
+```py
 `import  Vue  from  'vue'; import  App  from  './App.vue'; import  router  from  './router'; import  'bootstrap/dist/css/bootstrap.css'; Vue.config.productionTip  =  false; new  Vue({ router, render:  (h)  =>  h(App), }).$mount('#app');` 
 ```
 
 更新 *client/src/App.vue* 中的`style`部分:
 
-```
+```py
 `<style> #app  { margin-top:  60px } </style>` 
 ```
 
 使用`Ping`组件中的[按钮](https://getbootstrap.com/docs/4.6/components/buttons/)和[容器](https://getbootstrap.com/docs/4.6/layout/overview/#containers)确保自举正确连接；
 
-```
+```py
 `<template>
   <div class="container">
     <button type="button" class="btn btn-primary">{{ msg }}</button>
@@ -325,7 +325,7 @@ $ npm run serve`
 
 接下来，在名为 *Books.vue* 的新文件中添加一个名为`Books`的新组件:
 
-```
+```py
 `<template>
   <div class="container">
     <p>books</p>
@@ -335,7 +335,7 @@ $ npm run serve`
 
 更新路由器:
 
-```
+```py
 `import  Vue  from  'vue'; import  Router  from  'vue-router'; import  Books  from  '../components/Books.vue'; import  Ping  from  '../components/Ping.vue'; Vue.use(Router); export  default  new  Router({ mode:  'history', base:  process.env.BASE_URL, routes:  [ { path:  '/', name:  'Books', component:  Books, }, { path:  '/ping', name:  'Ping', component:  Ping, }, ], });` 
 ```
 
@@ -346,7 +346,7 @@ $ npm run serve`
 
 最后，让我们向`Books`组件添加一个快速的、引导样式的表格:
 
-```
+```py
 `<template>
   <div class="container">
     <div class="row">
@@ -406,7 +406,7 @@ $ npm run serve`
 
 将图书列表添加到 *server/app.py* :
 
-```
+```py
 `BOOKS = [
     {
         'title': 'On the Road',
@@ -428,7 +428,7 @@ $ npm run serve`
 
 添加路由处理程序:
 
-```
+```py
 `@app.route('/books', methods=['GET'])
 def all_books():
     return jsonify({
@@ -445,7 +445,7 @@ def all_books():
 
 更新组件:
 
-```
+```py
 `<template>
   <div class="container">
     <div class="row">
@@ -506,7 +506,7 @@ def all_books():
 
 启用 *client/src/main.js* 中的 Bootstrap Vue 库:
 
-```
+```py
 `import  BootstrapVue  from  'bootstrap-vue'; import  Vue  from  'vue'; import  App  from  './App.vue'; import  router  from  './router'; import  'bootstrap/dist/css/bootstrap.css'; Vue.use(BootstrapVue); Vue.config.productionTip  =  false; new  Vue({ router, render:  (h)  =>  h(App), }).$mount('#app');` 
 ```
 
@@ -516,7 +516,7 @@ def all_books():
 
 更新现有的路由处理程序，以处理添加新书的 POST 请求:
 
-```
+```py
 `@app.route('/books', methods=['GET', 'POST'])
 def all_books():
     response_object = {'status': 'success'}
@@ -535,13 +535,13 @@ def all_books():
 
 更新导入:
 
-```
+```py
 `from flask import Flask, jsonify, request` 
 ```
 
 当 Flask 服务器运行时，您可以在新的终端选项卡中测试 POST 路由:
 
-```
+```py
 `$ curl -X POST http://localhost:5000/books -d \
   '{"title": "1Q84", "author": "Haruki Murakami", "read": "true"}' \
   -H 'Content-Type: application/json'` 
@@ -549,7 +549,7 @@ def all_books():
 
 您应该看到:
 
-```
+```py
 `{
   "message": "Book added!",
   "status": "success"
@@ -564,7 +564,7 @@ def all_books():
 
 在客户端，现在让我们添加一个用于向`Books`组件添加新书的模型，从 HTML:
 
-```
+```py
 `<b-modal ref="addBookModal"
          id="book-modal"
          title="Add a new book"
@@ -607,7 +607,7 @@ def all_books():
 
 更新`script`部分:
 
-```
+```py
 `<script> import  axios  from  'axios'; export  default  { data()  { return  { books:  [], addBookForm:  { title:  '', author:  '', read:  [], }, }; }, methods:  { getBooks()  { const  path  =  'http://localhost:5000/books'; axios.get(path) .then((res)  =>  { this.books  =  res.data.books; }) .catch((error)  =>  { // eslint-disable-next-line console.error(error); }); }, addBook(payload)  { const  path  =  'http://localhost:5000/books'; axios.post(path,  payload) .then(()  =>  { this.getBooks(); }) .catch((error)  =>  { // eslint-disable-next-line console.log(error); this.getBooks(); }); }, initForm()  { this.addBookForm.title  =  ''; this.addBookForm.author  =  ''; this.addBookForm.read  =  []; }, onSubmit(evt)  { evt.preventDefault(); this.$refs.addBookModal.hide(); let  read  =  false; if  (this.addBookForm.read[0])  read  =  true; const  payload  =  { title:  this.addBookForm.title, author:  this.addBookForm.author, read,  // property shorthand }; this.addBook(payload); this.initForm(); }, onReset(evt)  { evt.preventDefault(); this.$refs.addBookModal.hide(); this.initForm(); }, }, created()  { this.getBooks(); }, }; </script>` 
 ```
 
@@ -623,13 +623,13 @@ def all_books():
 
 最后，更新模板中的“Add Book”按钮，以便在单击按钮时显示模式:
 
-```
+```py
 `<button type="button" class="btn btn-success btn-sm" v-b-modal.book-modal>Add Book</button>` 
 ```
 
 该组件现在应该如下所示:
 
-```
+```py
 `<template>
   <div class="container">
     <div class="row">
@@ -718,7 +718,7 @@ def all_books():
 
 将名为 *Alert.vue* 的新文件添加到“客户端/src/组件”中:
 
-```
+```py
 `<template>
   <p>It works!</p>
 </template>` 
@@ -726,13 +726,13 @@ def all_books():
 
 然后，将其导入到`Books`组件的`script`部分，并注册该组件:
 
-```
+```py
 `<script> import  axios  from  'axios'; import  Alert  from  './Alert.vue'; ... export  default  { data()  { return  { books:  [], addBookForm:  { title:  '', author:  '', read:  [], }, }; }, components:  { alert:  Alert, }, ... }; </script>` 
 ```
 
 现在，我们可以在`template`部分引用新组件:
 
-```
+```py
 `<template>
   <b-container>
     <b-row>
@@ -758,7 +758,7 @@ def all_books():
 
 接下来，让我们添加实际的 [b-alert](https://bootstrap-vue.org/docs/components/alert/) 组件*client/src/components/alert . vue*:
 
-```
+```py
 `<template>
   <div>
     <b-alert variant="success" show>{{ message }}</b-alert>
@@ -771,7 +771,7 @@ def all_books():
 
 注意`script`部分的[道具](https://vuejs.org/v2/guide/components-props.html)选项。我们可以像这样从父组件(`Books`)向下传递消息:
 
-```
+```py
 `<alert message="hi"></alert>` 
 ```
 
@@ -783,37 +783,37 @@ def all_books():
 
 为了使其动态，以便传递自定义消息，在 *Books.vue* 中使用一个[绑定表达式](https://vuejs.org/v2/guide/syntax.html#v-bind-Shorthand):
 
-```
+```py
 `<alert :message="message"></alert>` 
 ```
 
 将`message`添加到`data`选项中，同样在*书籍中。vue* 中:
 
-```
+```py
 `data()  { return  { books:  [], addBookForm:  { title:  '', author:  '', read:  [], }, message:  '', }; },` 
 ```
 
 然后，在`addBook`内，更新消息:
 
-```
+```py
 `addBook(payload)  { const  path  =  'http://localhost:5000/books'; axios.post(path,  payload) .then(()  =>  { this.getBooks(); this.message  =  'Book added!'; }) .catch((error)  =>  { // eslint-disable-next-line console.log(error); this.getBooks(); }); },` 
 ```
 
 最后，添加一个`v-if`，这样只有当`showMessage`为真时才会显示警告:
 
-```
+```py
 `<alert :message=message v-if="showMessage"></alert>` 
 ```
 
 将`showMessage`添加到`data`中:
 
-```
+```py
 `data()  { return  { books:  [], addBookForm:  { title:  '', author:  '', read:  [], }, message:  '', showMessage:  false, }; },` 
 ```
 
 再次更新`addBook`，将`showMessage`设置为`true`:
 
-```
+```py
 `addBook(payload)  { const  path  =  'http://localhost:5000/books'; axios.post(path,  payload) .then(()  =>  { this.getBooks(); this.message  =  'Book added!'; this.showMessage  =  true; }) .catch((error)  =>  { // eslint-disable-next-line console.log(error); this.getBooks(); }); },` 
 ```
 
@@ -835,7 +835,7 @@ def all_books():
 
 更新 *server/app.py* 中的`BOOKS`:
 
-```
+```py
 `BOOKS = [
     {
         'id': uuid.uuid4().hex,
@@ -862,7 +862,7 @@ def all_books():
 
 添加新书时，重构`all_books`以考虑唯一 id:
 
-```
+```py
 `@app.route('/books', methods=['GET', 'POST'])
 def all_books():
     response_object = {'status': 'success'}
@@ -882,7 +882,7 @@ def all_books():
 
 添加新的路由处理程序:
 
-```
+```py
 `@app.route('/books/<book_id>', methods=['PUT'])
 def single_book(book_id):
     response_object = {'status': 'success'}
@@ -901,7 +901,7 @@ def single_book(book_id):
 
 添加助手:
 
-```
+```py
 `def remove_book(book_id):
     for book in BOOKS:
         if book['id'] == book_id:
@@ -926,7 +926,7 @@ def single_book(book_id):
 
 首先，在模板中添加一个新的模态，就在第一个模态的下面:
 
-```
+```py
 `<b-modal ref="editBookModal"
          id="book-update-modal"
          title="Update"
@@ -967,7 +967,7 @@ def single_book(book_id):
 
 将表单状态添加到`script`部分的`data`部分:
 
-```
+```py
 `editForm:  { id:  '', title:  '', author:  '', read:  [], },` 
 ```
 
@@ -977,7 +977,7 @@ def single_book(book_id):
 
 更新表格中的“更新”按钮:
 
-```
+```py
 `<button
         type="button"
         class="btn btn-warning btn-sm"
@@ -989,19 +989,19 @@ def single_book(book_id):
 
 添加一个新方法来更新`editForm`中的值:
 
-```
+```py
 `editBook(book)  { this.editForm  =  book; },` 
 ```
 
 然后，添加一个方法来处理表单提交:
 
-```
+```py
 `onSubmitUpdate(evt)  { evt.preventDefault(); this.$refs.editBookModal.hide(); let  read  =  false; if  (this.editForm.read[0])  read  =  true; const  payload  =  { title:  this.editForm.title, author:  this.editForm.author, read, }; this.updateBook(payload,  this.editForm.id); },` 
 ```
 
 #### (3)连接 AJAX 请求
 
-```
+```py
 `updateBook(payload,  bookID)  { const  path  =  `http://localhost:5000/books/${bookID}`; axios.put(path,  payload) .then(()  =>  { this.getBooks(); }) .catch((error)  =>  { // eslint-disable-next-line console.error(error); this.getBooks(); }); },` 
 ```
 
@@ -1009,7 +1009,7 @@ def single_book(book_id):
 
 更新`updateBook`:
 
-```
+```py
 `updateBook(payload,  bookID)  { const  path  =  `http://localhost:5000/books/${bookID}`; axios.put(path,  payload) .then(()  =>  { this.getBooks(); this.message  =  'Book updated!'; this.showMessage  =  true; }) .catch((error)  =>  { // eslint-disable-next-line console.error(error); this.getBooks(); }); },` 
 ```
 
@@ -1017,13 +1017,13 @@ def single_book(book_id):
 
 添加方法:
 
-```
+```py
 `onResetUpdate(evt)  { evt.preventDefault(); this.$refs.editBookModal.hide(); this.initForm(); this.getBooks();  // why? },` 
 ```
 
 更新`initForm`:
 
-```
+```py
 `initForm()  { this.addBookForm.title  =  ''; this.addBookForm.author  =  ''; this.addBookForm.read  =  []; this.editForm.id  =  ''; this.editForm.title  =  ''; this.editForm.author  =  ''; this.editForm.read  =  []; },` 
 ```
 
@@ -1037,7 +1037,7 @@ def single_book(book_id):
 
 更新路由处理程序:
 
-```
+```py
 `@app.route('/books/<book_id>', methods=['PUT', 'DELETE'])
 def single_book(book_id):
     response_object = {'status': 'success'}
@@ -1061,7 +1061,7 @@ def single_book(book_id):
 
 像这样更新“删除”按钮:
 
-```
+```py
 `<button
         type="button"
         class="btn btn-danger btn-sm"
@@ -1072,7 +1072,7 @@ def single_book(book_id):
 
 添加方法来处理按钮点击，然后删除书:
 
-```
+```py
 `removeBook(bookID)  { const  path  =  `http://localhost:5000/books/${bookID}`; axios.delete(path) .then(()  =>  { this.getBooks(); this.message  =  'Book removed!'; this.showMessage  =  true; }) .catch((error)  =>  { // eslint-disable-next-line console.error(error); this.getBooks(); }); }, onDeleteBook(book)  { this.removeBook(book.id); },` 
 ```
 

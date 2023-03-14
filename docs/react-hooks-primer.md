@@ -48,7 +48,7 @@ React 很棒，但是在开发更大的应用程序时，需要解决一些稍�
 
 React 版本 [16.8](https://reactjs.org/blog/2019/02/06/react-v16.8.0.html) 有钩子。
 
-```
+```py
 `import  {  useState,  useEffect  }  from  'react';` 
 ```
 
@@ -60,7 +60,7 @@ React 版本 [16.8](https://reactjs.org/blog/2019/02/06/react-v16.8.0.html) 有�
 
 例如:
 
-```
+```py
 `const  [weight,  setWeight]  =  useState(150); onClick={()  =>  setWeight(weight  +  15)}` 
 ```
 
@@ -70,13 +70,13 @@ React 版本 [16.8](https://reactjs.org/blog/2019/02/06/react-v16.8.0.html) 有�
 
 值得注意的是，您可以在单个组件中多次析构状态挂钩:
 
-```
+```py
 `const  [age,  setAge]  =  useState(42); const  [month,  setMonth]  =  useState('February'); const  [todos,  setTodos]  =  useState([{  text:  'Eat pie'  }]);` 
 ```
 
 因此，该组件可能类似于:
 
-```
+```py
 `import React, { useState } from 'react';
 
 export default function App() {
@@ -104,19 +104,19 @@ export default function App() {
 
 例如:
 
-```
+```py
 `// similar to the componentDidMount and componentDidUpdate methods useEffect(()  =>  { document.title  =  `You clicked ${count} times`; });` 
 ```
 
 每当组件更新时，`useEffect`将在渲染后被调用。现在，如果您只想在变量计数发生变化时更新`useEffect`，您只需将该事实添加到数组中方法的末尾，类似于高阶`reduce`方法末尾的累加器。
 
-```
+```py
 `// check out the variable count in the array at the end... useEffect(()  =>  { document.title  =  `You clicked ${count} times`; },  [  count  ]);` 
 ```
 
 让我们结合两个例子:
 
-```
+```py
 `const  [weight,  setWeight]  =  useState(150); useEffect(()  =>  { document.title  =  `You weigh ${weight}, you ok with that?`; },  [  weight  ]); onClick={()  =>  setWeight(weight  +  15)}` 
 ```
 
@@ -124,7 +124,7 @@ export default function App() {
 
 示例:
 
-```
+```py
 `import React, { useState, useEffect } from 'react';
 
 export default function App() {
@@ -152,7 +152,7 @@ export default function App() {
 
 `useEffect`非常适合进行 API 调用:
 
-```
+```py
 `useEffect(()  =>  { fetch('https://jsonplaceholder.typicode.com/todos/1') .then(results  =>  results.json()) .then((data)  =>  {  setTodos([{  text:  data.title  }]);  }); },  []);` 
 ```
 
@@ -168,7 +168,7 @@ React 钩子看起来很棒，但是如果你花一分钟，你可能会意识�
 
 例如:
 
-```
+```py
 `// This is good! function  ComponentWithHooks()  { // top-level! const  [age,  setAge]  =  useState(42); const  [month,  setMonth]  =  useState('February'); const  [todos,  setTodos]  =  useState([{  text:  'Eat pie'  }]); return  ( //... ) }` 
 ```
 
@@ -182,11 +182,11 @@ React 钩子看起来很棒，但是如果你花一分钟，你可能会意识�
 
 例如:
 
-```
+```py
 `// DON'T DO THIS!! const  [DNAMatch,  setDNAMatch]  =  useState(false) if  (name)  { setDNAMatch(true) const  [name,  setName]  =  useState(name) useEffect(function  persistFamily()  { localStorage.setItem('dad',  name); },  []); }` 
 ```
 
-```
+```py
 `// DO THIS!! const  [DNAMatch,  setDNAMatch]  =  useState(false) const  [name,  setName]  =  useState(null) useEffect(()  =>  { if  (name)  { setDNAMatch(true) setName(name) localStorage.setItem('dad',  name); } },  []);` 
 ```
 
@@ -210,7 +210,7 @@ React 钩子看起来很棒，但是如果你花一分钟，你可能会意识�
 
 例如:
 
-```
+```py
 `import  {  useEffect,  useState  }  from  'react'; const  useFetch  =  ({  url,  defaultData  =  null  })  =>  { const  [data,  setData]  =  useState(defaultData); const  [loading,  setLoading]  =  useState(true); const  [error,  setError]  =  useState(null); useEffect(()  =>  { fetch(url) .then(res  =>  res.json()) .then((res)  =>  { setData(res); setLoading(false); }) .catch((err)  =>  { setError(err); setLoading(false); }); },  []); const  fetchResults  =  { data, loading, error, }; return  fetchResults; }; export  default  useFetch;` 
 ```
 
@@ -222,7 +222,7 @@ React 钩子看起来很棒，但是如果你花一分钟，你可能会意识�
 
 下面的类组件应该看起来很熟悉:
 
-```
+```py
 `import React from 'react';
 
 class OneChanceButton extends React.Component {
@@ -257,7 +257,7 @@ export default OneChanceButton;`
 
 用钩子实现相同的功能来简化代码和增加可读性怎么样:
 
-```
+```py
 `import React, { useState } from 'react';
 
 function OneChanceButton(props) {

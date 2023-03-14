@@ -88,7 +88,7 @@ Pythonic 代码包括:
 
 非 Pythonic 解决方案应该是这样的:
 
-```
+```py
 `n = 10
 sum_all = 0
 
@@ -100,7 +100,7 @@ print(sum_all)  # 55`
 
 一个更 Pythonic 化的解决方案可能是这样的:
 
-```
+```py
 `n = 10
 sum_all = sum(range(1, n + 1))
 
@@ -115,7 +115,7 @@ Python 的禅是用 Python 写计算机程序的 19 个“指导原则”的集�
 
 您可以通过执行以下命令来查看它:
 
-```
+```py
 `>>> import this
 
 The Zen of Python, by Tim Peters
@@ -193,7 +193,7 @@ SOLID 在编写 OOP 代码时极其有用。它谈到了将你的类分成多个
 
 编写干净代码的一个最重要的方面是命名约定。你应该总是使用有意义的和揭示意图的名字。使用长的、描述性的名字总比带注释的短名字好。
 
-```
+```py
 `# This is bad
 # represents the number of active users
 au = 55
@@ -212,7 +212,7 @@ active_user_amount = 55`
 
 其他开发人员应该能够通过读取变量的名称来计算出变量存储的内容。
 
-```
+```py
 `# This is bad
 c = 5
 d = 12
@@ -226,7 +226,7 @@ elapsed_time_in_days = 12`
 
 你应该总是使用容易发音的名字；否则，你将很难大声解释你的算法。
 
-```
+```py
 `from datetime import datetime
 
 # This is bad
@@ -240,7 +240,7 @@ generation_datetime = datetime.strptime('04/27/95 07:14:22', '%m/%d/%y %H:%M:%S'
 
 不要试图想出自己的缩写。变量最好有一个更长的名字，而不是一个容易混淆的名字。
 
-```
+```py
 `# This is bad
 fna = 'Bob'
 cre_tmstp = 1621535852
@@ -254,7 +254,7 @@ creation_timestamp = 1621535852`
 
 命名变量时避免使用同义词。
 
-```
+```py
 `# This is bad
 client_first_name = 'Bob'
 customer_last_name = 'Smith'
@@ -268,7 +268,7 @@ client_last_name = 'Smith'`
 
 幻数是代码中出现的奇怪数字，没有明确的含义。让我们来看一个例子:
 
-```
+```py
 `import random
 
 # This is bad
@@ -288,7 +288,7 @@ def roll():
 
 如果你在你的算法或者类中使用了很多不同的数据类型，并且你不能从变量名本身中找出它们，不要害怕给你的变量名加上数据类型后缀。例如:
 
-```
+```py
 `# This is good
 score_list = [12, 33, 14, 24]
 word_dict = {
@@ -300,7 +300,7 @@ word_dict = {
 
 这里有一个不好的例子(因为你不能从变量名中判断出数据类型):
 
-```
+```py
 `# This is bad
 names = ["Nick", "Mike", "John"]` 
 ```
@@ -309,7 +309,7 @@ names = ["Nick", "Mike", "John"]`
 
 不要在变量名中添加不必要的数据，尤其是在处理类的时候。
 
-```
+```py
 `# This is bad
 class Person:
     def __init__(self, person_first_name, person_last_name, person_age):
@@ -335,7 +335,7 @@ class Person:
 
 为每个概念选择一个词，并坚持下去。对同一个概念使用不同的词会引起混淆。
 
-```
+```py
 `# This is bad
 def get_name(): pass
 def fetch_age(): pass
@@ -351,7 +351,7 @@ def get_age(): pass`
 
 如果你的函数包含关键字“and ”,你可以把它分成两个函数。让我们看一个例子:
 
-```
+```py
 `# This is bad
 def fetch_and_display_personnel():
     data = # ...
@@ -378,7 +378,7 @@ def display_personnel(data):
 
 示例:
 
-```
+```py
 `# This is bad
 def render_blog_post(title, author, created_timestamp, updated_timestamp, content):
     # ...
@@ -406,7 +406,7 @@ render_blog_post(blog_post1)`
 
 标志是传递给函数的变量(通常是布尔值)，函数用它来决定自己的行为。它们被认为是糟糕的设计，因为函数应该只执行一个任务。避免标记的最简单的方法是把你的函数分成更小的函数。
 
-```
+```py
 `text = "This is a cool blog post."
 
 # This is bad
@@ -450,7 +450,7 @@ lowercase_text = lowercase(text)`
 
 如果你的代码足够易读，你就不需要注释。添加无用的注释只会降低代码的可读性。这里有一个不好的例子:
 
-```
+```py
 `# This checks if the user with the given ID doesn't exist.
 if not User.objects.filter(id=user_id).exists():
     return Response({
@@ -462,7 +462,7 @@ if not User.objects.filter(id=user_id).exists():
 
 不要添加对代码没有任何价值的注释。这很糟糕:
 
-```
+```py
 `numbers = [1, 2, 3, 4, 5]
 
 # This variable stores the average of list of numbers.
@@ -476,7 +476,7 @@ print(average)`
 
 大多数编程语言都有不同的注释类型。了解它们的区别，并相应地使用它们。您还应该学习注释文档语法。一个很好的例子:
 
-```
+```py
 `def model_to_dict(instance, fields=None, exclude=None):
     """
  Returns a dict containing the data in ``instance`` suitable for passing as
@@ -512,7 +512,7 @@ print(average)`
 
 假设我们有一台受密码保护的服务器。我们可以在每个服务器方法中询问密码，或者创建一个装饰器来保护我们的服务器方法，如下所示:
 
-```
+```py
 `def ask_for_passcode(func):
     def inner():
         print('What is the passcode?')
@@ -546,7 +546,7 @@ end()  # decorator will ask for password`
 
 让我们看一个例子:
 
-```
+```py
 `with open('wisdom.txt', 'w') as opened_file:
     opened_file.write('Python is cool.')
 
@@ -555,7 +555,7 @@ end()  # decorator will ask for password`
 
 如果没有上下文管理器，我们的代码将如下所示:
 
-```
+```py
 `file = open('wisdom.txt', 'w')
 try:
     file.write('Python is cool.')
@@ -569,7 +569,7 @@ finally:
 
 假设我们有一个名字列表，我们想遍历它。我们可以使用`next(names)`循环遍历它:
 
-```
+```py
 `names = ["Mike", "John", "Steve"]
 names_iterator = iter(names)
 
@@ -579,7 +579,7 @@ for i in range(len(names)):
 
 或者使用增强循环:
 
-```
+```py
 `names = ["Mike", "John", "Steve"]
 
 for name in names:
@@ -594,7 +594,7 @@ for name in names:
 
 假设我们想要生成第一个`x`的倍数`n`。我们的生成器看起来会像这样:
 
-```
+```py
 `def multiple_generator(x, n):
     for i in range(1, n + 1):
         yield x * i
@@ -613,7 +613,7 @@ print(next(multiples_of_5))  # 15`
 
 Django 的默认项目结构是一个很好的例子，说明了你的代码应该如何构建:
 
-```
+```py
 `awesomeproject/
 ├── main/
 │   ├── __init__.py

@@ -60,7 +60,7 @@ WebAssembly (WASM)为许多语言在不同的环境中使用打开了大门—�
 
 首先，创建一个名为*index.html*的新 HTML 文件:
 
-```
+```py
 `<!DOCTYPE html>
 <html>
   <head>
@@ -79,7 +79,7 @@ WebAssembly (WASM)为许多语言在不同的环境中使用打开了大门—�
 
 在浏览器中打开文件。然后，在浏览器的[开发者工具](https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_are_browser_developer_tools)的控制台中，您应该会看到:
 
-```
+```py
 `Loading distutils
 Loaded distutils
 Python initialization complete
@@ -90,7 +90,7 @@ Hello world, from the browser!`
 
 像这样更新 HTML 文件:
 
-```
+```py
 `<!DOCTYPE html>
 <html>
   <head>
@@ -116,7 +116,7 @@ Hello world, from the browser!`
 
 接下来，我们把段落内文从“我的第一个 Pyodide app”更新为“被 Python 取代”:
 
-```
+```py
 `<!DOCTYPE html>
 <html>
   <head>
@@ -172,7 +172,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 首先向`script`标签添加一个名为`name`的新变量:
 
-```
+```py
 `<script> var  name  =  "John Doe";  // NEW! async  function  main()  { let  pyodide  =  await  loadPyodide(); pyodide.runPython(`
  print('Hello world, from the browser!')
 
@@ -185,7 +185,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 接下来，让我们看看使用 js 的类型和值:
 
-```
+```py
 `<script> var  name  =  "John Doe"; async  function  main()  { let  pyodide  =  await  loadPyodide(); pyodide.runPython(`
  print('Hello world, from the browser!')
 
@@ -213,7 +213,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 > 要将 Python 字典转换为 JavaScript 对象，请使用值为`Object.fromEntries`的`dict_converter`参数:
 > 
-> ```
+> ```py
 > `dictionary_name.toJs({ dict_converter: Object.fromEntries })` 
 > ```
 > 
@@ -223,13 +223,13 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 创建一个名为`products`的新变量:
 
-```
+```py
 `var  products  =  [{ id:  1, name:  "product 1", price:  100, },  { id:  2, name:  "Product 2", price:  300, }];` 
 ```
 
 将其导入`runPython`并检查类型:
 
-```
+```py
 `pyodide.runPython(`
   import js
   print(type(js.products))
@@ -238,7 +238,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 完整的`script`标签:
 
-```
+```py
 `<script> var  name  =  "John Doe"; // NEW !! var  products  =  [{ id:  1, name:  "product 1", price:  100, },  { id:  2, name:  "Product 2", price:  300, }]; async  function  main()  { let  pyodide  =  await  loadPyodide(); pyodide.runPython(`
  print('Hello world, from the browser!')
 
@@ -260,7 +260,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 像这样更新新添加的`pyodide.runPython`块:
 
-```
+```py
 `pyodide.runPython(`
   import js
   products = js.products
@@ -280,7 +280,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 要操作此对象，可以使用`to_py()`方法将其转换为 Python 对象:
 
-```
+```py
 `pyodide.runPython(`
   import js
   products = js.products.to_py()
@@ -296,7 +296,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 您现在应该看到:
 
-```
+```py
 `{'id': 1, 'name': 'product 1', 'price': 100}
 {'id': 2, 'name': 'Product 2', 'price': 300}
 {'id': 3, 'name': 'Product 3', 'price': 400}` 
@@ -306,7 +306,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 像这样更新`script`标签:
 
-```
+```py
 `<script> async  function  main()  { let  pyodide  =  await  loadPyodide(); pyodide.runPython(`
  import js
  products = [
@@ -330,7 +330,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 刷新页面后，您应该会在控制台中看到以下输出:
 
-```
+```py
 `{id:  1,  name:  'new name',  price:  100,  votes:  2} {id:  2,  name:  'new name',  price:  300,  votes:  2}` 
 ```
 
@@ -364,7 +364,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 像这样更新你的*index.html*文件的内容:
 
-```
+```py
 `<!DOCTYPE html>
 <html>
   <head>
@@ -385,7 +385,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 将以下 JavaScript 代码添加到`script`标签中:
 
-```
+```py
 `class  App  { state  =  { titles:[], } view()  { return  `<p class="text-slate-100">Hello, World!</p>` } render()  { app.innerHTML  =  this.view(); } }` 
 ```
 
@@ -395,7 +395,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 让我们创建一个名为`appComponent`的`App`的新实例，并在其上调用`render()`。在`App`的`class`声明后添加以下代码:
 
-```
+```py
 `var  appComponent  =  new  App(); appComponent.render();` 
 ```
 
@@ -405,13 +405,13 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 接下来，让我们将示例电影添加到`state`中。在`script`标记中，就在调用`appComponent.render();`之前，用以下内容更新状态:
 
-```
+```py
 `appComponent.state.titles  =  [ { "id":  1, "title":  "The Shawshank Redemption", "release_year":  1994, "type":  "MOVIE", "genres":  [ "Crime", "Drama" ], "production_countries":  [ "USA" ], "imdb_score":  9.3, "imdb_votes":  93650, "tmdb_score":  9.3, }, { "id":  2, "title":  "The Godfather", "release_year":  1972, "type":  "MOVIE", "genres":  [ "Crime", "Drama" ], "production_countries":  [ "USA" ], "imdb_score":  9.2, "imdb_votes":  93650, "tmdb_score":  9.3, } ];` 
 ```
 
 现在，我们可以通过更新我们的`App`类中的`view()`来构建一个表来显示数据，如下所示:
 
-```
+```py
 `view()  { return  (`
  <div class="px-4 sm:px-6 lg:px-8">
  <div class="sm:flex sm:items-center">
@@ -471,19 +471,19 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 例如:
 
-```
+```py
 `let  pyodide  =  await  loadPyodide(); await  pyodide.loadPackage("requests");` 
 ```
 
 您可以使用列表加载多个包:
 
-```
+```py
 `await  pyodide.loadPackage(["requests",  "pandas",  "numpy"]);` 
 ```
 
 回到您的 HTML 文件，在`appComponent.render();`之后添加一个`main`函数:
 
-```
+```py
 `async  function  main()  { let  pyodide  =  await  loadPyodide(); await  pyodide.loadPackage("pandas"); }` 
 ```
 
@@ -491,7 +491,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 在浏览器中刷新页面。您应该会在控制台中看到以下内容:
 
-```
+```py
 `Loading  pandas,  numpy,  python-dateutil,  six,  pytz,  setuptools,  pyparsing Loaded  python-dateutil,  six,  pytz,  pyparsing,  setuptools,  numpy,  pandas` 
 ```
 
@@ -503,7 +503,7 @@ Pyodide 的一个很棒的特性是你可以在 Python 和 JavaScript 之间传�
 
 Python 代码:
 
-```
+```py
 `import js
 import pandas as pd
 from pyodide.http import pyfetch
@@ -552,7 +552,7 @@ js.window.appComponent.render()`
 
 将此代码添加到`main`中的 [runPythonAsync](https://pyodide.org/en/stable/usage/faq.html#how-can-i-change-the-behavior-of-runpython-and-runpythonasync) 方法中:
 
-```
+```py
 `async  function  main()  { let  pyodide  =  await  loadPyodide(); await  pyodide.loadPackage("pandas"); await  pyodide.runPythonAsync(`
  // add the code here
  `); }` 
@@ -560,13 +560,13 @@ js.window.appComponent.render()`
 
 接下来，移除`appComponent.state.titles`。此外，我们需要在`view`方法中更改这一行:
 
-```
+```py
 `${this.state.titles.length  >  0  ?  this.state.titles.map(function  (title)  {` 
 ```
 
 收件人:
 
-```
+```py
 `${this.state.titles.length  >  0  ?  JSON.parse(this.state.titles).map(function  (title)  {` 
 ```
 

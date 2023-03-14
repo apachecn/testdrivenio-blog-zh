@@ -32,7 +32,7 @@
 > 
 > 继续之前，请确保您安装了 Terraform:
 > 
-> ```
+> ```py
 > `$ terraform -v
 > 
 > Terraform v1.0.11
@@ -72,7 +72,7 @@
 
 创建一个新的项目目录和一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-ecs-terraform && cd django-ecs-terraform
 $ mkdir app && cd app
 $ python3.10 -m venv env
@@ -88,14 +88,14 @@ $ source env/bin/activate
 
 添加一个 *requirements.txt* 文件:
 
-```
+```py
 `Django==3.2.9
 gunicorn==20.1.0` 
 ```
 
 同样添加一个 *Dockerfile* :
 
-```
+```py
 `# pull official base image
 FROM  python:3.9.0-slim-buster
 
@@ -117,7 +117,7 @@ COPY  . .`
 
 出于测试目的，将`DEBUG`设置为`True`，并允许 *settings.py* 文件中的所有主机:
 
-```
+```py
 `DEBUG = True
 
 ALLOWED_HOSTS = ['*']` 
@@ -125,7 +125,7 @@ ALLOWED_HOSTS = ['*']`
 
 接下来，构建并标记图像，并旋转一个新的容器:
 
-```
+```py
 `$ docker build -t django-ecs .
 
 $ docker run \
@@ -139,20 +139,20 @@ $ docker run \
 
 完成后，停止并移除容器:
 
-```
+```py
 `$ docker stop django-test
 $ docker rm django-test` 
 ```
 
 加一个*。gitignore* 文件到项目根目录:
 
-```
+```py
 `__pycache__ .DS_Store *.sqlite3` 
 ```
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `├── .gitignore
 └── app
     ├── Dockerfile
@@ -176,7 +176,7 @@ $ docker rm django-test`
 
 回到您的终端，再次构建并标记图像:
 
-```
+```py
 `$ docker build -t <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest .` 
 ```
 
@@ -186,7 +186,7 @@ $ docker rm django-test`
 
 验证 Docker CLI 以使用 ECR 注册表:
 
-```
+```py
 `$ aws ecr get-login --region us-west-1 --no-include-email` 
 ```
 
@@ -194,7 +194,7 @@ $ docker rm django-test`
 
 推送图像:
 
-```
+```py
 `$ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest` 
 ```
 
@@ -204,7 +204,7 @@ $ docker rm django-test`
 
 接下来，向“terraform”添加一个名为 *01_provider.tf* 的新文件:
 
-```
+```py
 `provider "aws" {
   region = var.region
 }` 
@@ -212,14 +212,14 @@ $ docker rm django-test`
 
 这里，我们定义了 [AWS](https://registry.terraform.io/providers/hashicorp/aws/latest/docs) 提供者。你需要提供你的 AWS 证书以便[验证](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication)。将它们定义为环境变量:
 
-```
+```py
 `$ export AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY_ID"
 $ export AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_ACCESS_KEY"` 
 ```
 
 我们为`region`使用了一个字符串插值，它将从 *variables.tf* 文件中读入。继续将该文件添加到“terraform”文件夹中，并向其中添加以下变量:
 
-```
+```py
 `# core
 
 variable "region" {
@@ -260,7 +260,7 @@ variable "region" {
 
 让我们在名为 *02_network.tf* 的新文件中定义我们的网络资源:
 
-```
+```py
 `# Production VPC
 resource "aws_vpc" "production-vpc" {
   cidr_block           = "10.0.0.0/16"
@@ -359,7 +359,7 @@ resource "aws_route" "public-internet-igw-route" {
 
 还添加以下变量:
 
-```
+```py
 `# networking
 
 variable "public_subnet_1_cidr" {
@@ -391,7 +391,7 @@ variable "availability_zones" {
 
 接下来，为了保护 Django 应用程序和 ECS 集群，让我们在一个名为 *03_securitygroups.tf* 的新文件中配置[安全组](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html):
 
-```
+```py
 `# ALB Security Group (Traffic Internet -> ALB)
 resource "aws_security_group" "load-balancer" {
   name        = "load_balancer_security_group"
@@ -457,7 +457,7 @@ resource "aws_security_group" "ecs" {
 
 04 _ load balancer . TF:
 
-```
+```py
 `# Production Load Balancer
 resource "aws_lb" "production" {
   name               = "${var.ecs_cluster_name}-alb"
@@ -501,7 +501,7 @@ resource "aws_alb_listener" "ecs-alb-http-listener" {
 
 添加所需的变量:
 
-```
+```py
 `# load balancer
 
 variable "health_check_path" {
@@ -525,7 +525,7 @@ variable "ecs_cluster_name" {
 
 *05_iam.tf* :
 
-```
+```py
 `resource "aws_iam_role" "ecs-host-role" {
   name               = "ecs_host_role_prod"
   assume_role_policy = file("policies/ecs-role.json")
@@ -559,19 +559,19 @@ resource "aws_iam_instance_profile" "ecs" {
 
 *ecs-role.json* :
 
-```
+```py
 `{ "Version":  "2008-10-17", "Statement":  [ { "Action":  "sts:AssumeRole", "Principal":  { "Service":  [ "ecs.amazonaws.com", "ec2.amazonaws.com" ] }, "Effect":  "Allow" } ] }` 
 ```
 
 *ECS-instance-role-policy . JSON*:
 
-```
+```py
 `{ "Version":  "2012-10-17", "Statement":  [ { "Effect":  "Allow", "Action":  [ "ecs:*", "ec2:*", "elasticloadbalancing:*", "ecr:*", "cloudwatch:*", "s3:*", "rds:*", "logs:*" ], "Resource":  "*" } ] }` 
 ```
 
 *ECS-service-role-policy . JSON*:
 
-```
+```py
 `{ "Version":  "2012-10-17", "Statement":  [ { "Effect":  "Allow", "Action":  [ "elasticloadbalancing:Describe*", "elasticloadbalancing:DeregisterInstancesFromLoadBalancer", "elasticloadbalancing:RegisterInstancesWithLoadBalancer", "ec2:Describe*", "ec2:AuthorizeSecurityGroupIngress", "elasticloadbalancing:RegisterTargets", "elasticloadbalancing:DeregisterTargets" ], "Resource":  [ "*" ] } ] }` 
 ```
 
@@ -579,7 +579,7 @@ resource "aws_iam_instance_profile" "ecs" {
 
 *06_logs.tf* :
 
-```
+```py
 `resource "aws_cloudwatch_log_group" "django-log-group" {
   name              = "/ecs/django-app"
   retention_in_days = var.log_retention_in_days
@@ -593,7 +593,7 @@ resource "aws_cloudwatch_log_stream" "django-log-stream" {
 
 添加变量:
 
-```
+```py
 `# logs
 
 variable "log_retention_in_days" {
@@ -605,7 +605,7 @@ variable "log_retention_in_days" {
 
 07 _ key pair . TF:
 
-```
+```py
 `resource "aws_key_pair" "production" {
   key_name   = "${var.ecs_cluster_name}_key_pair"
   public_key = file(var.ssh_pubkey_file)
@@ -614,7 +614,7 @@ variable "log_retention_in_days" {
 
 变量:
 
-```
+```py
 `# key pair
 
 variable "ssh_pubkey_file" {
@@ -629,7 +629,7 @@ variable "ssh_pubkey_file" {
 
 *08_ecs.tf* :
 
-```
+```py
 `resource "aws_ecs_cluster" "production" {
   name = "${var.ecs_cluster_name}-cluster"
 }
@@ -677,7 +677,7 @@ resource "aws_ecs_service" "production" {
 
 看一下`aws_launch_configuration`中的`user_data`字段。简而言之， [user_data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html) 是一个在启动新的 EC2 实例时运行的脚本。为了让 ECS 集群发现新的 EC2 实例，需要将集群名称添加到实例内的 */etc/ecs/ecs.config* 配置文件中的`ECS_CLUSTER`环境变量中。换句话说，以下脚本将在引导新实例时运行，从而允许群集发现该实例:
 
-```
+```py
 `#!/bin/bash
 
 echo ECS_CLUSTER='production-cluster' > /etc/ecs/ecs.config` 
@@ -687,7 +687,7 @@ echo ECS_CLUSTER='production-cluster' > /etc/ecs/ecs.config`
 
 在“terraform”文件夹中添加一个“templates”文件夹，然后添加一个名为 *django_app.json.tpl* 的新模板文件:
 
-```
+```py
 `[ { "name":  "django-app", "image":  "${docker_image_url_django}", "essential":  true, "cpu":  10, "memory":  512, "links":  [], "portMappings":  [ { "containerPort":  8000, "hostPort":  0, "protocol":  "tcp" } ], "command":  ["gunicorn",  "-w",  "3",  "-b",  ":8000",  "hello_django.wsgi:application"], "environment":  [], "logConfiguration":  { "logDriver":  "awslogs", "options":  { "awslogs-group":  "/ecs/django-app", "awslogs-region":  "${region}", "awslogs-stream-prefix":  "django-app-log-stream" } } } ]` 
 ```
 
@@ -695,7 +695,7 @@ echo ECS_CLUSTER='production-cluster' > /etc/ecs/ecs.config`
 
 还添加以下变量:
 
-```
+```py
 `# ecs
 
 variable "ecs_cluster_name" {
@@ -731,7 +731,7 @@ variable "app_count" {
 
 *09_auto_scaling.tf* :
 
-```
+```py
 `resource "aws_autoscaling_group" "ecs-cluster" {
   name                 = "${var.ecs_cluster_name}_auto_scaling_group"
   min_size             = var.autoscale_min
@@ -745,7 +745,7 @@ variable "app_count" {
 
 新变量:
 
-```
+```py
 `# auto scaling
 
 variable "autoscale_min" {
@@ -766,7 +766,7 @@ variable "autoscale_desired" {
 
 *outputs.tf* :
 
-```
+```py
 `output "alb_hostname" {
   value = aws_lb.production.dns_name
 }` 
@@ -776,7 +776,7 @@ variable "autoscale_desired" {
 
 准备好了吗？！？查看然后执行计划:
 
-```
+```py
 `$ terraform plan
 
 $ terraform apply` 
@@ -784,7 +784,7 @@ $ terraform apply`
 
 您应该看到运行状况检查失败，并显示 404:
 
-```
+```py
 `service production-service (instance i-013f1192da079b0bf) (port 49153)
 is unhealthy in target-group production-tg due to
 (reason Health checks failed with these codes: [404])` 
@@ -796,7 +796,7 @@ is unhealthy in target-group production-tg due to
 
 将以下中间件添加到*app/hello _ django/middleware . py*:
 
-```
+```py
 `from django.http import HttpResponse
 from django.utils.deprecation import MiddlewareMixin
 
@@ -808,7 +808,7 @@ class HealthCheckMiddleware(MiddlewareMixin):
 
 将类添加到 *settings.py* 中的中间件配置中:
 
-```
+```py
 `MIDDLEWARE = [
     'hello_django.middleware.HealthCheckMiddleware',  # new
     'django.middleware.security.SecurityMiddleware',
@@ -827,7 +827,7 @@ class HealthCheckMiddleware(MiddlewareMixin):
 
 > 值得注意的是，您可以将 Nginx 放在 Gunicorn 前面，并在 Nginx 配置中处理健康检查，如下所示:
 > 
-> ```
+> ```py
 > location /ping/ {
 >  access_log off;
 >  return 200;
@@ -836,7 +836,7 @@ class HealthCheckMiddleware(MiddlewareMixin):
 
 要进行本地测试，构建新的映像，然后启动容器:
 
-```
+```py
 `$ docker build -t django-ecs .
 
 $ docker run \
@@ -850,14 +850,14 @@ $ docker run \
 
 完成后，停止并移除容器:
 
-```
+```py
 `$ docker stop django-test
 $ docker rm django-test` 
 ```
 
 接下来，更新 ECR:
 
-```
+```py
 `$ docker build -t <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest .
 $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest` 
 ```
@@ -866,7 +866,7 @@ $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest
 
 在项目根目录下创建一个“部署”文件夹。然后，将一个 *update-ecs.py* 文件添加到新创建的文件夹中:
 
-```
+```py
 `import boto3
 import click
 
@@ -905,13 +905,13 @@ if __name__ == "__main__":
 
 创建并激活新的虚拟环境。然后，安装 [Boto3](https://github.com/boto/boto3) 和[点击](https://click.palletsprojects.com/):
 
-```
+```py
 `$ pip install boto3 click` 
 ```
 
 添加您的 AWS 凭据以及默认区域:
 
-```
+```py
 `$ export AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY_ID"
 $ export AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_ACCESS_KEY"
 $ export AWS_DEFAULT_REGION="us-west-1"` 
@@ -919,13 +919,13 @@ $ export AWS_DEFAULT_REGION="us-west-1"`
 
 像这样运行脚本:
 
-```
+```py
 `$ python update-ecs.py --cluster=production-cluster --service=production-service` 
 ```
 
 服务应该根据修改后的任务定义启动两个新任务，并将它们注册到相关的目标组。这一次健康检查应该会通过。现在，您应该能够使用输出到终端的 DNS 主机名来查看您的应用程序了:
 
-```
+```py
 `Outputs:
 
 alb_hostname = production-alb-1008464563.us-west-1.elb.amazonaws.com` 
@@ -937,7 +937,7 @@ alb_hostname = production-alb-1008464563.us-west-1.elb.amazonaws.com`
 
 向 *03_securitygroups.tf* 添加一个新的安全组，以确保只有来自 ECS 实例的流量可以与数据库对话:
 
-```
+```py
 `# RDS Security Group (traffic ECS -> RDS)
 resource "aws_security_group" "rds" {
   name        = "rds-security-group"
@@ -962,7 +962,7 @@ resource "aws_security_group" "rds" {
 
 接下来，添加一个名为 *10_rds.tf* 的新文件，用于设置数据库本身:
 
-```
+```py
 `resource "aws_db_subnet_group" "production" {
   name       = "main"
   subnet_ids = [aws_subnet.private-subnet-1.id, aws_subnet.private-subnet-2.id]
@@ -991,7 +991,7 @@ resource "aws_db_instance" "production" {
 
 变量:
 
-```
+```py
 `# rds
 
 variable "rds_db_name" {
@@ -1015,7 +1015,7 @@ variable "rds_instance_class" {
 
 因为我们需要知道 Django 应用程序中实例的地址，所以在 *08_ecs.tf* 的`aws_ecs_task_definition`中添加一个`depends_on`参数:
 
-```
+```py
 `resource "aws_ecs_task_definition" "app" {
   family                = "django-app"
   container_definitions = data.template_file.app.rendered
@@ -1025,7 +1025,7 @@ variable "rds_instance_class" {
 
 接下来，我们需要更新 *settings.py* 中的`DATABASES`配置:
 
-```
+```py
 `if 'RDS_DB_NAME' in os.environ:
     DATABASES = {
         'default': {
@@ -1050,13 +1050,13 @@ else:
 
 更新 *django_app.json.tpl* 模板中的`environment`部分:
 
-```
+```py
 `"environment":  [ { "name":  "RDS_DB_NAME", "value":  "${rds_db_name}" }, { "name":  "RDS_USERNAME", "value":  "${rds_username}" }, { "name":  "RDS_PASSWORD", "value":  "${rds_password}" }, { "name":  "RDS_HOSTNAME", "value":  "${rds_hostname}" }, { "name":  "RDS_PORT", "value":  "5432" } ],` 
 ```
 
 更新 *08_ecs.tf* 中传递给模板的变量:
 
-```
+```py
 `data "template_file" "app" {
   template = file("templates/django_app.json.tpl")
 
@@ -1073,7 +1073,7 @@ else:
 
 将 [Psycopg2](https://www.psycopg.org/) 添加到需求文件中:
 
-```
+```py
 `Django==3.2.9
 gunicorn==20.1.0
 psycopg2-binary==2.9.2` 
@@ -1081,7 +1081,7 @@ psycopg2-binary==2.9.2`
 
 更新 docker 文件以安装 Psycopg2 所需的相应软件包:
 
-```
+```py
 `# pull official base image
 FROM  python:3.9.0-slim-buster
 
@@ -1110,7 +1110,7 @@ COPY  . .`
 
 因为我们没有设置默认密码，所以会提示您输入一个密码:
 
-```
+```py
 `var.rds_password
   RDS database password
 
@@ -1119,7 +1119,7 @@ COPY  . .`
 
 不必每次都传递一个值，您可以像这样设置一个[环境变量](https://www.terraform.io/docs/commands/environment-variables.html#tf_var_name):
 
-```
+```py
 `$ export TF_VAR_rds_password=foobarbaz
 
 $ terraform apply` 
@@ -1131,7 +1131,7 @@ $ terraform apply`
 
 通过`docker ps`获取容器 ID，并使用它来应用迁移:
 
-```
+```py
 `$ docker exec -it <container-id> python manage.py migrate
 
 # docker exec -it 73284cda8a87 python manage.py migrate` 
@@ -1139,7 +1139,7 @@ $ terraform apply`
 
 您可能还想创建一个超级用户。完成后，退出 SSH 会话。如果您不再需要 SSH 访问，您可能需要从 ECS 安全组中删除以下入站规则:
 
-```
+```py
 `ingress {
   from_port   = 22
   to_port     = 22
@@ -1152,7 +1152,7 @@ $ terraform apply`
 
 假设您已经从 [AWS 证书管理器](https://aws.amazon.com/certificate-manager/)生成并验证了一个新的 SSL 证书，将证书的 ARN 添加到您的变量中:
 
-```
+```py
 `# domain
 
 variable "certificate_arn" {
@@ -1163,7 +1163,7 @@ variable "certificate_arn" {
 
 在 *04_loadbalancer.tf* 中更新与负载平衡器关联的默认监听器，以便它监听端口 443 上的 HTTPS 请求(与端口 80 上的 HTTP 相反):
 
-```
+```py
 `# Listener (redirects traffic from the load balancer to the target group)
 resource "aws_alb_listener" "ecs-alb-http-listener" {
   load_balancer_arn = aws_lb.production.id
@@ -1190,7 +1190,7 @@ resource "aws_alb_listener" "ecs-alb-http-listener" {
 
 在项目根目录中，创建以下文件和文件夹:
 
-```
+```py
 `└── nginx
     ├── Dockerfile
     └── nginx.conf` 
@@ -1198,7 +1198,7 @@ resource "aws_alb_listener" "ecs-alb-http-listener" {
 
 *Dockerfile* :
 
-```
+```py
 `FROM  nginx:1.19.0-alpine
 
 RUN  rm /etc/nginx/conf.d/default.conf
@@ -1208,7 +1208,7 @@ EXPOSE  80`
 
 *engine . conf*:
 
-```
+```py
 `upstream  hello_django  { server  django-app:8000; } server  { listen  80; location  /  { proxy_pass  http://hello_django; proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for; proxy_set_header  Host  $host; proxy_redirect  off; } }` 
 ```
 
@@ -1216,14 +1216,14 @@ EXPOSE  80`
 
 在 ECR 中创建一个名为“nginx”的新 repo，然后构建并推送新映像:
 
-```
+```py
 `$ docker build -t <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest .
 $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest` 
 ```
 
 将以下变量添加到变量文件的 ECS 部分:
 
-```
+```py
 `variable "docker_image_url_nginx" {
   description = "Docker image to run in the ECS cluster"
   default     = "<AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest"
@@ -1232,13 +1232,13 @@ $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest`
 
 将新的容器定义添加到 *django_app.json.tpl* 模板:
 
-```
+```py
 `[ { "name":  "django-app", "image":  "${docker_image_url_django}", "essential":  true, "cpu":  10, "memory":  512, "links":  [], "portMappings":  [ { "containerPort":  8000, "hostPort":  0, "protocol":  "tcp" } ], "command":  ["gunicorn",  "-w",  "3",  "-b",  ":8000",  "hello_django.wsgi:application"], "environment":  [ { "name":  "RDS_DB_NAME", "value":  "${rds_db_name}" }, { "name":  "RDS_USERNAME", "value":  "${rds_username}" }, { "name":  "RDS_PASSWORD", "value":  "${rds_password}" }, { "name":  "RDS_HOSTNAME", "value":  "${rds_hostname}" }, { "name":  "RDS_PORT", "value":  "5432" } ], "logConfiguration":  { "logDriver":  "awslogs", "options":  { "awslogs-group":  "/ecs/django-app", "awslogs-region":  "${region}", "awslogs-stream-prefix":  "django-app-log-stream" } } }, { "name":  "nginx", "image":  "${docker_image_url_nginx}", "essential":  true, "cpu":  10, "memory":  128, "links":  ["django-app"], "portMappings":  [ { "containerPort":  80, "hostPort":  0, "protocol":  "tcp" } ], "logConfiguration":  { "logDriver":  "awslogs", "options":  { "awslogs-group":  "/ecs/nginx", "awslogs-region":  "${region}", "awslogs-stream-prefix":  "nginx-log-stream" } } } ]` 
 ```
 
 将变量传递给 *08_ecs.tf* 中的模板:
 
-```
+```py
 `data "template_file" "app" {
   template = file("templates/django_app.json.tpl")
 
@@ -1256,7 +1256,7 @@ $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest`
 
 将新日志添加到 *06_logs.tf* :
 
-```
+```py
 `resource "aws_cloudwatch_log_group" "nginx-log-group" {
   name              = "/ecs/nginx"
   retention_in_days = var.log_retention_in_days
@@ -1270,7 +1270,7 @@ resource "aws_cloudwatch_log_stream" "nginx-log-stream" {
 
 更新服务，使其指向`nginx`容器，而不是`django-app`:
 
-```
+```py
 `resource "aws_ecs_service" "production" {
   name            = "${var.ecs_cluster_name}-service"
   cluster         = aws_ecs_cluster.production.id
@@ -1293,7 +1293,7 @@ resource "aws_cloudwatch_log_stream" "nginx-log-stream" {
 
 现在我们正在处理两个容器，让我们更新 deploy 函数来处理 *update-ecs.py* 中的多个容器定义:
 
-```
+```py
 `@click.command()
 @click.option("--cluster", help="Name of the ECS cluster", required=True)
 @click.option("--service", help="Name of the ECS service", required=True)
@@ -1322,7 +1322,7 @@ def deploy(cluster, service):
 
 在你的 *settings.py* 文件中设置`STATIC_ROOT`:
 
-```
+```py
 `STATIC_URL = '/staticfiles/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')` 
 ```
@@ -1331,7 +1331,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')`
 
 更新 Dockerfile，以便它在最后运行`collectstatic`命令:
 
-```
+```py
 `# pull official base image
 FROM  python:3.9.0-slim-buster
 
@@ -1363,13 +1363,13 @@ RUN  python manage.py collectstatic --no-input`
 
 将新的位置块添加到 *nginx.conf* :
 
-```
+```py
 `upstream  hello_django  { server  django-app:8000; } server  { listen  80; location  /staticfiles/  { alias  /usr/src/app/staticfiles/; } location  /  { proxy_pass  http://hello_django; proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for; proxy_set_header  Host  $host; proxy_redirect  off; } }` 
 ```
 
 将卷添加到 *08_ecs.tf* 中的`aws_ecs_task_definition`:
 
-```
+```py
 `resource "aws_ecs_task_definition" "app" {
   family                = "django-app"
   container_definitions = data.template_file.app.rendered
@@ -1384,7 +1384,7 @@ RUN  python manage.py collectstatic --no-input`
 
 将卷添加到 *django_app.json.tpl* 模板中的容器定义中:
 
-```
+```py
 `[ { "name":  "django-app", "image":  "${docker_image_url_django}", "essential":  true, "cpu":  10, "memory":  512, "links":  [], "portMappings":  [ { "containerPort":  8000, "hostPort":  0, "protocol":  "tcp" } ], "command":  ["gunicorn",  "-w",  "3",  "-b",  ":8000",  "hello_django.wsgi:application"], "environment":  [ { "name":  "RDS_DB_NAME", "value":  "${rds_db_name}" }, { "name":  "RDS_USERNAME", "value":  "${rds_username}" }, { "name":  "RDS_PASSWORD", "value":  "${rds_password}" }, { "name":  "RDS_HOSTNAME", "value":  "${rds_hostname}" }, { "name":  "RDS_PORT", "value":  "5432" } ], "mountPoints":  [ { "containerPath":  "/usr/src/app/staticfiles", "sourceVolume":  "static_volume" } ], "logConfiguration":  { "logDriver":  "awslogs", "options":  { "awslogs-group":  "/ecs/django-app", "awslogs-region":  "${region}", "awslogs-stream-prefix":  "django-app-log-stream" } } }, { "name":  "nginx", "image":  "${docker_image_url_nginx}", "essential":  true, "cpu":  10, "memory":  128, "links":  ["django-app"], "portMappings":  [ { "containerPort":  80, "hostPort":  0, "protocol":  "tcp" } ], "mountPoints":  [ { "containerPath":  "/usr/src/app/staticfiles", "sourceVolume":  "static_volume" } ], "logConfiguration":  { "logDriver":  "awslogs", "options":  { "awslogs-group":  "/ecs/nginx", "awslogs-region":  "${region}", "awslogs-stream-prefix":  "nginx-log-stream" } } } ]` 
 ```
 
@@ -1392,7 +1392,7 @@ RUN  python manage.py collectstatic --no-input`
 
 构建新图像，并将其上传至 ECR:
 
-```
+```py
 `$ docker build -t <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest .
 $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest
 
@@ -1408,19 +1408,19 @@ $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest`
 
 最后，让我们锁定我们的生产应用程序:
 
-```
+```py
 `ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split()` 
 ```
 
 将`ALLOWED_HOSTS`环境变量添加到容器定义中:
 
-```
+```py
 `"environment":  [ { "name":  "RDS_DB_NAME", "value":  "${rds_db_name}" }, { "name":  "RDS_USERNAME", "value":  "${rds_username}" }, { "name":  "RDS_PASSWORD", "value":  "${rds_password}" }, { "name":  "RDS_HOSTNAME", "value":  "${rds_hostname}" }, { "name":  "RDS_PORT", "value":  "5432" }, { "name":  "ALLOWED_HOSTS", "value":  "${allowed_hosts}" } ],` 
 ```
 
 将变量传递给 *08_ecs.tf* 中的模板:
 
-```
+```py
 `data "template_file" "app" {
   template = file("templates/django_app.json.tpl")
 
@@ -1439,7 +1439,7 @@ $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest`
 
 将变量添加到变量文件的 ECS 部分，确保添加您的域名:
 
-```
+```py
 `variable "allowed_hosts" {
   description = "Domain name for allowed hosts"
   default     = "YOUR DOMAIN NAME"
@@ -1448,7 +1448,7 @@ $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/nginx:latest`
 
 建立新的图像并将其提交给 ECR:
 
-```
+```py
 `$ docker build -t <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest .
 $ docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/django-app:latest` 
 ```

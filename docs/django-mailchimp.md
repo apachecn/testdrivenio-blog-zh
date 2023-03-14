@@ -40,7 +40,7 @@ Mailchimp 为开发人员提供了以下 API:
 
 创建一个新的项目目录以及一个名为`djangomailchimp`的新 Django 项目:
 
-```
+```py
 `$ mkdir django-mailchimp && cd django-mailchimp
 $ python3.10 -m venv env
 $ source env/bin/activate
@@ -53,7 +53,7 @@ $ source env/bin/activate
 
 接下来，迁移数据库:
 
-```
+```py
 `(env)$ python manage.py migrate` 
 ```
 
@@ -69,13 +69,13 @@ $ source env/bin/activate
 
 出于组织目的，让我们创建一个名为`marketing`的新 Django 应用程序:
 
-```
+```py
 `(env)$ python manage.py startapp marketing` 
 ```
 
 将 app 添加到 *settings.py* 中的`INSTALLED_APPS`配置中:
 
-```
+```py
 `# djangomailchimp/settings.py
 
 INSTALLED_APPS = [
@@ -91,7 +91,7 @@ INSTALLED_APPS = [
 
 接下来，用`marketing`应用程序更新项目级的 *urls.py* :
 
-```
+```py
 `# djangomailchimp/urls.py
 
 from django.contrib import admin
@@ -105,7 +105,7 @@ urlpatterns = [
 
 在`marketing`应用程序中创建一个 *urls.py* 文件并填充它:
 
-```
+```py
 `# marketing/urls.py
 
 from django.urls import path
@@ -130,7 +130,7 @@ urlpatterns = [
 
 在处理视图之前，让我们创建一个名为 *forms.py* 的新文件:
 
-```
+```py
 `# marketing/forms.py
 
 from django import forms
@@ -145,7 +145,7 @@ class EmailForm(forms.Form):
 
 现在将以下内容添加到 *views.py* 中:
 
-```
+```py
 `# marketing/views.py
 
 from django.http import JsonResponse
@@ -207,7 +207,7 @@ def unsubscribe_fail_view(request):
 
 *subscribe.html*:
 
-```
+```py
 `<!-- templates/subscribe.html -->
 
 <!DOCTYPE html>
@@ -236,7 +236,7 @@ def unsubscribe_fail_view(request):
 
 *unsubscribe.html*:
 
-```
+```py
 `<!-- templates/unsubscribe.html -->
 
 <!DOCTYPE html>
@@ -265,7 +265,7 @@ def unsubscribe_fail_view(request):
 
 *message.html*:
 
-```
+```py
 `<!-- templates/message.html -->
 
 <!DOCTYPE html>
@@ -288,7 +288,7 @@ def unsubscribe_fail_view(request):
 
 确保更新 *settings.py* 文件，以便 Django 知道要查找“模板”文件夹:
 
-```
+```py
 `# djangomailchimp/settings.py
 
 TEMPLATES = [
@@ -300,7 +300,7 @@ TEMPLATES = [
 
 最后，运行`runserver`命令启动 Django 的本地 web 服务器:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
@@ -316,7 +316,7 @@ TEMPLATES = [
 
 首先，安装 mailchimp-marketing 包，这是 Mailchimp Marketing API 的官方客户端库:
 
-```
+```py
 `(env)$ pip install mailchimp-marketing==3.0.75` 
 ```
 
@@ -342,7 +342,7 @@ TEMPLATES = [
 
 例如:
 
-```
+```py
 `https://us8.admin.mailchimp.com/
         ^^^` 
 ```
@@ -353,7 +353,7 @@ TEMPLATES = [
 
 将 Mailchimp API 密钥和区域存储在 *settings.py* 的底部，如下所示:
 
-```
+```py
 `# djangomailchimp/settings.py
 
 MAILCHIMP_API_KEY = '<your mailchimp api key>'
@@ -362,7 +362,7 @@ MAILCHIMP_REGION = '<your mailchimp region>'`
 
 接下来，我们将在 *marketing/views.py* 中初始化营销 API 客户端，并创建一个 ping API 的端点:
 
-```
+```py
 `# marketing/views.py
 
 mailchimp = Client()
@@ -378,13 +378,13 @@ def mailchimp_ping_view(request):
 
 不要忘记在文件顶部导入`Client`:
 
-```
+```py
 `from mailchimp_marketing import Client` 
 ```
 
 在 *marketing/urls.py* 中注册新创建的端点:
 
-```
+```py
 `# marketing/urls.py
 
 from django.urls import path
@@ -404,7 +404,7 @@ urlpatterns = [
 
 再次运行服务器，访问[http://localhost:8000/marketing/ping/](http://localhost:8000/marketing/ping/)看看能否 ping 通 API。
 
-```
+```py
 `{ "health_status":  "Everything's Chimpy!" }` 
 ```
 
@@ -426,7 +426,7 @@ urlpatterns = [
 
 粘贴在 *settings.py* 的末尾，API 键和区域下:
 
-```
+```py
 `# djangomailchimp/settings.py
 
 MAILCHIMP_API_KEY = '<your mailchimp api key>'
@@ -440,7 +440,7 @@ MAILCHIMP_MARKETING_AUDIENCE_ID = '<your mailchimp audience id>'  # new`
 
 转到 *marketing/views.py* ，用以下代码替换`subscribe_view`:
 
-```
+```py
 `# marketing/views.py
 
 def subscribe_view(request):
@@ -471,13 +471,13 @@ def subscribe_view(request):
 
 不要忘记像这样导入`ApiClientError`:
 
-```
+```py
 `from mailchimp_marketing.api_client import ApiClientError` 
 ```
 
 另外，添加记录器:
 
-```
+```py
 `import logging
 
 logger = logging.getLogger(__name__)` 
@@ -496,7 +496,7 @@ logger = logging.getLogger(__name__)`
 
 让我们将用户的名字和姓氏硬连接到`member_info`:
 
-```
+```py
 `member_info = {
     'email_address': form_email,
     'status': 'subscribed',
@@ -529,7 +529,7 @@ logger = logging.getLogger(__name__)`
 
 要启用取消订阅功能，请用以下代码替换`unsubscribe_view`:
 
-```
+```py
 `# marketing/views.py
 
 def unsubscribe_view(request):
@@ -582,7 +582,7 @@ def unsubscribe_view(request):
 
 以下是如何获取用户订阅状态的代码示例:
 
-```
+```py
 `member_email = '[[email protected]](/cdn-cgi/l/email-protection)'
 member_email_hash = hashlib.md5(member_email.encode('utf-8').lower()).hexdigest()
 
@@ -600,7 +600,7 @@ except ApiClientError as error:
 
 响应看起来会像这样:
 
-```
+```py
 `{ "id":  "f4ce663018fefacfe5c327869be7485d", "email_address":  "[[email protected]](/cdn-cgi/l/email-protection)", "unique_email_id":  "ec7bdadf19", "contact_id":  "67851f34b33195292b2977590007e965", "full_name":  "Elliot Alderson", "web_id":  585506089, "email_type":  "html", "status":  "unsubscribed", "unsubscribe_reason":  "N/A (Unsubscribed by admin)", "consents_to_one_to_one_messaging":  true, "merge_fields":  { "FNAME":  "Elliot", "LNAME":  "Alderson", "ADDRESS":  "", "PHONE":  "", "BIRTHDAY":  "" }, ... }` 
 ```
 
@@ -622,13 +622,13 @@ except ApiClientError as error:
 
 出于组织目的，让我们创建另一个名为`transactional`的 Django 应用程序:
 
-```
+```py
 `(env)$ python manage.py startapp transactional` 
 ```
 
 将 app 添加到 *settings.py* 中的`INSTALLED_APPS`配置中:
 
-```
+```py
 `# djangomailchimp/settings.py
 
 INSTALLED_APPS = [
@@ -645,7 +645,7 @@ INSTALLED_APPS = [
 
 用`transactional` app 更新项目级 *urls.py* :
 
-```
+```py
 `# djangomailchimp/urls.py
 
 from django.contrib import admin
@@ -660,7 +660,7 @@ urlpatterns = [
 
 现在，在`transactional`应用程序中创建一个 *urls.py* 文件:
 
-```
+```py
 `# transactional/urls.py
 
 from django.urls import path
@@ -674,7 +674,7 @@ urlpatterns = [
 
 接下来，在 *transactional/views.py* 中创建一个`send_view`:
 
-```
+```py
 `# transactional/views.py
 
 from django.http import JsonResponse
@@ -687,7 +687,7 @@ def send_view(request):
 
 运行服务器并导航到[http://localhost:8000/transactional/send/](http://localhost:8000/transactional/send/)。您应该会得到这样的回应:
 
-```
+```py
 `{ "detail":  "This view is going to send an email." }` 
 ```
 
@@ -695,7 +695,7 @@ def send_view(request):
 
 接下来，让我们安装 [mailchimp-transactional](https://github.com/mailchimp/mailchimp-transactional-python) 包:
 
-```
+```py
 `pip install mailchimp-transactional==1.0.47` 
 ```
 
@@ -721,7 +721,7 @@ def send_view(request):
 
 将生成的密钥存储在 *settings.py* 的底部，如下所示:
 
-```
+```py
 `# djangomailchimp/settings.py
 
 MAILCHIMP_MARKETING_API_KEY = '<your mailchimp marketing api key>'
@@ -743,7 +743,7 @@ MAILCHIMP_TRANSACTIONAL_API_KEY = '<your mailchimp transactional api key>'  # ne
 
 接下来，让我们在 *transactional/views.py* 中初始化 Mailchimp 事务电子邮件客户端，并创建一个端点来测试我们是否可以成功 ping 通 API:
 
-```
+```py
 `import mailchimp_transactional
 from django.http import JsonResponse
 from mailchimp_transactional.api_client import ApiClientError
@@ -771,7 +771,7 @@ def mailchimp_transactional_ping_view(request):
 
 在 *urls.py* 中注册新创建的 URL:
 
-```
+```py
 `# transactional/urls.py
 
 from django.urls import path
@@ -786,7 +786,7 @@ urlpatterns = [
 
 再次运行服务器，访问[http://localhost:8000/transactional/ping/](http://localhost:8000/transactional/ping/)查看 ping 是否通过。
 
-```
+```py
 `{ "detail":  "Everything is working fine" }` 
 ```
 
@@ -796,7 +796,7 @@ urlpatterns = [
 
 用以下代码替换我们的`send_view`:
 
-```
+```py
 `def send_view(request):
     message = {
         'from_email': '<YOUR_SENDER_EMAIL>',
@@ -837,7 +837,7 @@ urlpatterns = [
 
 运行服务器，访问[http://localhost:8000/transactional/send/](http://localhost:8000/transactional/send/)。如果一切顺利，您应该会看到以下响应:
 
-```
+```py
 `{ "detail":  "Email has been sent" }` 
 ```
 

@@ -130,7 +130,7 @@
 
 从克隆初始项目存储库开始:
 
-```
+```py
 `$ git clone -b init [[email protected]](/cdn-cgi/l/email-protection):calebpollman/react-calculator.git
 $ cd react-calculator
 $ npm install
@@ -151,13 +151,13 @@ $ npm start`
 
 对于 react 应用版本 15.5 或更高版本，Enzyme 需要 [react-test-renderer](https://reactjs.org/docs/test-renderer.html) :
 
-```
+```py
 `$ npm i -D react-test-renderer @wojtekmaj/enzyme-adapter-react-17` 
 ```
 
 在“src”目录下添加一个名为 *setupTests.js* 的新文件:
 
-```
+```py
 `import  {  configure  }  from  'enzyme'; import  Adapter  from  '@wojtekmaj/enzyme-adapter-react-17'; configure({  adapter:  new  Adapter()  });` 
 ```
 
@@ -169,7 +169,7 @@ Create React App 在每次测试前都会运行 *setupTests.js* 文件，所以�
 
 对于我们的应用程序字体，我们将使用`Orbitron`，这是一种为显示器设计的字体，类似于您在技术先进的未来看到的东西，如果未来是 1983 年的话。我们需要两个权重，`regular` (400)和`bold` (700)，我们将从 [Google Fonts](https://fonts.google.com/specimen/Orbitron?selection.family=Orbitron) 加载字体。导航到“公共”目录中的*index.html*，并在 HTML 的`head`中添加`link`元素:
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -195,7 +195,7 @@ Create React App 在每次测试前都会运行 *setupTests.js* 文件，所以�
 
 导航到 *index.css* 文件并添加以下内容:
 
-```
+```py
 `/*
 app variables
 */ :root  { /* font */ --main-font:  'Orbitron',  sans-serif; } /*
@@ -205,7 +205,7 @@ app CSS reset
 
 然后我们需要将 CSS 导入到我们的应用程序中。在 *index.js* 中更新文件顶部的导入语句:
 
-```
+```py
 `import React from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
@@ -228,7 +228,7 @@ ReactDOM.render(
 
 首先为`App`组件添加第一个失败的测试(红色)，然后编写代码让它通过(绿色)。首先，在“src/components/App”中添加一个名为 *App.spec.js* 的新 spec 文件，并添加一个浅层渲染测试:
 
-```
+```py
 `import  React  from  'react'; import  {  shallow  }  from  'enzyme'; import  App  from  './App'; describe('App',  ()  =>  { it('should render a <div />',  ()  =>  { const  wrapper  =  shallow(<App  />); expect(wrapper.find('div').length).toEqual(1); }); });` 
 ```
 
@@ -236,7 +236,7 @@ ReactDOM.render(
 
 一旦测试运行程序启动并运行，您的终端应该如下所示:
 
-```
+```py
  `FAIL  src/components/App/App.spec.js
   App
     ✕ should render a <div /> (58ms)
@@ -282,7 +282,7 @@ Ran all test suites.`
 
 继续通过创建`App`组件来通过测试。导航到 *App.jsx* 并添加以下代码:
 
-```
+```py
 `import React from 'react';
 
 const App = () => <div className="app-container" />;
@@ -294,7 +294,7 @@ export default App;`
 
 第一个测试现在应该通过了:
 
-```
+```py
  `PASS  src/components/App/App.spec.js
   App
     ✓ should render a <div /> (9ms)
@@ -314,7 +314,7 @@ Ran all test suites related to changed files.`
 
 导航到“src/components/App”目录中的 *App.css* 并添加以下类:
 
-```
+```py
 `.app-container  { height:  100vh; width:  100vw; align-items:  center; display:  flex; justify-content:  center; }` 
 ```
 
@@ -328,13 +328,13 @@ Ran all test suites related to changed files.`
 
 将 CSS 导入到`App`:
 
-```
+```py
 `import  React  from  'react'; import  './App.css'; const  App  =  ()  =>  <div  className="app-container"  />; export  default  App;` 
 ```
 
 将`App`导入 *index.js* :
 
-```
+```py
 `import  React  from  'react'; import  ReactDOM  from  'react-dom'; import  App  from  './components/App/App'; import  './index.css'; ReactDOM.render( <App  />, document.getElementById('root') );` 
 ```
 
@@ -348,13 +348,13 @@ Ran all test suites related to changed files.`
 
 添加测试并重构 *App.spec.js* ，确保导入文件顶部的`Calculator`组件:
 
-```
+```py
 `import  React  from  'react'; import  {  shallow  }  from  'enzyme'; import  App  from  './App'; import  Calculator  from  '../Calculator/Calculator'; describe('App',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<App  />)); it('should render a <div />',  ()  =>  { expect(wrapper.find('div').length).toEqual(1); }); it('should render the Calculator Component',  ()  =>  { expect(wrapper.containsMatchingElement(<Calculator  />)).toEqual(true); }); });` 
 ```
 
 该测试将失败，因为`Calculator`组件不存在:
 
-```
+```py
  `FAIL  src/components/App/App.spec.js
   App
     ✓ should render a <div /> (9ms)
@@ -397,7 +397,7 @@ Ran all test suites related to changed files.`
 
 创建 *Calculator.spec.js* ，将浅层渲染测试和`beforeEach`设置方法添加到文件中:
 
-```
+```py
 `import  React  from  'react'; import  {  shallow  }  from  'enzyme'; import  Calculator  from  './Calculator'; describe('Calculator',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<Calculator  />)); it('should render a <div />',  ()  =>  { expect(wrapper.find('div').length).toEqual(1); }); });` 
 ```
 
@@ -411,7 +411,7 @@ Ran all test suites related to changed files.`
 
 导航到 *Calculator.jsx* 并定义初始状态变量和方法，这些在文章的[设计过程](#project-overview)部分已经讨论过了:
 
-```
+```py
 `import React, { Component } from 'react';
 
 class Calculator extends Component {
@@ -454,13 +454,13 @@ export default Calculator;`
 
 在 *App.jsx* 中，将代码更新如下:
 
-```
+```py
 `import  React  from  'react'; import  Calculator  from  '../Calculator/Calculator'; import  './App.css'; const  App  =  ()  =>  ( <div  className="app-container"> <Calculator  /> </div> ); export  default  App;` 
 ```
 
 随着`Calculator`组件的创建，所有测试现在都通过了:
 
-```
+```py
  `PASS  src/components/Calculator/Calculator.spec.js
  PASS  src/components/App/App.spec.js
 
@@ -481,13 +481,13 @@ Ran all test suites related to changed files.`
 
 您将需要为 [Jest 版本 24 或更高版本](https://github.com/facebook/jest/issues/7802)使用快照序列化程序。我们将使用[酶转 json](https://github.com/adriantoine/enzyme-to-json) :
 
-```
+```py
 `$ npm i -D enzyme-to-json` 
 ```
 
 导航到 *App.spec.js* 并将`toMatchSnapshot`添加为文件中的第一个测试，就在`beforeEach`之后:
 
-```
+```py
 `... describe('App',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<App  />)); it('should render correctly',  ()  =>  expect(wrapper).toMatchSnapshot()); ... });` 
 ```
 
@@ -495,7 +495,7 @@ Ran all test suites related to changed files.`
 
 新的快照测试立即通过，并且它将继续通过*,直到*在那个组件中有一个 UI 变化。这也为`App`组件创建了一个“__snapshots__”目录以及一个名为 *App.spec.js.snap* 的文件。
 
-```
+```py
  `PASS  src/components/Calculator/Calculator.spec.js
  PASS  src/components/App/App.spec.js
  › 1 snapshot written.
@@ -518,7 +518,7 @@ Ran all test suites.`
 
 导航到 *index.css* 并更新文件，如下所示:
 
-```
+```py
 `/*
 app variables
 */ :root  { /* background colors */ --calculator-background-color:  #696969; /* font */ --main-font:  'Orbitron',  sans-serif; /* calculator dimensions */ --calculator-height:  72%; --calculator-width:  36%; } /*
@@ -530,13 +530,13 @@ app CSS reset
 
 接下来更新 *Calculator.css* 中的组件 CSS:
 
-```
+```py
 `.calculator-container  { background-color:  var(--calculator-background-color); height:  var(--calculator-height); width:  var(--calculator-width); }` 
 ```
 
 然后将 CSS 文件导入到 *Calculator.jsx* 的顶部:
 
-```
+```py
 `import './Calculator.css';` 
 ```
 
@@ -556,13 +556,13 @@ app CSS reset
 
 将测试添加到 *Calculator.spec.js* :
 
-```
+```py
 `it('should render the Display Component',  ()  =>  { expect(wrapper.containsMatchingElement(<Display  />)).toEqual(true); });` 
 ```
 
 确保导入文件顶部的`Display`组件:
 
-```
+```py
 `import  Display  from  '../Display/Display';` 
 ```
 
@@ -572,7 +572,7 @@ app CSS reset
 
 创建，然后导航到 *Display.spec.js* ，添加浅层渲染测试以及`beforeEach`设置方法:
 
-```
+```py
 `import  React  from  'react'; import  {shallow}  from  'enzyme'; import  Display  from  './Display'; describe('Display',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<Display  />)); it('should render a <div />',  ()  =>  { expect(wrapper.find('div').length).toEqual(1); }); });` 
 ```
 
@@ -580,7 +580,7 @@ app CSS reset
 
 在 *Display.jsx* 中添加组件，并在文件顶部导入`prop-types`:
 
-```
+```py
 `import React from 'react';
 import PropTypes from 'prop-types';
 
@@ -595,7 +595,7 @@ export default Display;`
 
 将组件添加到 *Display.jsx* 将通过`Display`浅层渲染测试，但带有一个`prop-type`警告。尽管如此,`Calculator › should render the Display component`测试仍然会失败:
 
-```
+```py
  `PASS  src/components/App/App.spec.js
  PASS  src/components/Display/Display.spec.js
   ● Console
@@ -638,7 +638,7 @@ Time:        2.583s`
 
 我们需要在 *Calculator.jsx* 中导入并添加`Display`组件，然后更新渲染方法，以便我们将`displayValue`道具传递给`Display`:
 
-```
+```py
 `import React, { Component } from 'react';
 import Display from '../Display/Display';
 import './Calculator.css';
@@ -661,7 +661,7 @@ class Calculator extends Component {
 
 在 *Display.spec.js* 中，使用空字符串作为值，将`displayValue`属性添加到`beforeEach`块中:
 
-```
+```py
 `... describe('Display',  ()  =>  { let  wrapper; beforeEach(()  =>  wrapper  =  shallow(<Display  displayValue={''}  />)); ... }); ...` 
 ```
 
@@ -669,13 +669,13 @@ class Calculator extends Component {
 
 在 *Calculator.spec.js* 中更新测试:
 
-```
+```py
 `it('should render the Display Component',  ()  =>  { expect(wrapper.containsMatchingElement( <Display  displayValue={wrapper.instance().state.displayValue}  /> )).toEqual(true); });` 
 ```
 
 所有测试都应该通过！
 
-```
+```py
  `PASS  src/components/Calculator/Calculator.spec.js
  PASS  src/components/Display/Display.spec.js
  PASS  src/components/App/App.spec.js
@@ -693,13 +693,13 @@ Ran all test suites.`
 
 首先在 *Display.spec.js* 中编写一个测试:
 
-```
+```py
 `it('renders the value of displayValue',  ()  =>  { wrapper.setProps({  displayValue:  'test'  }); expect(wrapper.text()).toEqual('test'); });` 
 ```
 
 我们将再次在控制台中进行失败的测试:
 
-```
+```py
  `PASS  src/components/App/App.spec.js
  PASS  src/components/Calculator/Calculator.spec.js
  FAIL  src/components/Display/Display.spec.js
@@ -729,7 +729,7 @@ Ran all test suites.`
 
 我们需要重构 *Display.jsx* 来呈现`displayValue`的值。让我们也添加一些`className`到我们的 HTML 元素中，为添加样式做准备:
 
-```
+```py
 `...
 const Display = ({ displayValue }) => (
   <div className="display-container">
@@ -749,7 +749,7 @@ const Display = ({ displayValue }) => (
 
 完成我们的组件后，我们可以导航到 *Display.spec.js* 并将`toMatchSnapshot`添加为文件中的第一个测试，就在`beforeEach`之后:
 
-```
+```py
 `... describe('Display',  ()  =>  { ... it('should render correctly',  ()  =>  expect(wrapper).toMatchSnapshot()); ... });` 
 ```
 
@@ -757,7 +757,7 @@ const Display = ({ displayValue }) => (
 
 按照我们在前面的组件中使用的添加 CSS 的相同模式，首先更新 *index.css* 中的变量和媒体查询:
 
-```
+```py
 `/*
 app variables
 */ :root  { /* background colors */ --display-background-color:  #1d1f1f; /* font */ --main-font:  'Orbitron',  sans-serif; /* font colors */ --display-text-color:  #23e000; /* font sizes */ --display-text-size:  4em; /* font weights */ --display-text-weight:  400; /* calculator dimensions */ --calculator-height:  72%; --calculator-width:  36%; /* display dimensions */ --display-height:  24%; --display-width:  92%; } /*
@@ -769,7 +769,7 @@ app CSS reset
 
 然后在 *Display.css* 中添加组件 CSS:
 
-```
+```py
 `.display-container  { align-items:  center; background:  var(--display-background-color); display:  flex; height:  var(--display-height); padding:  0  4%; width:  var(--display-width); } .display-value  { color:  var(--display-text-color); font-size:  var(--display-text-size); font-family:  var(--main-font); font-weight:  var(--display-text-weight); margin-left:  auto; overflow:  hidden; }` 
 ```
 
@@ -780,7 +780,7 @@ app CSS reset
 
 并将 CSS 文件导入到 *Display.jsx* :
 
-```
+```py
 `import React from 'react';
 import PropTypes from 'prop-types';
 import './Display.css';
@@ -803,7 +803,7 @@ import './Display.css';
 
 在 *Calculator.spec.js* 中重构`Calculator › should render the Display component`测试:
 
-```
+```py
 `it('should render the Display and Keypad Components', () => {
   expect(wrapper.containsAllMatchingElements([
     <Display displayValue={wrapper.instance().state.displayValue} />,
@@ -822,7 +822,7 @@ import './Display.css';
 
 确保在`Keypad`组件中导入:
 
-```
+```py
 `import  Keypad  from  '../Keypad/Keypad';` 
 ```
 
@@ -833,7 +833,7 @@ import './Display.css';
 1.  在“src/components/Keypad”中创建规格文件 *Keypad.spec.js*
 2.  添加`Keypad`浅渲染测试
 
-```
+```py
 `import React from 'react';
 import { shallow } from 'enzyme';
 import Keypad from './Keypad';
@@ -863,7 +863,7 @@ describe('Keypad', () => {
 
 如果您检查控制台，您应该看到两个测试套件失败。现在将 JSX 添加到 *Keypad.jsx* :
 
-```
+```py
 `import React from 'react';
 import PropTypes from 'prop-types';
 
@@ -883,13 +883,13 @@ export default Keypad;`
 
 导入 *Calculator.jsx* 中的`Keypad`:
 
-```
+```py
 `import  Keypad  from  '../Keypad/Keypad';` 
 ```
 
 然后，将`Keypad`添加到`render`方法中，确保从`this.state`解包`numbers`和`operators`的值，并将所有需要的道具传递给`Keypad`:
 
-```
+```py
 `render = () => {
   // unpack the component state by using Object Destructuring
   const { displayValue, numbers, operators } = this.state;
@@ -915,11 +915,11 @@ export default Keypad;`
 
 添加`Calculator`快照，现在我们已经完成了组件的 UI，就在 *Calculator.spec.js* 中的`beforeEach`下面:
 
-```
+```py
 `it('should render correctly',  ()  =>  expect(wrapper).toMatchSnapshot());` 
 ```
 
-```
+```py
  `PASS  src/components/App/App.spec.js
  PASS  src/components/Keypad/Keypad.spec.js
  PASS  src/components/Display/Display.spec.js

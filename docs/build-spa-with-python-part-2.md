@@ -54,7 +54,7 @@
 
 让我们为使用熊猫的电影和节目创建一个推荐列表。为此，我们将向 DataFrame 添加一个名为`recommendation_score`的新列，其值是`imdb_votes`、`imdb_score`、`tmdb_score`和`tmdb_popularity`的加权和:
 
-```
+```py
 `recommended_titles["recommendation_score"] = (
     sanitized_titles["imdb_votes"] * 0.3 +
     sanitized_titles["imdb_score"] * 0.3 +
@@ -65,7 +65,7 @@
 
 在您选择的代码编辑器中打开*index.html*文件，并在`titles_list = sanitized_titles.head(10).to_json(orient="records")`后添加以下代码
 
-```
+```py
 `# 4\. Create recommendation list for Shows and Movies
 # 4.1 Copy the sanitized_titles to add new column to it
 recommended_titles = sanitized_titles.copy()
@@ -82,7 +82,7 @@ print(recommended_titles.head(5))`
 
 在浏览器中打开文件。然后，在你浏览器的[开发者工具](https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_are_browser_developer_tools)的控制台中，你应该会看到前五个标题。注意`recommendation_score`栏:
 
-```
+```py
  `id                            title  ... tmdb_score recommendation_score
  tm84618                      Taxi Driver  ...        8.2          238576.2524
 tm127384  Monty Python and the Holy Grail  ...        7.8          159270.7632
@@ -93,7 +93,7 @@ tm190788                     The Exorcist  ...        7.7          117605.6374
 
 这样，让我们创建两个新的数据帧，一个用于电影，另一个用于节目，然后按`recommendation_score`降序排序:
 
-```
+```py
 `recommended_movies = (
     recommended_titles.loc[recommended_titles["type"] == "MOVIE"]
     .sort_values(by="recommendation_score", ascending=False)
@@ -113,7 +113,7 @@ recommended_shows = (
 
 用这些新列表替换`print(recommended_titles.head(5))`:
 
-```
+```py
 `# 4\. Create recommendation list for Shows and Movies
 # 4.1 Copy the sanitized_titles to add new column to it
 recommended_titles = sanitized_titles.copy()
@@ -141,20 +141,20 @@ recommended_shows = (
 
 要在我们的应用程序中使用这些列表，首先我们需要向`App`的状态添加新的键，以便能够保存和操作数据:
 
-```
+```py
 `state  =  { titles:  [], recommendedMovies:  [], recommendedShows:  [], }` 
 ```
 
 现在，为了更新状态，在`js.window.appComponent.state.titles = titles_list`之后添加以下内容:
 
-```
+```py
 `js.window.appComponent.state.recommendedMovies = recommended_movies
 js.window.appComponent.state.recommendedShows = recommended_shows` 
 ```
 
 最后，为了向最终用户显示建议，将以下内容添加到`view()`，就在`<!-- End of Titles --!>`行的下面:
 
-```
+```py
 `<!--  Start  of  Recommended  title  --!> <div  class="flex"> <!--  Start  of  Recommended  title  --!> <div  class="px-4 sm:px-6 lg:px-8 my-8 w-1/2"> <p  class="text-4xl font-semibold text-slate-100">Recommended  Movies</p> <ul  role="list"  class="divide-y divide-gray-200"> ${this.state.recommendedMovies.length  >  0  ?  JSON.parse(this.state.recommendedMovies).map(function  (movie)  { return  `
  <li class="relative bg-white py-5 px-4 hover:bg-gray-50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600 rounded-md my-2">
  <div class="flex justify-between space-x-3">
@@ -202,7 +202,7 @@ js.window.appComponent.state.recommendedShows = recommended_shows`
 
 在本节中，我们将从 Python 代码开始查找制作最多电影和节目的年份:
 
-```
+```py
 `# 5\. Movie and Show Facts
 
 facts_movies = (
@@ -234,13 +234,13 @@ facts_shows = (
 
 再次更新`App`的状态:
 
-```
+```py
 `state  =  { titles:  [], recommendedMovies:  [], recommendedShows:  [], factsMovies:  [], factsShows:  [], }` 
 ```
 
 更新状态:
 
-```
+```py
 `# 6\. set titles to first 10 titles to the state, update remaining state, and render
 js.window.appComponent.state.titles = titles_list
 js.window.appComponent.state.recommendedMovies = recommended_movies
@@ -252,7 +252,7 @@ js.window.appComponent.render()`
 
 通过在`<!-- End of Recommended Shows --!>`之后添加以下内容再次更新`view()`:
 
-```
+```py
 `<!--  Start  of  Facts  --!> <div  class="px-4 sm:px-6 lg:px-8 my-8"> <div> <h3  class="text-4xl font-semibold text-slate-100">Interesting  Facts</h3> <dl  class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3"> <div  class="px-4 py-5 bg-white shadow rounded-lg overflow-hidden sm:p-6"> ${this.state.factsMovies.length  >  0  ? `
  <dt class="text-sm font-medium text-gray-500 truncate">Movies produced in ${JSON.parse(this.state.factsMovies).data[0].release_year}</dt>
  <dd class="mt-1 text-3xl font-semibold text-gray-900">${JSON.parse(this.state.factsMovies).data[0].id}</dd>
@@ -287,7 +287,7 @@ js.window.appComponent.render()`
 
 在项目的根目录下创建一个名为 *worker.js* 的新文件:
 
-```
+```py
 `self.onmessage  =  function(message)  { console.log(message.data); }` 
 ```
 
@@ -295,7 +295,7 @@ js.window.appComponent.render()`
 
 在 index.html 的*中创建一个新的`script`标记，就在结束`body`标记之前:*
 
-```
+```py
 `<script> const  worker  =  new  Worker("./worker.js"); worker.postMessage("Hello from the main thread!"); </script>` 
 ```
 
@@ -312,13 +312,13 @@ js.window.appComponent.render()`
 
 首先，删除函数定义并调用*index.html*中的`main()`。然后，将 *worker.js* 中的所有代码替换为:
 
-```
+```py
 `// load pyodide.js importScripts("https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"); // Initialize pyodide and load Pandas async  function  initialize(){ self.pyodide  =  await  loadPyodide(); await  self.pyodide.loadPackage("pandas"); } let  initialized  =  initialize();` 
 ```
 
 现在，将以下代码添加到 *worker.js* 文件中，以便在 worker 初始化时运行我们的脚本:
 
-```
+```py
 `self.onmessage  =  async  function  (e)  { await  initialized; response  =  await  fetch( "https://raw.githubusercontent.com/amirtds/kaggle-netflix-tv-shows-and-movies/main/titles.csv" ); response.ok  &&  response.status  ===  200 ?  (titles  =  await  response.text()) :  (titles  =  ""); // define global variable called titles to make it accessible by Python self.pyodide.globals.set("titlesCSV",  titles); let  titlesList  =  await  self.pyodide.runPythonAsync(`
  import pandas as pd
  import io
@@ -395,7 +395,7 @@ js.window.appComponent.render()`
 
 接下来，在*index.html*文件的`const worker = new Worker("./worker.js");`之后，添加以下代码:
 
-```
+```py
 `worker.postMessage("Running Pyodide"); worker.onmessage  =  function  (event)  { event.data.titles  !==  undefined  ?  appComponent.state.titles  =  event.data.titles  :  []; event.data.recommendedMovies  !==  undefined  ?  appComponent.state.recommendedMovies  =  event.data.recommendedMovies  :  []; event.data.recommendedShows  !==  undefined  ?  appComponent.state.recommendedShows  =  event.data.recommendedShows  :  []; event.data.factsMovies  !==  undefined  ?  appComponent.state.factsMovies  =  event.data.factsMovies  :  []; event.data.factsShows  !==  undefined  ?  appComponent.state.factsShows  =  event.data.factsShows  :  []; appComponent.render() }` 
 ```
 

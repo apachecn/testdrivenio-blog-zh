@@ -20,7 +20,7 @@
 
 创建一个新的项目目录和一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-on-docker && cd django-on-docker
 $ mkdir app && cd app
 $ python3.9 -m venv env
@@ -43,7 +43,7 @@ $ source env/bin/activate
 
 您的项目目录应该如下所示:
 
-```
+```py
 `└── app
     ├── hello_django
     │   ├── __init__.py
@@ -59,7 +59,7 @@ $ source env/bin/activate
 
 安装 [Docker](https://docs.docker.com/install/) ，如果你还没有，那么在“app”目录下添加一个 *Dockerfile* :
 
-```
+```py
 `# pull official base image
 FROM  python:3.9.6-alpine
 
@@ -90,7 +90,7 @@ COPY  . .`
 
 接下来，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./app command:  python manage.py runserver 0.0.0.0:8000 volumes: -  ./app/:/usr/src/app/ ports: -  8000:8000 env_file: -  ./.env.dev` 
 ```
 
@@ -98,7 +98,7 @@ COPY  . .`
 
 更新 *settings.py* 中的`SECRET_KEY`、`DEBUG`和`ALLOWED_HOSTS`变量:
 
-```
+```py
 `SECRET_KEY = os.environ.get("SECRET_KEY")
 
 DEBUG = int(os.environ.get("DEBUG", default=0))
@@ -112,7 +112,7 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS").split(" ")`
 
 然后，在项目根目录下创建一个 *.env.dev* 文件来存储开发环境变量:
 
-```
+```py
 `DEBUG=1
 SECRET_KEY=foo
 DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]` 
@@ -132,7 +132,7 @@ DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]`
 
 首先，向 *docker-compose.yml* 添加一个名为`db`的新服务:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./app command:  python manage.py runserver 0.0.0.0:8000 volumes: -  ./app/:/usr/src/app/ ports: -  8000:8000 env_file: -  ./.env.dev depends_on: -  db db: image:  postgres:13.0-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ environment: -  POSTGRES_USER=hello_django -  POSTGRES_PASSWORD=hello_django -  POSTGRES_DB=hello_django_dev volumes: postgres_data:` 
 ```
 
@@ -144,7 +144,7 @@ DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]`
 
 我们还需要为`web`服务添加一些新的环境变量，所以像这样更新 *.env.dev* :
 
-```
+```py
 `DEBUG=1
 SECRET_KEY=foo
 DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
@@ -158,7 +158,7 @@ SQL_PORT=5432`
 
 更新 *settings.py* 中的`DATABASES` dict:
 
-```
+```py
 `DATABASES = {
     "default": {
         "ENGINE": os.environ.get("SQL_ENGINE", "django.db.backends.sqlite3"),
@@ -175,7 +175,7 @@ SQL_PORT=5432`
 
 更新 docker 文件以安装 Psycopg2 所需的相应软件包:
 
-```
+```py
 `# pull official base image
 FROM  python:3.9.6-alpine
 
@@ -201,7 +201,7 @@ COPY  . .`
 
 将 Psycopg2 添加到 *requirements.txt* :
 
-```
+```py
 `Django==3.2.6
 psycopg2-binary==2.9.1` 
 ```
@@ -210,19 +210,19 @@ psycopg2-binary==2.9.1`
 
 构建新的映像并旋转两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 运行迁移:
 
-```
+```py
 `$ docker-compose exec web python manage.py migrate --noinput` 
 ```
 
 > 得到以下错误？
 > 
-> ```
+> ```py
 > django.db.utils.OperationalError: FATAL:  database "hello_django_dev" does not exist 
 > ```
 > 
@@ -230,7 +230,7 @@ psycopg2-binary==2.9.1`
 
 确保创建了默认的 Django 表:
 
-```
+```py
 `$ docker-compose exec db psql --username=hello_django --dbname=hello_django_dev
 
 psql (13.0)
@@ -272,13 +272,13 @@ hello_django_dev=# \q`
 
 您也可以通过运行以下命令来检查该卷是否已创建:
 
-```
+```py
 `$ docker volume inspect django-on-docker_postgres_data` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `[
     {
         "CreatedAt": "2021-08-23T15:49:08Z",
@@ -298,7 +298,7 @@ hello_django_dev=# \q`
 
 接下来，在应用迁移并运行 Django 开发服务器之前，将 *entrypoint.sh* 文件添加到“app”目录中，以验证 Postgres 是否健康*:*
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DATABASE" = "postgres" ]
@@ -320,13 +320,13 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 在本地更新文件权限:
 
-```
+```py
 `$ chmod +x app/entrypoint.sh` 
 ```
 
 然后，更新 Docker 文件以复制覆盖 *entrypoint.sh* 文件，并将其作为 Docker [entrypoint](https://docs.docker.com/engine/reference/builder/#entrypoint) 命令运行:
 
-```
+```py
 `# pull official base image
 FROM  python:3.9.6-alpine
 
@@ -360,7 +360,7 @@ ENTRYPOINT  ["/usr/src/app/entrypoint.sh"]`
 
 将`DATABASE`环境变量添加到 *.env.dev* :
 
-```
+```py
 `DEBUG=1
 SECRET_KEY=foo
 DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
@@ -383,7 +383,7 @@ DATABASE=postgres`
 
 首先，尽管添加了 Postgres，只要`DATABASE`环境变量没有设置为`postgres`，我们仍然可以为 Django 创建一个独立的 Docker 映像。要进行测试，构建一个新的映像，然后运行一个新的容器:
 
-```
+```py
 `$ docker build -f ./app/Dockerfile -t hello_django:latest ./app
 $ docker run -d \
     -p 8006:8000 \
@@ -395,7 +395,7 @@ $ docker run -d \
 
 其次，您可能希望注释掉 *entrypoint.sh* 脚本中的数据库刷新和迁移命令，这样它们就不会在每次容器启动或重新启动时运行:
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DATABASE" = "postgres" ]
@@ -417,7 +417,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 相反，您可以在容器旋转后手动运行它们，如下所示:
 
-```
+```py
 `$ docker-compose exec web python manage.py flush --no-input
 $ docker-compose exec web python manage.py migrate` 
 ```
@@ -426,7 +426,7 @@ $ docker-compose exec web python manage.py migrate`
 
 接下来，对于生产环境，让我们将 [Gunicorn](https://gunicorn.org/) ，一个生产级的 WSGI 服务器，添加到需求文件中:
 
-```
+```py
 `Django==3.2.6
 gunicorn==20.1.0
 psycopg2-binary==2.9.1` 
@@ -436,7 +436,7 @@ psycopg2-binary==2.9.1`
 
 由于我们仍然希望在开发中使用 Django 的内置服务器，因此为生产创建一个名为 *docker-compose.prod.yml* 的新合成文件:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./app command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 ports: -  8000:8000 env_file: -  ./.env.prod depends_on: -  db db: image:  postgres:13.0-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ env_file: -  ./.env.prod.db volumes: postgres_data:` 
 ```
 
@@ -446,7 +446,7 @@ psycopg2-binary==2.9.1`
 
 *.env.prod* :
 
-```
+```py
 `DEBUG=0
 SECRET_KEY=change_me
 DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
@@ -461,7 +461,7 @@ DATABASE=postgres`
 
 *.env.prod.db* :
 
-```
+```py
 `POSTGRES_USER=hello_django
 POSTGRES_PASSWORD=hello_django
 POSTGRES_DB=hello_django_prod` 
@@ -473,7 +473,7 @@ POSTGRES_DB=hello_django_prod`
 
 然后，构建生产映像并启动容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -487,7 +487,7 @@ POSTGRES_DB=hello_django_prod`
 
 entry point . prod . sh:
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DATABASE" = "postgres" ]
@@ -506,13 +506,13 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 在本地更新文件权限:
 
-```
+```py
 `$ chmod +x app/entrypoint.prod.sh` 
 ```
 
 要使用这个文件，创建一个名为 *Dockerfile.prod* 的新 Dockerfile，用于生产构建:
 
-```
+```py
 `###########
 # BUILDER #
 ###########
@@ -592,13 +592,13 @@ ENTRYPOINT  ["/home/app/web/entrypoint.prod.sh"]`
 
 更新 *docker-compose.prod.yml* 文件中的`web`服务，用 *Dockerfile.prod* 构建:
 
-```
+```py
 `web: build: context:  ./app dockerfile:  Dockerfile.prod command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 ports: -  8000:8000 env_file: -  ./.env.prod depends_on: -  db` 
 ```
 
 尝试一下:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput` 
@@ -610,13 +610,13 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 将服务添加到 *docker-compose.prod.yml* :
 
-```
+```py
 `nginx: build:  ./nginx ports: -  1337:80 depends_on: -  web` 
 ```
 
 然后，在本地项目根目录中，创建以下文件和文件夹:
 
-```
+```py
 `└── nginx
     ├── Dockerfile
     └── nginx.conf` 
@@ -624,7 +624,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 *Dockerfile* :
 
-```
+```py
 `FROM  nginx:1.21-alpine
 
 RUN  rm /etc/nginx/conf.d/default.conf
@@ -633,7 +633,7 @@ COPY  nginx.conf /etc/nginx/conf.d`
 
 *engine . conf*:
 
-```
+```py
 `upstream hello_django {
     server web:8000;
 }
@@ -656,7 +656,7 @@ server {
 
 然后，更新`web`服务，在 *docker-compose.prod.yml* 中，用`expose`替换`ports`:
 
-```
+```py
 `web: build: context:  ./app dockerfile:  Dockerfile.prod command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 expose: -  8000 env_file: -  ./.env.prod depends_on: -  db` 
 ```
 
@@ -666,7 +666,7 @@ server {
 
 再测试一次。
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput` 
@@ -676,7 +676,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 您的项目结构现在应该看起来像这样:
 
-```
+```py
 `├── .env.dev
 ├── .env.prod
 ├── .env.prod.db
@@ -703,7 +703,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 完成后将容器拿下来:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
@@ -713,7 +713,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 更新 *settings.py* :
 
-```
+```py
 `STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"` 
 ```
@@ -728,13 +728,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"`
 
 对于生产，向 *docker-compose.prod.yml* 中的`web`和`nginx`服务添加一个卷，这样每个容器将共享一个名为“staticfiles”的目录:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./app dockerfile:  Dockerfile.prod command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 volumes: -  static_volume:/home/app/web/staticfiles expose: -  8000 env_file: -  ./.env.prod depends_on: -  db db: image:  postgres:13.0-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ env_file: -  ./.env.prod.db nginx: build:  ./nginx volumes: -  static_volume:/home/app/web/staticfiles ports: -  1337:80 depends_on: -  web volumes: postgres_data: static_volume:` 
 ```
 
 我们还需要在 *Dockerfile.prod* 中创建“/home/app/web/staticfiles”文件夹:
 
-```
+```py
 `...
 
 # create the appropriate directories
@@ -760,7 +760,7 @@ Docker Compose 通常将命名的卷挂载为根卷。由于我们使用的是�
 
 接下来，更新 Nginx 配置，将静态文件请求路由到“staticfiles”文件夹:
 
-```
+```py
 `upstream hello_django {
     server web:8000;
 }
@@ -787,7 +787,7 @@ server {
 
 测试:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py collectstatic --no-input --clear` 
@@ -799,7 +799,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py collectsta
 
 您还可以通过`docker-compose -f docker-compose.prod.yml logs -f`在日志中验证对静态文件的请求是否通过 Nginx 成功提供:
 
-```
+```py
 `nginx_1  | 192.168.144.1 - - [23/Aug/2021:20:11:00 +0000] "GET /admin/ HTTP/1.1" 302 0 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36" "-"
 nginx_1  | 192.168.144.1 - - [23/Aug/2021:20:11:00 +0000] "GET /admin/login/?next=/admin/ HTTP/1.1" 200 2214 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36" "-"
 nginx_1  | 192.168.144.1 - - [23/Aug/2021:20:11:00 +0000] "GET /static/admin/css/base.css HTTP/1.1" 304 0 "http://localhost:1337/admin/login/?next=/admin/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36" "-"
@@ -814,20 +814,20 @@ nginx_1  | 192.168.144.1 - - [23/Aug/2021:20:11:00 +0000] "GET /static/admin/fon
 
 完成后带上容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
 要测试媒体文件的处理，首先要创建一个新的 Django 应用程序:
 
-```
+```py
 `$ docker-compose up -d --build
 $ docker-compose exec web python manage.py startapp upload` 
 ```
 
 将新应用添加到 *settings.py* 中的`INSTALLED_APPS`列表:
 
-```
+```py
 `INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -842,7 +842,7 @@ $ docker-compose exec web python manage.py startapp upload`
 
 *app/upload/views.py* :
 
-```
+```py
 `from django.shortcuts import render
 from django.core.files.storage import FileSystemStorage
 
@@ -861,7 +861,7 @@ def image_upload(request):
 
 在“app/upload”目录下添加一个“templates”，然后添加一个名为*upload.html*的新模板:
 
-```
+```py
 `{% block content %}
 
   <form action="{% url "upload" %}" method="post" enctype="multipart/form-data">
@@ -879,7 +879,7 @@ def image_upload(request):
 
 *app/hello_django/urls.py* :
 
-```
+```py
 `from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -898,7 +898,7 @@ if bool(settings.DEBUG):
 
 *app/hello _ django/settings . py*:
 
-```
+```py
 `MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"` 
 ```
@@ -907,7 +907,7 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"`
 
 测试:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -917,13 +917,13 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"`
 
 对于生产，向`web`和`nginx`服务添加另一个卷:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./app dockerfile:  Dockerfile.prod command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles expose: -  8000 env_file: -  ./.env.prod depends_on: -  db db: image:  postgres:13.0-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ env_file: -  ./.env.prod.db nginx: build:  ./nginx volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles ports: -  1337:80 depends_on: -  web volumes: postgres_data: static_volume: media_volume:` 
 ```
 
 在 *Dockerfile.prod* 中创建“/home/app/web/mediafiles”文件夹:
 
-```
+```py
 `...
 
 # create the appropriate directories
@@ -939,7 +939,7 @@ WORKDIR  $APP_HOME
 
 再次更新 Nginx 配置:
 
-```
+```py
 `upstream hello_django {
     server web:8000;
 }
@@ -968,7 +968,7 @@ server {
 
 重建:
 
-```
+```py
 `$ docker-compose down -v
 
 $ docker-compose -f docker-compose.prod.yml up -d --build
@@ -985,7 +985,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py collectsta
 > 
 > 示例:
 > 
-> ```
+> ```py
 > location / {
 >     proxy_pass http://hello_django;
 >     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

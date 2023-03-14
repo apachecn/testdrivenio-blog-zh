@@ -14,7 +14,7 @@ Python 3.10 发布于[2021 年](https://www.python.org/downloads/release/python-
 
 如果您有 Docker，您可以快速构建一个 Python 3.10 shell 来使用本文中的示例，如下所示:
 
-```
+```py
 `$ docker run -it --rm python:3.10` 
 ```
 
@@ -28,7 +28,7 @@ Python 3.10 发布于[2021 年](https://www.python.org/downloads/release/python-
 
 快速示例:
 
-```
+```py
 `code = 404
 
 match code:
@@ -57,7 +57,7 @@ match code:
 
 想去掉这个例子中的幻数吗？像这样利用[值模式](https://www.python.org/dev/peps/pep-0634/#value-patterns):
 
-```
+```py
 `from http import HTTPStatus
 
 code = 404
@@ -77,7 +77,7 @@ match code:
 
 您也可以使用[或模式](https://www.python.org/dev/peps/pep-0634/#or-patterns)组合多个模式:
 
-```
+```py
 `from http import HTTPStatus
 
 code = 400
@@ -97,7 +97,7 @@ match code:
 
 结构化模式匹配与其他语言中的`switch/case`语法的不同之处在于，您可以解包复杂的数据类型，并基于结果数据执行操作:
 
-```
+```py
 `point = (0, 10)
 
 match point:
@@ -119,7 +119,7 @@ match point:
 
 你可以用[类模式](https://www.python.org/dev/peps/pep-0634/#class-patterns)实现几乎同样的事情:
 
-```
+```py
 `from dataclasses import dataclass
 
 @dataclass
@@ -146,7 +146,7 @@ match point:
 
 您可以使用[保护符](https://www.python.org/dev/peps/pep-0634/#id1)来添加 if 子句，如下所示:
 
-```
+```py
 `from dataclasses import dataclass
 
 @dataclass
@@ -180,7 +180,7 @@ match point:
 
 使用上下文管理器时，Python 现在支持跨多行的延续:
 
-```
+```py
 `with (
     CtxManager1() as ctx1,
     CtxManager2() as ctx2
@@ -191,7 +191,7 @@ match point:
 
 Python < 3.10:
 
-```
+```py
 `import unittest
 from unittest import mock
 
@@ -217,7 +217,7 @@ class Test(unittest.TestCase):
 
 Python >= 3.10:
 
-```
+```py
 `class Test(unittest.TestCase):
     def test(self):
         with (
@@ -245,7 +245,7 @@ Python 3.10 改进了错误消息，提供了关于错误和错误实际发生�
 
 例如，在 Python 3.10 之前，如果您缺少了一个右括号`}`
 
-```
+```py
 `import datetime
 
 expected = {'Jan', 'Mike', 'Marry',
@@ -255,7 +255,7 @@ today = datetime.datetime.today()`
 
 -您将看到以下错误消息:
 
-```
+```py
  `File "example.py", line 5
     today = datetime.datetime.today()
           ^
@@ -264,7 +264,7 @@ SyntaxError: invalid syntax`
 
 使用 Python 3.10，您将看到:
 
-```
+```py
  `File "example.py", line 3
     expected = {'Jan', 'Mike', 'Marry',
                ^
@@ -296,7 +296,7 @@ Python 3.10 提供了许多与类型注释相关的改进:
 
 首先，您还可以使用一个新的类型联合操作符`|`，这样您就可以表示 X 或 Y 类型，而不必从`typing`模块导入`Union`:
 
-```
+```py
 `# before
 from typing import Union
 
@@ -319,14 +319,14 @@ def sum_xy(x: int | float, y: int | float) -> int | float:
 
 例如:
 
-```
+```py
 `StrCache = "Cache[str]"    # a type alias
 LOG_PREFIX = "LOG[DEBUG]"  # a module constant` 
 ```
 
 在 Python 3.10 中，可以使用`TypeAlias`显式定义类型别名:
 
-```
+```py
 `StrCache: TypeAlias = "Cache[str]"  # a type alias
 LOG_PREFIX = "LOG[DEBUG]"           # a module constant` 
 ```
@@ -344,7 +344,7 @@ LOG_PREFIX = "LOG[DEBUG]"           # a module constant`
 
 以下面两种风格的`is_employee`为例:
 
-```
+```py
 `# without type guards
 def is_employee(user: User) -> bool:
     return isinstance(user, Employee)
@@ -369,7 +369,7 @@ def is_employee(user: User) -> TypeGuard[Employee]:
 
 例如(从 [PEP-612](https://www.python.org/dev/peps/pep-0612/) ):
 
-```
+```py
 `from typing import Awaitable, Callable, TypeVar
 
 R = TypeVar("R")
@@ -392,7 +392,7 @@ await takes_int_str("B", 2) # fails at runtime`
 
 现在，您可以通过使用`typing.ParamSpec`来强制参数类型:
 
-```
+```py
 `from typing import Awaitable, Callable, ParamSpec, TypeVar
 
 P = ParamSpec("P")
@@ -436,7 +436,7 @@ await takes_int_str("B", 2) # Correctly rejected by the type checker`
 
 当你试图[压缩](https://docs.python.org/3/library/functions.html#zip)两个长度不同的可重复项时会发生什么？
 
-```
+```py
 `names = ["Jan", "Mike", "Marry", "Daisy"]
 grades = ["B+", "A", "A+"]
 
@@ -454,7 +454,7 @@ Marry A+
 
 Python 3.10 引入了一个新的`strict`关键字参数，以确保在运行时所有的 iterables 都具有相同的长度:
 
-```
+```py
 `names = ["Jan", "Mike", "Marry", "Daisy"]
 grades = ["B+", "A", "A+"]
 

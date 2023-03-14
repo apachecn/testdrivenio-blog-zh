@@ -36,7 +36,7 @@ Runners 可以对 GitLab 实例中的所有项目和组可用，也可以对特�
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
@@ -44,7 +44,7 @@ Runners 可以对 GitLab 实例中的所有项目和组可用，也可以对特�
 
 旋转出一个叫做`runner-node`的小液滴:
 
-```
+```py
 `$ docker-machine create \
     --driver digitalocean \
     --digitalocean-access-token $DIGITAL_OCEAN_ACCESS_TOKEN \
@@ -59,13 +59,13 @@ Runners 可以对 GitLab 实例中的所有项目和组可用，也可以对特�
 
 SSH 进入 droplet:
 
-```
+```py
 `$ docker-machine ssh runner-node` 
 ```
 
 创建以下文件和文件夹:
 
-```
+```py
 `├── config
 │   └── config.toml
 └── docker-compose.yml` 
@@ -73,7 +73,7 @@ SSH 进入 droplet:
 
 将以下内容添加到 *docker-compose.yml* 文件中:
 
-```
+```py
 `version:  '3' services: gitlab-runner-container: image:  gitlab/gitlab-runner:v14.3.2 container_name:  gitlab-runner-container restart:  always volumes: -  ./config/:/etc/gitlab-runner/ -  /var/run/docker.sock:/var/run/docker.sock` 
 ```
 
@@ -93,7 +93,7 @@ SSH 进入 droplet:
 
 运行以下命令来注册一个新的跑步者，确保用您的组的注册令牌和 URL 替换`<YOUR-GITLAB-REGISTRATION-TOKEN>`和`<YOUR-GITLAB-URL>`:
 
-```
+```py
 `$ docker-compose exec gitlab-runner-container \
     gitlab-runner register \
     --non-interactive \
@@ -107,7 +107,7 @@ SSH 进入 droplet:
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `Runtime platform
 arch=amd64 os=linux pid=18 revision=e0218c92 version=14.3.2
 
@@ -132,13 +132,13 @@ the config should be automatically reloaded!`
 
 回到您的终端，查看一下集装箱日志:
 
-```
+```py
 `$ docker logs gitlab-runner-container -f` 
 ```
 
 您应该会看到作业的状态:
 
-```
+```py
 `Checking for jobs... received
 job=1721313345 repo_url=https://gitlab.com/testdriven/testing-gitlab-ci.git runner=yK2DqWMQ
 
@@ -150,7 +150,7 @@ duration_s=32.174537956 job=1721313345 project=30721568 runner=yK2DqWMQ`
 
 记下配置文件 *config/config.toml* :
 
-```
+```py
 `$ cat config/config.toml
 
 concurrent = 1
@@ -184,7 +184,7 @@ check_interval = 0
 
 因为我们没有利用外部缓存，比如亚马逊 S3 或谷歌云存储，所以删除`[runners.cache]`部分。然后，重新启动转轮:
 
-```
+```py
 `$ docker-compose exec gitlab-runner-container gitlab-runner restart` 
 ```
 
@@ -196,7 +196,7 @@ check_interval = 0
 
 在我们更新并发选项之前，添加一个新的 runner:
 
-```
+```py
 `$ docker-compose exec gitlab-runner-container \
     gitlab-runner register \
     --non-interactive \
@@ -210,7 +210,7 @@ check_interval = 0
 
 然后，像这样更新 *config/config.toml* :
 
-```
+```py
 `concurrent  =  4  # NEW check_interval  =  0 [session_server] session_timeout  =  1800 [[runners]] name  =  "Sample Runner 1" url  =  "https://gitlab.com/" token  =  "yK2DqWMQB1CqPsRx6gwn" executor  =  "docker" limit  =  2  # NEW request_concurrency  =  2  # NEW [runners.custom_build_dir] [runners.docker] tls_verify  =  false image  =  "docker:stable" privileged  =  false disable_entrypoint_overwrite  =  false oom_kill_disable  =  false disable_cache  =  false volumes  =  ["/var/run/docker.sock:/var/run/docker.sock",  "/cache"] shm_size  =  0 [[runners]] name  =  "Sample Runner 2" url  =  "https://gitlab.com/" token  =  "qi-b3gFzVaX3jRRskJbz" limit  =  2  # NEW request_concurrency  =  2  # NEW executor  =  "docker" [runners.custom_build_dir] [runners.cache] [runners.cache.s3] [runners.cache.gcs] [runners.cache.azure] [runners.docker] tls_verify  =  false image  =  "docker:stable" privileged  =  false disable_entrypoint_overwrite  =  false oom_kill_disable  =  false disable_cache  =  false volumes  =  ["/var/run/docker.sock:/var/run/docker.sock",  "/cache"] shm_size  =  0` 
 ```
 
@@ -220,7 +220,7 @@ check_interval = 0
 
 重新启动:
 
-```
+```py
 `$ docker-compose exec gitlab-runner-container gitlab-runner restart` 
 ```
 
@@ -232,7 +232,7 @@ check_interval = 0
 
 Example crontab:
 
-```
+```py
 `@weekly  /usr/bin/docker  system  prune  -f` 
 ```
 
@@ -242,12 +242,12 @@ Example crontab:
 
 不要忘记注销跑步者:
 
-```
+```py
 `$ docker-compose exec gitlab-runner-container gitlab-runner unregister --all-runners` 
 ```
 
 然后，回到您的本地机器，关闭机器/droplet:
 
-```
+```py
 `$ docker-machine rm runner-node` 
 ```

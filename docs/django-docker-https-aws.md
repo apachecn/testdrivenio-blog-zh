@@ -87,7 +87,7 @@
 
 首先安装 Docker 的最新版本和 Docker Compose 的 1.29.2 版本:
 
-```
+```py
 `$ sudo apt update
 $ sudo apt install apt-transport-https ca-certificates curl software-properties-common
 $ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -111,7 +111,7 @@ docker-compose version 1.29.2, build 5becea4c`
 
 下载 AWS CLI ZIP:
 
-```
+```py
 `$ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"` 
 ```
 
@@ -277,7 +277,7 @@ docker-compose version 1.29.2, build 5becea4c`
 
 首先，克隆 GitHub 项目报告的内容:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/django-on-docker-letsencrypt django-on-docker-letsencrypt-aws
 $ cd django-on-docker-letsencrypt-aws` 
 ```
@@ -295,7 +295,7 @@ $ cd django-on-docker-letsencrypt-aws`
 
 对于测试，更新*docker-compose . staging . yml .*文件，如下所示:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./app dockerfile:  Dockerfile.prod image:  <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:web command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles expose: -  8000 env_file: -  ./.env.staging nginx-proxy: container_name:  nginx-proxy build:  nginx image:  <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:nginx-proxy restart:  always ports: -  443:443 -  80:80 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  /var/run/docker.sock:/tmp/docker.sock:ro depends_on: -  web nginx-proxy-letsencrypt: image:  jrcs/letsencrypt-nginx-proxy-companion env_file: -  ./.env.staging.proxy-companion volumes: -  /var/run/docker.sock:/var/run/docker.sock:ro -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  acme:/etc/acme.sh depends_on: -  nginx-proxy volumes: static_volume: media_volume: certs: html: vhost: acme:` 
 ```
 
@@ -303,7 +303,7 @@ $ cd django-on-docker-letsencrypt-aws`
 
 示例:
 
-```
+```py
 `image:  123456789.dkr.ecr.us-east-1.amazonaws.com/django-ec2:web image:  123456789.dkr.ecr.us-east-1.amazonaws.com/django-ec2:nginx-proxy` 
 ```
 
@@ -319,7 +319,7 @@ $ cd django-on-docker-letsencrypt-aws`
 
 首先，为`web`容器添加一个 *.env.staging* 文件:
 
-```
+```py
 `DEBUG=0
 SECRET_KEY=change_me
 DJANGO_ALLOWED_HOSTS=<YOUR_DOMAIN.COM>
@@ -347,7 +347,7 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 其次，添加一个*. env . staging . proxy-companion*文件，确保更新`DEFAULT_EMAIL`值:
 
-```
+```py
 `DEFAULT_EMAIL=youremail@yourdomain.com ACME_CA_URI=https://acme-staging-v02.api.letsencrypt.org/directory NGINX_PROXY_CONTAINER=nginx-proxy` 
 ```
 
@@ -357,7 +357,7 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 现在我们准备构建 Docker 图像:
 
-```
+```py
 `$ docker-compose -f docker-compose.staging.yml build` 
 ```
 
@@ -365,7 +365,7 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 首先，假设您已经安装了[AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)，并且已经设置了 [AWS 凭证](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)，登录 ECR Docker 存储库:
 
-```
+```py
 `$ aws ecr get-login-password --region <aws-region> | docker login --username AWS --password-stdin <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com
 # aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 123456789.dkr.ecr.us-east-1.amazonaws.com` 
 ```
@@ -374,7 +374,7 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 然后将图像推送到集控室:
 
-```
+```py
 `$ docker-compose -f docker-compose.staging.yml push` 
 ```
 
@@ -390,7 +390,7 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 假设您在实例上创建了一个项目目录，如*/home/Ubuntu/django-on-docker*，使用 SCP 复制文件和文件夹:
 
-```
+```py
 `$ scp -i /path/to/your/djangoletsencrypt.pem \
       -r $(pwd)/{app,nginx,.env.staging,.env.staging.proxy-companion,docker-compose.staging.yml} \
       [[email protected]](/cdn-cgi/l/email-protection):/path/to/django-on-docker` 
@@ -398,27 +398,27 @@ LETSENCRYPT_HOST=<YOUR_DOMAIN.COM>`
 
 接下来，通过 SSH 连接到您的实例，并移动到项目目录:
 
-```
+```py
 `$ ssh -i /path/to/your/djangoletsencrypt.pem [[email protected]](/cdn-cgi/l/email-protection)
 $ cd /path/to/django-on-docker` 
 ```
 
 登录 ECR Docker 存储库。
 
-```
+```py
 `$ aws ecr get-login-password --region <aws-region> | docker login --username AWS --password-stdin <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com` 
 ```
 
 提取图像:
 
-```
+```py
 `$ docker pull <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:web
 $ docker pull <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:nginx-proxy` 
 ```
 
 这样，您就可以开始旋转容器了:
 
-```
+```py
 `$ docker-compose -f docker-compose.staging.yml up -d` 
 ```
 
@@ -438,7 +438,7 @@ $ docker pull <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:ngi
 
 关闭现有容器并退出实例:
 
-```
+```py
 `$ docker-compose -f docker-compose.staging.yml down -v
 $ exit` 
 ```
@@ -448,7 +448,7 @@ $ exit`
 1.  更新`ìmage`属性，使之与`ẁeb`和`nginx-proxy`服务的 AWS ECR URLs 相匹配
 2.  移除`db`服务以及相关的卷
 
-```
+```py
 `version:  '3.8' services: web: build: context:  ./app dockerfile:  Dockerfile.prod image:  046505967931.dkr.ecr.us-east-1.amazonaws.com/django-ec2:web command:  gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles expose: -  8000 env_file: -  ./.env.prod nginx-proxy: container_name:  nginx-proxy build:  nginx image:  046505967931.dkr.ecr.us-east-1.amazonaws.com/django-ec2:nginx-proxy restart:  always ports: -  443:443 -  80:80 volumes: -  static_volume:/home/app/web/staticfiles -  media_volume:/home/app/web/mediafiles -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  /var/run/docker.sock:/tmp/docker.sock:ro depends_on: -  web nginx-proxy-letsencrypt: image:  jrcs/letsencrypt-nginx-proxy-companion env_file: -  ./.env.prod.proxy-companion volumes: -  /var/run/docker.sock:/var/run/docker.sock:ro -  certs:/etc/nginx/certs -  html:/usr/share/nginx/html -  vhost:/etc/nginx/vhost.d -  acme:/etc/acme.sh depends_on: -  nginx-proxy volumes: static_volume: media_volume: certs: html: vhost: acme:` 
 ```
 
@@ -456,13 +456,13 @@ $ exit`
 
 最后，添加一个*. env . prod . proxy-companion*文件:
 
-```
+```py
 `DEFAULT_EMAIL=youremail@yourdomain.com NGINX_PROXY_CONTAINER=nginx-proxy` 
 ```
 
 再次构建和推送图像:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml build
 $ aws ecr get-login-password --region <aws-region> | docker login --username AWS --password-stdin <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com
 $ docker-compose -f docker-compose.prod.yml push` 
@@ -470,7 +470,7 @@ $ docker-compose -f docker-compose.prod.yml push`
 
 使用 SCP 将新文件和文件夹复制到您的实例中:
 
-```
+```py
 `$ scp -i /path/to/your/djangoletsencrypt.pem \
       $(pwd)/{.env.prod,.env.prod.proxy-companion,docker-compose.prod.yml} \
       [[email protected]](/cdn-cgi/l/email-protection):/path/to/django-on-docker` 
@@ -478,27 +478,27 @@ $ docker-compose -f docker-compose.prod.yml push`
 
 像前面一样，通过 SSH 连接到您的实例，并移动到项目目录:
 
-```
+```py
 `$ ssh -i /path/to/your/djangoletsencrypt.pem [[email protected]](/cdn-cgi/l/email-protection)
 $ cd /path/to/django-on-docker` 
 ```
 
 再次登录您的 ECR Docker 存储库:
 
-```
+```py
 `$ aws ecr get-login-password --region <aws-region> | docker login --username AWS --password-stdin <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com` 
 ```
 
 提取图像:
 
-```
+```py
 `$ docker pull <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:web
 $ docker pull <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:nginx-proxy` 
 ```
 
 最后旋转容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d` 
 ```
 
@@ -508,7 +508,7 @@ $ docker pull <aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/django-ec2:ngi
 
 > 想要查看证书创建过程的运行情况，请查看日志:
 > 
-> ```
+> ```py
 > `$ docker-compose -f docker-compose.prod.yml logs nginx-proxy-letsencrypt` 
 > ```
 

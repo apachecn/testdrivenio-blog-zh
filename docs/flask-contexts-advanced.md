@@ -144,7 +144,7 @@ Flask 实现了类似的行为(上下文局部变量)，但是以一种更通用
 
 如果您要从头开始创建自己的 web 框架，您可以考虑将应用程序和请求上下文传递给每个视图函数，如下所示:
 
-```
+```py
 `@app.route('/add_item', methods=['GET', 'POST'])
 def add_item(application_context, request_context):  # contexts passed in!
    if request_context.method == 'POST':
@@ -158,7 +158,7 @@ def add_item(application_context, request_context):  # contexts passed in!
 
 然而，Flask 提供了`current_app`和`request`代理，它们最终看起来像视图函数的全局变量:
 
-```
+```py
 `from flask import current_app, request
 
 @app.route('/add_item', methods=['GET', 'POST'])
@@ -188,7 +188,7 @@ def add_item():
 
 上下文本地对象是使用[本地](https://werkzeug.palletsprojects.com/en/2.0.x/local/)对象实现的，可以这样创建:
 
-```
+```py
 `$ python
 
 >>> from werkzeug.local import Local
@@ -208,7 +208,7 @@ def add_item():
 
 下面是这个例子的完整脚本:
 
-```
+```py
 `"""
 Example script to illustrate how a global `LocalStack` object can be used
 when working with multiple threads.
@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
 `long_running_function`在每个线程中运行:
 
-```
+```py
 `def long_running_function(thread_index: int):
     """Simulates a long-running function by using time.sleep()."""
 
@@ -273,7 +273,7 @@ if __name__ == "__main__":
 
 该函数将关于线程的数据推送到全局内存中的`thread_data_stack`对象:
 
-```
+```py
 `thread_data_stack.push({'index': thread_index, 'thread_id': threading.get_native_id()})` 
 ```
 
@@ -281,7 +281,7 @@ if __name__ == "__main__":
 
 在`time.sleep()`功能完成后，来自`thread_data_stack`的数据被访问:
 
-```
+```py
 `print(f'LocalStack contains: {thread_data_stack.top}')` 
 ```
 
@@ -293,7 +293,7 @@ if __name__ == "__main__":
 
 当脚本运行时，它将启动 3 个线程:
 
-```
+```py
 `# Create and start 3 threads that each run long_running_function()
 for index in range(3):
     thread = threading.Thread(target=long_running_function, args=(index,))
@@ -303,7 +303,7 @@ for index in range(3):
 
 并且`join`每个线程，因此脚本等待直到每个线程完成执行:
 
-```
+```py
 `# Wait until each thread terminates before the script exits by
 # 'join'ing each thread
 for thread in threads:
@@ -312,7 +312,7 @@ for thread in threads:
 
 让我们运行这个脚本来看看会发生什么:
 
-```
+```py
 `$ python app.py
 
 Starting thread #0... <werkzeug.local.LocalStack object at 0x109cebc40>
@@ -329,7 +329,7 @@ Done!`
 
 每个线程真正有趣的是它们都指向内存中同一个`LocalStack`对象:
 
-```
+```py
 `Starting thread #0... <werkzeug.local.LocalStack object at 0x109cebc40>
 Starting thread #1... <werkzeug.local.LocalStack object at 0x109cebc40>
 Starting thread #2... <werkzeug.local.LocalStack object at 0x109cebc40>` 
@@ -337,7 +337,7 @@ Starting thread #2... <werkzeug.local.LocalStack object at 0x109cebc40>`
 
 当每个线程访问`thread_data_stack`时，这个访问**对于那个线程来说是唯一的**！这就是`LocalStack`(和`Local`)的神奇之处——它们允许上下文特有的访问:
 
-```
+```py
 `LocalStack contains: {'index': 0, 'thread_id': 320270}
 LocalStack contains: {'index': 1, 'thread_id': 320271}
 LocalStack contains: {'index': 2, 'thread_id': 320272}` 

@@ -28,14 +28,14 @@
 
 从克隆基础项目开始:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/django-github-digitalocean.git --branch base --single-branch
 $ cd django-github-digitalocean` 
 ```
 
 要进行本地测试，构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -59,7 +59,7 @@ $ cd django-github-digitalocean`
 
 构建并标记图像:
 
-```
+```py
 `$ docker build -f app/Dockerfile -t ghcr.io/<USERNAME>/<REPOSITORY_NAME>/web:latest ./app
 
 # example:
@@ -68,7 +68,7 @@ $ cd django-github-digitalocean`
 
 接下来，使用您的个人访问令牌，[向 Docker 认证](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry)GitHub 包:
 
-```
+```py
 `$ docker login ghcr.io -u <USERNAME> -p <TOKEN>
 
 # example:
@@ -77,7 +77,7 @@ $ cd django-github-digitalocean`
 
 将图像推送到 GitHub 包的[容器注册表](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry):
 
-```
+```py
 `$ docker push ghcr.io/<USERNAME>/<REPOSITORY_NAME>/web:latest
 
 # example:
@@ -86,7 +86,7 @@ $ cd django-github-digitalocean`
 
 现在，您应该可以在以下网址之一看到该包(取决于您使用的是个人帐户还是组织):
 
-```
+```py
 `https://github.com/orgs/<USERNAME>/packages
 
 https://github.com/<USERNAME>?tab=packages` 
@@ -102,7 +102,7 @@ https://github.com/<USERNAME>?tab=packages`
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
@@ -110,7 +110,7 @@ https://github.com/<USERNAME>?tab=packages`
 
 接下来，使用预装的 Docker 创建一个新的 Droplet:
 
-```
+```py
 `$ curl -X POST \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -120,7 +120,7 @@ https://github.com/<USERNAME>?tab=packages`
 
 检查状态:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -129,7 +129,7 @@ https://github.com/<USERNAME>?tab=packages`
 
 如果您安装了 [jq](https://stedolan.github.io/jq/) ，那么您可以像这样解析 JSON 响应:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -143,7 +143,7 @@ root 密码应该会通过电子邮件发送给您。找回它。然后，一旦
 
 将密钥保存到 */root/。ssh/id_rsa* 并且不设置密码。这将分别生成一个公钥和私钥- *id_rsa* 和 *id_rsa.pub* 。要设置无密码 SSH 登录，请将公钥复制到 [authorized_keys](https://security.stackexchange.com/questions/20706/what-is-the-difference-between-authorized-keys-and-known-hosts-file-for-ssh) 文件中，并设置适当的权限:
 
-```
+```py
 `$ cat ~/.ssh/id_rsa.pub
 $ vi ~/.ssh/authorized_keys
 $ chmod 600 ~/.ssh/authorized_keys
@@ -154,7 +154,7 @@ $ chmod 600 ~/.ssh/id_rsa`
 
 退出 SSH 会话，然后将密钥设置为本地计算机上的环境变量:
 
-```
+```py
 `export PRIVATE_KEY='-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA04up8hoqzS1+APIB0RhjXyObwHQnOzhAk5Bd7mhkSbPkyhP1
 ...
@@ -165,7 +165,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 将密钥添加到 [ssh-agent](https://www.ssh.com/ssh/agent) 中:
 
-```
+```py
 `$ ssh-add - <<< "${PRIVATE_KEY}"` 
 ```
 
@@ -177,7 +177,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 接下来，让我们通过数字海洋的[托管数据库](https://www.digitalocean.com/products/managed-databases/)建立一个生产 Postgres 数据库:
 
-```
+```py
 `$ curl -X POST \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -187,7 +187,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 检查状态:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -197,7 +197,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 它应该需要几分钟才能旋转起来。一旦状态为`online`，获取连接信息:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -207,7 +207,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 示例响应:
 
-```
+```py
 `{
   "protocol": "postgresql",
   "uri": "postgresql://doadmin:[[email protected]](/cdn-cgi/l/email-protection)locean.com:25060/defaultdb?sslmode=require",
@@ -226,7 +226,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 ### 构建作业
 
-```
+```py
 `name:  Continuous Integration and Delivery on:  [push] env: WEB_IMAGE:  ghcr.io/$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')/web NGINX_IMAGE:  ghcr.io/$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')/nginx jobs: build: name:  Build Docker Images runs-on:  ubuntu-latest steps: -  name:  Checkout master uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Add environment variables to .env run:  | echo DEBUG=0 >> .env echo SQL_ENGINE=django.db.backends.postgresql >> .env echo DATABASE=postgres >> .env echo SECRET_KEY=${{ secrets.SECRET_KEY }} >> .env echo SQL_DATABASE=${{ secrets.SQL_DATABASE }} >> .env echo SQL_USER=${{ secrets.SQL_USER }} >> .env echo SQL_PASSWORD=${{ secrets.SQL_PASSWORD }} >> .env echo SQL_HOST=${{ secrets.SQL_HOST }} >> .env echo SQL_PORT=${{ secrets.SQL_PORT }} >> .env -  name:  Set environment variables run:  | echo "WEB_IMAGE=$(echo ${{env.WEB_IMAGE}} )" >> $GITHUB_ENV echo "NGINX_IMAGE=$(echo ${{env.NGINX_IMAGE}} )" >> $GITHUB_ENV -  name:  Log in to GitHub Packages run:  echo ${PERSONAL_ACCESS_TOKEN} | docker login ghcr.io -u ${{ secrets.NAMESPACE }} --password-stdin env: PERSONAL_ACCESS_TOKEN:  ${{ secrets.PERSONAL_ACCESS_TOKEN }} -  name:  Pull images run:  | docker pull ${{ env.WEB_IMAGE }} || true docker pull ${{ env.NGINX_IMAGE }} || true -  name:  Build images run:  | docker-compose -f docker-compose.ci.yml build -  name:  Push images run:  | docker push ${{ env.WEB_IMAGE }} docker push ${{ env.NGINX_IMAGE }}` 
 ```
 
@@ -275,7 +275,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 接下来，添加一个`deploy`任务:
 
-```
+```py
 `deploy: name:  Deploy to DigitalOcean runs-on:  ubuntu-latest needs:  build steps: -  name:  Checkout master uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Add environment variables to .env run:  | echo DEBUG=0 >> .env echo SQL_ENGINE=django.db.backends.postgresql >> .env echo DATABASE=postgres >> .env echo SECRET_KEY=${{ secrets.SECRET_KEY }} >> .env echo SQL_DATABASE=${{ secrets.SQL_DATABASE }} >> .env echo SQL_USER=${{ secrets.SQL_USER }} >> .env echo SQL_PASSWORD=${{ secrets.SQL_PASSWORD }} >> .env echo SQL_HOST=${{ secrets.SQL_HOST }} >> .env echo SQL_PORT=${{ secrets.SQL_PORT }} >> .env echo WEB_IMAGE=${{ env.WEB_IMAGE }} >> .env echo NGINX_IMAGE=${{ env.NGINX_IMAGE }} >> .env echo NAMESPACE=${{ secrets.NAMESPACE }} >> .env echo PERSONAL_ACCESS_TOKEN=${{ secrets.PERSONAL_ACCESS_TOKEN }} >> .env -  name:  Add the private SSH key to the ssh-agent env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | mkdir -p ~/.ssh ssh-agent -a $SSH_AUTH_SOCK > /dev/null ssh-keyscan github.com >> ~/.ssh/known_hosts ssh-add - <<< "${{ secrets.PRIVATE_KEY }}" -  name:  Build and deploy images on DigitalOcean env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml [[email protected]](/cdn-cgi/l/email-protection)${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }}:/app ssh -o StrictHostKeyChecking=no [[email protected]](/cdn-cgi/l/email-protection)${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }} << 'ENDSSH' cd /app source .env docker login ghcr.io -u $NAMESPACE -p $PERSONAL_ACCESS_TOKEN docker pull $WEB_IMAGE docker pull $NGINX_IMAGE docker-compose -f docker-compose.prod.yml up -d ENDSSH` 
 ```
 
@@ -300,13 +300,13 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 最后，通过在`needs: build`下面添加`if: github.ref == 'refs/heads/master'`来更新`deploy`作业，以便它只在对`master`分支进行更改时运行:
 
-```
+```py
 `deploy: name:  Deploy to DigitalOcean runs-on:  ubuntu-latest needs:  build if:  github.ref == 'refs/heads/master' steps: -  name:  Checkout master uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Add environment variables to .env run:  | echo DEBUG=0 >> .env echo SQL_ENGINE=django.db.backends.postgresql >> .env echo DATABASE=postgres >> .env echo SECRET_KEY=${{ secrets.SECRET_KEY }} >> .env echo SQL_DATABASE=${{ secrets.SQL_DATABASE }} >> .env echo SQL_USER=${{ secrets.SQL_USER }} >> .env echo SQL_PASSWORD=${{ secrets.SQL_PASSWORD }} >> .env echo SQL_HOST=${{ secrets.SQL_HOST }} >> .env echo SQL_PORT=${{ secrets.SQL_PORT }} >> .env echo WEB_IMAGE=${{ env.WEB_IMAGE }} >> .env echo NGINX_IMAGE=${{ env.NGINX_IMAGE }} >> .env echo NAMESPACE=${{ secrets.NAMESPACE }} >> .env echo PERSONAL_ACCESS_TOKEN=${{ secrets.PERSONAL_ACCESS_TOKEN }} >> .env -  name:  Add the private SSH key to the ssh-agent env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | mkdir -p ~/.ssh ssh-agent -a $SSH_AUTH_SOCK > /dev/null ssh-keyscan github.com >> ~/.ssh/known_hosts ssh-add - <<< "${{ secrets.PRIVATE_KEY }}" -  name:  Build and deploy images on DigitalOcean env: SSH_AUTH_SOCK:  /tmp/ssh_agent.sock run:  | scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml [[email protected]](/cdn-cgi/l/email-protection)${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }}:/app ssh -o StrictHostKeyChecking=no [[email protected]](/cdn-cgi/l/email-protection)${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }} << 'ENDSSH' cd /app source .env docker login ghcr.io -u $NAMESPACE -p $PERSONAL_ACCESS_TOKEN docker pull $WEB_IMAGE docker pull $NGINX_IMAGE docker-compose -f docker-compose.prod.yml up -d ENDSSH` 
 ```
 
 为了测试，创建一个新的`develop`分支。在 *urls.py* 中的`world`后加一个感叹号:
 
-```
+```py
 `def home(request):
     return JsonResponse({"hello": "world!"})` 
 ```

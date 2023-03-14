@@ -34,14 +34,14 @@ FastAPI 是一个现代的、高性能的、内置电池的 Python web 框架，
 
 创建一个名为“fastapi-ml”的项目文件夹:
 
-```
+```py
 `$ mkdir fastapi-ml
 $ cd fastapi-ml` 
 ```
 
 然后，创建并激活新的虚拟环境:
 
-```
+```py
 `$ python3.8 -m venv env
 $ source env/bin/activate
 (env)$` 
@@ -55,20 +55,20 @@ $ source env/bin/activate
 
 将 FastAPI 和 Uvicorn 添加到需求文件中:
 
-```
+```py
 `fastapi==0.68.0
 uvicorn==0.14.0` 
 ```
 
 安装依赖项:
 
-```
+```py
 `(env)$ pip install -r requirements.txt` 
 ```
 
 然后，在 *main.py* 中，创建一个新的 FastAPI 实例，并设置一个快速测试路径:
 
-```
+```py
 `from fastapi import FastAPI
 
 app = FastAPI()
@@ -80,7 +80,7 @@ def pong():
 
 启动应用程序:
 
-```
+```py
 `(env)$ uvicorn main:app --reload --workers 1 --host 0.0.0.0 --port 8008` 
 ```
 
@@ -101,7 +101,7 @@ def pong():
 
 添加以下函数来训练模型并生成一个预测到名为 *model.py* 的新文件中:
 
-```
+```py
 `import datetime
 from pathlib import Path
 
@@ -168,7 +168,7 @@ def convert(prediction_list):
 
 更新需求文件:
 
-```
+```py
 `# pystan must be installed before prophet
 # you may need to pip install it on it's own
 # before installing the remaining requirements
@@ -188,7 +188,7 @@ yfinance==0.1.63`
 
 安装新的依赖项:
 
-```
+```py
 `(env)$ pip install -r requirements.txt` 
 ```
 
@@ -196,7 +196,7 @@ yfinance==0.1.63`
 
 要进行测试，请打开一个新的 Python shell 并运行以下命令:
 
-```
+```py
 `(env)$ python
 
 >>> from model import train, predict, convert
@@ -207,7 +207,7 @@ yfinance==0.1.63`
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `{
     '08/12/2021': 282.99012951691776,
     '08/13/2021': 283.31354121099446,
@@ -227,7 +227,7 @@ yfinance==0.1.63`
 
 继续训练更多的模型来工作。例如:
 
-```
+```py
 `>>> train("GOOG")
 >>> train("AAPL")
 >>> train("^GSPC")` 
@@ -241,7 +241,7 @@ yfinance==0.1.63`
 
 通过更新 *main.py* 添加一个`/predict`端点，如下所示:
 
-```
+```py
 `from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -280,14 +280,14 @@ def get_prediction(payload: StockIn):
 
 对于 web 应用程序，我们只需在 JSON 中输出预测。注释掉`predict`中的以下几行:
 
-```
+```py
 `# model.plot(forecast).savefig(f"{ticker}_plot.png")
 # model.plot_components(forecast).savefig(f"{ticker}_plot_components.png")` 
 ```
 
 全功能:
 
-```
+```py
 `def predict(ticker="MSFT", days=7):
     model_file = Path(BASE_DIR).joinpath(f"{ticker}.joblib")
     if not model_file.exists():
@@ -310,13 +310,13 @@ def get_prediction(payload: StockIn):
 
 运行应用程序:
 
-```
+```py
 `(env)$ uvicorn main:app --reload --workers 1 --host 0.0.0.0 --port 8008` 
 ```
 
 然后，在新的终端窗口中，使用 curl 测试端点:
 
-```
+```py
 `$ curl \
   --header "Content-Type: application/json" \
   --request POST \
@@ -326,13 +326,13 @@ def get_prediction(payload: StockIn):
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{ "ticker":"MSFT", "forecast":{ "08/12/2021":  282.99012951691776, "08/13/2021":  283.31354121099446, "08/14/2021":  283.63695290507127, "08/15/2021":  283.960364599148, "08/16/2021":  284.2837762932248, "08/17/2021":  284.6071879873016, "08/18/2021":  284.93059968137834 } }` 
 ```
 
 如果 ticker 模型不存在会怎么样？
 
-```
+```py
 `$ curl \
   --header "Content-Type: application/json" \
   --request POST \
@@ -358,7 +358,7 @@ Heroku 是一个平台即服务(PaaS ),为网络应用提供托管服务。它�
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `Creating app... done, ⬢ tranquil-cliffs-74287
 https://tranquil-cliffs-74287.herokuapp.com/ | https://git.heroku.com/tranquil-cliffs-74287.git` 
 ```
@@ -371,7 +371,7 @@ https://tranquil-cliffs-74287.herokuapp.com/ | https://git.heroku.com/tranquil-c
 
 向项目根目录添加一个 *Dockerfile* 文件:
 
-```
+```py
 `FROM  python:3.8
 
 WORKDIR  /app
@@ -402,7 +402,7 @@ CMD  gunicorn -w 3 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$POR
 
 将 Gunicorn 添加到 *requirements.txt* 文件中:
 
-```
+```py
 `# pystan must be installed before prophet
 # you may need to pip install it on it's own
 # before installing the remaining requirements
@@ -425,7 +425,7 @@ yfinance==0.1.63`
 
 构建 Docker 映像，并用以下格式对其进行标记:
 
-```
+```py
 `registry.heroku.com/<app>/<process-type>` 
 ```
 
@@ -433,44 +433,44 @@ yfinance==0.1.63`
 
 例如:
 
-```
+```py
 `$ docker build -t registry.heroku.com/tranquil-cliffs-74287/web .` 
 ```
 
 安装`fbprophet`需要几分钟时间。耐心点。你应该看到它挂在这里一段时间:
 
-```
+```py
 `Running setup.py install for fbprophet: started` 
 ```
 
 完成后，您可以像这样运行映像:
 
-```
+```py
 `$ docker run --name fastapi-ml -e PORT=8008 -p 8008:8008 -d registry.heroku.com/tranquil-cliffs-74287/web:latest` 
 ```
 
 确保[http://localhost:8008/ping](http://localhost:8008/ping)按预期工作。完成后，停止并移除容器:
 
-```
+```py
 `$ docker stop fastapi-ml
 $ docker rm fastapi-ml` 
 ```
 
 将图像推送到注册表:
 
-```
+```py
 `$ docker push registry.heroku.com/tranquil-cliffs-74287/web` 
 ```
 
 发布图像:
 
-```
+```py
 `$ heroku container:release -a tranquil-cliffs-74287 web` 
 ```
 
 这将运行容器。您现在应该可以查看您的应用程序了。确保测试`/predict`终点:
 
-```
+```py
 `$ curl \
   --header "Content-Type: application/json" \
   --request POST \

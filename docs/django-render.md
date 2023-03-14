@@ -42,20 +42,20 @@ Render 的[自动缩放功能](https://render.com/docs/scaling#autoscaling)将�
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装需求并迁移数据库:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt
 (venv)$ python manage.py migrate` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -75,7 +75,7 @@ Render 的[自动缩放功能](https://render.com/docs/scaling#autoscaling)将�
 
 接下来，导航到您的 *settings.py* 并在文件顶部初始化 python-dotenv，如下所示:
 
-```
+```py
 `# core/settings.py
 
 from pathlib import Path
@@ -90,7 +90,7 @@ load_dotenv(BASE_DIR / '.env')`
 
 接下来，从环境中加载`SECRET_KEY`、`DEBUG`和`ALLOWED_HOSTS`:
 
-```
+```py
 `# core/settings.py
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -112,7 +112,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS').split(' ')`
 
 稍后，当我们启动 PostgreSQL 数据库时，Render 将为我们提供一个`DATABASE_URL`。这是一个受[十二因素应用](https://12factor.net/)启发的环境变量，包括连接数据库所需的所有参数。它将采用以下格式:
 
-```
+```py
 `postgres://USER:PASSWORD@HOST:PORT/NAME` 
 ```
 
@@ -122,7 +122,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS').split(' ')`
 
 接下来，导航到 *core/settings.py* ，将`DATABASES`更改如下:
 
-```
+```py
 `# core/settings.py
 
 DATABASES = {
@@ -144,7 +144,7 @@ DATABASES = {
 
 在项目根目录下创建一个 *build.sh* 文件，内容如下:
 
-```
+```py
 `#!/usr/bin/env bash
 
 set -o errexit  # exit on error
@@ -231,7 +231,7 @@ Render 将检查您的源代码，准备环境，运行 *build.sh* ，生成容�
 
 首先将以下两个包添加到 *requirements.txt* 中:
 
-```
+```py
 `whitenoise==6.2.0
 Brotli==1.0.9` 
 ```
@@ -240,7 +240,7 @@ Brotli==1.0.9`
 
 接下来，将 WhiteNoise 的中间件添加到 *settings.py* 中的`MIDDLEWARE`列表中。它应该放在除 Django 的`SecurityMiddleware`之外的所有其他中间件之上:
 
-```
+```py
 `# core/settings.py
 
 MIDDLEWARE = [
@@ -252,7 +252,7 @@ MIDDLEWARE = [
 
 最后，向下滚动到 *settings.py* 的底部，添加:
 
-```
+```py
 `# core/settings.py
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'` 
@@ -292,7 +292,7 @@ Render(以及许多其他类似的服务，如 Heroku)提供了一个短暂的�
 
 首先，在“images”应用程序中创建以下目录结构:
 
-```
+```py
 `└-- images
     └-- management
         |-- __init__.py
@@ -303,7 +303,7 @@ Render(以及许多其他类似的服务，如 Heroku)提供了一个短暂的�
 
 将以下内容放入 *createsu.py* 中:
 
-```
+```py
 `# images/management/commands/createsu.py
 
 from django.contrib.auth.models import User
@@ -325,7 +325,7 @@ class Command(BaseCommand):
 
 将`createsu`命令添加到 *build.sh* 的末尾，如下所示:
 
-```
+```py
 `#!/usr/bin/env bash
 
 set -o errexit  # exit on error
@@ -349,7 +349,7 @@ Render 将自动重新部署您的应用程序。完成后，导航到您的 web
 
 接下来，进入你的域名注册服务商 DNS 设置，添加一个新的“CNAME 记录”指向你的应用程序的主机名，如下所示:
 
-```
+```py
 `+----------+--------------+-----------------------------------+-----------+ | Type     | Host         | Value                             | TTL       |
 +----------+--------------+-----------------------------------+-----------+ | CNAME    | <some host> | <your_app_hostname> | Automatic |
 +----------+--------------+-----------------------------------+-----------+` 
@@ -357,7 +357,7 @@ Render 将自动重新部署您的应用程序。完成后，导航到您的 web
 
 示例:
 
-```
+```py
 `+----------+--------------+-----------------------------------+-----------+ | Type     | Host         | Value                             | TTL       |
 +----------+--------------+-----------------------------------+-----------+ | CNAME    | render       | django-images-374w.onrender.com   | Automatic |
 +----------+--------------+-----------------------------------+-----------+` 
@@ -367,7 +367,7 @@ Render 将自动重新部署您的应用程序。完成后，导航到您的 web
 
 为确保其有效，请尝试访问您的 web 应用，网址为:
 
-```
+```py
 `https://<your_custom_domain>
 
 Example:

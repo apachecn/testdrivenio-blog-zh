@@ -22,7 +22,7 @@
 
 您还应该能够修复以下错误:
 
-```
+```py
 `RuntimeError: Working outside of application context.
 
 This typically means that you attempted to use functionality that needed
@@ -36,7 +36,7 @@ this, set up an application context with app.app_context().`
 
 Django 示例:
 
-```
+```py
 `def users(request):
     if request.method == 'POST':
          # Save the form data to the database
@@ -48,7 +48,7 @@ Django 示例:
 
 使用 Flask，您可以像这样导入请求对象:
 
-```
+```py
 `from flask import request
 
 @app.route('/users', methods=['GET', 'POST'])
@@ -88,7 +88,7 @@ def users():
 
 假设您有以下 Flask 应用程序:
 
-```
+```py
 `from flask import Flask
 
 app = Flask(__name__)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
 
 在 Python shell 中，如果您试图在视图函数之外访问`current_app.config`对象，您应该会看到以下错误:
 
-```
+```py
 `$ python
 >>> from flask import current_app
 >>> current_app.config
@@ -128,7 +128,7 @@ documentation for more information.`
 
 要访问应用程序公开的对象并请求视图函数之外的上下文，您需要首先创建适当的上下文:
 
-```
+```py
 `# without a context manager
 $ python
 
@@ -144,7 +144,7 @@ $ python
 >>>` 
 ```
 
-```
+```py
 `# with a context manager
 $ python
 
@@ -162,7 +162,7 @@ $ python
 
 您可以使用 [test_request_context](https://flask.palletsprojects.com/en/2.0.x/api/#flask.Flask.test_request_context) 方法来创建一个请求上下文:
 
-```
+```py
 `# without a context manager
 $ python
 
@@ -182,7 +182,7 @@ $ python
 >>>` 
 ```
 
-```
+```py
 `# with a context manager
 $ python
 
@@ -204,7 +204,7 @@ $ python
 
 应用程序和请求上下文最常遇到的问题是当您的应用程序处于测试状态时:
 
-```
+```py
 `import pytest
 from flask import current_app
 
@@ -225,7 +225,7 @@ def test_index_page(client):
 
 运行时，测试将在夹具中失败:
 
-```
+```py
 `$ pytest
 ________________________ ERROR at setup of test_index_page _____________________
 
@@ -249,7 +249,7 @@ E           documentation for more information.
 
 要解决这个问题，请在访问`current_app`之前创建一个应用程序上下文*:*
 
-```
+```py
 `import pytest
 from flask import current_app
 

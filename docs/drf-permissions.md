@@ -37,7 +37,7 @@ APIView 有两种检查权限的方法:
 1.  `check_permissions`根据请求数据检查请求是否被允许
 2.  `check_object_permissions`根据请求和对象数据的组合检查请求是否被允许
 
-```
+```py
 `# rest_framework/views.py
 
 class APIView(View):
@@ -73,7 +73,7 @@ class APIView(View):
 
 在执行视图处理程序之前调用`check_permissions`,而不执行`check_object_permissions`,除非您显式调用它。例如:
 
-```
+```py
 `class MessageSingleAPI(APIView):
 
     def get(self, request, pk):
@@ -85,7 +85,7 @@ class APIView(View):
 
 使用[视图集](https://www.django-rest-framework.org/api-guide/viewsets/)和[通用视图](https://www.django-rest-framework.org/api-guide/generic-views/)，从数据库中检索所有详细视图的对象后，调用`check_object_permissions`。
 
-```
+```py
 `# rest_framework/generics.py
 
 class GenericAPIView(views.APIView):
@@ -125,7 +125,7 @@ class GenericAPIView(views.APIView):
 
 DRF 中的权限被定义为权限类列表。你可以创建自己的或者使用七个[内置类](https://www.django-rest-framework.org/api-guide/permissions/#api-reference)中的一个。所有权限类，无论是自定义的还是内置的，都是从`BasePermission`类扩展而来的:
 
-```
+```py
 `class BasePermission(metaclass=BasePermissionMetaclass):
 
     def has_permission(self, request, view):
@@ -212,7 +212,7 @@ DRF 中的权限被定义为权限类列表。你可以创建自己的或者使�
 
 让我们看一个简单的例子:
 
-```
+```py
 `from rest_framework import permissions
 
 class AuthorOrReadOnly(permissions.BasePermission):
@@ -244,7 +244,7 @@ class AuthorOrReadOnly(permissions.BasePermission):
 
 为了更好地理解发生了什么，让我们来看看一个不符合我们要求的许可:
 
-```
+```py
 `from rest_framework import permissions
 
 class AuthenticatedOnly(permissions.BasePermission):

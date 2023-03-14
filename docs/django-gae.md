@@ -33,20 +33,20 @@ Google App Engine (GAE)是一个完全托管的无服务器平台，用于大规
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装需求并迁移数据库:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt
 (venv)$ python manage.py migrate` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -62,7 +62,7 @@ Google App Engine (GAE)是一个完全托管的无服务器平台，用于大规
 
 要验证安装是否成功，请运行:
 
-```
+```py
 `$ gcloud version
 
 Google Cloud SDK 415.0.0
@@ -84,7 +84,7 @@ gsutil 5.18`
 
 对于 Django 来说，要初始化环境更改，请更新 *settings.py* 的顶部，如下所示:
 
-```
+```py
 `# core/settings.py
 
 import os
@@ -102,7 +102,7 @@ env.read_env(env_file)`
 
 接下来，从环境中加载`SECRET_KEY`和`DEBUG`:
 
-```
+```py
 `# core/settings.py
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -114,7 +114,7 @@ DEBUG = env('DEBUG')`
 
 为了设置`ALLOWED_HOSTS`和`CSRF_TRUSTED_ORIGINS`，我们可以使用来自 GAE 文档的以下[代码片段](https://cloud.google.com/python/django/appengine#csrf_configurations):
 
-```
+```py
 `# core/settings.py
 
 APPENGINE_URL = env('APPENGINE_URL', default=None)
@@ -134,7 +134,7 @@ else:
 
 不要忘记在文件顶部添加导入:
 
-```
+```py
 `from urllib.parse import urlparse` 
 ```
 
@@ -146,13 +146,13 @@ else:
 
 在本教程的后面，我们将创建一个 Postgres 实例，为我们提供形成一个受[十二因素应用](https://12factor.net/)启发的数据库 URL 所需的细节。`DATABASE_URL`将采用以下格式:
 
-```
+```py
 `postgres://USER:[[email protected]](/cdn-cgi/l/email-protection)//cloudsql/PROJECT_ID:REGION:INSTANCE_NAME/DATABASE_NAME` 
 ```
 
 为了将`DATABASE_URL`用于 Django，我们可以像这样使用 django-environ 的`db()`方法:
 
-```
+```py
 `# core/settings.py
 
 DATABASES = {'default': env.db()}` 
@@ -170,7 +170,7 @@ Google App Engine 的 [app.yaml](https://cloud.google.com/appengine/docs/standar
 
 首先在项目根目录下创建一个名为 *app.yaml* 的新文件，包含以下内容:
 
-```
+```py
 `# app.yaml runtime:  python39 env:  standard entrypoint:  gunicorn -b :$PORT core.wsgi:application handlers: -  url:  /.* script:  auto runtime_config: python_version:  3` 
 ```
 
@@ -188,7 +188,7 @@ Google App Engine 的 [app.yaml](https://cloud.google.com/appengine/docs/standar
 
 继续创建一个*。项目根中的 gcloudnignore*文件包含以下内容:
 
-```
+```py
 `# .gcloudignore .gcloudignore # Ignore local .env file .env # If you would like to upload your .git directory, .gitignore file, or files # from your .gitignore file, remove the corresponding line # below: .git .gitignore # Python pycache: __pycache__/ # Ignore collected static and media files mediafiles/ staticfiles/ # Ignore the local DB db.sqlite3 # Ignored by the build system /setup.cfg venv/ # Ignore IDE files .idea/` 
 ```
 
@@ -210,7 +210,7 @@ CLI 将打开您的浏览器，要求您登录并接受一些权限。
 
 要创建 App Engine 应用程序，请转到项目根目录并运行:
 
-```
+```py
 `$ gcloud app create
 
 You are creating an app for project [indigo-griffin-376011].
@@ -269,13 +269,13 @@ Success! The app is now created. Please use `gcloud app deploy` to deploy your f
 
 首先，验证并获取 API 的凭证:
 
-```
+```py
 `$ gcloud auth application-default login` 
 ```
 
 接下来，下载云 SQL 身份验证代理并使其可执行:
 
-```
+```py
 `$ wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
 $ chmod +x cloud_sql_proxy` 
 ```
@@ -284,7 +284,7 @@ $ chmod +x cloud_sql_proxy`
 
 安装完成后，打开一个新的终端窗口，使用您的连接详细信息启动代理，如下所示:
 
-```
+```py
 `$ ./cloud_sql_proxy.exe -instances="PROJECT_ID:REGION:INSTANCE_NAME"=tcp:5432
 
 # Example:
@@ -303,13 +303,13 @@ $ chmod +x cloud_sql_proxy`
 
 如果您还没有安装，请继续安装这些要求:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 接下来，创建一个*。项目根目录中的 env* 文件，带有所需的环境变量:
 
-```
+```py
 `# .env DEBUG=1 SECRET_KEY=+an@of0zh--q%vypb^9x@vgecoda5o!m!l9sqno)vz^n!euncl DATABASE_URL=postgres://DB_USER:DB_PASS@localhost/DB_NAME # Example `DATABASE_URL`: # DATABASE_URL=postgres://django-images:[[email protected]](/cdn-cgi/l/email-protection)/mydb` 
 ```
 
@@ -317,7 +317,7 @@ $ chmod +x cloud_sql_proxy`
 
 最后，迁移数据库:
 
-```
+```py
 `(venv)$ python manage.py migrate
 Operations to perform:
   Apply all migrations: admin, auth, contenttypes, images, sessions
@@ -335,7 +335,7 @@ Running migrations:
 
 要创建超级用户，请运行:
 
-```
+```py
 `(venv)$ python manage.py createsuperuser` 
 ```
 
@@ -347,7 +347,7 @@ Running migrations:
 
 导航到[秘密管理器仪表板](https://console.cloud.google.com/security/secret-manager)并启用 API，如果你还没有的话。接下来，创建一个名为`django_settings`的秘密，内容如下:
 
-```
+```py
 `DEBUG=1 SECRET_KEY=+an@of0zh--q%vypb^9x@vgecoda5o!m!l9sqno)vz^n!euncl DATABASE_URL=postgres://DB_USER:DB_PASS@//cloudsql/PROJECT_ID:REGION:INSTANCE_NAME/DB_NAME GS_BUCKET_NAME=django-images-bucket # Example `DATABASE_URL`: # postgres://django-images:[[email protected]](/cdn-cgi/l/email-protection)//cloudsql/indigo-35:europe-west3:mydb-instance/mydb` 
 ```
 
@@ -357,13 +357,13 @@ Running migrations:
 
 回到您的项目，将以下内容添加到 *requirements.txt* :
 
-```
+```py
 `google-cloud-secret-manager==2.15.1` 
 ```
 
 要从 Secret Manager 加载环境变量，我们可以使用下面的[官方代码片段](https://cloud.google.com/python/django/appengine#understanding-secrets):
 
-```
+```py
 `# core/settings.py
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -391,14 +391,14 @@ else:
 
 不要忘记导入文件顶部的`io`和`secretmanager`:
 
-```
+```py
 `import io
 from google.cloud import secretmanager` 
 ```
 
 太好了！终于到了部署我们应用的时候了。为此，请运行:
 
-```
+```py
 `$ gcloud app deploy
 
 Services to deploy:
@@ -433,7 +433,7 @@ You can stream logs from the command line by running:
 
 如果您尝试上传图像，您应该会看到以下错误:
 
-```
+```py
 `[Errno 30] Read-only file system: '/workspace/mediafiles'` 
 ```
 
@@ -494,13 +494,13 @@ Google App Engine(以及许多其他类似的服务，如 Heroku)提供了一个
 
 在本地安装软件包，并将下面两行添加到 *requirements.txt* :
 
-```
+```py
 `django-storages[google]==1.13.2 google-cloud-storage==2.7.0` 
 ```
 
 接下来，配置 django-storages 以使用云存储和您的服务帐户:
 
-```
+```py
 `# core/settings.py
 
 GS_CREDENTIALS = service_account.Credentials.from_service_account_file(
@@ -514,13 +514,13 @@ GS_BUCKET_NAME = env('GS_BUCKET_NAME')`
 
 不要忘记重要的一点:
 
-```
+```py
 `from google.oauth2 import service_account` 
 ```
 
 使用 *app.yaml* 中的处理程序使 App Engine 服务于静态和媒体文件:
 
-```
+```py
 `# app.yaml handlers: -  url:  /static  # new static_dir:  staticfiles/  # new -  url:  /media  # new static_dir:  mediafiles/  # new -  url:  /.* script:  auto` 
 ```
 
@@ -530,7 +530,7 @@ GS_BUCKET_NAME = env('GS_BUCKET_NAME')`
 
 收集静态文件到 GAE:
 
-```
+```py
 `(venv)$ python manage.py collectstatic
 
 You have requested to collect static files at the destination
@@ -556,7 +556,7 @@ Type 'yes' to continue, or 'no' to cancel: yes
 
 选择您想要使用的域，或者添加并验证新域。如果您添加一个新域，请确保输入裸域名。示例:
 
-```
+```py
 `testdriven.io       <-- good
 app.testdriven.io   <-- bad` 
 ```
@@ -565,7 +565,7 @@ app.testdriven.io   <-- bad`
 
 接下来，转到您的域名注册商的 DNS 设置，添加一个指向`ghs.googlehosted.com`的新“CNAME 记录”,如下所示:
 
-```
+```py
 `+----------+--------------+----------------------------+-----------+ | Type     | Host         | Value                      | TTL       |
 +----------+--------------+----------------------------+-----------+ | CNAME    | <some host> | ghs.googlehosted.co        | Automatic |
 +----------+--------------+----------------------------+-----------+` 
@@ -573,7 +573,7 @@ app.testdriven.io   <-- bad`
 
 示例:
 
-```
+```py
 `+----------+--------------+----------------------------+-----------+ | Type     | Host         | Value                      | TTL       |
 +----------+--------------+----------------------------+-----------+ | CNAME    | app          | ghs.googlehosted.com       | Automatic |
 +----------+--------------+----------------------------+-----------+` 
@@ -585,7 +585,7 @@ app.testdriven.io   <-- bad`
 
 在您验证您的应用程序可通过 HTTPS 访问后，将以下内容添加到 *app.yaml* 的末尾:
 
-```
+```py
 `# app.yaml env_variables: APPENGINE_URL:  <the domain you mapped> # Example: # env_variables: #   APPENGINE_URL: app.testdriven.io` 
 ```
 

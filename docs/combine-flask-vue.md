@@ -49,7 +49,7 @@
 
 这种方法只需要 Vue 库，可以通过 CDN 添加:
 
-```
+```py
 `<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>` 
 ```
 
@@ -59,7 +59,7 @@
 
 创建一个文件夹来存放您的应用程序的所有代码。在该文件夹中，像平常一样创建一个 *app.py* 文件:
 
-```
+```py
 `from flask import Flask, render_template # These are all we need for our purposes
 
 app = Flask(__name__)
@@ -86,7 +86,7 @@ def index():
 
 以下是我们目前掌握的情况:
 
-```
+```py
 `<body>
 <!-- The id 'vm' is just for consistency - it can be anything you want -->
     <div id="vm">
@@ -98,7 +98,7 @@ def index():
 
 在 body 标签结束之前，从官方 CDN 导入 Vue，同时导入一个脚本来保存我们的 JavaScript 代码:
 
-```
+```py
 `<body>
 <!-- The id 'vm' is just for consistency - it can be anything you want -->
     <div id="vm">
@@ -114,7 +114,7 @@ def index():
 
 在这个文件中，创建 Vue 上下文，将我们实例的`el`设置为`'#vm'`，将默认分隔符从`'{{', '}}'`更改为`'[[', ']]'`:
 
-```
+```py
 `const  vm  =  new  Vue({  // Again, vm is our Vue instance's name for consistency. el:  '#vm', delimiters:  ['[[',  ']]'] })` 
 ```
 
@@ -122,13 +122,13 @@ def index():
 
 最后，添加一个键/值为`greeting: 'Hello, Vue!'`的数据元素:
 
-```
+```py
 `const  vm  =  new  Vue({  // Again, vm is our Vue instance's name for consistency. el:  '#vm', delimiters:  ['[[',  ']]'], data:  { greeting:  'Hello, Vue!' } })` 
 ```
 
 现在我们完成了那个文件。最终的文件夹结构应该如下所示:
 
-```
+```py
 `├───app.py
 ├───static
 │   └───index.js
@@ -138,7 +138,7 @@ def index():
 
 现在你可以回到你的根项目文件夹，用`flask run`运行应用程序。在浏览器中导航到该站点。第一行和第二行应分别替换为 Flask 和 Vue:
 
-```
+```py
 `Hello from Flask!
 Hello, Vue!` 
 ```
@@ -208,13 +208,13 @@ Hello, Vue!`
 
 最后，在`/greeting`创建一个问候路由，返回一个带有单个键/值的 JSON 对象:
 
-```
+```py
 `{"greeting": "Hello from Flask!"}` 
 ```
 
 以下是您应该得到的结果:
 
-```
+```py
 `from flask import Flask
 from flask_cors import CORS
 
@@ -234,7 +234,7 @@ def greeting():
 
 因为我们的目标只是看看 Vue 和 Flask 如何相互交互，所以在页面顶部，删除 id 为`app`的`div`中的所有元素。你应该只剩下:
 
-```
+```py
 `<template>
 <div id="app">
 </div>
@@ -248,7 +248,7 @@ def greeting():
 
 你最终的 HTML 应该是这样的:
 
-```
+```py
 `<template>
 <div id="app">
     <p>{{ greeting }}</p>
@@ -263,13 +263,13 @@ def greeting():
 
 以下是我们目前掌握的情况:
 
-```
+```py
 `export  default  { name:  'App', components:  { HelloWorld }, data:  function(){ return  { greeting:  'Hello, Vue!', flaskGreeting:  '' } } }` 
 ```
 
 最后，让我们给我们的 Vue 对象一个`created`生命周期钩子。只有当 DOM 被加载并且我们的 Vue 对象被创建时，这个钩子才会运行。这允许我们使用`fetch` API 并与 Vue 交互，而没有任何冲突:
 
-```
+```py
 `export  default  { components:  { Logo }, data:  function(){ return  { greeting:  'Hello, Vue!', flaskGreeting:  '' } }, created:  async  function(){ const  gResponse  =  await  fetch("http://localhost:5000/greeting"); const  gObject  =  await  gResponse.json(); this.flaskGreeting  =  gObject.greeting; } }` 
 ```
 
@@ -285,14 +285,14 @@ def greeting():
 
 一旦 Vue 应用启动，您应该能够从`localhost:8080`访问它。如果一切正常，您应该会收到两次问候——一次是 Vue，另一次是 Flask API:
 
-```
+```py
 `Hello, Vue!
 Hello from Flask!` 
 ```
 
 最终的文件树应该是这样的:
 
-```
+```py
 `├───app.py
 ├───api
 │   └───app.py
@@ -343,7 +343,7 @@ SSR 使搜索引擎更容易导航和索引你的 Vue 应用，因为你将能�
 
 它应该是这样的:
 
-```
+```py
 `<template>
 <div class="container">
     <p>{{ greeting }}</p>
@@ -362,7 +362,7 @@ SSR 使搜索引擎更容易导航和索引你的 Vue 应用，因为你将能�
 
 Vue 对象应该类似于:
 
-```
+```py
 `export  default  { components:  { Logo }, data:  function(){ return  { greeting:  'Hello, Vue!', flaskGreeting:  '' } }, created:  async  function(){ const  gResponse  =  await  fetch("http://localhost:5000/greeting"); const  gObject  =  await  gResponse.json(); this.flaskGreeting  =  gObject.greeting; } }` 
 ```
 
@@ -372,7 +372,7 @@ Vue 对象应该类似于:
 
 Nuxt 应用程序启动后，您应该能够从`localhost:3000`访问它:
 
-```
+```py
 `Hello, Vue!
 Hello from Flask!` 
 ```
@@ -381,7 +381,7 @@ Hello from Flask!`
 
 我们最后的圣诞树:
 
-```
+```py
 `├───app.py
 ├───api
 │   └───app.py
@@ -440,7 +440,7 @@ Hello from Flask!`
 
 类似于 [Jinja 模板](#jinja-template)方法，我们将使用 CDN 来拉入 Vue 库:
 
-```
+```py
 `<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>` 
 ```
 
@@ -452,7 +452,7 @@ Hello from Flask!`
 
 创建一个名为 *api.py* 的文件。这将包含与我们的 API 相关的所有代码。此外，因为我们将把这个文件/文件夹作为一个模块来访问，所以创建一个 *__init__。py* 文件:
 
-```
+```py
 `from flask import Blueprint
 
 api_bp = Blueprint('api_bp', __name__) # "API Blueprint"
@@ -472,7 +472,7 @@ def greeting():
 
 这一次，我们将向我们的`Blueprint`传递更多的参数，这样它就知道在哪里可以找到正确的静态文件和模板:
 
-```
+```py
 `client_bp = Blueprint('client_bp', __name__, # 'Client Blueprint'
     template_folder='templates', # Required for our purposes
     static_folder='static', # Again, this is required
@@ -482,7 +482,7 @@ def greeting():
 
 添加路线并提供*index.html*模板:
 
-```
+```py
 `from flask import Blueprint, render_template
 
 client_bp = Blueprint("client_bp", __name__, # 'Client Blueprint'
@@ -498,7 +498,7 @@ def index():
 
 非常好。我们的客户端蓝图现在已经完成。退出文件，转到蓝图的“模板”文件夹。创建一个*index.html*文件:
 
-```
+```py
 `<body>
 <!-- The id 'vm' is just for consistency - it can be anything you want -->
     <div id="vm" class="container">
@@ -516,7 +516,7 @@ def index():
 
 完成了。向“静态”文件夹添加一个名为 *index.js* 的新文件。创建一个名为`apiEndpoint`的变量，并将其设置为`api_v1`。如果我们以后决定改变我们的终点，这只会使一切变得更加枯燥:
 
-```
+```py
 `const  apiEndpoint  =  '/api_v1/';` 
 ```
 
@@ -524,7 +524,7 @@ def index():
 
 接下来，首先让 Vue 上下文看起来与 [Jinja 模板](#jinja-template)方法中的上下文相同:
 
-```
+```py
 `const  apiEndpoint  =  '/api_v1/'; const  vm  =  new  Vue({  // Again, vm is our Vue instance's name for consistency. el:  '#vm', delimiters:  ['[[',  ']]'], data:  { greeting:  'Hello, Vue!' } })` 
 ```
 
@@ -532,13 +532,13 @@ def index():
 
 因为我们还将从 API 中提取一个问候语，所以创建一个名为`flaskGreeting`的数据占位符，其值为一个空字符串:
 
-```
+```py
 `const  apiEndpoint  =  '/api_v1/'; const  vm  =  new  Vue({ el:  '#vm', delimiters:  ['[[',  ']]'], data:  { greeting:  'Hello, Vue!', flaskGreeting:  '' } })` 
 ```
 
 让我们给我们的 Vue 对象一个异步的`created`生命周期钩子:
 
-```
+```py
 `const  apiEndpoint  =  '/api_v1/'; const  vm  =  new  Vue({ el:  '#vm', delimiters:  ['[[',  ']]'], data:  { greeting:  'Hello, Vue!', flaskGreeting:  '' }, created:  async  function(){ const  gResponse  =  await  fetch(apiEndpoint  +  'greeting'); const  gObject  =  await  gResponse.json(); this.flaskGreeting  =  gObject.greeting; } })` 
 ```
 
@@ -546,7 +546,7 @@ def index():
 
 非常好。只剩下一件事要做:让我们通过添加一个 *app.py* 到项目根来把所有的东西放在一起。在文件中，将`flask`与蓝图一起导入:
 
-```
+```py
 `from flask import Flask
 from api.api import api_bp
 from client.client import client_bp` 
@@ -554,7 +554,7 @@ from client.client import client_bp`
 
 像平常一样创建一个 Flask 应用程序，并使用`app.register_blueprint()`注册蓝图:
 
-```
+```py
 `from flask import Flask
 from api.api import api_bp
 from client.client import client_bp
@@ -566,7 +566,7 @@ app.register_blueprint(client_bp)`
 
 最终文件树:
 
-```
+```py
 `├───app.py
 ├───api
 │   └───__init__.py

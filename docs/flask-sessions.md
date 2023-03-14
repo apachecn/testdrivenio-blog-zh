@@ -76,7 +76,7 @@ Flask 使用客户端方法。
 
 下面的 *app.py* 文件说明了会话在 Flask 中的工作方式:
 
-```
+```py
 `from flask import Flask, render_template_string, request, session, redirect, url_for
 
 # Create the Flask application
@@ -124,7 +124,7 @@ if __name__ == '__main__':
 
 要运行此示例，首先创建并激活一个新的虚拟环境:
 
-```
+```py
 `$ mkdir flask-session
 $ cd flask-session
 $ python3 -m venv venv
@@ -133,13 +133,13 @@ $ source venv/bin/activate`
 
 安装烧瓶:
 
-```
+```py
 `(venv)$ pip install Flask` 
 ```
 
 将上述代码保存到一个 *app.py* 文件中。然后，启动 Flask 开发服务器:
 
-```
+```py
 `(venv)$ export FLASK_APP=app.py
 (venv)$ export FLASK_ENV=development
 (venv)$ python -m flask run` 
@@ -153,7 +153,7 @@ $ source venv/bin/activate`
 
 在本例中，`set_email`视图函数在提交表单时处理电子邮件:
 
-```
+```py
 `@app.route('/set_email', methods=['GET', 'POST'])
 def set_email():
     if request.method == 'POST':
@@ -176,7 +176,7 @@ def set_email():
 
 当您使用您的电子邮件地址提交表单时(通过 POST 方法)，电子邮件将保存在`session`对象中:
 
-```
+```py
 `# Save the form data to the session object
 session['email'] = request.form['email_address']` 
 ```
@@ -187,7 +187,7 @@ session['email'] = request.form['email_address']`
 
 当电子邮件没有存储在会话中时，`get_email`视图功能利用 Jinja 模板引擎显示存储在`session`对象中的电子邮件地址或者到`set_email()`视图功能的链接:
 
-```
+```py
 `@app.route('/get_email')
 def get_email():
     return render_template_string("""
@@ -209,7 +209,7 @@ def get_email():
 
 存储在`session`对象中的电子邮件地址可以通过`delete_email`查看功能删除:
 
-```
+```py
 `@app.route('/delete_email')
 def delete_email():
     # Clear the email stored in the session object
@@ -245,7 +245,7 @@ Cookies 是小块数据(通常为 4KB)。
 
 基于底层数据类型( [Werkzeug。CallbackDict](https://github.com/pallets/werkzeug/blob/master/src/werkzeug/datastructures.py#L2172) )的对象，它不会自动检测可变数据类型(列表、字典、集合等)的变化。).示例:
 
-```
+```py
 `session['shopping_cart'] = []
 ...
 # Since a mutable data type (list) is being modified, this change
@@ -260,7 +260,7 @@ session.modified = True`
 
 默认情况下，`session`对象保持不动，直到浏览器关闭。但是，如果您想要更改`session`对象的生命周期，请在创建 Flask `app`之后定义[PERMANENT _ SESSION _ LIFETIME](https://flask.palletsprojects.com/en/1.1.x/config/#PERMANENT_SESSION_LIFETIME)配置变量:
 
-```
+```py
 `import datetime
 
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=1)` 
@@ -268,7 +268,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=1)`
 
 当设置`session`中的数据时，指定会话应该是永久的(时间将基于`PERMANENT_SESSION_LIFETIME`):
 
-```
+```py
 `# Save the form data to the session object
 session['email'] = request.form['email_address']
 session.permanent = True` 

@@ -28,7 +28,7 @@
 
 例如:
 
-```
+```py
 `// token header { "alg":  "HS256", "typ":  "JWT" } // token payload { "sub":  "1234567890", "name":  "John Doe", "iat":  1516239022 }` 
 ```
 
@@ -66,7 +66,7 @@ XSS 攻击是一种注入类型，恶意脚本被注入客户端，通常是为�
 
 假设您已经安装了[节点](https://nodejs.org/en/download/package-manager/)和 [npm](https://www.npmjs.com/get-npm) ，通过[瘦项目模板](https://github.com/sveltejs/template)创建一个新项目:
 
-```
+```py
 `$ npx degit sveltejs/template flask-spa-jinja
 $ cd flask-spa-jinja` 
 ```
@@ -77,7 +77,7 @@ $ cd flask-spa-jinja`
 
 安装烧瓶、烧瓶登录和[烧瓶 WTF](https://flask-wtf.readthedocs.io/) :
 
-```
+```py
 `$ python3.10 -m venv env
 $ source env/bin/activate
 $ pip install Flask==2.2.2 Flask-Login==0.6.2 Flask-WTF==1.0.1` 
@@ -85,7 +85,7 @@ $ pip install Flask==2.2.2 Flask-Login==0.6.2 Flask-WTF==1.0.1`
 
 添加一个“templates”文件夹，并将 *public/index.html* 文件移动到其中。您的项目结构现在应该如下所示:
 
-```
+```py
 `├── .gitignore
 ├── README.md
 ├── app.py
@@ -118,7 +118,7 @@ $ pip install Flask==2.2.2 Flask-Login==0.6.2 Flask-WTF==1.0.1`
 
 记下`/`路线的处理程序:
 
-```
+```py
 `@app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def home(path):
@@ -129,7 +129,7 @@ def home(path):
 
 转到配置:
 
-```
+```py
 `app.config.update(
     DEBUG=True,
     SECRET_KEY="secret_sauce",
@@ -141,7 +141,7 @@ def home(path):
 
 设置为`True`的`HttpOnly`标志阻止任何客户端使用会话 cookie:
 
-```
+```py
 `SESSION_COOKIE_HTTPONLY=True,
 REMEMBER_COOKIE_HTTPONLY=True,` 
 ```
@@ -154,7 +154,7 @@ REMEMBER_COOKIE_HTTPONLY=True,`
 
 更新 *templates/index.html* ，通过`url_for`加载静态文件:
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -188,7 +188,7 @@ REMEMBER_COOKIE_HTTPONLY=True,`
 
 例如:
 
-```
+```py
 `const  whoami  =  ()  =>  { fetch("/api/data",  { method:  "GET", headers:  { "Content-Type":  "application/json", "X-CSRFToken":  csrf, }, credentials:  "same-origin", }) .then((res)  =>  res.json()) .then((data)  =>  { console.log(data); alert(`Welcome, ${data.username}!`); }) .catch((err)  =>  { console.log(err); }); };` 
 ```
 
@@ -196,19 +196,19 @@ CSRF 代币来自哪里？
 
 我们将它添加到了 *templates/index.html* 中的 meta 标签中:
 
-```
+```py
 `<meta name="csrf-token" content="{{ csrf_token() }}" />` 
 ```
 
 然后，当`App`组件挂载时，我们将 CSRF 令牌分配给`csrf`变量:
 
-```
+```py
 `let  csrf  =  document.getElementsByName("csrf-token")[0].content;` 
 ```
 
 接下来，更新 *src/main.js* :
 
-```
+```py
 `import  App  from  './App.svelte'; const  app  =  new  App({ target:  document.body, }); export  default  app;` 
 ```
 
@@ -220,7 +220,7 @@ CSRF 代币来自哪里？
 
 创建一个新的构建，然后运行 Flask:
 
-```
+```py
 `$ npm run build
 $ python app.py` 
 ```
@@ -254,13 +254,13 @@ $ python app.py`
 
 首先创建一个项目目录:
 
-```
+```py
 `$ mkdir flask-spa-same-origin && cd flask-spa-same-origin` 
 ```
 
 现在，为后端创建一个文件夹:
 
-```
+```py
 `$ mkdir backend && cd backend` 
 ```
 
@@ -268,7 +268,7 @@ $ python app.py`
 
 添加一个 *requirements.txt* 文件来安装 Flask、Flask-Login 和 Flask-WTF:
 
-```
+```py
 `Flask==2.2.2
 Flask-Login==0.6.2
 Flask-WTF==1.0.1` 
@@ -276,7 +276,7 @@ Flask-WTF==1.0.1`
 
 回到项目根，假设您已经安装了[节点](https://nodejs.org/en/download/package-manager/)和 [npm](https://www.npmjs.com/get-npm) ，通过[瘦项目模板](https://github.com/sveltejs/template)创建一个新项目:
 
-```
+```py
 `$ npx degit sveltejs/template frontend
 $ cd frontend` 
 ```
@@ -285,7 +285,7 @@ $ cd frontend`
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `├── backend
 │   ├── app.py
 │   └── requirements.txt
@@ -321,7 +321,7 @@ $ cd frontend`
 
 注意到:
 
-```
+```py
 `@app.route("/api/getcsrf", methods=["GET"])
 def get_csrf():
     token = generate_csrf()
@@ -340,7 +340,7 @@ def get_csrf():
 
 由于后端和前端是分离的，我们必须通过`/api/getcsrf`端点从后端手动获取令牌，并将其存储在内存中:
 
-```
+```py
 `const  csrf  =  ()  =>  { fetch("/api/getcsrf",  { credentials:  "same-origin", }) .then((res)  =>  { csrfToken  =  res.headers.get(["X-CSRFToken"]); // console.log(csrfToken); }) .catch((err)  =>  { console.log(err); }); }` 
 ```
 
@@ -348,7 +348,7 @@ def get_csrf():
 
 接下来，更新 *frontend/src/main.js* :
 
-```
+```py
 `import  App  from  './App.svelte'; const  app  =  new  App({ target:  document.body, }); export  default  app;` 
 ```
 
@@ -360,7 +360,7 @@ def get_csrf():
 
 *前端/Dockerfile* :
 
-```
+```py
 `# pull the official base image
 FROM  node:lts-alpine
 
@@ -383,7 +383,7 @@ CMD  ["npm",  "run",  "dev"]`
 
 *后端/Dockerfile* :
 
-```
+```py
 `# pull the official base image
 FROM  python:3.10-slim-buster
 
@@ -408,7 +408,7 @@ CMD  ["python",  "app.py"]`
 
 向项目根目录添加一个 *docker-compose.yml* 文件，将两个应用程序绑定在一起:
 
-```
+```py
 `version:  "3.8" services: backend: build:  ./backend volumes: -  ./backend:/usr/src/app expose: -  5000 frontend: stdin_open:  true build:  ./frontend volumes: -  ./frontend:/usr/src/app -  /usr/src/app/node_modules expose: -  8080 depends_on: -  backend` 
 ```
 
@@ -418,7 +418,7 @@ CMD  ["python",  "app.py"]`
 
 *nginx/Dockerfile* :
 
-```
+```py
 `FROM  nginx:latest
 COPY  ./nginx.conf /etc/nginx/nginx.conf` 
 ```
@@ -427,7 +427,7 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 注意两个[位置](https://nginx.org/en/docs/http/ngx_http_core_module.html#location)块:
 
-```
+```py
 `location  /api  { proxy_pass  http://backend:5000; ... } location  /  { proxy_pass  http://frontend:8080; ... }` 
 ```
 
@@ -435,13 +435,13 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 将服务添加到 *docker_compose.yml* 文件中:
 
-```
+```py
 `version:  "3.8" services: backend: build:  ./backend volumes: -  ./backend:/usr/src/app expose: -  5000 frontend: stdin_open:  true build:  ./frontend volumes: -  ./frontend:/usr/src/app -  /usr/src/app/node_modules expose: -  8080 depends_on: -  backend reverse_proxy: build:  ./nginx ports: -  81:80 depends_on: -  backend -  frontend` 
 ```
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `├── backend
 │   ├── Dockerfile
 │   ├── app.py
@@ -472,7 +472,7 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 构建映像并运行容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -491,13 +491,13 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 首先创建一个项目目录:
 
-```
+```py
 `$ mkdir flask-spa-cross-origin && cd flask-spa-cross-origin` 
 ```
 
 现在，为后端创建一个文件夹:
 
-```
+```py
 `$ mkdir backend && cd backend` 
 ```
 
@@ -505,7 +505,7 @@ COPY  ./nginx.conf /etc/nginx/nginx.conf`
 
 安装烧瓶、烧瓶登录、烧瓶 WTF 和烧瓶 CORS:
 
-```
+```py
 `$ python3.9 -m venv env
 $ source env/bin/activate
 $ pip install Flask==2.2.2 Flask-Login==0.6.2 Flask-WTF==1.0.1 Flask-Cors==3.0.10` 
@@ -513,7 +513,7 @@ $ pip install Flask==2.2.2 Flask-Login==0.6.2 Flask-WTF==1.0.1 Flask-Cors==3.0.1
 
 回到项目根，假设您已经安装了[节点](https://nodejs.org/en/download/package-manager/)和 [npm](https://www.npmjs.com/get-npm) ，通过[瘦项目模板](https://github.com/sveltejs/template)创建一个新项目:
 
-```
+```py
 `$ npx degit sveltejs/template frontend
 $ cd frontend` 
 ```
@@ -522,7 +522,7 @@ $ cd frontend`
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `├── backend
 │   └── app.py
 └── frontend
@@ -557,7 +557,7 @@ $ cd frontend`
 
 要启用 CORS，我们必须配置服务器返回适当的头:
 
-```
+```py
 `cors = CORS(
     app,
     resources={r"*": {"origins": "http://localhost:8080"}},
@@ -574,7 +574,7 @@ $ cd frontend`
 
 标题:
 
-```
+```py
 `Access-Control-Allow-Origin: http://localhost:8080
 Access-Control-Expose-Headers: Content-Type, X-CSRFToken
 Access-Control-Allow-Credentials: true` 
@@ -582,7 +582,7 @@ Access-Control-Allow-Credentials: true`
 
 你有没有注意到`SESSION_COOKIE_SAMESITE`被设置为`Lax`？
 
-```
+```py
 `SESSION_COOKIE_SAMESITE="Lax",` 
 ```
 
@@ -598,7 +598,7 @@ Access-Control-Allow-Credentials: true`
 
 接下来，更新 *frontend/src/main.js* :
 
-```
+```py
 `import  App  from  './App.svelte'; const  app  =  new  App({ target:  document.body, }); export  default  app;` 
 ```
 

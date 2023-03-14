@@ -45,7 +45,7 @@
 
 创建一个新的项目目录和一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-async-views && cd django-async-views
 $ python3.10 -m venv env
 $ source env/bin/activate
@@ -60,25 +60,25 @@ $ source env/bin/activate
 
 安装它:
 
-```
+```py
 `(env)$ pip install uvicorn` 
 ```
 
 要使用 Uvicorn 运行您的项目，您可以从项目的根目录使用以下命令:
 
-```
+```py
 `uvicorn {name of your project}.asgi:application` 
 ```
 
 在我们的例子中，这将是:
 
-```
+```py
 `(env)$ uvicorn hello_async.asgi:application` 
 ```
 
 接下来，让我们创建第一个异步视图。添加一个新文件来保存“hello_async”文件夹中的视图，然后添加以下视图:
 
-```
+```py
 `# hello_async/views.py
 
 from django.http import HttpResponse
@@ -91,7 +91,7 @@ async def index(request):
 
 更新 URL:
 
-```
+```py
 `# hello_async/urls.py
 
 from django.contrib import admin
@@ -107,7 +107,7 @@ urlpatterns = [
 
 现在，在终端的根文件夹中，运行:
 
-```
+```py
 `(env)$ uvicorn hello_async.asgi:application --reload` 
 ```
 
@@ -123,7 +123,7 @@ urlpatterns = [
 
 为了演示这一点，添加几个新视图:
 
-```
+```py
 `# hello_async/views.py
 
 import asyncio
@@ -166,7 +166,7 @@ def sync_view(request):
 
 更新 URL:
 
-```
+```py
 `# hello_async/urls.py
 
 from django.contrib import admin
@@ -186,13 +186,13 @@ urlpatterns = [
 
 服务器运行时，导航到[http://localhost:8000/async/](http://localhost:8000/async/)。您应该会立即看到响应:
 
-```
+```py
 `Non-blocking HTTP request` 
 ```
 
 在您的终端中，您应该看到:
 
-```
+```py
 `INFO:     127.0.0.1:60374 - "GET /async/ HTTP/1.1" 200 OK
 1
 2
@@ -208,7 +208,7 @@ urlpatterns = [
 
 转向终端:
 
-```
+```py
 `1
 2
 3
@@ -226,7 +226,7 @@ INFO:     127.0.0.1:60375 - "GET /sync/ HTTP/1.1" 200 OK`
 
 回到你的项目的 URLconf，在 [`smoke_some_meats`](https://www.youtube.com/watch?v=SVyLlFezj2E) 创建一个新路径:
 
-```
+```py
 `# hello_async/urls.py
 
 from django.contrib import admin
@@ -245,7 +245,7 @@ urlpatterns = [
 
 回到您的视图中，创建一个名为`smoke`的新异步助手函数。这个函数有两个参数:一个名为`smokables`的字符串列表和一个名为`flavor`的字符串。这些分别默认为可吸烟的肉类和“糖宝·雷”的列表。
 
-```
+```py
 `# hello_async/views.py
 
 async def smoke(smokables: List[str] = None, flavor: str = "Sweet Baby Ray's") -> List[str]:
@@ -267,7 +267,7 @@ for 循环异步地将风味(读:糖宝·雷的)应用到烟草(读:熏肉)上�
 
 接下来，再添加两个异步助手:
 
-```
+```py
 `async def get_smokables():
     print("Getting smokeables...")
 
@@ -306,7 +306,7 @@ async def get_flavor():
 
 创建使用异步函数的异步视图:
 
-```
+```py
 `# hello_async/views.py
 
 async def smoke_some_meats(request):
@@ -323,13 +323,13 @@ async def smoke_some_meats(request):
 
 太好了。保存文件，然后返回浏览器，导航到[http://localhost:8000/smoke _ some _ meats/](http://localhost:8000/smoke_some_meats/)。应该需要几秒钟才能得到响应:
 
-```
+```py
 `Smoked 6 meats with Sweet Baby Ray's!` 
 ```
 
 在您的控制台中，您应该会看到:
 
-```
+```py
 `Getting smokeables...
 Getting flavor...
 Returning flavor
@@ -358,7 +358,7 @@ INFO:     127.0.0.1:57501 - "GET /smoke_some_meats/ HTTP/1.1" 200 OK`
 
 请注意以下打印语句的顺序:
 
-```
+```py
 `Getting smokeables...
 Getting flavor...
 Returning flavor
@@ -379,7 +379,7 @@ Returning smokeable`
 
 为了说明这一点，在您的 *views.py* 中创建一个名为`oversmoke`的新助手函数:
 
-```
+```py
 `# hello_async/views.py
 
 def oversmoke() -> None:
@@ -392,7 +392,7 @@ def oversmoke() -> None:
 
 创建调用此函数的视图:
 
-```
+```py
 `# hello_async/views.py
 
 async def burn_some_meats(request):
@@ -402,7 +402,7 @@ async def burn_some_meats(request):
 
 最后，在项目的 URLconf 中连接路线:
 
-```
+```py
 `# hello_async/urls.py
 
 from django.contrib import admin
@@ -424,7 +424,7 @@ urlpatterns = [
 
 请注意，最终从浏览器得到响应花了五秒钟。您还应该同时收到控制台输出:
 
-```
+```py
 `Who doesn't love burnt meats?
 INFO:     127.0.0.1:40682 - "GET /burn_some_meats HTTP/1.1" 200 OK` 
 ```
@@ -445,7 +445,7 @@ INFO:     127.0.0.1:40682 - "GET /burn_some_meats HTTP/1.1" 200 OK`
 
 示例:
 
-```
+```py
 `# hello_async/views.py
 
 async def async_with_sync_view(request):
@@ -459,13 +459,13 @@ async def async_with_sync_view(request):
 
 将导入添加到顶部:
 
-```
+```py
 `from asgiref.sync import sync_to_async` 
 ```
 
 添加 URL:
 
-```
+```py
 `# hello_async/urls.py
 
 from django.contrib import admin
@@ -495,7 +495,7 @@ urlpatterns = [
 
 在您的终端中，您应该看到:
 
-```
+```py
 `INFO:     127.0.0.1:61365 - "GET /sync_to_async/ HTTP/1.1" 200 OK
 1
 2
@@ -527,7 +527,7 @@ Django 的异步视图提供了与任务或消息队列相似的功能，而没�
 
 在生产中，一定要使用 Gunicorn 来管理 uvicon，以便利用并发性(通过 uvicon)和并行性(通过 Gunicorn workers):
 
-```
+```py
 `gunicorn -w 3 -k uvicorn.workers.UvicornWorker hello_async.asgi:application` 
 ```
 

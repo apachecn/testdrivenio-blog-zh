@@ -27,7 +27,7 @@
 
 创建一个新的项目目录以及一个名为`djangostripe`的新 Django 项目:
 
-```
+```py
 `$ mkdir django-stripe-checkout && cd django-stripe-checkout
 $ python3.10 -m venv env
 $ source env/bin/activate
@@ -40,13 +40,13 @@ $ source env/bin/activate
 
 接下来，创建一个名为`payments`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp payments` 
 ```
 
 现在将新应用添加到 *settings.py* 中的`INSTALLED_APPS`配置中:
 
-```
+```py
 `# djangostripe/settings.py
 
 INSTALLED_APPS = [
@@ -64,7 +64,7 @@ INSTALLED_APPS = [
 
 用`payments` app 更新项目级 *urls.py* 文件:
 
-```
+```py
 `# djangostripe/urls.py
 
 from django.contrib import admin
@@ -78,13 +78,13 @@ urlpatterns = [
 
 在新应用中也创建一个 *urls.py* 文件:
 
-```
+```py
 `(env)$ touch payments/urls.py` 
 ```
 
 然后按如下方式填充它:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -98,7 +98,7 @@ urlpatterns = [
 
 现在添加一个 *views.py* 文件:
 
-```
+```py
 `# payments/views.py
 
 from django.views.generic.base import TemplateView
@@ -109,14 +109,14 @@ class HomePageView(TemplateView):
 
 并为我们的主页创建一个专用的“模板”文件夹和文件。
 
-```
+```py
 `(env)$ mkdir templates
 (env)$ touch templates/home.html` 
 ```
 
 然后，添加以下 HTML:
 
-```
+```py
 `<!-- templates/home.html -->
 
 <!DOCTYPE html>
@@ -140,7 +140,7 @@ class HomePageView(TemplateView):
 
 确保更新 *settings.py* 文件，以便 Django 知道要查找“模板”文件夹:
 
-```
+```py
 `# djangostripe/settings.py
 
 TEMPLATES = [
@@ -152,7 +152,7 @@ TEMPLATES = [
 
 最后运行`migrate`来同步数据库，运行`runserver`来启动 Django 的本地 web 服务器。
 
-```
+```py
 `(env)$ python manage.py migrate
 (env)$ python manage.py runserver` 
 ```
@@ -165,7 +165,7 @@ TEMPLATES = [
 
 条纹时间到了。从安装开始:
 
-```
+```py
 `(env)$ pip install stripe==2.63.0` 
 ```
 
@@ -183,7 +183,7 @@ TEMPLATES = [
 
 在您的 *settings.py* 文件的底部，添加以下两行，包括您自己的测试秘密和测试可发布密钥。确保在实际的键周围包含`''`字符。
 
-```
+```py
 `# djangostripe/settings.py
 
 STRIPE_PUBLISHABLE_KEY = '<your test publishable key here>'
@@ -238,20 +238,20 @@ STRIPE_SECRET_KEY = '<your test secret key here>'`
 
 让我们首先创建一个新的静态文件来保存我们所有的 JavaScript:
 
-```
+```py
 `(env)$ mkdir static
 (env)$ touch static/main.js` 
 ```
 
 向新的 *main.js* 文件添加快速健全检查:
 
-```
+```py
 `// static/main.js console.log("Sanity check!");` 
 ```
 
 然后更新 *settings.py* 文件，这样 Django 就知道在哪里可以找到静态文件:
 
-```
+```py
 `# djangostripe/settings.py
 
 STATIC_URL = '/static/'
@@ -265,7 +265,7 @@ STATICFILES_DIRS = [BASE_DIR / 'static']  # new
 
 在 HTML 模板中添加静态模板标签和新的脚本标签:
 
-```
+```py
 `<!-- templates/home.html -->
 
 {% load static %} <!-- new -->
@@ -298,7 +298,7 @@ STATICFILES_DIRS = [BASE_DIR / 'static']  # new
 
 接下来，向 *payments/views.py* 添加一个新视图来处理 XHR 请求:
 
-```
+```py
 `# payments/views.py
 
 from django.conf import settings # new
@@ -319,7 +319,7 @@ def stripe_config(request):
 
 也添加一个 URL:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -336,7 +336,7 @@ urlpatterns = [
 
 接下来，使用[获取 API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) 向 *static/main.js* 中的新`/config/`端点发出 XHR (XMLHttpRequest)请求:
 
-```
+```py
 `// static/main.js console.log("Sanity check!"); // new // Get Stripe publishable key fetch("/config/") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { // Initialize Stripe.js const  stripe  =  Stripe(data.publicKey); });` 
 ```
 
@@ -344,7 +344,7 @@ urlpatterns = [
 
 将 [Stripe.js](https://stripe.com/docs/js) 包含在 *templates/home.html* 中像这样:
 
-```
+```py
 `<!-- templates/home.html -->
 
 {% load static %}
@@ -402,7 +402,7 @@ urlpatterns = [
 
 首先，添加新视图:
 
-```
+```py
 `# payments/views.py
 
 @csrf_exempt
@@ -445,7 +445,7 @@ def create_checkout_session(request):
 
 添加 URL:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -463,7 +463,7 @@ urlpatterns = [
 
 将事件处理程序和后续的 XHR 请求添加到 *static/main.js* :
 
-```
+```py
 `// static/main.js console.log("Sanity check!"); // Get Stripe publishable key fetch("/config/") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { // Initialize Stripe.js const  stripe  =  Stripe(data.publicKey); // new // Event handler document.querySelector("#submitBtn").addEventListener("click",  ()  =>  { // Get Checkout Session ID fetch("/create-checkout-session/") .then((result)  =>  {  return  result.json();  }) .then((data)  =>  { console.log(data); // Redirect to Stripe Checkout return  stripe.redirectToCheckout({sessionId:  data.sessionId}) }) .then((res)  =>  { console.log(res); }); }); });` 
 ```
 
@@ -503,7 +503,7 @@ urlpatterns = [
 
 成功模板:
 
-```
+```py
 `<!-- templates/success.html -->
 
 <!DOCTYPE html>
@@ -527,7 +527,7 @@ urlpatterns = [
 
 已取消的模板:
 
-```
+```py
 `<!-- templates/cancelled.html -->
 
 <!DOCTYPE html>
@@ -551,7 +551,7 @@ urlpatterns = [
 
 视图:
 
-```
+```py
 `# payments/views.py
 
 class SuccessView(TemplateView):
@@ -563,7 +563,7 @@ class CancelledView(TemplateView):
 
 URL:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -629,7 +629,7 @@ urlpatterns = [
 
 创建一个名为`stripe_webhook`的新视图，它会在每次付款成功时打印一条消息:
 
-```
+```py
 `# payments/views.py
 
 @csrf_exempt
@@ -663,13 +663,13 @@ def stripe_webhook(request):
 
 确保将`HttpResponse`导入添加到顶部:
 
-```
+```py
 `from django.http.response import JsonResponse, HttpResponse` 
 ```
 
 要使端点可访问，唯一要做的就是在 *urls.py* 中注册它:
 
-```
+```py
 `# payments/urls.py
 
 from django.urls import path
@@ -694,7 +694,7 @@ urlpatterns = [
 
 此命令应生成一个配对代码:
 
-```
+```py
 `Your pairing code is: peach-loves-classy-cozy
 This pairing code verifies your authentication with Stripe.
 Press Enter to open the browser (^C to quit)` 
@@ -702,7 +702,7 @@ Press Enter to open the browser (^C to quit)`
 
 通过按 Enter，CLI 将打开您的默认 web 浏览器，并请求访问您的帐户信息的权限。请继续并允许访问。回到您的终端，您应该看到类似于以下内容的内容:
 
-```
+```py
 `> Done! The Stripe CLI is configured for Django Test with account id acct_<ACCOUNT_ID>
 
 Please note: this key will expire after 90 days, at which point you'll need to re-authenticate.` 
@@ -710,19 +710,19 @@ Please note: this key will expire after 90 days, at which point you'll need to r
 
 接下来，我们可以开始侦听条带事件，并使用以下命令将它们转发到我们的端点:
 
-```
+```py
 `$ stripe listen --forward-to localhost:8000/webhook/` 
 ```
 
 这也将生成一个 webhook 签名密码:
 
-```
+```py
 `> Ready! Your webhook signing secret is whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (^C to quit)` 
 ```
 
 为了初始化端点，将秘密添加到 *settings.py* 文件中:
 
-```
+```py
 `# djangostripe/settings.py
 
 STRIPE_ENDPOINT_SECRET = '<your webhook signing secret here>'` 
@@ -736,7 +736,7 @@ Stripe 现在会将事件转发到我们的端点。要测试，通过`4242 4242
 > 
 > 例如:
 > 
-> ```
+> ```py
 > # payments/views.py
 > 
 > @csrf_exempt

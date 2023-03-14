@@ -46,14 +46,14 @@ Falcon 是一个微型 Python web 框架，非常适合创建后端 RESTful APIs
 
 克隆基础项目:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/falcon-celery --branch base --single-branch
 $ cd falcon-celery` 
 ```
 
 快速浏览一下代码和项目结构，然后使用 Docker 启动应用程序:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -61,7 +61,7 @@ $ cd falcon-celery`
 
 确保测试通过:
 
-```
+```py
 `$ docker-compose run web python test.py
 
 .
@@ -75,7 +75,7 @@ OK`
 
 现在有趣的部分来了——添加[芹菜](https://docs.celeryq.dev/)！首先将芹菜和 Redis 添加到 *requirements.txt* 文件中:
 
-```
+```py
 `celery==5.2.7
 falcon==3.1.0
 gunicorn==20.1.0
@@ -86,7 +86,7 @@ redis==4.3.4`
 
 向“项目/应用程序”目录添加一个名为 *tasks.py* 的新文件:
 
-```
+```py
 `# project/app/tasks.py
 
 import os
@@ -120,13 +120,13 @@ Celery 使用消息代理来促进 Celery worker 和 web 应用程序之间的�
 
 Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.celeryq.dev/en/stable/userguide/workers.html)添加到 *docker-compose.yml* 文件中:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./project image:  web container_name:  web ports: -  8000:8000 volumes: -  ./project:/usr/src/app command:  gunicorn -b 0.0.0.0:8000 app:app environment: -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  redis celery: image:  web volumes: -  ./project:/usr/src/app command:  celery -A app.tasks worker --loglevel=info environment: -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis redis: image:  redis:7-alpine` 
 ```
 
 添加一个新的路由处理程序，将`fib`任务启动到 *__init__。py* :
 
-```
+```py
 `class CreateTask(object):
 
     def on_post(self, req, resp):
@@ -145,25 +145,25 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 注册路线:
 
-```
+```py
 `app.add_route('/create', CreateTask())` 
 ```
 
 导入任务:
 
-```
+```py
 `from app.tasks import fib` 
 ```
 
 构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 测试:
 
-```
+```py
 `$ curl -X POST http://localhost:8000/create \
     -d '{"number":"4"}' \
     -H "Content-Type: application/json"` 
@@ -171,7 +171,7 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{
   "status": "success",
   "data": {
@@ -184,7 +184,7 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 接下来，添加一个新的路由处理程序来检查任务的状态:
 
-```
+```py
 `class CheckStatus(object):
 
     def on_get(self, req, resp, task_id):
@@ -196,25 +196,25 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 注册路线:
 
-```
+```py
 `app.add_route('/status/{task_id}', CheckStatus())` 
 ```
 
 导入[异步结果](https://docs.celeryq.dev/en/stable/reference/celery.result.html):
 
-```
+```py
 `from celery.result import AsyncResult` 
 ```
 
 更新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 触发新任务:
 
-```
+```py
 `$ curl -X POST http://localhost:8000/create \
     -d '{"number":"3"}' \
     -H "Content-Type: application/json"
@@ -229,7 +229,7 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 然后，使用返回的`task_id`检查状态:
 
-```
+```py
 `$ curl http://localhost:8000/status/65a1c427-ee08-4fb1-9842-d0f90d081c54
 
 {
@@ -241,19 +241,19 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 更新`celery`服务，以便将芹菜日志转储到一个日志文件:
 
-```
+```py
 `celery: image:  web volumes: -  ./project:/usr/src/app -  ./project/logs:/usr/src/app/logs  # add this line command:  celery -A app.tasks worker --loglevel=info  --logfile=logs/celery.log  # update this line environment: -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis` 
 ```
 
 更新:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 因为我们设置了一个卷，所以您应该在本地的 *logs/celery.log* 中看到日志文件:
 
-```
+```py
 `[2022-11-15  17:44:31,471:  INFO/MainProcess]  Connected  to  redis://redis:6379/0
 [2022-11-15  17:44:31,476:  INFO/MainProcess]  mingle:  searching  for  neighbors [2022-11-15  17:44:32,488:  INFO/MainProcess]  mingle:  all  alone [2022-11-15  17:44:32,503:  INFO/MainProcess]  celery@80a00f0c917e  ready. [2022-11-15  17:44:32,569:  INFO/MainProcess]  Received  task:  app.tasks.fib[0b161c4d-5e1c-424a-ae9f-5c3e84de5043] [2022-11-15  17:44:32,593:  INFO/ForkPoolWorker-1]  Task  app.tasks.fib[0b161c4d-5e1c-424a-ae9f-5c3e84de5043]  succeeded  in  6.018030700040981s:  [0,  1,  1,  2]` 
 ```
@@ -264,7 +264,7 @@ Redis 将被用作代理和后端。将 Redis 和芹菜[工人](https://docs.cel
 
 添加到 *requirements.txt:*
 
-```
+```py
 `celery==5.2.7
 falcon==3.1.0
 flower==1.2.0
@@ -274,13 +274,13 @@ redis==4.3.4`
 
 然后将服务添加到 *docker-compose.yml* :
 
-```
+```py
 `monitor: image:  web ports: -  5555:5555 command:  celery flower -A app.tasks --port=5555 --broker=redis://redis:6379/0 environment: -  CELERY_BROKER=redis://redis:6379/0 -  CELERY_BACKEND=redis://redis:6379/0 depends_on: -  web -  redis` 
 ```
 
 测试一下:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -304,7 +304,7 @@ redis==4.3.4`
 
 让我们从单元测试开始:
 
-```
+```py
 `class TestCeleryTasks(unittest.TestCase):
 
     def test_fib_task(self):
@@ -316,7 +316,7 @@ redis==4.3.4`
 
 将上面的测试用例添加到 *project/test.py* 中，然后更新导入:
 
-```
+```py
 `import unittest
 
 from falcon import testing
@@ -326,13 +326,13 @@ from app import app, tasks`
 
 运行:
 
-```
+```py
 `$ docker-compose run web python test.py` 
 ```
 
 应该需要大约 20 秒来运行:
 
-```
+```py
 `..
 ----------------------------------------------------------------------
 Ran 2 tests in 20.038s
@@ -344,7 +344,7 @@ OK`
 
 想模拟芹菜任务吗？
 
-```
+```py
 `class TestCeleryTasks(unittest.TestCase):
 
     # def test_fib_task(self):
@@ -367,11 +367,11 @@ OK`
 
 添加导入:
 
-```
+```py
 `from unittest.mock import patch` 
 ```
 
-```
+```py
 `$ docker-compose run web python test.py
 
 ..
@@ -385,7 +385,7 @@ OK`
 
 您还可以通过运行以下脚本，从容器外部运行完整的集成测试:
 
-```
+```py
 `#!/bin/bash
 
 # trigger jobs
@@ -409,7 +409,7 @@ done`
 
 请记住，这与开发中使用的代理和后端是一样的。您可能想要实例化一个新的 Celery 应用程序来进行测试:
 
-```
+```py
 `app = celery.Celery('tests', broker=CELERY_BROKER, backend=CELERY_BACKEND)` 
 ```
 

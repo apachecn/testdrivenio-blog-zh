@@ -84,7 +84,7 @@ Django Allauth 和 [Python Social Auth](https://python-social-auth.readthedocs.i
 
 首先创建一个虚拟环境并安装 Django:
 
-```
+```py
 `$ mkdir django-social-auth && cd django-social-auth
 $ python3.11 -m venv .venv
 $ source .venv/bin/activate
@@ -95,7 +95,7 @@ $ source .venv/bin/activate
 
 现在创建一个新项目，应用迁移，并运行服务器:
 
-```
+```py
 `(.venv)$ django-admin startproject social_app .
 (.venv)$ python manage.py migrate
 (.venv)$ python manage.py runserver` 
@@ -109,13 +109,13 @@ $ source .venv/bin/activate
 
 接下来，让我们为 Django 应用程序设置 Django Allauth。
 
-```
+```py
 `(.venv)$ pip install django-allauth==0.51.0` 
 ```
 
 为了让 Django Allauth 使用我们的 Django 应用程序，更新 *settings.py* 文件中的`INSTALLED_APPS`,如下所示:
 
-```
+```py
 `# social_app/settings.py
 
 INSTALLED_APPS = [
@@ -140,7 +140,7 @@ INSTALLED_APPS = [
 
 现在将以下内容添加到 *settings.py* 的底部:
 
-```
+```py
 `# social_app/settings.py
 
 AUTHENTICATION_BACKENDS = (
@@ -163,7 +163,7 @@ ACCOUNT_LOGOUT_ON_GET = True`
 
 更新 *urls.py* 以包含 Django Allauth:
 
-```
+```py
 `from django.contrib import admin
 from django.urls import path, include # new
 
@@ -175,7 +175,7 @@ urlpatterns = [
 
 应用与 Django Allauth 相关的迁移文件:
 
-```
+```py
 `(.venv)$ python manage.py migrate` 
 ```
 
@@ -183,7 +183,7 @@ urlpatterns = [
 
 创建超级用户:
 
-```
+```py
 `(.venv)$ python manage.py createsuperuser` 
 ```
 
@@ -191,14 +191,14 @@ urlpatterns = [
 
 新建一个名为“templates”的文件夹，添加两个名为 *_base.html* 和【home.html】T2 的文件:
 
-```
+```py
 `(.venv)$ mkdir templates && cd templates
 (.venv)$ touch _base.html home.html` 
 ```
 
 更新 *settings.py* 中的`TEMPLATES`，以便 Django 知道在哪里可以找到模板:
 
-```
+```py
 `# social_app/settings.py
 
 TEMPLATES = [
@@ -212,7 +212,7 @@ TEMPLATES = [
 
 *templates/_base.html* :
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -236,7 +236,7 @@ TEMPLATES = [
 
 *templates/home.html*
 
-```
+```py
 `{% extends '_base.html' %} {% load socialaccount %}
 
 {% block content %}
@@ -258,7 +258,7 @@ TEMPLATES = [
 
 创建一个视图来提供*home.html*模板:
 
-```
+```py
 `# social_app/views.py
 
 from django.views.generic import TemplateView
@@ -269,7 +269,7 @@ class Home(TemplateView):
 
 添加新的 URL:
 
-```
+```py
 `# social_app/urls.py
 
 from django.contrib import admin
@@ -296,7 +296,7 @@ urlpatterns = [
 
 首先，我们需要创建一个 OAuth 应用程序，并从 GitHub 获取 OAuth 密钥。登录你的 GitHub 账户，然后导航到[https://github.com/settings/applications/new](https://github.com/settings/applications/new)创建一个新的 [OAuth 应用](https://docs.github.com/en/free-pro-team@latest/developers/apps/authorizing-oauth-apps):
 
-```
+```py
 `Application name: Testing Django Allauth
 Homepage URL: http://127.0.0.1:8000
 Callback URL: http://127.0.0.1:8000/accounts/github/login/callback` 
@@ -314,7 +314,7 @@ Callback URL: http://127.0.0.1:8000/accounts/github/login/callback`
 
 运行服务器:
 
-```
+```py
 `(.venv)$ python manage.py runserver` 
 ```
 
@@ -329,7 +329,7 @@ Callback URL: http://127.0.0.1:8000/accounts/github/login/callback`
 
 我们已经成功地将 GitHub 整合为一个社交认证提供商。现在，让我们更新一下 *templates/home.html* 模板来测试一下:
 
-```
+```py
 `{% extends '_base.html' %} {% load socialaccount %}
 
 {% block content %}
@@ -374,7 +374,7 @@ Callback URL: http://127.0.0.1:8000/accounts/github/login/callback`
 
 为应用程序命名，并记下 API 密钥和 API 密钥。然后，在“认证设置”下，打开“启用 3 脚 OAuth”和“向用户请求电子邮件地址”。添加回拨、网站、服务条款和隐私政策 URL:
 
-```
+```py
 `Callback URL: http://127.0.0.1:8000/accounts/twitter/login/callback
 Website URL: http://example.com
 Terms of service: http://example.com
@@ -387,7 +387,7 @@ Privacy policy: http://example.com`
 
 运行服务器:
 
-```
+```py
 `(.venv)$ python manage.py runserver` 
 ```
 
@@ -404,7 +404,7 @@ Privacy policy: http://example.com`
 
 最后，在 *templates/home.html* 中添加一个“用 Twitter 登录”按钮:
 
-```
+```py
 `{% extends '_base.html' %} {% load socialaccount %}
 
 {% block content %}

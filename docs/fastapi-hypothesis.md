@@ -21,7 +21,7 @@
 
 让我们看一个简单的例子来说明这一点:
 
-```
+```py
 `def factorial(num: int) -> int:
     if num < 0:
         raise ValueError("Number must be >= 0")
@@ -88,7 +88,7 @@ def test_factorial():
 
 让我们将上面的`test_factorial`重构为一个基于属性的测试:
 
-```
+```py
 `from hypothesis import given
 from hypothesis.strategies import integers
 
@@ -106,7 +106,7 @@ def test_factorial(num: int):
 
 示例:
 
-```
+```py
 `from hypothesis import Verbosity, given, settings
 from hypothesis import strategies as st
 
@@ -118,7 +118,7 @@ def test_shrinking(num: int):
 
 测试输出:
 
-```
+```py
 `...
 
 Trying example: test_shrinking(
@@ -259,7 +259,7 @@ Falsifying example: test_shrinking(
 
 假设已被证明是一个简单而强大的测试工具。让我们看看如何在 FastAPI 中使用它。
 
-```
+```py
 `# server.py
 
 import uvicorn
@@ -277,7 +277,7 @@ if __name__ == "__main__":
 
 因此，`/api/{s}`路由接受一个名为`s`的 URL 参数，它应该是一个整数。
 
-```
+```py
 `# test_server.py
 
 from hypothesis import given, strategies as st
@@ -307,19 +307,19 @@ def test_home(s):
 
 安装:
 
-```
+```py
 `$ pip install schemathesis` 
 ```
 
 一旦安装完毕，运行测试最简单的方法就是通过 [schemathesis](https://schemathesis.readthedocs.io/en/stable/cli.html) 命令。当 Uvicorn 在一个终端窗口中运行时，打开一个新窗口并运行:
 
-```
+```py
 `$ schemathesis run http://localhost:8000/openapi.json` 
 ```
 
 您应该看到:
 
-```
+```py
 `========================= Schemathesis test session starts ========================
 Schema location: http://localhost:8000/openapi.json
 Base URL: http://localhost:8000/
@@ -347,7 +347,7 @@ Performed checks:
 
 您可以使用`--checks all`选项执行所有内置检查:
 
-```
+```py
 `$ schemathesis run --checks all http://localhost:8000/openapi.json
 
 ========================= Schemathesis test session starts ========================
@@ -375,7 +375,7 @@ Performed checks:
 
 您可以测试一个[特定的端点](https://schemathesis.readthedocs.io/en/stable/cli.html#testing-specific-operations)或 HTTP 方法，而不是整个应用程序:
 
-```
+```py
 `$ schemathesis run --endpoint /api/. http://localhost:8000/openapi.json
 
 $ schemathesis run --method GET http://localhost:8000/openapi.json` 
@@ -383,13 +383,13 @@ $ schemathesis run --method GET http://localhost:8000/openapi.json`
 
 最大响应时间可用于帮助充实可能降低端点速度的边缘情况。时间以毫秒为单位。
 
-```
+```py
 `$ schemathesis run --max-response-time=50 HTTP://localhost:8000/openapi.json` 
 ```
 
 您的一些端点需要授权吗？
 
-```
+```py
 `$ schemathesis run -H "Authorization: Bearer TOKEN" http://localhost:8000/openapi.json
 
 $ schemathesis run -H "Authorization: ..." -H "X-API-Key: ..." HTTP://localhost:8000/openapi.json` 
@@ -397,19 +397,19 @@ $ schemathesis run -H "Authorization: ..." -H "X-API-Key: ..." HTTP://localhost:
 
 您可以使用多个工作人员来加快测试速度:
 
-```
+```py
 `$ schemathesis run --workers 8 http://localhost:8000/openapi.json` 
 ```
 
 通常，Schemathesis 为每个端点生成随机数据。[状态测试](https://schemathesis.readthedocs.io/en/stable/stateful.html)确保数据来自之前的测试/响应:
 
-```
+```py
 `$ schemathesis run --stateful=links http://localhost:8000/openapi.json` 
 ```
 
 最后，重放测试很简单，因为每个测试用例都与一个种子值相关联。当一个测试用例失败时，它会提供种子，这样您就可以重现失败的用例:
 
-```
+```py
 `$ schemathesis run http://localhost:8000/openapi.json
 
 ============================ Schemathesis test session starts ============================
@@ -447,7 +447,7 @@ Performed checks:
 
 然后，要重现，运行:
 
-```
+```py
 `$ schemathesis run http://localhost:8000/openapi.json --hypothesis-seed=135947773389980684299156880789978283847` 
 ```
 
@@ -455,7 +455,7 @@ Performed checks:
 
 您也可以在测试中使用模式:
 
-```
+```py
 `import schemathesis
 
 schema = schemathesis.from_uri("http://localhost:8000/openapi.json")
@@ -467,7 +467,7 @@ def test_api(case):
 
 Schemathesis 还支持直接调用 ASGI(即 Uvicorn 和 Daphne)和 WSGI(即 Gunicorn 和 uWSGI)应用程序，而不是通过网络:
 
-```
+```py
 `import schemathesis
 from schemathesis.specs.openapi.loaders import from_asgi
 

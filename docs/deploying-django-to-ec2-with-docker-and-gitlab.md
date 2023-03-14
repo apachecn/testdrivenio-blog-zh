@@ -30,14 +30,14 @@
 
 从克隆基础项目开始:
 
-```
+```py
 `$ git clone https://gitlab.com/testdriven/django-gitlab-ec2.git --branch base --single-branch
 $ cd django-gitlab-ec2` 
 ```
 
 要进行本地测试，构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -93,7 +93,7 @@ $ cd django-gitlab-ec2`
 
 首先安装并启动最新版本的 Docker 和版本 1.29.2 的 Docker Compose:
 
-```
+```py
 `[ec2-user]$ sudo yum update -y
 [ec2-user]$ sudo yum install -y docker
 [ec2-user]$ sudo service docker start
@@ -111,19 +111,19 @@ docker-compose version 1.29.2, build 5becea4c`
 
 将`ec2-user`添加到`docker`组，这样您就可以执行 Docker 命令，而不必使用`sudo`:
 
-```
+```py
 `[ec2-user]$ sudo usermod -a -G docker ec2-user` 
 ```
 
 接下来，生成一个新的 SSH 密钥:
 
-```
+```py
 `[ec2-user]$ ssh-keygen -t rsa` 
 ```
 
 将密钥保存到 */home/ec2-user/。ssh/id_rsa* 并且不设置密码。这将分别生成一个公钥和私钥- *id_rsa* 和 *id_rsa.pub* 。要设置无密码 SSH 登录，请将公钥复制到 [authorized_keys](https://security.stackexchange.com/questions/20706/what-is-the-difference-between-authorized-keys-and-known-hosts-file-for-ssh) 文件中，并设置适当的权限:
 
-```
+```py
 `[ec2-user]$ cat ~/.ssh/id_rsa.pub
 [ec2-user]$ vi ~/.ssh/authorized_keys
 [ec2-user]$ chmod 600 ~/.ssh/authorized_keys
@@ -132,13 +132,13 @@ docker-compose version 1.29.2, build 5becea4c`
 
 复制私钥的内容:
 
-```
+```py
 `[ec2-user]$ cat ~/.ssh/id_rsa` 
 ```
 
 退出远程 SSH 会话。将密钥设置为本地计算机上的环境变量:
 
-```
+```py
 `$ export PRIVATE_KEY='-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA04up8hoqzS1+APIB0RhjXyObwHQnOzhAk5Bd7mhkSbPkyhP1
 ...
@@ -149,7 +149,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 将密钥添加到 [ssh-agent](https://www.ssh.com/ssh/agent) 中:
 
-```
+```py
 `$ ssh-add - <<< "${PRIVATE_KEY}"` 
 ```
 
@@ -157,7 +157,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 然后，为应用程序创建一个新目录:
 
-```
+```py
 `$ ssh -o StrictHostKeyChecking=no [[email protected]](/cdn-cgi/l/email-protection)<YOUR_INSTANCE_IP> mkdir /home/ec2-user/app
 
 # example:
@@ -200,13 +200,13 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 RDS 实例启动需要几分钟时间。一旦它可用，记下端点。例如:
 
-```
+```py
 `djangodb.c7kxiqfnzo9e.us-west-1.rds.amazonaws.com` 
 ```
 
 完整的 URL 如下所示:
 
-```
+```py
 `postgres://webapp:YOUR_PASSWORD@djangodb.c7kxiqfnzo9e.us-west-1.rds.amazonaws.com:5432/django_prod` 
 ```
 
@@ -220,7 +220,7 @@ RDS 实例启动需要几分钟时间。一旦它可用，记下端点。例如:
 
 接下来，添加一个名为*的 GitLab CI/CD 配置文件。gitlab-ci.yml* 到项目根:
 
-```
+```py
 `image: name:  docker/compose:1.29.2 entrypoint:  [""] services: -  docker:dind stages: -  build variables: DOCKER_HOST:  tcp://docker:2375 DOCKER_DRIVER:  overlay2 build: stage:  build before_script: -  export IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME -  export WEB_IMAGE=$IMAGE:web -  export NGINX_IMAGE=$IMAGE:nginx script: -  apk add --no-cache bash -  chmod +x ./setup_env.sh -  bash ./setup_env.sh -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $IMAGE:web || true -  docker pull $IMAGE:nginx || true -  docker-compose -f docker-compose.ci.yml build -  docker push $IMAGE:web -  docker push $IMAGE:nginx` 
 ```
 
@@ -237,7 +237,7 @@ RDS 实例启动需要几分钟时间。一旦它可用，记下端点。例如:
 
 将 *setup_env.sh* 文件添加到项目根目录:
 
-```
+```py
 `#!/bin/sh
 
 echo DEBUG=0 >> .env
@@ -273,7 +273,7 @@ echo SQL_PORT=$SQL_PORT >> .env`
 
 接下来，在将部署添加到 CI 流程之前，我们需要更新“安全组”的入站端口，以便可以从 EC2 实例访问端口 5432。为什么这是必要的？转到 *app/entrypoint.prod.sh* :
 
-```
+```py
 `#!/bin/sh
 
 if [ "$DATABASE" = "postgres" ]
@@ -306,7 +306,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 接下来，给*增加一个`deploy`阶段。gitlab-ci.yml* 并创建一个用于两个阶段的全局`before_script`:
 
-```
+```py
 `image: name:  docker/compose:1.29.2 entrypoint:  [""] services: -  docker:dind stages: -  build -  deploy variables: DOCKER_HOST:  tcp://docker:2375 DOCKER_DRIVER:  overlay2 before_script: -  export IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME -  export WEB_IMAGE=$IMAGE:web -  export NGINX_IMAGE=$IMAGE:nginx -  apk add --no-cache openssh-client bash -  chmod +x ./setup_env.sh -  bash ./setup_env.sh -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY build: stage:  build script: -  docker pull $IMAGE:web || true -  docker pull $IMAGE:nginx || true -  docker-compose -f docker-compose.ci.yml build -  docker push $IMAGE:web -  docker push $IMAGE:nginx deploy: stage:  deploy script: -  mkdir -p ~/.ssh -  echo "$PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa -  cat ~/.ssh/id_rsa -  chmod 700 ~/.ssh/id_rsa -  eval "$(ssh-agent -s)" -  ssh-add ~/.ssh/id_rsa -  ssh-keyscan -H 'gitlab.com' >> ~/.ssh/known_hosts -  chmod +x ./deploy.sh -  scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml [[email protected]](/cdn-cgi/l/email-protection)$EC2_PUBLIC_IP_ADDRESS:/home/ec2-user/app -  bash ./deploy.sh` 
 ```
 
@@ -319,7 +319,7 @@ exec "[[email protected]](/cdn-cgi/l/email-protection)"`
 
 将 *deploy.sh* 添加到项目根:
 
-```
+```py
 `#!/bin/sh
 
 ssh -o StrictHostKeyChecking=no [[email protected]](/cdn-cgi/l/email-protection)$EC2_PUBLIC_IP_ADDRESS << 'ENDSSH'
@@ -344,7 +344,7 @@ ENDSSH`
 
 更新 *setup_env.sh* 文件:
 
-```
+```py
 `#!/bin/sh
 
 echo DEBUG=0 >> .env
@@ -377,13 +377,13 @@ echo IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME >> .env`
 
 安装 Postgres:
 
-```
+```py
 `[ec2-user]$ sudo amazon-linux-extras install postgresql12 -y` 
 ```
 
 然后，运行`psql`，像这样:
 
-```
+```py
 `[ec2-user]$ psql -h <YOUR_RDS_ENDPOINT> -U webapp -d django_prod
 
 # example:
@@ -392,7 +392,7 @@ echo IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME >> .env`
 
 输入密码。
 
-```
+```py
 `psql (12.7)
 SSL connection (protocol: TLSv1.2, cipher: ECDHE-RSA-AES256-GCM-SHA384, bits: 256, compression: off)
 Type "help" for help.
@@ -419,13 +419,13 @@ django_prod=> \q`
 
 最后，更新`deploy`阶段，使其仅在对`master`分支进行更改时运行:
 
-```
+```py
 `deploy: stage:  deploy script: -  mkdir -p ~/.ssh -  echo "$PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa -  cat ~/.ssh/id_rsa -  chmod 700 ~/.ssh/id_rsa -  eval "$(ssh-agent -s)" -  ssh-add ~/.ssh/id_rsa -  ssh-keyscan -H 'gitlab.com' >> ~/.ssh/known_hosts -  chmod +x ./deploy.sh -  scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml [[email protected]](/cdn-cgi/l/email-protection)$EC2_PUBLIC_IP_ADDRESS:/home/ec2-user/app -  bash ./deploy.sh only: -  master` 
 ```
 
 为了测试，创建一个新的`develop`分支。在 *urls.py* 中的`world`后加一个感叹号:
 
-```
+```py
 `def home(request):
     return JsonResponse({'hello': 'world!'})` 
 ```

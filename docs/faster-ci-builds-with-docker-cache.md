@@ -10,7 +10,7 @@ Docker 会在构建映像时缓存每一层，只有在自上次构建以来该�
 
 *Dockerfile* :
 
-```
+```py
 `# pull base image
 FROM  python:3.9.7-slim
 
@@ -37,7 +37,7 @@ CMD  gunicorn -b 0.0.0.0:5000 manage:app`
 
 第一次 Docker 构建可能需要几分钟才能完成，这取决于您的连接速度。后续构建应该只需要几秒钟，因为层在第一次构建后会被缓存:
 
-```
+```py
 `[+] Building 0.4s (12/12) FINISHED
  => [internal] load build definition from Dockerfile                                                                     0.0s
  => => transferring dockerfile: 37B                                                                                      0.0s
@@ -61,7 +61,7 @@ CMD  gunicorn -b 0.0.0.0:5000 manage:app`
 
 即使您对源代码进行了更改，也应该只需要几秒钟就可以完成构建，因为不需要下载依赖项。只有最后两层需要重建，换句话说:
 
-```
+```py
  `=> [6/7] COPY project .
  => [7/7] COPY manage.py .` 
 ```
@@ -80,7 +80,7 @@ CMD  gunicorn -b 0.0.0.0:5000 manage:app`
 
 示例:
 
-```
+```py
 `$ docker pull mjhea0/docker-ci-cache:latest
 
 $ docker docker build --tag mjhea0/docker-ci-cache:latest .` 
@@ -92,7 +92,7 @@ $ docker docker build --tag mjhea0/docker-ci-cache:latest .`
 
 示例:
 
-```
+```py
 `export DOCKER_BUILDKIT=1
 
 # Build and cache image
@@ -128,19 +128,19 @@ $ docker build --cache-from mjhea0/docker-ci-cache:latest .`
 
 圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：
 
-```
+```py
 `# _config-examples/single-stage/circle.yml version:  2.1 jobs: build: machine: image:  ubuntu-2004:202010-01 environment: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 steps: -  checkout -  run: name:  Log in to docker hub command:  docker login -u $REGISTRY_USER -p $REGISTRY_PASS -  run: name:  Build from dockerfile command:  | docker build \ --cache-from $CACHE_IMAGE:latest \ --tag $CACHE_IMAGE:latest \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  run: name:  Push to docker hub command:  docker push $CACHE_IMAGE:latest` 
 ```
 
 GitLab CI:
 
-```
+```py
 `# _config-examples/single-stage/.gitlab-ci.yml image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 stages: -  build docker-build: stage:  build before_script: -  docker login -u $REGISTRY_USER -p $REGISTRY_PASS script: -  docker build --cache-from $CACHE_IMAGE:latest --tag $CACHE_IMAGE:latest --file ./Dockerfile --build-arg BUILDKIT_INLINE_CACHE=1 "." after_script: -  docker push $CACHE_IMAGE:latest` 
 ```
 
 GitHub 操作:
 
-```
+```py
 `# _config-examples/single-stage/github.yml name:  Docker Build on:  [push] env: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 jobs: build: name:  Build Docker Image runs-on:  ubuntu-latest steps: -  name:  Checkout master uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Log in to docker hub run:  docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }} -  name:  Build from dockerfile run:  | docker build \ --cache-from $CACHE_IMAGE:latest \ --tag $CACHE_IMAGE:latest \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  name:  Push to docker hub run:  docker push $CACHE_IMAGE:latest` 
 ```
 
@@ -150,7 +150,7 @@ GitHub 操作:
 
 示例:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  . cache_from: -  mjhea0/docker-ci-cache:latest image:  mjhea0/docker-ci-cache:latest` 
 ```
 
@@ -158,19 +158,19 @@ GitHub 操作:
 
 圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：
 
-```
+```py
 `# _config-examples/single-stage/compose/circle.yml version:  2.1 jobs: build: machine: image:  ubuntu-2004:202010-01 environment: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 COMPOSE_DOCKER_CLI_BUILD:  1 steps: -  checkout -  run: name:  Log in to docker hub command:  docker login -u $REGISTRY_USER -p $REGISTRY_PASS -  run: name:  Build images command:  docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1 -  run: name:  Push to docker hub command:  docker push $CACHE_IMAGE:latest` 
 ```
 
 GitLab CI:
 
-```
+```py
 `# _config-examples/single-stage/compose/.gitlab-ci.yml image:  docker/compose:latest services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 COMPOSE_DOCKER_CLI_BUILD:  1 stages: -  build docker-build: stage:  build before_script: -  docker login -u $REGISTRY_USER -p $REGISTRY_PASS script: -  docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1 after_script: -  docker push $CACHE_IMAGE:latest` 
 ```
 
 GitHub 操作:
 
-```
+```py
 `# _config-examples/single-stage/compose/github.yml name:  Docker Build on:  [push] env: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 COMPOSE_DOCKER_CLI_BUILD:  1 jobs: build: name:  Build Docker Image runs-on:  ubuntu-latest steps: -  name:  Checkout master uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Log in to docker hub run:  docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }} -  name:  Build Docker images run:  docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1 -  name:  Push to docker hub run:  docker push $CACHE_IMAGE:latest` 
 ```
 
@@ -180,7 +180,7 @@ GitHub 操作:
 
 *Dockerfile.multi* :
 
-```
+```py
 `# base
 FROM  python:3.9.7  as  base
 COPY  ./requirements.txt /
@@ -201,19 +201,19 @@ CMD  gunicorn -b 0.0.0.0:5000 manage:app`
 
 圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：
 
-```
+```py
 `# _config-examples/multi-stage/circle.yml version:  2.1 jobs: build: machine: image:  ubuntu-2004:202010-01 environment: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 steps: -  checkout -  run: name:  Log in to docker hub command:  docker login -u $REGISTRY_USER -p $REGISTRY_PASS -  run: name:  Build base from dockerfile command:  | docker build \ --target base \ --cache-from $CACHE_IMAGE:base \ --tag $CACHE_IMAGE:base \ --file ./Dockerfile.multi \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  run: name:  Build stage from dockerfile command:  | docker build \ --cache-from $CACHE_IMAGE:base \ --cache-from $CACHE_IMAGE:stage \ --tag $CACHE_IMAGE:stage \ --file ./Dockerfile.multi \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  run: name:  Push base image to docker hub command:  docker push $CACHE_IMAGE:base -  run: name:  Push stage image to docker hub command:  docker push $CACHE_IMAGE:stage` 
 ```
 
 GitLab CI:
 
-```
+```py
 `# _config-examples/multi-stage/.gitlab-ci.yml image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay2 CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 stages: -  build docker-build: stage:  build before_script: -  docker login -u $REGISTRY_USER -p $REGISTRY_PASS script: -  docker build --target base --cache-from $CACHE_IMAGE:base --tag $CACHE_IMAGE:base --file ./Dockerfile.multi --build-arg BUILDKIT_INLINE_CACHE=1 "." -  docker build --cache-from $CACHE_IMAGE:base --cache-from $CACHE_IMAGE:stage --tag $CACHE_IMAGE:stage --file ./Dockerfile.multi --build-arg BUILDKIT_INLINE_CACHE=1 "." after_script: -  docker push $CACHE_IMAGE:stage` 
 ```
 
 GitHub 操作:
 
-```
+```py
 `# _config-examples/multi-stage/github.yml name:  Docker Build on:  [push] env: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 jobs: build: name:  Build Docker Image runs-on:  ubuntu-latest steps: -  name:  Checkout master uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Log in to docker hub run:  docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }} -  name:  Build base from dockerfile run:  | docker build \ --target base \ --cache-from $CACHE_IMAGE:base \ --tag $CACHE_IMAGE:base \ --file ./Dockerfile.multi \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  name:  Build stage from dockerfile run:  | docker build \ --cache-from $CACHE_IMAGE:base \ --cache-from $CACHE_IMAGE:stage \ --tag $CACHE_IMAGE:stage \ --file ./Dockerfile.multi \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  name:  Push base image to docker hub run:  docker push $CACHE_IMAGE:base -  name:  Push stage image to docker hub run:  docker push $CACHE_IMAGE:stage` 
 ```
 
@@ -221,25 +221,25 @@ GitHub 操作:
 
 示例合成文件:
 
-```
+```py
 `version:  '3.8' services: web: build: context:  . cache_from: -  mjhea0/docker-ci-cache:stage image:  mjhea0/docker-ci-cache:stage` 
 ```
 
 圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：
 
-```
+```py
 `# _config-examples/multi-stage/compose/circle.yml version:  2.1 jobs: build: machine: image:  ubuntu-2004:202010-01 environment: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 COMPOSE_DOCKER_CLI_BUILD:  1 steps: -  checkout -  run: name:  Log in to docker hub command:  docker login -u $REGISTRY_USER -p $REGISTRY_PASS -  run: name:  Build base from dockerfile command:  | docker build \ --target base \ --cache-from $CACHE_IMAGE:base \ --tag $CACHE_IMAGE:base \ --file ./Dockerfile.multi \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  run: name:  Build Docker images command:  docker-compose -f docker-compose.multi.yml build --build-arg BUILDKIT_INLINE_CACHE=1 -  run: name:  Push base image to docker hub command:  docker push $CACHE_IMAGE:base -  run: name:  Push stage image to docker hub command:  docker push $CACHE_IMAGE:stage` 
 ```
 
 GitLab CI:
 
-```
+```py
 `# _config-examples/multi-stage/compose/.gitlab-ci.yml image:  docker/compose:latest services: -  docker:dind variables: DOCKER_DRIVER:  overlay CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 COMPOSE_DOCKER_CLI_BUILD:  1 stages: -  build docker-build: stage:  build before_script: -  docker login -u $REGISTRY_USER -p $REGISTRY_PASS script: -  docker build --target base --cache-from $CACHE_IMAGE:base --tag $CACHE_IMAGE:base --file ./Dockerfile.multi --build-arg BUILDKIT_INLINE_CACHE=1 "." -  docker-compose -f docker-compose.multi.yml build --build-arg BUILDKIT_INLINE_CACHE=1 after_script: -  docker push $CACHE_IMAGE:base -  docker push $CACHE_IMAGE:stage` 
 ```
 
 GitHub 操作:
 
-```
+```py
 `# _config-examples/multi-stage/compose/github.yml name:  Docker Build on:  [push] env: CACHE_IMAGE:  mjhea0/docker-ci-cache DOCKER_BUILDKIT:  1 COMPOSE_DOCKER_CLI_BUILD:  1 jobs: build: name:  Build Docker Image runs-on:  ubuntu-latest steps: -  name:  Checkout master uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  name:  Log in to docker hub run:  docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }} -  name:  Build base from dockerfile run:  | docker build \ --target base \ --cache-from $CACHE_IMAGE:base \ --tag $CACHE_IMAGE:base \ --file ./Dockerfile.multi \ --build-arg BUILDKIT_INLINE_CACHE=1 \ "." -  name:  Build images run:  docker-compose -f docker-compose.multi.yml build --build-arg BUILDKIT_INLINE_CACHE=1 -  name:  Push base image to docker hub run:  docker push $CACHE_IMAGE:base -  name:  Push stage image to docker hub run:  docker push $CACHE_IMAGE:stage` 
 ```
 

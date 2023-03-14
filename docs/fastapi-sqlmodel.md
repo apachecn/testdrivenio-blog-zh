@@ -13,14 +13,14 @@
 
 从从[fastapi-SQL model-alem BIC](https://github.com/testdrivenio/fastapi-sqlmodel-alembic)repo 克隆基础项目开始:
 
-```
+```py
 `$ git clone -b base https://github.com/testdrivenio/fastapi-sqlmodel-alembic
 $ cd fastapi-sqlmodel-alembic` 
 ```
 
 从项目根目录，创建映像并启动 Docker 容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -36,7 +36,7 @@ $ cd fastapi-sqlmodel-alembic`
 
 将两个依赖项添加到 *project/requirements.txt* :
 
-```
+```py
 `fastapi==0.68.1
 psycopg2-binary==2.9.1
 sqlmodel==0.0.4
@@ -47,7 +47,7 @@ uvicorn==0.15.0`
 
 *project/app/models.py* :
 
-```
+```py
 `from sqlmodel import SQLModel, Field
 
 class SongBase(SQLModel):
@@ -69,7 +69,7 @@ class SongCreate(SongBase):
 
 *项目/app/db.py* :
 
-```
+```py
 `import os
 
 from sqlmodel import create_engine, SQLModel, Session
@@ -93,7 +93,7 @@ def get_session():
 
 接下来，在 *project/app/main.py* 中，让我们使用 [startup](https://fastapi.tiangolo.com/advanced/events/#startup-event) 事件在启动时创建表:
 
-```
+```py
 `from fastapi import FastAPI
 
 from app.db import init_db
@@ -114,14 +114,14 @@ async def pong():
 
 要进行测试，请关闭旧容器和卷，重建映像，并启动新容器:
 
-```
+```py
 `$ docker-compose down -v
 $ docker-compose up -d --build` 
 ```
 
 通过`docker-compose logs web`打开容器日志。您应该看到:
 
-```
+```py
 `web_1  | CREATE TABLE song (
 web_1  |    name VARCHAR NOT NULL,
 web_1  |    artist VARCHAR NOT NULL,
@@ -132,7 +132,7 @@ web_1  | )`
 
 打开 psql:
 
-```
+```py
 `$ docker-compose exec db psql --username=postgres --dbname=foo
 
 psql (13.4 (Debian 13.4-1.pgdg100+1))
@@ -151,7 +151,7 @@ foo=# \q`
 
 有了这个表，让我们给 *project/app/main.py* 添加一些新的路由:
 
-```
+```py
 `from fastapi import Depends, FastAPI
 from sqlalchemy import select
 from sqlmodel import Session
@@ -186,7 +186,7 @@ def add_song(song: SongCreate, session: Session = Depends(get_session)):
 
 添加歌曲:
 
-```
+```py
 `$ curl -d '{"name":"Midnight Fit", "artist":"Mogwai"}' -H "Content-Type: application/json" -X POST http://localhost:8004/songs
 
 {
@@ -198,7 +198,7 @@ def add_song(song: SongCreate, session: Session = Depends(get_session)):
 
 在浏览器中，导航到[http://localhost:8004/songs](http://localhost:8004/songs)。您应该看到:
 
-```
+```py
 `{ "id":  1, "name":  "Midnight Fit", "artist":  "Mogwai" }` 
 ```
 
@@ -212,7 +212,7 @@ def add_song(song: SongCreate, session: Session = Depends(get_session)):
 
 接下来，用 [asyncpg](https://magicstack.github.io/asyncpg/) 替换 Psycopg:
 
-```
+```py
 `asyncpg==0.24.0
 fastapi==0.68.1
 sqlmodel==0.0.4
@@ -221,7 +221,7 @@ uvicorn==0.15.0`
 
 更新 *project/app/db.py* :使用 SQLAlchemy 引擎和会话的异步风格:
 
-```
+```py
 `import os
 
 from sqlmodel import SQLModel
@@ -254,7 +254,7 @@ async def get_session() -> AsyncSession:
 
 将`on_startup`变成 *project/app/main.py* 中的异步函数:
 
-```
+```py
 `@app.on_event("startup")
 async def on_startup():
     await init_db()` 
@@ -262,7 +262,7 @@ async def on_startup():
 
 就是这样。重建图像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -270,7 +270,7 @@ async def on_startup():
 
 最后，更新 *project/app/main.py* 中的路由处理程序以使用异步执行:
 
-```
+```py
 `from fastapi import Depends, FastAPI
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -311,7 +311,7 @@ async def add_song(song: SongCreate, session: AsyncSession = Depends(get_session
 
 将其添加到需求文件中:
 
-```
+```py
 `alembic==1.7.1
 asyncpg==0.24.0
 fastapi==0.68.1
@@ -321,7 +321,7 @@ uvicorn==0.15.0`
 
 从 *project/app/main.py* 中移除启动事件，因为我们不再需要在启动时创建的表:
 
-```
+```py
 `@app.on_event("startup")
 async def on_startup():
     await init_db()` 
@@ -331,7 +331,7 @@ async def on_startup():
 
 向上旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -339,13 +339,13 @@ async def on_startup():
 
 一旦容器备份完毕，用[异步](https://github.com/sqlalchemy/alembic/tree/rel_1_7_1/alembic/templates/async)模板初始化 Alembic:
 
-```
+```py
 `$ docker-compose exec web alembic init -t async migrations` 
 ```
 
 在生成的“项目/迁移”文件夹中，将 SQLModel 导入到 *script.py.mako* 中，这是一个[樱井真子](https://www.makotemplates.org/)模板文件:
 
-```
+```py
 `"""${message}
 
 Revision ID: ${up_revision}
@@ -375,7 +375,7 @@ def downgrade():
 
 接下来，我们需要更新*project/migrations/env . py*的顶部，如下所示:
 
-```
+```py
 `import asyncio
 from logging.config import fileConfig
 
@@ -414,19 +414,19 @@ target_metadata = SQLModel.metadata             # UPDATED
 
 更新*项目/alembic.ini* 中的`sqlalchemy.url`:
 
-```
+```py
 `sqlalchemy.url  =  postgresql+asyncpg://postgres:postgres@db:5432/foo` 
 ```
 
 要生成第一个迁移文件，请运行:
 
-```
+```py
 `$ docker-compose exec web alembic revision --autogenerate -m "init"` 
 ```
 
 如果一切顺利，您应该会在“项目/迁移/版本”中看到一个新的迁移文件，如下所示:
 
-```
+```py
 `"""init
 
 Revision ID: f9c634db477d
@@ -468,7 +468,7 @@ def downgrade():
 
 应用迁移:
 
-```
+```py
 `$ docker-compose exec web alembic upgrade head` 
 ```
 
@@ -476,7 +476,7 @@ def downgrade():
 
 让我们快速测试一个模式变更。更新*项目/app/models.py* 中的`SongBase`模型:
 
-```
+```py
 `class SongBase(SQLModel):
     name: str
     artist: str
@@ -485,19 +485,19 @@ def downgrade():
 
 不要忘记重要的一点:
 
-```
+```py
 `from typing import Optional` 
 ```
 
 创建新的迁移文件:
 
-```
+```py
 `$ docker-compose exec web alembic revision --autogenerate -m "add year"` 
 ```
 
 从自动生成的迁移文件中更新`upgrade`和`downgrade`函数，如下所示:
 
-```
+```py
 `def upgrade():
     # ### commands auto generated by Alembic - please adjust! ###
     op.add_column('song', sa.Column('year', sa.Integer(), nullable=True))
@@ -513,13 +513,13 @@ def downgrade():
 
 应用迁移:
 
-```
+```py
 `$ docker-compose exec web alembic upgrade head` 
 ```
 
 更新路线处理程序:
 
-```
+```py
 `@app.get("/songs", response_model=list[Song])
 async def get_songs(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Song))
@@ -537,7 +537,7 @@ async def add_song(song: SongCreate, session: AsyncSession = Depends(get_session
 
 测试:
 
-```
+```py
 `$ curl -d '{"name":"Midnight Fit", "artist":"Mogwai", "year":"2021"}' -H "Content-Type: application/json" -X POST http://localhost:8004/songs` 
 ```
 

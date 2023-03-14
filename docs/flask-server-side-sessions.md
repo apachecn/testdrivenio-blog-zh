@@ -89,7 +89,7 @@ Flask-Session 使用 Flask 的[会话接口](https://flask.palletsprojects.com/e
 
 下面的 *app.py* 文件说明了如何通过 Flask-Session 在 Flask 中使用服务器端会话:
 
-```
+```py
 `from datetime import timedelta
 
 import redis
@@ -150,7 +150,7 @@ if __name__ == '__main__':
 
 要运行此示例，首先创建并激活一个新的虚拟环境:
 
-```
+```py
 `$ mkdir flask-server-side-sessions
 $ cd flask-server-side-sessions
 $ python3 -m venv venv
@@ -161,7 +161,7 @@ $ source venv/bin/activate`
 
 > 启动和运行 Redis 的最快方法是使用 Docker:
 > 
-> ```
+> ```py
 > $ docker run --name some-redis -d -p 6379:6379 redis 
 > ```
 > 
@@ -169,7 +169,7 @@ $ source venv/bin/activate`
 
 安装烧瓶、烧瓶会话和 [redis-py](https://redis-py.readthedocs.io/en/stable/) :
 
-```
+```py
 `(venv)$ pip install Flask Flask-Session redis` 
 ```
 
@@ -177,7 +177,7 @@ $ source venv/bin/activate`
 
 将上述代码保存到一个 *app.py* 文件中。然后，启动 Flask 开发服务器:
 
-```
+```py
 `(venv)$ export FLASK_APP=app.py
 (venv)$ export FLASK_ENV=development
 (venv)$ python -m flask run` 
@@ -191,7 +191,7 @@ $ source venv/bin/activate`
 
 创建 Flask 应用程序(`app`)后，需要指定密钥:
 
-```
+```py
 `# Details on the Secret Key: https://flask.palletsprojects.com/en/1.1.x/config/#SECRET_KEY
 # NOTE: The secret key is used to cryptographically-sign the cookies used for storing
 #       the session identifier.
@@ -202,7 +202,7 @@ app.secret_key = 'BAD_SECRET_KEY'`
 
 接下来，需要将 Redis 配置为服务器端会话数据的存储解决方案:
 
-```
+```py
 `# Configure Redis for storing the session data on the server-side
 app.config['SESSION_TYPE'] = 'redis'
 app.config['SESSION_PERMANENT'] = False
@@ -226,7 +226,7 @@ server_session = Session(app)`
 
 在本例中，`set_email`视图函数在提交表单时处理电子邮件:
 
-```
+```py
 `@app.route('/set_email', methods=['GET', 'POST'])
 def set_email():
     if request.method == 'POST':
@@ -249,7 +249,7 @@ def set_email():
 
 当您使用您的电子邮件地址提交表单时(通过 POST 方法)，电子邮件将保存在`session`对象中:
 
-```
+```py
 `# Save the form data to the session object
 session['email'] = request.form['email_address']` 
 ```
@@ -260,7 +260,7 @@ session['email'] = request.form['email_address']`
 
 当电子邮件没有存储在会话中时，`get_email`视图功能利用 Jinja 模板引擎显示存储在`session`对象中的电子邮件地址或者到`set_email()`视图功能的链接:
 
-```
+```py
 `@app.route('/get_email')
 def get_email():
     return render_template_string("""
@@ -282,7 +282,7 @@ def get_email():
 
 存储在`session`对象中的电子邮件地址可以通过`delete_email`查看功能删除:
 
-```
+```py
 `@app.route('/delete_email')
 def delete_email():
     # Clear the email stored in the session object
@@ -308,7 +308,7 @@ def delete_email():
 
 要更详细地了解这一点，您可以从计算机上的两个不同的 web 浏览器访问 Flask 应用程序后，检查 Redis 数据库中存储的内容:
 
-```
+```py
 `$ redis-cli
 
 127.0.0.1:6379> KEYS *

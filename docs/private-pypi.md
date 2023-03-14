@@ -52,7 +52,7 @@
 
 首先安装并启动 Docker 的最新版本和 Docker Compose 的 2.7.0 版本:
 
-```
+```py
 `[ec2-user]$ sudo yum update -y
 [ec2-user]$ sudo yum install -y docker
 [ec2-user]$ sudo service docker start
@@ -69,7 +69,7 @@ Docker Compose version v2.7.0`
 
 将`ec2-user`添加到`docker`组，这样您就可以执行 Docker 命令，而不必使用`sudo`:
 
-```
+```py
 `[ec2-user]$ sudo usermod -a -G docker ec2-user` 
 ```
 
@@ -81,14 +81,14 @@ Docker Compose version v2.7.0`
 
 首先为 PyPI 服务器创建一个新的项目目录:
 
-```
+```py
 `[ec2-user]$ mkdir /home/ec2-user/pypi
 [ec2-user]$ cd /home/ec2-user/pypi` 
 ```
 
 添加 a *坞站-复合. yml* 文件:
 
-```
+```py
 `version:  '3.7' services: pypi-server: image:  pypiserver/pypiserver:latest ports: -  8080:8080 volumes: -  type:  volume source:  pypi-server target:  /data/packages command:  -P . -a . /data/packages restart:  always volumes: pypi-server:` 
 ```
 
@@ -100,7 +100,7 @@ Docker Compose version v2.7.0`
 
 继续旋转容器:
 
-```
+```py
 `[ec2-user]$ docker-compose up -d --build` 
 ```
 
@@ -118,13 +118,13 @@ Docker Compose version v2.7.0`
 
 然后，将包上传到您的 PyPI 服务器:
 
-```
+```py
 `$  twine  upload  --repository-url  http://<PUBLIC-IP-ADDRESS>:8080  dist/* # example: # twine upload --repository-url http://3.101.143.245:8080 dist/*` 
 ```
 
 系统将提示您输入用户名和密码。因为我们目前允许未经授权的访问，所以现在让它们都保持空白。如果一切顺利，您应该会看到如下内容:
 
-```
+```py
 `Uploading distributions to http://3.101.143.245:8080
 Enter your username:
 Enter your password:
@@ -134,7 +134,7 @@ Uploading muddy_wave-0.1.tar.gz
 
 要安装您的软件包，请运行:
 
-```
+```py
 `$ pip install --index-url http://<PUBLIC-IP-ADDRESS>:8080 muddy_wave --trusted-host <PUBLIC-IP-ADDRESS>
 
 # example:
@@ -143,7 +143,7 @@ Uploading muddy_wave-0.1.tar.gz
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `Looking in indexes: http://3.101.143.245:8080
 Collecting muddy_wave
   Downloading http://3.101.143.245:8080/packages/muddy_wave-0.1.tar.gz (1.0 kB)
@@ -155,7 +155,7 @@ Successfully installed muddy-wave-0.1`
 
 您可以在 shell 中测试包:
 
-```
+```py
 `>>> import muddy_wave
 >>> muddy_wave.hello_world()
 hello, world!` 
@@ -171,20 +171,20 @@ hello, world!`
 
 SSH 回到实例，并通过 [httpd-tools](https://www.mankier.com/package/httpd-tools) 安装 htpasswd:
 
-```
+```py
 `[ec2-user]$ sudo yum install -y httpd-tools` 
 ```
 
 创建一个“授权”文件夹:
 
-```
+```py
 `[ec2-user]$ mkdir /home/ec2-user/pypi/auth
 [ec2-user]$ cd /home/ec2-user/pypi/auth` 
 ```
 
 现在，创建您的第一个用户:
 
-```
+```py
 `[ec2-user]$ htpasswd -sc .htpasswd <SOME-USERNAME>` 
 ```
 
@@ -192,7 +192,7 @@ SSH 回到实例，并通过 [httpd-tools](https://www.mankier.com/package/httpd
 
 接下来，更新 Docker 合成文件，如下所示:
 
-```
+```py
 `version:  '3.7' services: pypi-server: image:  pypiserver/pypiserver:latest ports: -  8080:8080 volumes: -  type:  bind source:  /home/ec2-user/pypi/auth target:  /data/auth -  type:  volume source:  pypi-server target:  /data/packages command:  -P /data/auth/.htpasswd -a update,download,list /data/packages restart:  always volumes: pypi-server:` 
 ```
 
@@ -203,7 +203,7 @@ SSH 回到实例，并通过 [httpd-tools](https://www.mankier.com/package/httpd
 
 更新容器:
 
-```
+```py
 `[ec2-user]$ cd /home/ec2-user/pypi
 [ec2-user]$ docker-compose up -d --build` 
 ```
@@ -214,7 +214,7 @@ SSH 回到实例，并通过 [httpd-tools](https://www.mankier.com/package/httpd
 
 要上传，请在 *sample-package/setup.py* 中插入版本:
 
-```
+```py
 `from setuptools import setup
 
 setup(
@@ -231,7 +231,7 @@ setup(
 
 删除与以前版本相关联的文件和文件夹:
 
-```
+```py
 `$ rm -rf build dist muddy_wave.egg-info .eggs` 
 ```
 
@@ -239,7 +239,7 @@ setup(
 
 上传包:
 
-```
+```py
 `$  twine  upload  --repository-url  http://<PUBLIC-IP-ADDRESS>:8080  dist/* # example: # twine upload --repository-url http://3.101.143.245:8080 dist/*` 
 ```
 
@@ -249,19 +249,19 @@ setup(
 
 例如:
 
-```
+```py
 `[distutils] index-servers= pypi aws [pypi] username: michael password: supersecret [aws] repository: http://3.101.143.245:8080 username: michael password: supersecret` 
 ```
 
 要上传，请运行:
 
-```
+```py
 `$ twine upload --repository aws dist/*` 
 ```
 
 要安装新版本，请运行:
 
-```
+```py
 `$ pip install --index-url http://<PUBLIC-IP-ADDRESS>:8080 muddy_wave==0.2 --trusted-host <PUBLIC-IP-ADDRESS>
 
 # example:
@@ -270,7 +270,7 @@ setup(
 
 系统将提示您输入用户名和密码:
 
-```
+```py
 `Looking in indexes: http://3.101.143.245:8080
 User for 3.101.143.245:8080: michael
 Password:
@@ -290,19 +290,19 @@ Successfully installed muddy-wave-0.2`
 
 例如:
 
-```
+```py
 `[global] extra-index-url  =  http://3.101.143.245:8080 trusted-host  =  3.101.143.245` 
 ```
 
 现在，要安装，运行:
 
-```
+```py
 `$ pip install muddy_wave==0.2` 
 ```
 
 输出:
 
-```
+```py
 `Looking in indexes: https://pypi.org/simple, http://3.101.143.245:8080
 User for 3.101.143.245:8080: mjhea0
 Password:

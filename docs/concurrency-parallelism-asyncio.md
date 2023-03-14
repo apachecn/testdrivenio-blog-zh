@@ -60,7 +60,7 @@
 
 让我们从一个简单的函数开始:
 
-```
+```py
 `def write_genre(file_name):
     """
  Uses genrenator from binaryjazz.us to write a random genre to the
@@ -81,7 +81,7 @@
 
 我们真正感兴趣的是下一部分，实际的线程处理发生在这里:
 
-```
+```py
 `threads = []
 
 for i in range(5):
@@ -120,7 +120,7 @@ for thread in threads:
 
 为了比较速度基准，我还导入了`time`库来计时我们脚本的执行:
 
-```
+```py
 `Starting...
 Writing "binary indoremix" to "./sync/new_file0.txt"...
 Writing "slavic aggro polka fusion" to "./sync/new_file1.txt"...
@@ -134,7 +134,7 @@ Time to complete synchronous read/writes: 1.42 seconds`
 
 现在让我们运行使用线程的版本:
 
-```
+```py
 `Starting...
 Writing "college k-dubstep" to "./threading/new_file2.txt"...
 Writing "swiss dirt" to "./threading/new_file0.txt"...
@@ -162,7 +162,7 @@ Time to complete threading read/writes: 0.77 seconds`
 
 导入就绪后，让我们看看 asyncio 示例中的异步版本的`write_genre`函数:
 
-```
+```py
 `async def write_genre(file_name):
     """
  Uses genrenator from binaryjazz.us to write a random genre to the
@@ -205,7 +205,7 @@ Time to complete threading read/writes: 0.77 seconds`
 
 这是我们的主要功能:
 
-```
+```py
 `async def main():
     tasks = []
 
@@ -221,7 +221,7 @@ Time to complete threading read/writes: 0.77 seconds`
 
 这就是我们需要做的。现在，运行我们的程序(其源代码包括同步和线程示例的相同计时功能)...
 
-```
+```py
 `Writing "albuquerque fiddlehaus" to "./async/new_file1.txt"...
 Writing "euroreggaebop" to "./async/new_file2.txt"...
 Writing "shoedisco" to "./async/new_file0.txt"...
@@ -242,7 +242,7 @@ Time to complete asyncio read/writes: 0.71 seconds`
 
 首先，让我们在一个名为 *hello_asyncio.py* 的文件中编写一个任意的异步函数:
 
-```
+```py
 `import asyncio
 
 async def say_hello(name: str):
@@ -268,7 +268,7 @@ async def say_hello(name: str):
 
 让我们从我们的进口开始:
 
-```
+```py
 `import pytest # Note: pytest-asyncio does not require a separate import
 
 from hello_asyncio import say_hello` 
@@ -276,7 +276,7 @@ from hello_asyncio import say_hello`
 
 然后，我们将创建一个具有适当输入的测试:
 
-```
+```py
 `@pytest.mark.parametrize("name", [
     "Robert Paulson",
     "Seven of Nine",
@@ -295,7 +295,7 @@ async def test_say_hello(name):
 
 现在让我们用详细的`-v`选项运行我们的测试:
 
-```
+```py
 `pytest -v
 ...
 collected 3 items
@@ -307,7 +307,7 @@ test_hello_asyncio.py::test_say_hello[x \xc6 a-12] PASSED       [100%]`
 
 看起来不错。接下来，我们将编写几个带有错误输入的测试。回到 *test_hello_asyncio.py* 的内部，让我们创建一个名为`TestSayHelloThrowsExceptions`的类:
 
-```
+```py
 `class TestSayHelloThrowsExceptions:
     @pytest.mark.parametrize("name", [
         "",
@@ -332,7 +332,7 @@ test_hello_asyncio.py::test_say_hello[x \xc6 a-12] PASSED       [100%]`
 
 再次运行测试:
 
-```
+```py
 `pytest -v
 ...
 collected 7 items
@@ -350,7 +350,7 @@ test_hello_asyncio.py::TestSayHelloThrowsExceptions::test_say_hello_type_error[n
 
 除了 pytest-asyncio，您还可以创建一个 pytest fixture 来产生一个 asyncio 事件循环:
 
-```
+```py
 `import asyncio
 import pytest
 
@@ -364,7 +364,7 @@ def event_loop():
 
 然后，不使用`async` / `await`语法，而是像普通的同步测试一样创建测试:
 
-```
+```py
 `@pytest.mark.parametrize("name", [
     "Robert Paulson",
     "Seven of Nine",
@@ -419,7 +419,7 @@ class TestSayHelloThrowsExceptions:
 
 我们唯一需要的导入是`concurrent.futures`:
 
-```
+```py
 `import concurrent.futures
 import time
 
@@ -453,7 +453,7 @@ if __name__ == "__main__":
 
 运行我们的控制程序，其中也包括为我们的程序计时的功能，我们得到:
 
-```
+```py
 `Starting...
 okay
 ...
@@ -463,7 +463,7 @@ Time to complete: 54.64`
 
 哇哦。54.64 秒是相当长的一段时间。让我们看看我们的多处理版本是否做得更好:
 
-```
+```py
 `Starting...
 okay
 ...
@@ -477,7 +477,7 @@ Time to complete: 6.24`
 
 我相信你能猜到——这不会比同步做快多少。事实上，它可能会更慢，因为它仍然需要一点时间和精力来旋转新的线程。但是不要相信我的话，下面是我们用`ThreadPoolExecutor()`替换`ProcessPoolExecutor()`时得到的结果:
 
-```
+```py
 `Starting...
 okay
 ...
@@ -507,7 +507,7 @@ Engineer Man 有一个很好的[线程与多处理](https://www.youtube.com/watc
 
 对于这个脚本，让我们安装[美汤](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)来帮助我们轻松地刮我们的页面:`pip install beautifulsoup4`。这次我们实际上有相当多的进口货。它们在这里，这就是我们使用它们的原因:
 
-```
+```py
 `import asyncio                         # Gives us async/await
 import concurrent.futures              # Allows creating new processes
 import time
@@ -526,7 +526,7 @@ from bs4 import BeautifulSoup          # For easy webpage scraping`
 1.  num_pages -请求和抓取标题的页数
 2.  output _ file——将标题附加到的文件
 
-```
+```py
 `async def get_and_scrape_pages(num_pages: int, output_file: str):
     """
  Makes {{ num_pages }} requests to Wikipedia to receive {{ num_pages }} random
@@ -564,7 +564,7 @@ from bs4 import BeautifulSoup          # For easy webpage scraping`
 
 我们的下一个函数是我们将从每个新进程开始的函数，它允许异步运行它:
 
-```
+```py
 `def start_scraping(num_pages: int, output_file: str, i: int):
     """ Starts an async process for requesting and scraping Wikipedia pages """
     print(f"Process {i} starting...")
@@ -574,7 +574,7 @@ from bs4 import BeautifulSoup          # For easy webpage scraping`
 
 现在我们的主要功能。让我们从一些常量(以及我们的函数声明)开始:
 
-```
+```py
 `def main():
     NUM_PAGES = 100 # Number of pages to scrape altogether
     NUM_CORES = cpu_count() # Our number of CPU cores (including logical cores)
@@ -586,7 +586,7 @@ from bs4 import BeautifulSoup          # For easy webpage scraping`
 
 现在的逻辑是:
 
-```
+```py
  `futures = []
 
     with concurrent.futures.ProcessPoolExecutor(NUM_CORES) as executor:
@@ -614,7 +614,7 @@ from bs4 import BeautifulSoup          # For easy webpage scraping`
 
 确保实际运行您的主要功能:
 
-```
+```py
 `if __name__ == "__main__":
     start = time.time()
     main()
@@ -625,25 +625,25 @@ from bs4 import BeautifulSoup          # For easy webpage scraping`
 
 这个版本( [asyncio 多处理](https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/asyncio_with_multiprocessing.py)):
 
-```
+```py
 `Time to complete: 5.65 seconds.` 
 ```
 
 [仅多重处理](https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/multiprocessing_only.py):
 
-```
+```py
 `Time to complete: 8.87 seconds.` 
 ```
 
 [仅 asyncio】:](https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/asyncio_only.py)
 
-```
+```py
 `Time to complete: 47.92 seconds.` 
 ```
 
 [完全同步](https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/sync.py):
 
-```
+```py
 `Time to complete: 88.86 seconds.` 
 ```
 
@@ -667,7 +667,7 @@ from bs4 import BeautifulSoup          # For easy webpage scraping`
 
 他们的 C#团队随后建立了这个概念，这就是我们现在熟悉的`async` / `await`关键词的由来:
 
-```
+```py
 `using  System; // Allows the "Task" return type
 using  System.Threading.Tasks; public  class  Program { // Declare an async function with "async"
   private  static  async  Task<string>  ReturnHello() { return  "hello world"; } // Main can be async -- no problem
@@ -686,7 +686,7 @@ using  System.Threading.Tasks; public  class  Program { // Declare an async func
 
 在 ES6 中首次引入的`async` / `await`语法本质上是对 JavaScript 承诺的抽象(类似于 Python 期货)。然而，与 Python 不同的是，只要你不等待，你就可以正常地调用一个异步函数，而不需要像 Python 的`asyncio.start()`那样的特定函数:
 
-```
+```py
 `// Declare a function with async async  function  returnHello(){ return  "hello world"; } async  function  printSomething(){ // await an async string const  result  =  await  returnHello(); // print the string we got asynchronously console.log(result); } // Run our async code printSomething();` 
 ```
 
@@ -698,7 +698,7 @@ using  System.Threading.Tasks; public  class  Program { // Declare an async func
 
 Rust 现在也允许使用`async` / `await`语法，它的工作方式类似于 Python、C#和 JavaScript:
 
-```
+```py
 `// Allows blocking synchronous code to run async code
 use  futures::executor::block_on; // Declare an async function with "async"
 async  fn return_hello()  -> String { "hello world".to_string() } // Code that awaits must also be declared with "async"
@@ -718,7 +718,7 @@ async  fn print_something(){ // await an async String
 
 Go 使用了“goroutines”和“channels”，而不是我们之前讨论过的所有语言固有的传统语法`async` / `await`您可以将通道想象成类似于 Python 的未来。在 Go 中，你通常发送一个通道作为函数的参数，然后使用`go`并发运行函数。每当你需要确保函数已经完成时，你使用`<-`语法，你可以认为这是更常见的`await`语法。如果您的 goroutine(您正在异步运行的函数)有一个返回值，就可以这样获取它。
 
-```
+```py
 `package  main import  "fmt" // "chan" makes the return value a string channel instead of a string func  returnHello(result  chan  string){ // Gives our channel a value result  <-  "hello world" } func  main()  { // Creates a string channel result  :=  make(chan  string) // Starts execution of our goroutine go  returnHello(result) // Awaits and prints our string fmt.Println(<-  result) }` 
 ```
 
@@ -738,7 +738,7 @@ Go 使用了“goroutines”和“channels”，而不是我们之前讨论过�
 
 虽然 C++也没有`async` / `await`语法，但是它有能力使用`futures`模块使用期货来并发运行代码:
 
-```
+```py
 `#include  <iostream> #include  <string> // Necessary for futures
 #include  <future> // No async declaration needed
 std::string  return_hello()  { return  "hello world"; } int  main  () { // Declares a string future

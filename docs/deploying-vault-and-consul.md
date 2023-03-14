@@ -24,13 +24,13 @@
 
 创建新的项目目录:
 
-```
+```py
 `$ mkdir vault-consul-swarm && cd vault-consul-swarm` 
 ```
 
 然后，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `version:  "3.8" services: server-bootstrap: image:  consul:1.10.3 ports: -  8500:8500 command:  "agent  -server  -bootstrap-expect  3  -ui  -client  0.0.0.0  -bind  '{{  GetInterfaceIP  \"eth0\"  }}'" server: image:  consul:1.10.3 command:  "agent  -server  -retry-join  server-bootstrap  -client  0.0.0.0  -bind  '{{  GetInterfaceIP  \"eth0\"  }}'" deploy: replicas:  2 depends_on: -  server-bootstrap client: image:  consul:1.10.3 command:  "agent  -retry-join  server-bootstrap  -client  0.0.0.0  -bind  '{{  GetInterfaceIP  \"eth0\"  }}'" deploy: replicas:  2 depends_on: -  server-bootstrap networks: default: external:  true name:  core` 
 ```
 
@@ -45,13 +45,13 @@
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
 旋转三个液滴:
 
-```
+```py
 `$ for i in 1 2 3; do
     docker-machine create \
       --driver digitalocean \
@@ -65,13 +65,13 @@ done`
 
 在第一个节点`node-1`上初始化[群模式](https://docs.docker.com/engine/swarm/):
 
-```
+```py
 `$ docker-machine ssh node-1 -- docker swarm init --advertise-addr $(docker-machine ip node-1)` 
 ```
 
 使用上一个命令输出中的 join 令牌将剩余的两个节点作为 workers 添加到群中:
 
-```
+```py
 `$ for i in 2 3; do
     docker-machine ssh node-$i -- docker swarm join --token YOUR_JOIN_TOKEN HOST:PORT;
 done` 
@@ -79,7 +79,7 @@ done`
 
 例如:
 
-```
+```py
 `for i in 2 3; do
     docker-machine ssh node-$i -- docker swarm join --token SWMTKN-1-18xrfgcgq7k6krqr7tvav3ydx5c5104y662lzh4pyct2t0ror3-e3ed1ggivhf8z15i40z6x55g5 67.205.165.166:2377;
 done` 
@@ -87,14 +87,14 @@ done`
 
 您应该看到:
 
-```
+```py
 `This node joined a swarm as a worker.
 This node joined a swarm as a worker.` 
 ```
 
 将 Docker 守护进程指向`node-1`，创建一个可连接的[覆盖网络](https://docs.docker.com/network/network-tutorial-overlay/)(称为`core`)，并部署堆栈:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker network create -d overlay --attachable core
 $ docker stack deploy --compose-file=docker-compose.yml secrets` 
@@ -102,13 +102,13 @@ $ docker stack deploy --compose-file=docker-compose.yml secrets`
 
 列出堆栈中的服务:
 
-```
+```py
 `$ docker stack ps -f "desired-state=running" secrets` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `ID             NAME                         IMAGE          NODE     DESIRED STATE   CURRENT STATE
 b5f5eycrhf3o   secrets_client.1             consul:1.10.3   node-1   Running         Running 7 seconds ago
 zs7a5t8khcew   secrets_server.1             consul:1.10.3   node-2   Running         Running 9 seconds ago
@@ -119,7 +119,7 @@ vgpql8lfy5fi   secrets_server.2             consul:1.10.3   node-3   Running    
 
 抓取与`node-1`关联的 IP:
 
-```
+```py
 `$ docker-machine ip node-1` 
 ```
 
@@ -133,13 +133,13 @@ vgpql8lfy5fi   secrets_server.2             consul:1.10.3   node-3   Running    
 
 将`vault`服务添加到 *docker-compose.yml* :
 
-```
+```py
 `vault: image:  vault:1.8.3 deploy: replicas:  1 ports: -  8200:8200 environment: -  VAULT_ADDR=http://127.0.0.1:8200 -  VAULT_LOCAL_CONFIG={"backend":{"consul":{"address":"http://server-bootstrap:8500","path":"vault/"}},"listener":{"tcp":{"address":"0.0.0.0:8200","tls_disable":1}},"ui":true, "disable_mlock":true} command:  server depends_on: -  consul` 
 ```
 
 记下`VAULT_LOCAL_CONFIG`环境变量:
 
-```
+```py
 `{ "backend":  { "consul":  { "address":  "http://server-bootstrap:8500", "path":  "vault/" } }, "listener":  { "tcp":  { "address":  "0.0.0.0:8200", "tls_disable":  1 } }, "ui":  true, "disable_mlock":  true }` 
 ```
 
@@ -152,19 +152,19 @@ vgpql8lfy5fi   secrets_server.2             consul:1.10.3   node-3   Running    
 
 重新部署堆栈:
 
-```
+```py
 `$ docker stack deploy --compose-file=docker-compose.yml secrets` 
 ```
 
 等待几秒钟，让服务开始运转，然后检查状态:
 
-```
+```py
 `$ docker stack ps -f "desired-state=running" secrets` 
 ```
 
 同样，您应该看到类似于以下内容的内容:
 
-```
+```py
 `ID             NAME                         IMAGE           NODE      DESIRED STATE   CURRENT STATE
 xtfsetfrbrs7   secrets_client.1             consul:1.10.3   node-3    Running         Running 19 minutes ago
 ydqxexgiyzb2   secrets_client.2             consul:1.10.3   node-1    Running         Running 19 minutes ago
@@ -182,7 +182,7 @@ wfmscoj53m39   secrets_vault.1              vault:1.8.3     node-3    Running   
 
 完成后删除节点:
 
-```
+```py
 `$ docker-machine rm node-1 node-2 node-3 -y` 
 ```
 
@@ -197,7 +197,7 @@ wfmscoj53m39   secrets_vault.1              vault:1.8.3     node-3    Running   
 
 将名为 *deploy.sh* 的新文件添加到项目根目录:
 
-```
+```py
 `#!/bin/bash
 
 echo "Spinning up three droplets..."
@@ -239,7 +239,7 @@ docker stack deploy --compose-file=docker-compose.yml secrets`
 
 完成后将水滴带下来:
 
-```
+```py
 `$ docker-machine rm node-1 node-2 node-3 -y` 
 ```
 

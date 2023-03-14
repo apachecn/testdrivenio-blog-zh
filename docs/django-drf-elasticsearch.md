@@ -79,7 +79,7 @@ PostgreSQL 的优势:
 
 首先创建一个新目录，并建立一个新的 Django 项目:
 
-```
+```py
 `$ mkdir django-drf-elasticsearch && cd django-drf-elasticsearch
 $ python3.9 -m venv env
 $ source env/bin/activate
@@ -90,13 +90,13 @@ $ source env/bin/activate
 
 之后，创建一个名为`blog`的新应用:
 
-```
+```py
 `(env)$ python manage.py startapp blog` 
 ```
 
 在`INSTALLED_APPS`下的 *core/settings.py* 中注册 app:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -114,7 +114,7 @@ INSTALLED_APPS = [
 
 接下来，在*博客/models.py* 中创建`Category`和`Article`模型:
 
-```
+```py
 `# blog/models.py
 
 from django.contrib.auth.models import User
@@ -160,14 +160,14 @@ class Article(models.Model):
 
 进行迁移，然后应用它们:
 
-```
+```py
 `(env)$ python manage.py makemigrations
 (env)$ python manage.py migrate` 
 ```
 
 在 *blog/admin.py* 中注册模型:
 
-```
+```py
 `# blog/admin.py
 
 from django.contrib import admin
@@ -184,7 +184,7 @@ admin.site.register(Article)`
 
 在“博客”中创建一个名为“管理”的新文件夹，然后在该文件夹中创建另一个名为“命令”的文件夹。在“commands”文件夹中，创建一个名为 *populate_db.py* 的新文件。
 
-```
+```py
 `management
 └── commands
     └── populate_db.py` 
@@ -194,7 +194,7 @@ admin.site.register(Article)`
 
 运行以下命令来填充数据库:
 
-```
+```py
 `(env)$ python manage.py populate_db` 
 ```
 
@@ -204,13 +204,13 @@ admin.site.register(Article)`
 
 现在让我们使用 pip 安装`djangorestframework`:
 
-```
+```py
 `(env)$ pip install djangorestframework==3.12.4` 
 ```
 
 在我们的 *settings.py* 中注册，就像这样:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -227,7 +227,7 @@ INSTALLED_APPS = [
 
 添加以下设置:
 
-```
+```py
 `# core/settings.py
 
 REST_FRAMEWORK = {
@@ -244,7 +244,7 @@ REST_FRAMEWORK = {
 
 *blog/serializer . py*:
 
-```
+```py
 `# blog/serializers.py
 
 from django.contrib.auth.models import User
@@ -282,7 +282,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
 让我们在 *blog/views.py* 中为我们的每个模型创建一个视图集:
 
-```
+```py
 `# blog/views.py
 
 from django.contrib.auth.models import User
@@ -310,7 +310,7 @@ class ArticleViewSet(viewsets.ModelViewSet):
 
 为视图集创建应用程序级别的 URL:
 
-```
+```py
 `# blog/urls.py
 
 from django.urls import path, include
@@ -330,7 +330,7 @@ urlpatterns = [
 
 然后，将应用程序 URL 连接到项目 URL:
 
-```
+```py
 `# core/urls.py
 
 from django.contrib import admin
@@ -357,13 +357,13 @@ urlpatterns = [
 
 运行开发服务器:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
 然后，在您选择的浏览器中，导航到[http://127 . 0 . 0 . 1:8000/blog/article/](http://127.0.0.1:8000/blog/article/)。响应应该如下所示:
 
-```
+```py
 `{ "count":  4, "next":  null, "previous":  null, "results":  [ { "id":  1, "author":  { "id":  3, "username":  "jess_", "first_name":  "Jess", "last_name":  "Brown" }, "categories":  [ { "id":  2, "name":  "SEO optimization", "description":  null } ], "title":  "How to improve your Google rating?", "type":  "TU", "content":  "Firstly, add the correct SEO tags...", "created_datetime":  "2021-08-12T17:34:31.271610Z", "updated_datetime":  "2021-08-12T17:34:31.322165Z" }, { "id":  2, "author":  { "id":  4, "username":  "johnny", "first_name":  "Johnny", "last_name":  "Davis" }, "categories":  [ { "id":  4, "name":  "Programming", "description":  null } ], "title":  "Installing latest version of Ubuntu", "type":  "TU", "content":  "In this tutorial, we'll take a look at how to setup the latest version of Ubuntu. Ubuntu (/ʊˈbʊntuː/ is a Linux distribution based on Debian and composed mostly of free and open-source software. Ubuntu is officially released in three editions: Desktop, Server, and Core for Internet of things devices and robots.", "created_datetime":  "2021-08-12T17:34:31.540628Z", "updated_datetime":  "2021-08-12T17:34:31.592555Z" }, ... ] }` 
 ```
 
@@ -375,7 +375,7 @@ urlpatterns = [
 
 > 需要帮助启动和运行 Elasticsearch 吗？查看[安装弹性搜索](https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html)指南。如果你熟悉 Docker，你可以简单地运行下面的命令来拉取[的官方图片](https://www.docker.elastic.co/r/elasticsearch)，并旋转一个运行着 Elasticsearch 的容器:
 > 
-> ```
+> ```py
 > `$ docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" docker.elastic.co/elasticsearch/elasticsearch:7.14.0` 
 > ```
 
@@ -387,7 +387,7 @@ urlpatterns = [
 
 安装:
 
-```
+```py
 `(env)$ pip install elasticsearch==7.14.0
 (env)$ pip install elasticsearch-dsl==7.4.0
 (env)$ pip install django-elasticsearch-dsl==7.2.0` 
@@ -395,13 +395,13 @@ urlpatterns = [
 
 启动一个名为`search`的新应用，它将保存我们的弹性搜索文档、索引和查询:
 
-```
+```py
 `(env)$ python manage.py startapp search` 
 ```
 
 在`INSTALLED_APPS`下的 *core/settings.py* 中注册`search`和`django_elasticsearch_dsl`:
 
-```
+```py
 `# core/settings.py
 
 INSTALLED_APPS = [
@@ -420,7 +420,7 @@ INSTALLED_APPS = [
 
 现在我们需要让 Django 知道 Elasticsearch 在哪里运行。为此，我们将以下内容添加到我们的 *core/settings.py* 文件中:
 
-```
+```py
 `# core/settings.py
 
 # Elasticsearch
@@ -437,7 +437,7 @@ ELASTICSEARCH_DSL = {
 
 我们可以通过启动服务器来测试 Django 是否可以连接到 Elasticsearch:
 
-```
+```py
 `(env)$ python manage.py runserver` 
 ```
 
@@ -449,7 +449,7 @@ ELASTICSEARCH_DSL = {
 
 我们将通过在模型中添加一个`type_to_string()`方法来实现这一点，如下所示:
 
-```
+```py
 `# blog/models.py
 
 class Article(models.Model):
@@ -478,13 +478,13 @@ class Article(models.Model):
 
 如果没有`type_to_string()`,我们的模型将会连载成这样:
 
-```
+```py
 `{ "title":  "This is my article.", "type":  "TU", ... }` 
 ```
 
 在实现`type_to_string()`之后，我们的模型被序列化成这样:
 
-```
+```py
 `{ "title":  "This is my article.", "type":  "Tutorial", ... }` 
 ```
 
@@ -492,7 +492,7 @@ class Article(models.Model):
 
 *博客/documents.py* :
 
-```
+```py
 `# blog/documents.py
 
 from django.contrib.auth.models import User
@@ -578,7 +578,7 @@ class ArticleDocument(Document):
 
 要创建和填充 Elasticsearch 索引和映射，使用`search_index`命令:
 
-```
+```py
 `(env)$ python manage.py search_index --rebuild
 
 Deleting index 'users'
@@ -602,7 +602,7 @@ django-elasticsearch-dsl 创建了适当的数据库信号，这样每次创建�
 
 我们首先必须获得`Search`实例。我们通过调用文档中的`search()`来实现，如下所示:
 
-```
+```py
 `from blog.documents import ArticleDocument
 
 search = ArticleDocument.search()` 
@@ -612,7 +612,7 @@ search = ArticleDocument.search()`
 
 一旦我们有了`Search`实例，我们就可以将查询传递给`query()`方法并获取响应:
 
-```
+```py
 `from elasticsearch_dsl import Q
 from blog.documents import ArticleDocument
 
@@ -634,7 +634,7 @@ for hit in search:
 
 我们还可以像这样组合多个 Q 语句:
 
-```
+```py
 `from elasticsearch_dsl import Q
 from blog.documents import ArticleDocument
 
@@ -673,7 +673,7 @@ for hit in search:
 
 通过运行下面的查询，我们不会得到任何结果，因为用户拼错了“django”。
 
-```
+```py
 `from elasticsearch_dsl import Q
 from blog.documents import ArticleDocument
 
@@ -694,7 +694,7 @@ for hit in search:
 
 如果我们像这样启用模糊性:
 
-```
+```py
 `from elasticsearch_dsl import Q
 from blog.documents import ArticleDocument
 
@@ -730,7 +730,7 @@ Elasticsearch 有许多附加功能。要熟悉 API，请尝试实现:
 
 这样，让我们创建一些视图。为了让我们的代码更加简洁，我们可以在 *search/views.py* 中使用下面的抽象类:
 
-```
+```py
 `# search/views.py
 
 import abc
@@ -771,7 +771,7 @@ class PaginatedElasticSearchAPIView(APIView, LimitOffsetPagination):
 
 所有的视图现在都应该继承自`PaginatedElasticSearchAPIView`:
 
-```
+```py
 `# search/views.py
 
 import abc
@@ -852,7 +852,7 @@ class SearchArticles(PaginatedElasticSearchAPIView):
 
 最后，让我们为视图创建 URL:
 
-```
+```py
 `# search.urls.py
 
 from django.urls import path
@@ -868,7 +868,7 @@ urlpatterns = [
 
 然后，将应用程序 URL 连接到项目 URL:
 
-```
+```py
 `# core/urls.py
 
 from django.contrib import admin

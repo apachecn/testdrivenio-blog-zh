@@ -34,7 +34,7 @@ DigitalOcean 的应用程序平台的目标是简化部署，以便您可以专�
 
 请随意从[数字海洋-应用程序-平台-django](https://github.com/testdrivenio/digitalocean-app-platform-django) repo 的 [v1](https://github.com/testdrivenio/digitalocean-app-platform-django/releases/tag/v1) 分支中克隆演示应用程序:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/digitalocean-app-platform-django --branch v1
 $ cd digitalocean-app-platform-django
 $ git checkout -b main` 
@@ -46,7 +46,7 @@ $ git checkout -b main`
 
 如果您有自己想要部署的 Django 应用程序，为了简单起见，请更新您的 *settings.py* 文件中的以下配置:
 
-```
+```py
 `SECRET_KEY = 'please-change-me'
 DEBUG = True
 ALLOWED_HOSTS = ['*']` 
@@ -56,7 +56,7 @@ ALLOWED_HOSTS = ['*']`
 
 另外，添加以下静态资产配置:
 
-```
+```py
 `STATIC_URL = '/static/'
 STATIC_ROOT = Path(BASE_DIR).joinpath('staticfiles')
 STATICFILES_DIRS = (Path(BASE_DIR).joinpath('static'),)` 
@@ -112,13 +112,13 @@ STATICFILES_DIRS = (Path(BASE_DIR).joinpath('static'),)`
 
 将以下变量添加到设置文件中，以读取环境变量:
 
-```
+```py
 `DATABASE_URL = os.getenv('DATABASE_URL', None)` 
 ```
 
 接下来，像这样更新数据库配置以使用`DATABASE_URL`(如果它存在)并配置 Postgres:
 
-```
+```py
 `if not DATABASE_URL:
     DATABASES = {
         'default': {
@@ -143,7 +143,7 @@ else:
 
 将适当的导入添加到顶部:
 
-```
+```py
 `import os
 from urllib.parse import urlparse` 
 ```
@@ -160,7 +160,7 @@ from urllib.parse import urlparse`
 
 ![Verify Postgres](img/2a04b01608645bb46d14d62df141f8d0.png)
 
-```
+```py
 `$ python manage.py shell
 
 >>> from django.conf import settings
@@ -177,7 +177,7 @@ from urllib.parse import urlparse`
 
 更新 *settings.py* 中的以下变量:
 
-```
+```py
 `SECRET_KEY = os.getenv('SECRET_KEY', 'please-change-me')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')` 
@@ -205,7 +205,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')`
 
 更新 *settings.py* 中的`MIDDLEWARE`列表:
 
-```
+```py
 `MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # new
@@ -220,7 +220,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')`
 
 然后，要启用压缩和缓存支持，请添加:
 
-```
+```py
 `STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'` 
 ```
 

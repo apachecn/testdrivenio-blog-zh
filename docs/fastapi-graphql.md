@@ -35,7 +35,7 @@ REST 是构建 web APIs 的事实上的标准。使用 REST，每个 CRUD 操作
 
 在 GraphQL 中，您可以像这样构建一个查询来获取用户的个人资料、帖子和评论:
 
-```
+```py
 `query {
   User(userId: 2){
     name
@@ -72,14 +72,14 @@ Masonite ORM 被开发出来作为 astorator ORM 的[替代品](https://github.c
 
 创建一个目录来保存名为“fastapi-graphql”的项目:
 
-```
+```py
 `$ mkdir fastapi-graphql
 $ cd fastapi-graphql` 
 ```
 
 创建虚拟环境并激活它:
 
-```
+```py
 `$ python3.11 -m venv env
 $ source env/bin/activate
 
@@ -92,7 +92,7 @@ $ source env/bin/activate
 
 将以下要求添加到 *requirements.txt* 文件中:
 
-```
+```py
 `fastapi==0.92.0
 uvicorn==0.20.0` 
 ```
@@ -101,13 +101,13 @@ uvicorn==0.20.0`
 
 安装依赖项:
 
-```
+```py
 `(env)$ pip install -r requirements.txt` 
 ```
 
 在 *main.py* 文件中，添加以下行来启动服务器:
 
-```
+```py
 `from fastapi import FastAPI
 
 app = FastAPI()
@@ -119,7 +119,7 @@ def ping():
 
 要启动服务器，请打开终端，导航到项目目录，然后输入以下命令:
 
-```
+```py
 `(env)$ uvicorn main:app --reload` 
 ```
 
@@ -137,20 +137,20 @@ def ping():
 
 将以下需求添加到 *requirements.txt* 文件中:
 
-```
+```py
 `masonite-orm==2.18.6
 psycopg2-binary==2.9.5` 
 ```
 
 安装新的依赖项:
 
-```
+```py
 `(env)$ pip install -r requirements.txt` 
 ```
 
 创建以下文件夹:
 
-```
+```py
 `models
 databases/migrations
 config` 
@@ -166,7 +166,7 @@ config`
 
 在 *database.py* 文件中，我们需要添加`DATABASE`变量和一些连接信息，从`masonite-orm.connections`导入`ConnectionResolver`，并注册连接细节:
 
-```
+```py
 `# config/database.py
 
 from masoniteorm.connections import ConnectionResolver
@@ -220,19 +220,19 @@ DB = ConnectionResolver().set_connection_details(DATABASES)`
 
 要创建一个新的样板文件 [Masonite 模型](https://orm.masoniteproject.com/models#creating-a-model)，从终端的项目根文件夹中运行下面的`masonite-orm`命令:
 
-```
+```py
 `(env)$ masonite-orm model User --directory models` 
 ```
 
 您应该会看到一条成功消息:
 
-```
+```py
 `Model created: models/User.py` 
 ```
 
 因此，该命令应该在“models”目录中创建一个包含以下内容的 *User.py* 文件:
 
-```
+```py
 `""" User Model """
 
 from masoniteorm.models import Model
@@ -247,7 +247,7 @@ class User(Model):
 
 对帖子和评论模型运行相同的命令:
 
-```
+```py
 `(env)$ masonite-orm model Post --directory models
 > Model created: models/Post.py
 
@@ -257,7 +257,7 @@ class User(Model):
 
 接下来，我们可以创建初始迁移:
 
-```
+```py
 `(env)$ masonite-orm migration migration_for_user_table --create users` 
 ```
 
@@ -269,7 +269,7 @@ class User(Model):
 
 内容:
 
-```
+```py
 `"""MigrationForUserTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -293,7 +293,7 @@ class MigrationForUserTable(Migration):
 
 创建剩余的迁移文件:
 
-```
+```py
 `(env)$ masonite-orm migration migration_for_post_table --create posts
 > Migration file created: databases/migrations/2022_05_04_084820_migration_for_post_table.py
 
@@ -313,7 +313,7 @@ class MigrationForUserTable(Migration):
 
 将与用户模型相关联的迁移文件更改为:
 
-```
+```py
 `"""MigrationForUserTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -345,7 +345,7 @@ class MigrationForUserTable(Migration):
 
 帖子:
 
-```
+```py
 `"""MigrationForPostTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -372,7 +372,7 @@ class MigrationForPostTable(Migration):
 
 评论:
 
-```
+```py
 `"""MigrationForCommentTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -400,7 +400,7 @@ class MigrationForCommentTable(Migration):
 
 注意到:
 
-```
+```py
 `table.integer("user_id").unsigned()
 table.foreign("user_id").references("id").on("users")` 
 ```
@@ -409,13 +409,13 @@ table.foreign("user_id").references("id").on("users")`
 
 要应用迁移，请在终端中运行以下命令:
 
-```
+```py
 `(env)$ masonite-orm migrate` 
 ```
 
 您应该会看到关于每个迁移的成功消息:
 
-```
+```py
 `Migrating: 2022_05_04_084807_migration_for_user_table
 Migrated: 2022_05_04_084807_migration_for_user_table (0.08s)
 Migrating: 2022_05_04_084820_migration_for_post_table
@@ -430,7 +430,7 @@ Migrated: 2022_05_04_084833_migration_for_comment_table (0.02s)`
 
 为了定义一对多的关系，我们需要从*模型/User.py* 中的`masoniteorm.relationships`导入`has_many`，并将其作为装饰者添加到我们的函数中:
 
-```
+```py
 `# models/User.py
 
 from masoniteorm.models import Model
@@ -461,7 +461,7 @@ class User(Model):
 
 对*型号/Post.py* 进行同样的操作:
 
-```
+```py
 `# models/Post.py
 
 from masoniteorm.models import Model
@@ -483,19 +483,19 @@ class Post(Model):
 
 将`strawberry-graphql[fastapi]`添加到您的 *requirement.txt* 文件中:
 
-```
+```py
 `strawberry-graphql[fastapi]==0.158.0` 
 ```
 
 安装:
 
-```
+```py
 `(env)$ pip install -r requirements.txt` 
 ```
 
 接下来，像这样更新 *main.py* 文件:
 
-```
+```py
 `import strawberry  # new
 from fastapi import FastAPI
 from strawberry.fastapi import GraphQLRouter  # new
@@ -519,7 +519,7 @@ def ping():
 
 启动您的服务器:
 
-```
+```py
 `(env)$ uvicorn main:app --reload` 
 ```
 
@@ -531,7 +531,7 @@ def ping():
 
 您应该看到:
 
-```
+```py
 `{
   "data": {
     "hello": "Hello World"
@@ -551,7 +551,7 @@ def ping():
 
 在 *schema.py* 文件中，让我们定义我们的类型:
 
-```
+```py
 `import strawberry
 
 from typing import List, Optional
@@ -594,7 +594,7 @@ class UserType:
 
 将以下输入类型添加到 *schema.py* 文件中:
 
-```
+```py
 `@strawberry.input
 class UserInput:
     name: str
@@ -620,7 +620,7 @@ class CommentInput:
 
 现在，在我们的*控制器. py* 类中，让我们添加添加用户的逻辑。创建一个 mutate 类，并在该类中包含一个`add_user`方法，该方法接受一个类型为`UserInput`的参数:
 
-```
+```py
 `from models.User import User
 from schema import UserInput
 
@@ -646,7 +646,7 @@ class CreateMutation:
 
 现在，为了将这个类绑定到我们的变异中，将以下内容添加到 *core.py* :
 
-```
+```py
 `import strawberry
 
 from controller import CreateMutation
@@ -659,13 +659,13 @@ class Mutation:
 
 现在，我们只需将我们的突变添加到`strawberry.Schema`实例化中。打开 *main.py* 文件，更改模式实例化，如下所示:
 
-```
+```py
 `schema = strawberry.Schema(query=Query, mutation=Mutation)` 
 ```
 
 不要忘记重要的一点:
 
-```
+```py
 `from core import Mutation` 
 ```
 
@@ -673,7 +673,7 @@ class Mutation:
 
 将其他 mutate 方法添加到 *controller.py* 文件中:
 
-```
+```py
 `from models.Comment import Comment
 from models.Post import Post
 from models.User import User
@@ -735,7 +735,7 @@ class CreateMutation:
 
 同时更新 *core.py* :
 
-```
+```py
 `@strawberry.type
 class Mutation:
     add_user: UserType = strawberry.mutation(resolver=CreateMutation.add_user)
@@ -747,7 +747,7 @@ class Mutation:
 
 再次点燃 Uvicorn。重新加载您的浏览器，在 GraphQL Playground 的[http://localhost:8000/graph QL](http://localhost:8000/graphql)，执行`addUser`突变:
 
-```
+```py
 `mutation {
   addUser(userData:{
     name: "John Doe",
@@ -765,7 +765,7 @@ class Mutation:
 
 您应该得到这样一个用户对象:
 
-```
+```py
 `{
   "data": {
     "addUser": {
@@ -779,7 +779,7 @@ class Mutation:
 
 尝试使用相同的电子邮件再次添加相同的用户，现在应该会显示一个错误列表，其中数据键为空:
 
-```
+```py
 `{
   "data": null,
   "errors": [
@@ -801,7 +801,7 @@ class Mutation:
 
 执行`addPost`突变也是为了创建一个新帖子:
 
-```
+```py
 `mutation addPost {
   addPost(postData: {
     userId: 1,
@@ -816,7 +816,7 @@ class Mutation:
 
 您应该看到:
 
-```
+```py
 `{
   "data": {
     "addPost": {
@@ -828,7 +828,7 @@ class Mutation:
 
 最后，执行`createComment`变异来创建一个新的注释:
 
-```
+```py
 `mutation createComment {
   addComment(commentData: {
     userId: 1,
@@ -848,7 +848,7 @@ class Mutation:
 
 在 *controller.py* 中，添加一个查询类，其中所有函数都将是我们的查询解析器:
 
-```
+```py
 `class Queries:
 
     def get_all_users(self) -> List[UserType]:
@@ -857,7 +857,7 @@ class Mutation:
 
 更新顶部的导入:
 
-```
+```py
 `from typing import List
 
 from models.Comment import Comment
@@ -870,7 +870,7 @@ from schema import CommentInput, CommentsType, PostInput, PostType, UserInput, U
 
 现在，让我们通过更新 *core.py* 将它们联系起来，如下所示:
 
-```
+```py
 `from typing import List, Optional  # new
 
 import strawberry
@@ -892,7 +892,7 @@ class Query:
 
 更新 *main.py* :
 
-```
+```py
 `import strawberry
 from fastapi import FastAPI
 from strawberry.fastapi import GraphQLRouter
@@ -911,13 +911,13 @@ def ping():
 
 启动您的服务器:
 
-```
+```py
 `(env)$ uvicorn main:app --reload` 
 ```
 
 再次导航到[http://localhost:8000/graph QL](http://localhost:8000/graphql)，并执行以下查询以返回用户列表:
 
-```
+```py
 `query getAllUsers {
   users{
     id
@@ -931,7 +931,7 @@ def ping():
 
 结果:
 
-```
+```py
 `{
   "data": {
     "users": [
@@ -951,7 +951,7 @@ def ping():
 
 要检索单个用户，再次更新`Queries`类，添加以下解析器方法:
 
-```
+```py
 `class Queries:
 
     def get_all_users(self) -> List[UserType]:
@@ -967,7 +967,7 @@ def ping():
 
 接下来，像这样更新 *core.py* 中的`Query`类:
 
-```
+```py
 `@strawberry.type
 class Query:
     users: List[UserType] = strawberry.field(resolver=Queries.get_all_users)
@@ -976,7 +976,7 @@ class Query:
 
 尝试一下:
 
-```
+```py
 `query getUser {
   getSingleUser(userId: 1) {
     name
@@ -995,7 +995,7 @@ class Query:
 
 该查询应该返回一个帖子列表，该列表又应该包含每个帖子对象的评论列表:
 
-```
+```py
 `{
   "data": {
     "getSingleUser": {
@@ -1022,7 +1022,7 @@ class Query:
 
 如果不需要帖子或评论，可以从查询中删除帖子和评论块:
 
-```
+```py
 `query getUser {
   getSingleUser(userId: 1) {
     name
@@ -1032,7 +1032,7 @@ class Query:
 
 结果:
 
-```
+```py
 `{
   "data": {
     "getSingleUser": {
@@ -1044,7 +1044,7 @@ class Query:
 
 尝试使用不正确的用户 ID:
 
-```
+```py
 `query getUser {
   getSingleUser(userId: 5999) {
     name
@@ -1054,7 +1054,7 @@ class Query:
 
 它应该会返回一个错误:
 
-```
+```py
 `{
   "data": null,
   "errors": [
@@ -1086,13 +1086,13 @@ Graphene 提供了一个[测试客户端](https://docs.graphene-python.org/en/la
 
 安装:
 
-```
+```py
 `(env)$ pip install -r requirements.txt` 
 ```
 
 接下来，让我们为测试创建一个单独的配置文件，这样我们就不会覆盖主开发数据库中的数据。在“config”文件夹中，创建一个名为 test_config.py 的新文件:
 
-```
+```py
 `from masoniteorm.connections import ConnectionResolver
 
 DATABASES = {
@@ -1108,7 +1108,7 @@ DB = ConnectionResolver().set_connection_details(DATABASES)`
 
 接下来，创建一个“tests”文件夹，并在该文件夹中添加一个 *conftest.py* 文件:
 
-```
+```py
 `import pytest
 from masoniteorm.migrations import Migration
 
@@ -1124,7 +1124,7 @@ def setup_database():
 
 接下来，添加用于创建用户、帖子和评论的装置:
 
-```
+```py
 `@pytest.fixture(scope="function")
 def user():
     user = User()
@@ -1165,7 +1165,7 @@ def comment(user, post):
 
 不要忘记模型导入:
 
-```
+```py
 `from models.Comment import Comment
 from models.Post import Post
 from models.User import User` 
@@ -1173,7 +1173,7 @@ from models.User import User`
 
 您的 *conftest.py* 文件现在应该是这样的:
 
-```
+```py
 `import pytest
 from masoniteorm.migrations import Migration
 
@@ -1234,7 +1234,7 @@ def comment(user, post):
 
 首先创建一个`TestClient`的实例:
 
-```
+```py
 `from fastapi.testclient import TestClient
 
 from main import app  # => FastAPI app created in our main.py file
@@ -1250,7 +1250,7 @@ client = TestClient(app)`
 
 测试:
 
-```
+```py
 `def test_create_user():
     query = """
  mutation {
@@ -1318,7 +1318,7 @@ def test_get_single_user(user):
 
 这将执行所有的测试。它们都应该通过:
 
-```
+```py
 `=============================== test session starts ===============================
 platform darwin -- Python 3.10.3, pytest-7.2.1, pluggy-1.0.0
 rootdir: /Users/michael/repos/testdriven/fastapi-graphql

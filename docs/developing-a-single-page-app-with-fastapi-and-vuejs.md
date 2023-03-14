@@ -90,7 +90,7 @@ Vue 是一个开源的 JavaScript 框架，用于构建用户界面。它采用�
 
 首先创建一个名为“fastapi-vue”的新项目文件夹，并添加以下文件和文件夹:
 
-```
+```py
 `fastapi-vue
 ├── docker-compose.yml
 └── services
@@ -103,7 +103,7 @@ Vue 是一个开源的 JavaScript 框架，用于构建用户界面。它采用�
 
 > 以下命令将创建项目结构:
 > 
-> ```
+> ```py
 > `$ mkdir fastapi-vue && \
 >   cd fastapi-vue && \
 >   mkdir -p services/backend/src && \
@@ -113,7 +113,7 @@ Vue 是一个开源的 JavaScript 框架，用于构建用户界面。它采用�
 
 接下来，将以下代码添加到*服务/后端/Dockerfile* 中:
 
-```
+```py
 `FROM  python:3.11-buster
 
 RUN  mkdir app
@@ -131,20 +131,20 @@ COPY  src/ .`
 
 将以下依赖项添加到*服务/后端/需求. txt* 文件中:
 
-```
+```py
 `fastapi==0.88.0
 uvicorn==0.20.0` 
 ```
 
 更新坞站-复合. yml 如:
 
-```
+```py
 `version:  '3.8' services: backend: build:  ./services/backend ports: -  5000:5000 volumes: -  ./services/backend:/app command:  uvicorn src.main:app --reload --host 0.0.0.0 --port 5000` 
 ```
 
 在我们构建映像之前，让我们添加一个到*services/back end/src/main . py*的测试路径，这样我们就可以快速测试应用是否构建成功:
 
-```
+```py
 `from fastapi import FastAPI
 
 app = FastAPI()
@@ -156,7 +156,7 @@ def home():
 
 在您的终端中构建映像:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -166,7 +166,7 @@ def home():
 
 接下来，添加[中间件](https://fastapi.tiangolo.com/tutorial/cors/#use-corsmiddleware):
 
-```
+```py
 `from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware  # NEW
 
@@ -210,13 +210,13 @@ def home():
 
 接下来，在*services/frontend/src/main . js*中连接 Axios 和 Bootstrap 的依赖关系:
 
-```
+```py
 `import  'bootstrap/dist/css/bootstrap.css'; import  {  createApp  }  from  "vue"; import  axios  from  'axios'; import  App  from  './App.vue'; import  router  from  './router'; const  app  =  createApp(App); axios.defaults.withCredentials  =  true; axios.defaults.baseURL  =  'http://localhost:5000/';  // the FastAPI backend app.use(router); app.mount("#app");` 
 ```
 
 向“服务/前端”添加一个 *Dockerfile* :
 
-```
+```py
 `FROM  node:lts-alpine
 
 WORKDIR  /app
@@ -234,13 +234,13 @@ CMD  ["npm",  "run",  "serve"]`
 
 增加 a 服务至*码头-化合物. yml* :
 
-```
+```py
 `version:  '3.8' services: backend: build:  ./services/backend ports: -  5000:5000 volumes: -  ./services/backend:/app command:  uvicorn src.main:app --reload --host 0.0.0.0 --port 5000 frontend: build:  ./services/frontend volumes: -  './services/frontend:/app' -  '/app/node_modules' ports: -  8080:8080` 
 ```
 
 构建新映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -248,7 +248,7 @@ CMD  ["npm",  "run",  "serve"]`
 
 接下来，更新*services/frontend/src/components/hello world . vue*如下:
 
-```
+```py
 `<template>
   <div>
     <p>{{ msg }}</p>
@@ -262,7 +262,7 @@ CMD  ["npm",  "run",  "serve"]`
 
 最后，在*services/frontend/src/app . vue*中，移除导航以及相关的样式:
 
-```
+```py
 `<template>
   <div id="app">
     <router-view/>
@@ -276,7 +276,7 @@ CMD  ["npm",  "run",  "serve"]`
 
 您的完整项目结构现在应该如下所示:
 
-```
+```py
 `├── docker-compose.yml
 └── services
     ├── backend
@@ -316,7 +316,7 @@ CMD  ["npm",  "run",  "serve"]`
 
 更新后端依赖关系:
 
-```
+```py
 `aerich==0.7.1
 asyncpg==0.27.0
 fastapi==0.88.0
@@ -326,7 +326,7 @@ uvicorn==0.20.0`
 
 首先，让我们为 Postgres 添加一个新服务到 *docker-compose.yml* :
 
-```
+```py
 `version:  '3.8' services: backend: build:  ./services/backend ports: -  5000:5000 environment: -  DATABASE_URL=postgres://hello_fastapi:[[email protected]](/cdn-cgi/l/email-protection):5432/hello_fastapi_dev volumes: -  ./services/backend:/app command:  uvicorn src.main:app --reload --host 0.0.0.0 --port 5000 depends_on: -  db frontend: build:  ./services/frontend volumes: -  './services/frontend:/app' -  '/app/node_modules' ports: -  8080:8080 db: image:  postgres:15.1 expose: -  5432 environment: -  POSTGRES_USER=hello_fastapi -  POSTGRES_PASSWORD=hello_fastapi -  POSTGRES_DB=hello_fastapi_dev volumes: -  postgres_data:/var/lib/postgresql/data/ volumes: postgres_data:` 
 ```
 
@@ -334,7 +334,7 @@ uvicorn==0.20.0`
 
 接下来，在“services/backend/src”文件夹中创建一个名为“database”的文件夹，并向其中添加一个名为 *models.py* 的新文件:
 
-```
+```py
 `from tortoise import fields, models
 
 class Users(models.Model):
@@ -361,7 +361,7 @@ class Notes(models.Model):
 
 在“services/backend/src/database”文件夹中创建一个 *config.py* 文件:
 
-```
+```py
 `import os
 
 TORTOISE_ORM = {
@@ -386,7 +386,7 @@ TORTOISE_ORM = {
 
 将一个 *register.py* 文件添加到“服务/后端/src/数据库”中:
 
-```
+```py
 `from typing import Optional
 
 from tortoise import Tortoise
@@ -411,7 +411,7 @@ def register_tortoise(
 
 该函数将在 *main.py* 中用我们的配置字典调用:
 
-```
+```py
 `from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -438,13 +438,13 @@ def home():
 
 构建新映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 容器启动并运行后，运行:
 
-```
+```py
 `$ docker-compose exec backend aerich init -t src.database.config.TORTOISE_ORM
 Success create migrate location ./migrations
 Success write config to pyproject.toml
@@ -460,7 +460,7 @@ Success generate schema for app "models"`
 
 让我们将 *pyproject.toml* 文件和“migrations”文件夹复制到容器中。为此，更新 *Dockerfile* ，如下所示:
 
-```
+```py
 `FROM  python:3.11-buster
 
 RUN  mkdir app
@@ -482,13 +482,13 @@ COPY  src/ .`
 
 更新:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 现在，当您对模型进行更改时，您可以运行以下命令来更新数据库:
 
-```
+```py
 `$ docker-compose exec backend aerich migrate
 $ docker-compose exec backend aerich upgrade` 
 ```
@@ -501,7 +501,7 @@ $ docker-compose exec backend aerich upgrade`
 
 为了确保我们的序列化程序能够读取模型之间的关系，我们需要初始化 *main.py* 文件中的模型:
 
-```
+```py
 `from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from tortoise import Tortoise  # NEW
@@ -535,7 +535,7 @@ def home():
 
 *服务/后端/src/模式/用户. py* :
 
-```
+```py
 `from tortoise.contrib.pydantic import pydantic_model_creator
 
 from src.database.models import Users
@@ -561,7 +561,7 @@ UserDatabaseSchema = pydantic_model_creator(
 
 *服务/后端/src/schemas/notes.py* :
 
-```
+```py
 `from typing import Optional
 
 from pydantic import BaseModel
@@ -592,7 +592,7 @@ class UpdateNote(BaseModel):
 
 *服务/后端/src/crud/users.py* :
 
-```
+```py
 `from fastapi import HTTPException
 from passlib.context import CryptContext
 from tortoise.exceptions import DoesNotExist, IntegrityError
@@ -634,7 +634,7 @@ async def delete_user(user_id, current_user):
 
 将所需的依赖项添加到*services/back end/requirements . txt*:
 
-```
+```py
 `aerich==0.7.1
 asyncpg==0.27.0
 bcrypt==4.0.1
@@ -646,7 +646,7 @@ uvicorn==0.20.0`
 
 *服务/后端/src/crud/notes.py* :
 
-```
+```py
 `from fastapi import HTTPException
 from tortoise.exceptions import DoesNotExist
 
@@ -696,7 +696,7 @@ async def delete_note(note_id, current_user):
 
 您的文件夹结构现在应该如下所示:
 
-```
+```py
 `├── docker-compose.yml
 └── services
     ├── backend
@@ -752,7 +752,7 @@ async def delete_note(note_id, current_user):
 
 首先，我们需要在“services/backend/src/schemas”文件夹中名为 *token.py* 的新文件中创建一些 pydantic 模型:
 
-```
+```py
 `from typing import Optional
 
 from pydantic import BaseModel
@@ -773,7 +773,7 @@ class Status(BaseModel):
 
 *services/back end/src/auth/jwthandler . py*:
 
-```
+```py
 `import os
 from datetime import datetime, timedelta
 from typing import Optional
@@ -871,7 +871,7 @@ async def get_current_user(token: str = Depends(security)):
 
 [python-jose](https://python-jose.readthedocs.io/) 用于对 [JWT 令牌](https://jwt.io/)进行编码和解码。将包添加到需求文件中:
 
-```
+```py
 `aerich==0.7.1
 asyncpg==0.27.0
 bcrypt==4.0.1
@@ -884,13 +884,13 @@ uvicorn==0.20.0`
 
 将`SECRET_KEY`环境变量添加到 *docker-compose.yml* :
 
-```
+```py
 `version:  '3.8' services: backend: build:  ./services/backend ports: -  5000:5000 environment: -  DATABASE_URL=postgres://hello_fastapi:[[email protected]](/cdn-cgi/l/email-protection):5432/hello_fastapi_dev -  SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7 volumes: -  ./services/backend:/app command:  uvicorn src.main:app --reload --host 0.0.0.0 --port 5000 depends_on: -  db frontend: build:  ./services/frontend volumes: -  './services/frontend:/app' -  '/app/node_modules' ports: -  8080:8080 db: image:  postgres:15.1 expose: -  5432 environment: -  POSTGRES_USER=hello_fastapi -  POSTGRES_PASSWORD=hello_fastapi -  POSTGRES_DB=hello_fastapi_dev volumes: -  postgres_data:/var/lib/postgresql/data/ volumes: postgres_data:` 
 ```
 
 *服务/后端/src/auth/users.py* :
 
-```
+```py
 `from fastapi import HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
@@ -934,14 +934,14 @@ async def validate_user(user: OAuth2PasswordRequestForm = Depends()):
 
 最后，让我们更新 CRUD 助手，以便它们使用`Status` pydantic 模型:
 
-```
+```py
 `class Status(BaseModel):
     message: str` 
 ```
 
 *服务/后端/src/crud/users.py* :
 
-```
+```py
 `from fastapi import HTTPException
 from passlib.context import CryptContext
 from tortoise.exceptions import DoesNotExist, IntegrityError
@@ -979,7 +979,7 @@ async def delete_user(user_id, current_user) -> Status:  # UPDATED
 
 *服务/后端/src/crud/notes.py* :
 
-```
+```py
 `from fastapi import HTTPException
 from tortoise.exceptions import DoesNotExist
 
@@ -1034,7 +1034,7 @@ async def delete_note(note_id, current_user) -> Status:  # UPDATED
 
 *users.py* :
 
-```
+```py
 `from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -1119,7 +1119,7 @@ async def delete_user(
 
 `OAuth2PasswordRequestForm`需要 [Python-Multipart](http://andrew-d.github.io/python-multipart/) 。添加到*services/back end/requirements . txt*:
 
-```
+```py
 `aerich==0.7.1
 asyncpg==0.27.0
 bcrypt==4.0.1
@@ -1135,7 +1135,7 @@ uvicorn==0.20.0`
 
 注意到:
 
-```
+```py
 `response.set_cookie(
     "Authorization",
     value=f"Bearer {token}",
@@ -1156,7 +1156,7 @@ uvicorn==0.20.0`
 
 *notes.py* :
 
-```
+```py
 `from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -1230,7 +1230,7 @@ async def delete_note(
 
 最后，我们需要在 *main.py* 中连接我们的路线:
 
-```
+```py
 `from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from tortoise import Tortoise
@@ -1269,7 +1269,7 @@ def home():
 
 更新映像以安装新的依赖项:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -1303,7 +1303,7 @@ def home():
 
 在“服务/前端/src”中添加一个名为“store”的新文件夹。在“存储”中，添加以下文件和文件夹:
 
-```
+```py
 `services/frontend/src/store
 ├── index.js
 └── modules
@@ -1313,7 +1313,7 @@ def home():
 
 *服务/前端/src/商店/索引. js* :
 
-```
+```py
 `import  {  createStore  }  from  "vuex"; import  notes  from  './modules/notes'; import  users  from  './modules/users'; export  default  createStore({ modules:  { notes, users, } });` 
 ```
 
@@ -1321,7 +1321,7 @@ def home():
 
 *服务/前端/src/商店/模块/notes.js* :
 
-```
+```py
 `import  axios  from  'axios'; const  state  =  { notes:  null, note:  null }; const  getters  =  { stateNotes:  state  =>  state.notes, stateNote:  state  =>  state.note, }; const  actions  =  { async  createNote({dispatch},  note)  { await  axios.post('notes',  note); await  dispatch('getNotes'); }, async  getNotes({commit})  { let  {data}  =  await  axios.get('notes'); commit('setNotes',  data); }, async  viewNote({commit},  id)  { let  {data}  =  await  axios.get(`note/${id}`); commit('setNote',  data); }, // eslint-disable-next-line no-empty-pattern async  updateNote({},  note)  { await  axios.patch(`note/${note.id}`,  note.form); }, // eslint-disable-next-line no-empty-pattern async  deleteNote({},  id)  { await  axios.delete(`note/${id}`); } }; const  mutations  =  { setNotes(state,  notes){ state.notes  =  notes; }, setNote(state,  note){ state.note  =  note; }, }; export  default  { state, getters, actions, mutations };` 
 ```
 
@@ -1334,7 +1334,7 @@ def home():
 
 *服务/前端/src/商店/模块/用户. js* :
 
-```
+```py
 `import  axios  from  'axios'; const  state  =  { user:  null, }; const  getters  =  { isAuthenticated:  state  =>  !!state.user, stateUser:  state  =>  state.user, }; const  actions  =  { async  register({dispatch},  form)  { await  axios.post('register',  form); let  UserForm  =  new  FormData(); UserForm.append('username',  form.username); UserForm.append('password',  form.password); await  dispatch('logIn',  UserForm); }, async  logIn({dispatch},  user)  { await  axios.post('login',  user); await  dispatch('viewMe'); }, async  viewMe({commit})  { let  {data}  =  await  axios.get('users/whoami'); await  commit('setUser',  data); }, // eslint-disable-next-line no-empty-pattern async  deleteUser({},  id)  { await  axios.delete(`user/${id}`); }, async  logOut({commit})  { let  user  =  null; commit('logout',  user); } }; const  mutations  =  { setUser(state,  username)  { state.user  =  username; }, logout(state,  user){ state.user  =  user; }, }; export  default  { state, getters, actions, mutations };` 
 ```
 
@@ -1346,7 +1346,7 @@ def home():
 
 最后，将存储连接到*services/frontend/src/main . js*中的根实例:
 
-```
+```py
 `import  'bootstrap/dist/css/bootstrap.css'; import  {  createApp  }  from  "vue"; import  axios  from  'axios'; import  App  from  './App.vue'; import  router  from  './router'; import  store  from  './store';  // New const  app  =  createApp(App); axios.defaults.withCredentials  =  true; axios.defaults.baseURL  =  'http://localhost:5000/';  // the FastAPI backend app.use(router); app.use(store);  // New app.mount("#app");` 
 ```
 
@@ -1360,7 +1360,7 @@ def home():
 
 *服务/前端/src/组件/NavBar.vue* :
 
-```
+```py
 `<template>
   <header>
     <nav class="navbar navbar-expand-md navbar-dark bg-dark">
@@ -1416,7 +1416,7 @@ def home():
 
 *服务/前端/src/app . view*:
 
-```
+```py
 `<template>
   <div id="app">
     <NavBar />
@@ -1439,7 +1439,7 @@ def home():
 
 *services/frontend/src/views/home view . vue*:
 
-```
+```py
 `<template>
   <section>
     <p>This site is built with FastAPI and Vue.</p>
@@ -1461,7 +1461,7 @@ def home():
 
 接下来，将视图连接到我们在*services/frontend/src/router/index . js*中的路由:
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; const  routes  =  [ { path:  '/', name:  "Home", component:  HomeView, } ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) export  default  router` 
 ```
 
@@ -1473,7 +1473,7 @@ def home():
 
 *服务/前端/src/views/RegisterView.vue* :
 
-```
+```py
 `<template>
   <section>
     <form @submit.prevent="submit">
@@ -1501,7 +1501,7 @@ def home():
 
 更新路由器:
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; import  RegisterView  from  '@/views/RegisterView.vue'; const  routes  =  [ { path:  '/', name:  "Home", component:  HomeView, }, { path:  '/register', name:  'Register', component:  RegisterView, }, ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) export  default  router` 
 ```
 
@@ -1513,7 +1513,7 @@ def home():
 
 *services/frontend/src/views/loginvue . vue*:
 
-```
+```py
 `<template>
   <section>
     <form @submit.prevent="submit">
@@ -1537,7 +1537,7 @@ def home():
 
 更新路由器:
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; import  RegisterView  from  '@/views/RegisterView.vue'; import  LoginView  from  '@/views/LoginView.vue'; const  routes  =  [ { path:  '/', name:  "Home", component:  HomeView, }, { path:  '/register', name:  'Register', component:  RegisterView, }, { path:  '/login', name:  'Login', component:  LoginView, }, ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) export  default  router` 
 ```
 
@@ -1547,7 +1547,7 @@ def home():
 
 *services/frontend/src/views/dashboard view . vue*:
 
-```
+```py
 `<template>
   <div>
     <section>
@@ -1604,7 +1604,7 @@ def home():
 
 仪表板显示来自 API 的所有注释，还允许用户创建新注释。注意到:
 
-```
+```py
 `<router-link :to="{name: 'Note', params:{id: note.id}}">View</router-link>` 
 ```
 
@@ -1614,7 +1614,7 @@ def home():
 
 路由器:
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; import  RegisterView  from  '@/views/RegisterView.vue'; import  LoginView  from  '@/views/LoginView.vue'; import  DashboardView  from  '@/views/DashboardView.vue'; const  routes  =  [ { path:  '/', name:  "Home", component:  HomeView, }, { path:  '/register', name:  'Register', component:  RegisterView, }, { path:  '/login', name:  'Login', component:  LoginView, }, { path:  '/dashboard', name:  'Dashboard', component:  DashboardView, meta:  {  requiresAuth:  true  }, }, ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) export  default  router` 
 ```
 
@@ -1626,7 +1626,7 @@ def home():
 
 *服务/前端/src/视图/ProfileView.vue* :
 
-```
+```py
 `<template>
   <section>
     <h1>Your Profile</h1>
@@ -1646,7 +1646,7 @@ def home():
 
 路由器:
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; import  RegisterView  from  '@/views/RegisterView.vue'; import  LoginView  from  '@/views/LoginView.vue'; import  DashboardView  from  '@/views/DashboardView.vue'; import  ProfileView  from  '@/views/ProfileView.vue'; const  routes  =  [ { path:  '/', name:  "Home", component:  HomeView, }, { path:  '/register', name:  'Register', component:  RegisterView, }, { path:  '/login', name:  'Login', component:  LoginView, }, { path:  '/dashboard', name:  'Dashboard', component:  DashboardView, meta:  {  requiresAuth:  true  }, }, { path:  '/profile', name:  'Profile', component:  ProfileView, meta:  {  requiresAuth:  true  }, }, ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) export  default  router` 
 ```
 
@@ -1658,7 +1658,7 @@ def home():
 
 *服务/前端/src/views/NoteView.vue* :
 
-```
+```py
 `<template>
   <div v-if="note">
     <p><strong>Title:</strong> {{ note.title }}</p>
@@ -1683,7 +1683,7 @@ def home():
 
 路由器:
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; import  RegisterView  from  '@/views/RegisterView.vue'; import  LoginView  from  '@/views/LoginView.vue'; import  DashboardView  from  '@/views/DashboardView.vue'; import  ProfileView  from  '@/views/ProfileView.vue'; import  NoteView  from  '@/views/NoteView.vue'; const  routes  =  [ { path:  '/', name:  "Home", component:  HomeView, }, { path:  '/register', name:  'Register', component:  RegisterView, }, { path:  '/login', name:  'Login', component:  LoginView, }, { path:  '/dashboard', name:  'Dashboard', component:  DashboardView, meta:  {  requiresAuth:  true  }, }, { path:  '/profile', name:  'Profile', component:  ProfileView, meta:  {  requiresAuth:  true  }, }, { path:  '/note/:id', name:  'Note', component:  NoteView, meta:  {  requiresAuth:  true  }, props:  true, }, ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) export  default  router` 
 ```
 
@@ -1693,7 +1693,7 @@ def home():
 
 *services/frontend/src/views/editnoteview . vue*:
 
-```
+```py
 `<template>
   <section>
     <h1>Edit note</h1>
@@ -1726,7 +1726,7 @@ def home():
 
 路由器:
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; import  RegisterView  from  '@/views/RegisterView.vue'; import  LoginView  from  '@/views/LoginView.vue'; import  DashboardView  from  '@/views/DashboardView.vue'; import  ProfileView  from  '@/views/ProfileView.vue'; import  NoteView  from  '@/views/NoteView.vue'; import  EditNoteView  from  '@/views/EditNoteView.vue'; const  routes  =  [ { path:  '/', name:  "Home", component:  HomeView, }, { path:  '/register', name:  'Register', component:  RegisterView, }, { path:  '/login', name:  'Login', component:  LoginView, }, { path:  '/dashboard', name:  'Dashboard', component:  DashboardView, meta:  {  requiresAuth:  true  }, }, { path:  '/profile', name:  'Profile', component:  ProfileView, meta:  {  requiresAuth:  true  }, }, { path:  '/note/:id', name:  'Note', component:  NoteView, meta:  {  requiresAuth:  true  }, props:  true, }, { path:  '/editnote/:id', name:  'EditNote', component:  EditNoteView, meta:  {  requiresAuth:  true  }, props:  true, }, ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) export  default  router` 
 ```
 
@@ -1750,7 +1750,7 @@ def home():
 
 所以，为了防止未经授权的访问，让我们给*services/frontend/src/router/index . js*添加一个[导航守卫](https://router.vuejs.org/guide/advanced/navigation-guards.html):
 
-```
+```py
 `import  {  createRouter,  createWebHistory  }  from  'vue-router' import  HomeView  from  '@/views/HomeView.vue'; import  RegisterView  from  '@/views/RegisterView.vue'; import  LoginView  from  '@/views/LoginView.vue'; import  DashboardView  from  '@/views/DashboardView.vue'; import  ProfileView  from  '@/views/ProfileView.vue'; import  NoteView  from  '@/views/NoteView.vue'; import  EditNoteView  from  '@/views/EditNoteView.vue'; import  store  from  '@/store';  // NEW const  routes  =  [ ... ] const  router  =  createRouter({ history:  createWebHistory(process.env.BASE_URL), routes }) // NEW router.beforeEach((to,  _,  next)  =>  { if  (to.matched.some(record  =>  record.meta.requiresAuth))  { if  (store.getters.isAuthenticated)  { next(); return; } next('/login'); }  else  { next(); } }); export  default  router` 
 ```
 
@@ -1760,13 +1760,13 @@ def home():
 
 请记住，令牌会在三十分钟后过期:
 
-```
+```py
 `ACCESS_TOKEN_EXPIRE_MINUTES = 30` 
 ```
 
 发生这种情况时，用户应该被注销并重定向到登录页面。为了处理这个问题，让我们给*服务/前端/src/main.js* 添加一个 Axios [拦截器](https://axios-http.com/docs/interceptors):
 
-```
+```py
 `import  'bootstrap/dist/css/bootstrap.css'; import  {  createApp  }  from  "vue"; import  axios  from  'axios'; import  App  from  './App.vue'; import  router  from  './router'; import  store  from  './store'; const  app  =  createApp(App); axios.defaults.withCredentials  =  true; axios.defaults.baseURL  =  'http://localhost:5000/';  // the FastAPI backend // NEW axios.interceptors.response.use(undefined,  function  (error)  { if  (error)  { const  originalRequest  =  error.config; if  (error.response.status  ===  401  &&  !originalRequest._retry)  { originalRequest._retry  =  true; store.dispatch('logOut'); return  router.push('/login') } } }); app.use(router); app.use(store); app.mount("#app");` 
 ```
 

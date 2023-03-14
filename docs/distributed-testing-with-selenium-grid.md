@@ -22,7 +22,7 @@
 
 让我们从 Python 中的基本 Selenium 测试开始:
 
-```
+```py
 `import time
 import unittest
 
@@ -90,7 +90,7 @@ if __name__ == '__main__':
 
 *执行时间*:约 25 秒
 
-```
+```py
 `$ python test.py
 
 ....
@@ -116,13 +116,13 @@ Selenium Grid 使用客户机-服务器模型，包括一个中心和多个节�
 
 要启动并运行，请将以下代码添加到项目根目录下名为 *docker-compose.yml* 的新文件中:
 
-```
+```py
 `version:  '3.8' services: hub: image:  selenium/hub:3.141.59 ports: -  4444:4444 chrome: image:  selenium/node-chrome:3.141.59 depends_on: -  hub environment: -  HUB_HOST=hub firefox: image:  selenium/node-firefox:3.141.59 depends_on: -  hub environment: -  HUB_HOST=hub` 
 ```
 
 我们使用了`3.141.59`标签，它与以下版本的 Selenium、WebDriver、Chrome 和 Firefox 相关联:
 
-```
+```py
 `Selenium:  3.141.59 Chrome:  88.0.4324.96 ChromeDriver:  88.0.4324.96 Firefox:  85.0 GeckoDriver:  0.29.0` 
 ```
 
@@ -138,7 +138,7 @@ Selenium Grid 使用客户机-服务器模型，包括一个中心和多个节�
 
 通过更新`setUp`方法在测试文件中配置远程驱动程序:
 
-```
+```py
 `def setUp(self):
     caps = {'browserName': os.getenv('BROWSER', 'chrome')}
     self.browser = webdriver.Remote(
@@ -151,7 +151,7 @@ Selenium Grid 使用客户机-服务器模型，包括一个中心和多个节�
 
 通过 Chrome 节点上的 Selenium Grid 运行测试:
 
-```
+```py
 `$ export BROWSER=chrome && python test.py
 
 ....
@@ -163,7 +163,7 @@ OK`
 
 也试试 Firefox:
 
-```
+```py
 `$ export BROWSER=firefox && python test.py
 
 ....
@@ -177,7 +177,7 @@ OK`
 
 将名为 *sequential_test_run.py* 的新文件添加到项目根:
 
-```
+```py
 `from subprocess import check_call
 
 for counter in range(10):
@@ -189,7 +189,7 @@ for counter in range(10):
 
 运行测试:
 
-```
+```py
 `$ python sequential_test_run.py` 
 ```
 
@@ -207,7 +207,7 @@ for counter in range(10):
 
 将名为 *parallel_test_run.py* 的新文件添加到项目根:
 
-```
+```py
 `from subprocess import Popen
 
 processes = []
@@ -224,7 +224,7 @@ for counter in range(10):
 
 这将同时运行测试文件二十次，每次都使用单独的进程。
 
-```
+```py
 `$ python parallel_test_run.py` 
 ```
 
@@ -240,13 +240,13 @@ for counter in range(10):
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
 使用 Docker Machine 供应新的 droplet:
 
-```
+```py
 `$ docker-machine create \
     --driver digitalocean \
     --digitalocean-access-token $DIGITAL_OCEAN_ACCESS_TOKEN \
@@ -258,7 +258,7 @@ for counter in range(10):
 
 完成后，将 Docker 守护进程指向该机器，并将其设置为活动机器:
 
-```
+```py
 `$ docker-machine env selenium-grid
 $ eval $(docker-machine env selenium-grid)` 
 ```
@@ -267,19 +267,19 @@ $ eval $(docker-machine env selenium-grid)`
 
 抓取水滴的 IP:
 
-```
+```py
 `$ docker-machine ip selenium-grid` 
 ```
 
 确保 Selenium Grid 在[http://YOUR _ IP:4444/Grid/console](http://localhost:4444/grid/console)启动并运行，然后更新测试文件中的 IP 地址:
 
-```
+```py
 `command_executor='http://YOUR_IP:4444/wd/hub',` 
 ```
 
 再次并行运行测试:
 
-```
+```py
 `$ python parallel_test_run.py` 
 ```
 
@@ -295,13 +295,13 @@ $ eval $(docker-machine env selenium-grid)`
 
 为了创建 Swarm 集群，让我们从头开始，首先旋转旧的液滴:
 
-```
+```py
 `$ docker-machine rm selenium-grid` 
 ```
 
 然后，旋转五个新的液滴:
 
-```
+```py
 `$ for i in 1 2 3 4 5; do
     docker-machine create \
       --driver digitalocean \
@@ -313,13 +313,13 @@ done`
 
 在`node-1`初始化[群模式](https://docs.docker.com/engine/swarm/):
 
-```
+```py
 `$ docker-machine ssh node-1 -- docker swarm init --advertise-addr $(docker-machine ip node-1)` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `Swarm initialized: current node (ae0iz7lqwz6g9p0oso4f5g6sd) is now a manager.
 
 To add a worker to this swarm, run the following command:
@@ -335,7 +335,7 @@ To add a manager to this swarm, run 'docker swarm join-token manager' and follow
 
 将剩余的四个节点作为[工人](https://docs.docker.com/engine/swarm/how-swarm-mode-works/nodes/)添加到群中:
 
-```
+```py
 `$ for i in 2 3 4 5; do
     docker-machine ssh node-$i \
       -- docker swarm join --token YOUR_JOIN_TOKEN;
@@ -344,7 +344,7 @@ done`
 
 更新 *docker-compose.yml* 文件，以 Swarm 模式部署 Selenium 网格:
 
-```
+```py
 `version:  '3.8' services: hub: image:  selenium/hub:3.141.59 ports: -  4444:4444 deploy: mode:  replicated replicas:  1 placement: constraints: -  node.role == worker chrome: image:  selenium/node-chrome:3.141.59 volumes: -  /dev/urandom:/dev/random depends_on: -  hub environment: -  HUB_PORT_4444_TCP_ADDR=hub -  HUB_PORT_4444_TCP_PORT=4444 -  NODE_MAX_SESSION=1 entrypoint:  bash -c 'SE_OPTS="-host $$HOSTNAME -port 5555" /opt/bin/entry_point.sh' ports: -  5555:5555 deploy: replicas:  1 placement: constraints: -  node.role == worker firefox: image:  selenium/node-firefox:3.141.59 volumes: -  /dev/urandom:/dev/random depends_on: -  hub environment: -  HUB_PORT_4444_TCP_ADDR=hub -  HUB_PORT_4444_TCP_PORT=4444 -  NODE_MAX_SESSION=1 entrypoint:  bash -c 'SE_OPTS="-host $$HOSTNAME -port 5556" /opt/bin/entry_point.sh' ports: -  5556:5556 deploy: replicas:  1 placement: constraints: -  node.role == worker` 
 ```
 
@@ -355,26 +355,26 @@ done`
 
 这样，将 Docker 守护进程指向`node-1`并部署堆栈:
 
-```
+```py
 `$ eval $(docker-machine env node-1)
 $ docker stack deploy --compose-file=docker-compose.yml selenium` 
 ```
 
 再添加几个节点:
 
-```
+```py
 `$ docker service scale selenium_chrome=4 selenium_firefox=4` 
 ```
 
 查看堆栈:
 
-```
+```py
 `$ docker stack ps selenium` 
 ```
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `ID             NAME                 IMAGE                            NODE      DESIRED STATE   CURRENT STATE
 99filw99x8bc   selenium_chrome.1    selenium/node-chrome:3.141.59    node-3    Running         Running 41 seconds ago
 9ff9cwx1dmqw   selenium_chrome.2    selenium/node-chrome:3.141.59    node-4    Running         Running about a minute ago
@@ -389,14 +389,14 @@ bvpizrfdhlq0   selenium_firefox.2   selenium/node-firefox:3.141.59   node-5    R
 
 然后，获取运行集线器的节点的名称和 IP 地址，并将其设置为环境变量:
 
-```
+```py
 `$ NODE=$(docker service ps --format "{{.Node}}" selenium_hub)
 $ export NODE_HUB_ADDRESS=$(docker-machine ip $NODE)` 
 ```
 
 再次更新`setUp`方法:
 
-```
+```py
 `def setUp(self):
     caps = {'browserName': os.getenv('BROWSER', 'chrome')}
     address = os.getenv('NODE_HUB_ADDRESS')
@@ -408,7 +408,7 @@ $ export NODE_HUB_ADDRESS=$(docker-machine ip $NODE)`
 
 测试！
 
-```
+```py
 `$ python parallel_test_run.py` 
 ```
 
@@ -418,7 +418,7 @@ $ export NODE_HUB_ADDRESS=$(docker-machine ip $NODE)`
 
 去除水滴:
 
-```
+```py
 `$ docker-machine rm node-1 node-2 node-3 node-4 node-5 -y` 
 ```
 
@@ -443,7 +443,7 @@ $ export NODE_HUB_ADDRESS=$(docker-machine ip $NODE)`
 
 *create.sh* :
 
-```
+```py
 `#!/bin/bash
 
 echo "Spinning up five droplets..."
@@ -480,7 +480,7 @@ docker service scale selenium_chrome=2 selenium_firefox=2`
 
 *destroy.sh* :
 
-```
+```py
 `#!/bin/bash
 
 docker-machine rm node-1 node-2 node-3 node-4 node-5 -y` 
@@ -488,7 +488,7 @@ docker-machine rm node-1 node-2 node-3 node-4 node-5 -y`
 
 测试！
 
-```
+```py
 `$ sh create.sh
 
 $ eval $(docker-machine env node-1)

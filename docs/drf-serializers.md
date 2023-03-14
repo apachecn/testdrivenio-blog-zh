@@ -35,7 +35,7 @@ DRF 在反序列化过程中强制执行数据验证，这就是为什么您需�
 
 让我们看一个例子。假设我们有一个`Movie`模型:
 
-```
+```py
 `from django.db import models
 
 class Movie(models.Model):
@@ -55,7 +55,7 @@ class Movie(models.Model):
 
 我们还有一个简单的`ModelSerializer`，它序列化所有的字段:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Movie
 
@@ -76,7 +76,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
 自定义字段验证允许我们验证特定的字段。我们可以通过向序列化程序添加`validate_<field_name>`方法来使用它，如下所示:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Movie
 
@@ -99,7 +99,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
 示例:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Movie
 
@@ -122,7 +122,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
 如果我们在多个序列化器中使用同一个验证器，我们可以创建一个函数验证器，而不是反复编写相同的代码。让我们编写一个验证器来检查数字是否在 1 到 10 之间:
 
-```
+```py
 `def is_rating(value):
     if value < 1:
         raise serializers.ValidationError('Value cannot be lower than 1.')
@@ -132,7 +132,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
 我们现在可以像这样把它附加到我们的`MovieSerializer`中:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Movie
 
@@ -150,7 +150,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
 假设您有以下模型:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.db import models
 
@@ -167,7 +167,7 @@ class Resource(models.Model):
 
 我们的序列化程序是这样定义的:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Resource
 
@@ -179,7 +179,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 如果我们序列化一个资源并访问它的`data`属性，我们将得到以下输出:
 
-```
+```py
 `{ "id":  1, "title":  "C++ with examples", "content":  "This is the resource's content.", "liked_by":  [ 2, 3 ] }` 
 ```
 
@@ -187,7 +187,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 现在，假设我们想给序列化数据添加一个总的赞数。实现这一点最简单的方法是在我们的序列化程序类中实现`to_representation`方法:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Resource
 
@@ -207,7 +207,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 如果我们序列化另一个资源，我们将得到以下结果:
 
-```
+```py
 `{ "id":  1, "title":  "C++ with examples", "content":  "This is the resource's content.", "liked_by":  [ 2, 3 ], "likes":  2 }` 
 ```
 
@@ -215,7 +215,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 假设使用我们的 API 的服务在创建资源时向端点附加了不必要的数据:
 
-```
+```py
 `{ "info":  { "extra":  "data", ... }, "resource":  { "id":  1, "title":  "C++ with examples", "content":  "This is the resource's content.", "liked_by":  [ 2, 3 ], "likes":  2 } }` 
 ```
 
@@ -223,7 +223,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 我们可以覆盖`to_internal_value()`来提取资源数据:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Resource
 
@@ -244,7 +244,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 调用`save()`将创建一个新实例或更新一个现有实例，这取决于在实例化序列化程序类时是否传递了一个现有实例:
 
-```
+```py
 `# this creates a new instance
 serializer = MySerializer(data=data)
 
@@ -258,7 +258,7 @@ serializer = MySerializer(instance, data=data)`
 
 您可以通过在调用`save()`时包含额外的关键字参数来做到这一点。例如:
 
-```
+```py
 `serializer.save(owner=request.user)` 
 ```
 
@@ -270,7 +270,7 @@ serializer = MySerializer(instance, data=data)`
 
 您通过关键字`context`将数据作为字典传递:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Resource
 
@@ -280,7 +280,7 @@ serializer = ResourceSerializer(resource, context={'key': 'value'})`
 
 然后，您可以从`self.context`字典中的序列化程序类中获取它，如下所示:
 
-```
+```py
 `from rest_framework import serializers
 from examples.models import Resource
 
@@ -308,7 +308,7 @@ DRF 序列化器附带了`source`关键字，它非常强大，可以在多种�
 
 假设您正在构建一个社交网络，每个用户都有自己的`UserProfile`，它与`User`模型有一对一的关系:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.db import models
 
@@ -323,7 +323,7 @@ class UserProfile(models.Model):
 
 我们使用一个`ModelSerializer`来序列化我们的用户:
 
-```
+```py
 `class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -332,7 +332,7 @@ class UserProfile(models.Model):
 
 让我们序列化一个用户:
 
-```
+```py
 `{ "id":  1, "username":  "admin", "email":  "[[email protected]](/cdn-cgi/l/email-protection)", "is_staff":  true, "is_active":  true }` 
 ```
 
@@ -340,7 +340,7 @@ class UserProfile(models.Model):
 
 要重命名序列化程序输出字段，我们需要向序列化程序添加一个新字段，并将其传递给`fields`属性。
 
-```
+```py
 `class UserSerializer(serializers.ModelSerializer):
     active = serializers.BooleanField(source='is_active')
 
@@ -355,7 +355,7 @@ class UserProfile(models.Model):
 
 我们可以使用`source`添加一个等于函数返回的字段。
 
-```
+```py
 `class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='get_full_name')
 
@@ -374,7 +374,7 @@ class UserProfile(models.Model):
 
 让我们修改序列化程序类:
 
-```
+```py
 `class UserSerializer(serializers.ModelSerializer):
     bio = serializers.CharField(source='userprofile.bio')
     birth_date = serializers.DateField(source='userprofile.birth_date')
@@ -391,7 +391,7 @@ class UserProfile(models.Model):
 
 这是我们最终的 JSON 回应:
 
-```
+```py
 `{ "id":  1, "username":  "admin", "email":  "", "is_staff":  true, "is_active":  true, "bio":  "This is my bio.", "birth_date":  "1995-04-27" }` 
 ```
 
@@ -403,7 +403,7 @@ class UserProfile(models.Model):
 
 如果我们想给我们的`User`序列化器添加一个`full_name`属性，我们可以这样实现:
 
-```
+```py
 `from django.contrib.auth.models import User
 from rest_framework import serializers
 
@@ -426,7 +426,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 您可以这样做，在您的`ViewSet`中覆盖`get_serializer_class()`方法，如下所示:
 
-```
+```py
 `from rest_framework import viewsets
 
 from .models import MyModel
@@ -448,7 +448,7 @@ class MyViewSet(viewsets.ModelViewSet):
 
 序列化器字段带有`read_only`选项。通过将它设置为`True`，DRF 在 API 输出中包含该字段，但是在创建和更新操作中忽略它:
 
-```
+```py
 `from rest_framework import serializers
 
 class AccountSerializer(serializers.Serializer):
@@ -460,7 +460,7 @@ class AccountSerializer(serializers.Serializer):
 
 如果您想将多个字段设置为`read_only`，您可以使用`Meta`中的`read_only_fields`来指定它们，如下所示:
 
-```
+```py
 `from rest_framework import serializers
 
 class AccountSerializer(serializers.Serializer):
@@ -484,7 +484,7 @@ class AccountSerializer(serializers.Serializer):
 
 让我们看一个例子。我们有一个`Comment`，它是这样定义的:
 
-```
+```py
 `from django.contrib.auth.models import User
 from django.db import models
 
@@ -496,7 +496,7 @@ class Comment(models.Model):
 
 假设您有以下序列化程序:
 
-```
+```py
 `from rest_framework import serializers
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -509,13 +509,13 @@ class CommentSerializer(serializers.ModelSerializer):
 
 如果我们序列化一个`Comment`，你会得到如下输出:
 
-```
+```py
 `{ "id":  1, "datetime":  "2021-03-19T21:51:44.775609Z", "content":  "This is an interesting message.", "author":  1 }` 
 ```
 
 如果我们还想序列化用户(而不是只显示他们的 ID)，我们可以向我们的`Comment`添加一个`author`序列化器字段:
 
-```
+```py
 `from rest_framework import serializers
 
 class UserSerializer(serializers.ModelSerializer):
@@ -533,7 +533,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 再次连载，你会得到这个:
 
-```
+```py
 `{ "id":  1, "author":  { "id":  1, "username":  "admin" }, "datetime":  "2021-03-19T21:51:44.775609Z", "content":  "This is an interesting message." }` 
 ```
 
@@ -541,7 +541,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 谈到嵌套序列化，`depth`字段是最强大的特性之一。假设我们有三个模型- `ModelA`、`ModelB`和`ModelC`。`ModelA`取决于`ModelB`，而`ModelB`取决于`ModelC`。它们是这样定义的:
 
-```
+```py
 `from django.db import models
 
 class ModelC(models.Model):
@@ -558,7 +558,7 @@ class ModelA(models.Model):
 
 我们的`ModelA`序列化器是顶级对象，看起来像这样:
 
-```
+```py
 `from rest_framework import serializers
 
 class ModelASerializer(serializers.ModelSerializer):
@@ -569,7 +569,7 @@ class ModelASerializer(serializers.ModelSerializer):
 
 如果我们序列化一个示例对象，我们将得到以下输出:
 
-```
+```py
 `{ "id":  1, "content":  "A content", "model_b":  1 }` 
 ```
 
@@ -577,7 +577,7 @@ class ModelASerializer(serializers.ModelSerializer):
 
 当我们在序列化器中将`depth`改为`1`时，如下所示:
 
-```
+```py
 `from rest_framework import serializers
 
 class ModelASerializer(serializers.ModelSerializer):
@@ -589,13 +589,13 @@ class ModelASerializer(serializers.ModelSerializer):
 
 输出更改为以下内容:
 
-```
+```py
 `{ "id":  1, "content":  "A content", "model_b":  { "id":  1, "content":  "B content", "model_c":  1 } }` 
 ```
 
 如果我们将其更改为`2`，我们的序列化程序将更深入地序列化:
 
-```
+```py
 `{ "id":  1, "content":  "A content", "model_b":  { "id":  1, "content":  "B content", "model_c":  { "id":  1, "content":  "C content" } } }` 
 ```
 

@@ -15,7 +15,7 @@
 
 比方说，您正在使用一个 Django 应用程序，它有以下模型:
 
-```
+```py
 `# courses/models.py
 
 from django.db import models
@@ -36,7 +36,7 @@ class Course(models.Model):
 
 现在，如果您的任务是创建一个新视图，用于返回所有课程的 JSON 响应，包括标题和作者姓名，您可以编写以下代码:
 
-```
+```py
 `# courses/views.py
 
 from django.http import JsonResponse
@@ -67,7 +67,7 @@ def all_courses(request):
 
 您会注意到该项目包含了定制的中间件，它计算并记录每个请求的执行时间:
 
-```
+```py
 `# core/middleware.py
 
 import logging
@@ -107,13 +107,13 @@ def metric_middleware(get_response):
 
 运行数据库种子命令，向数据库添加 10 名作者和 100 门课程:
 
-```
+```py
 `$ python manage.py seed_db` 
 ```
 
 Django 开发服务器启动并运行后，在浏览器中导航到[http://localhost:8000/courses/](http://localhost:8000/courses/)。您应该会看到 JSON 响应。回到您的终端，记下指标:
 
-```
+```py
 `Request: GET /courses/
 Number of Queries: 101
 Total time: 0.10s` 
@@ -121,7 +121,7 @@ Total time: 0.10s`
 
 这是一个很大的疑问！这是非常低效的。每增加一个作者和课程都需要一个额外的数据库查询，所以随着数据库的增长，性能会继续下降。幸运的是，解决这个问题非常简单:您可以添加一个`select_related`方法来创建一个 SQL join，它将在初始数据库查询中包含作者。
 
-```
+```py
 `queryset = Course.objects.select_related("author").all()` 
 ```
 
@@ -131,7 +131,7 @@ Total time: 0.10s`
 
 从下面的测试开始，它使用 django _ assert _ num _ queriespy test fixture 来确保当数据库中存在一个或多个作者和课程记录时，数据库只被命中一次:
 
-```
+```py
 `import json
 
 import pytest
@@ -176,7 +176,7 @@ def test_number_of_sql_queries_all_courses(client, django_assert_num_queries):
 
 此外，我们还可以使用 [nplusone](https://github.com/jmcarp/nplusone) 来防止引入未来的 N+1 个查询。在安装完包并将其添加到设置文件之后，您可以使用`@override_settings`装饰器将它添加到您的测试中:
 
-```
+```py
 `...
 @pytest.mark.django_db
 @override_settings(NPLUSONE_RAISE=True)
@@ -186,7 +186,7 @@ def test_number_of_sql_queries_all_courses(client, django_assert_num_queries):
 
 或者，如果您想在整个测试套件中自动启用 nplusone，那么将以下内容添加到您的测试根 *conftest.py* 文件中:
 
-```
+```py
 `from django.conf import settings
 
 def pytest_configure(config):
@@ -195,7 +195,7 @@ def pytest_configure(config):
 
 回到示例应用程序，然后运行测试。您应该会看到以下错误:
 
-```
+```py
 `nplusone.core.exceptions.NPlusOneError: Potential n+1 query detected on `Course.author`` 
 ```
 

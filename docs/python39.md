@@ -24,7 +24,7 @@ Python 3.9 于 2020 年 10 月 5 日发布，没有带来任何重大的新特�
 
 您可以像这样合并两个字典:
 
-```
+```py
 `user = {'name': 'John', 'surname': 'Doe'}
 address = {'street': 'Awesome street 42', 'city': 'Huge city', 'post': '420000'}
 
@@ -38,7 +38,7 @@ print(user_with_address)
 
 如果字典中有重复的键，那么输出将显示第二个(最右边的)键-值对:
 
-```
+```py
 `user_1 = {'name': 'John', 'surname': 'Doe'}
 user_2 = {'name': 'Joe', 'surname': 'Doe'}
 
@@ -55,7 +55,7 @@ print(users)
 
 您可以用第二个字典中的键和值更新第一个字典，如下所示:
 
-```
+```py
 `grades = {'John': 'A', 'Marry': 'B+'}
 grades_second_try = {'Marry': 'A', 'Jane': 'C-', 'James': 'B'}
 
@@ -67,7 +67,7 @@ print(grades)
 
 它适用于任何带有`keys`和`__getitem__`的对象或者带有键值对的可迭代对象:
 
-```
+```py
 `# example 1
 grades = {'John': 'A', 'Marry': 'B+'}
 grades_second_try = [('Marry', 'A'), ('Jane', 'C-'), ('James', 'B')]
@@ -97,7 +97,7 @@ TypeError: unsupported operand type(s) for |: 'dict' and 'generator'`
 
 例如，要生成十个随机字节:
 
-```
+```py
 `import random
 
 print(random.Random().randbytes(10))
@@ -119,7 +119,7 @@ b'CO\x0e\x0e~\x12\x0c\xa4\xa0p'`
 
 例如:
 
-```
+```py
 `file_name = 'DOCUMENT_001.pdf'
 
 print(file_name.removeprefix('DOCUMENT_'))
@@ -128,7 +128,7 @@ print(file_name.removeprefix('DOCUMENT_'))
 
 如果字符串不是以输入字符串开头，将返回原始字符串的副本:
 
-```
+```py
 `file_name = 'DOCUMENT_001.pdf'
 
 print(file_name.removeprefix('DOC_'))
@@ -141,7 +141,7 @@ print(file_name.removeprefix('DOC_'))
 
 要从文件名中删除文件扩展名`.pdf`:
 
-```
+```py
 `file_name = 'DOCUMENT_001.pdf'
 
 print(file_name.removesuffix('.pdf'))
@@ -161,7 +161,7 @@ print(file_name.removesuffix('.csv'))
 
 例如，要创建支持时区的时间戳，可以向 datetime 方法添加`tz`或`tzinfo`参数:
 
-```
+```py
 `import datetime
 from zoneinfo import ZoneInfo
 
@@ -171,7 +171,7 @@ datetime.datetime(2020, 10, 7, 1, tzinfo=ZoneInfo('America/Los_Angeles'))
 
 您也可以轻松地在时区之间转换:
 
-```
+```py
 `import datetime
 from zoneinfo import ZoneInfo
 
@@ -186,7 +186,7 @@ datetime.datetime(2020, 10, 7, 9, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/London
 
 从现在开始，您可以对类型注释使用泛型类型。您可以使用`list`或`dict`内置集合类型作为泛型类型，而不必使用`typing.List`或`typing.Dict`
 
-```
+```py
 `def sort_names(names: list[str]):
     return sorted(names)` 
 ```
@@ -213,14 +213,14 @@ datetime.datetime(2020, 10, 7, 9, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/London
 
 在以前的版本中:
 
-```
+```py
 `"".replace("", "prefix", 1)
 # ''` 
 ```
 
 从现在开始:
 
-```
+```py
 `"".replace("", "prefix", 1)
 # 'prefix'` 
 ```

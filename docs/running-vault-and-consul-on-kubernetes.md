@@ -23,7 +23,7 @@ Minikube 是一个用于在本地运行单节点 Kubernetes 集群的工具。�
 
 > 如果你用的是 Mac，我们建议用 [Homebrew](https://brew.sh/) 安装 Kubectl 和 Minikube:
 > 
-> ```
+> ```py
 > `$ brew update
 > $ brew install kubectl
 > $ brew install minikube` 
@@ -31,7 +31,7 @@ Minikube 是一个用于在本地运行单节点 Kubernetes 集群的工具。�
 
 然后，启动组合仪表并拉起 Minikube [仪表盘](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/):
 
-```
+```py
 `$ minikube config set vm-driver hyperkit
 $ minikube start
 $ minikube dashboard` 
@@ -47,14 +47,14 @@ TLS 将用于保护每个 Consul 成员之间的 RPC 通信。为此，我们将
 
 > 再说一遍，如果你用的是 Mac，安装 Go 最快的方法就是用自制软件:
 > 
-> ```
+> ```py
 > `$ brew update
 > $ brew install go` 
 > ```
 
 安装后，创建一个工作区，配置 [GOPATH](https://github.com/golang/go/wiki/GOPATH) 并将工作区的 bin 文件夹添加到您的系统路径:
 
-```
+```py
 `$ mkdir $HOME/go
 $ export GOPATH=$HOME/go
 $ export PATH=$PATH:$GOPATH/bin` 
@@ -62,14 +62,14 @@ $ export PATH=$PATH:$GOPATH/bin`
 
 接下来，安装 SSL 工具包:
 
-```
+```py
 `$ go get -u github.com/cloudflare/cfssl/cmd/cfssl
 $ go get -u github.com/cloudflare/cfssl/cmd/cfssljson` 
 ```
 
 创建名为“vault-consul-kubernetes”的新项目目录，并添加以下文件和文件夹:
 
-```
+```py
 `├── certs
 │   ├── config
 │   │   ├── ca-config.json
@@ -82,25 +82,25 @@ $ go get -u github.com/cloudflare/cfssl/cmd/cfssljson`
 
 *ca-config.json* :
 
-```
+```py
 `{ "signing":  { "default":  { "expiry":  "87600h" }, "profiles":  { "default":  { "usages":  [ "signing", "key encipherment", "server auth", "client auth" ], "expiry":  "8760h" } } } }` 
 ```
 
 *ca-csr.json*
 
-```
+```py
 `{ "hosts":  [ "cluster.local" ], "key":  { "algo":  "rsa", "size":  2048 }, "names":  [ { "C":  "US", "ST":  "Colorado", "L":  "Denver" } ] }` 
 ```
 
 *领事-csr.json* :
 
-```
+```py
 `{ "CN":  "server.dc1.cluster.local", "hosts":  [ "server.dc1.cluster.local", "127.0.0.1" ], "key":  { "algo":  "rsa", "size":  2048 }, "names":  [ { "C":  "US", "ST":  "Colorado", "L":  "Denver" } ] }` 
 ```
 
 【t0-CSR . JSON】：
 
-```
+```py
 `{ "hosts":  [ "vault", "127.0.0.1" ], "key":  { "algo":  "rsa", "size":  2048 }, "names":  [ { "C":  "US", "ST":  "Colorado", "L":  "Denver" } ] }` 
 ```
 
@@ -108,13 +108,13 @@ $ go get -u github.com/cloudflare/cfssl/cmd/cfssljson`
 
 创建证书颁发机构:
 
-```
+```py
 `$ cfssl gencert -initca certs/config/ca-csr.json | cfssljson -bare certs/ca` 
 ```
 
 然后，为 Consul 创建一个私钥和一个 TLS 证书:
 
-```
+```py
 `$ cfssl gencert \
     -ca=certs/ca.pem \
     -ca-key=certs/ca-key.pem \
@@ -125,7 +125,7 @@ $ go get -u github.com/cloudflare/cfssl/cmd/cfssljson`
 
 对 Vault 执行相同的操作:
 
-```
+```py
 `$ cfssl gencert \
     -ca=certs/ca.pem \
     -ca-key=certs/ca-key.pem \
@@ -152,13 +152,13 @@ $ go get -u github.com/cloudflare/cfssl/cmd/cfssljson`
 
 Consul 使用[八卦协议](https://www.consul.io/docs/architecture/gossip)来广播加密信息，并发现加入集群的新成员。这需要一个共享密钥。要生成，首先[安装 Consul 客户端](https://www.consul.io/docs/install/index.html) (Mac 用户要用 Brew 来做这个- `brew install consul`)，然后生成一个密钥并存储在一个环境变量中:
 
-```
+```py
 `$ export GOSSIP_ENCRYPTION_KEY=$(consul keygen)` 
 ```
 
 将密钥与 TLS 证书一起秘密存储:
 
-```
+```py
 `$ kubectl create secret generic consul \
   --from-literal="gossip-encryption-key=${GOSSIP_ENCRYPTION_KEY}" \
   --from-file=certs/ca.pem \
@@ -168,13 +168,13 @@ Consul 使用[八卦协议](https://www.consul.io/docs/architecture/gossip)来�
 
 验证:
 
-```
+```py
 `$ kubectl describe secrets consul` 
 ```
 
 您应该看到:
 
-```
+```py
 `Name:         consul
 Namespace:    default
 Labels:       <none>
@@ -194,7 +194,7 @@ consul-key.pem:         1679 bytes`
 
 向“consul”添加一个名为 *config.json* 的新文件:
 
-```
+```py
 `{ "ca_file":  "/etc/tls/ca.pem", "cert_file":  "/etc/tls/consul.pem", "key_file":  "/etc/tls/consul-key.pem", "verify_incoming":  true, "verify_outgoing":  true, "verify_server_hostname":  true, "ports":  { "https":  8443 } }` 
 ```
 
@@ -204,7 +204,7 @@ consul-key.pem:         1679 bytes`
 
 将此配置保存在配置映射中:
 
-```
+```py
 `$ kubectl create configmap consul --from-file=consul/config.json
 $ kubectl describe configmap consul` 
 ```
@@ -213,13 +213,13 @@ $ kubectl describe configmap consul`
 
 定义一个[无头服务](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services)——一个没有集群 IP-in*consul/Service . YAML*的服务，在内部公开每个 Consul 成员:
 
-```
+```py
 `apiVersion:  v1 kind:  Service metadata: name:  consul labels: name:  consul spec: clusterIP:  None ports: -  name:  http port:  8500 targetPort:  8500 -  name:  https port:  8443 targetPort:  8443 -  name:  rpc port:  8400 targetPort:  8400 -  name:  serflan-tcp protocol:  "TCP" port:  8301 targetPort:  8301 -  name:  serflan-udp protocol:  "UDP" port:  8301 targetPort:  8301 -  name:  serfwan-tcp protocol:  "TCP" port:  8302 targetPort:  8302 -  name:  serfwan-udp protocol:  "UDP" port:  8302 targetPort:  8302 -  name:  server port:  8300 targetPort:  8300 -  name:  consuldns port:  8600 targetPort:  8600 selector: app:  consul` 
 ```
 
 创建服务:
 
-```
+```py
 `$ kubectl create -f consul/service.yaml
 $ kubectl get service consul` 
 ```
@@ -230,19 +230,19 @@ $ kubectl get service consul`
 
 领事/statefulset.yaml :
 
-```
+```py
 `apiVersion:  apps/v1 kind:  StatefulSet metadata: name:  consul spec: serviceName:  consul replicas:  3 selector: matchLabels: app:  consul template: metadata: labels: app:  consul spec: securityContext: fsGroup:  1000 containers: -  name:  consul image:  "consul:1.4.0" env: -  name:  POD_IP valueFrom: fieldRef: fieldPath:  status.podIP -  name:  GOSSIP_ENCRYPTION_KEY valueFrom: secretKeyRef: name:  consul key:  gossip-encryption-key -  name:  NAMESPACE valueFrom: fieldRef: fieldPath:  metadata.namespace args: -  "agent" -  "-advertise=$(POD_IP)" -  "-bind=0.0.0.0" -  "-bootstrap-expect=3" -  "-retry-join=consul-0.consul.$(NAMESPACE).svc.cluster.local" -  "-retry-join=consul-1.consul.$(NAMESPACE).svc.cluster.local" -  "-retry-join=consul-2.consul.$(NAMESPACE).svc.cluster.local" -  "-client=0.0.0.0" -  "-config-file=/consul/myconfig/config.json" -  "-datacenter=dc1" -  "-data-dir=/consul/data" -  "-domain=cluster.local" -  "-encrypt=$(GOSSIP_ENCRYPTION_KEY)" -  "-server" -  "-ui" -  "-disable-host-node-id" volumeMounts: -  name:  config mountPath:  /consul/myconfig -  name:  tls mountPath:  /etc/tls lifecycle: preStop: exec: command: -  /bin/sh -  -c -  consul leave ports: -  containerPort:  8500 name:  ui-port -  containerPort:  8400 name:  alt-port -  containerPort:  53 name:  udp-port -  containerPort:  8443 name:  https-port -  containerPort:  8080 name:  http-port -  containerPort:  8301 name:  serflan -  containerPort:  8302 name:  serfwan -  containerPort:  8600 name:  consuldns -  containerPort:  8300 name:  server volumes: -  name:  config configMap: name:  consul -  name:  tls secret: secretName:  consul` 
 ```
 
 部署三节点咨询集群:
 
-```
+```py
 `$ kubectl create -f consul/statefulset.yaml` 
 ```
 
 验证 pod 已启动并正在运行:
 
-```
+```py
 `$ kubectl get pods
 
 NAME       READY     STATUS    RESTARTS   AGE
@@ -253,7 +253,7 @@ consul-2   1/1       Running   0          6s`
 
 查看每个单元的日志，确保其中一个单元被选为领导者:
 
-```
+```py
 `$ kubectl logs consul-0
 $ kubectl logs consul-1
 $ kubectl logs consul-2` 
@@ -261,7 +261,7 @@ $ kubectl logs consul-2`
 
 示例日志:
 
-```
+```py
 `2021/04/27 21:24:36 [INFO] raft: Election won. Tally: 2
 2021/04/27 21:24:36 [INFO] raft: Node at 172.17.0.7:8300 [Leader] entering Leader state
 2021/04/27 21:24:36 [INFO] raft: Added peer a3ee83a0-e39b-f58b-e2d4-35a3689ff3d9, starting replication
@@ -280,13 +280,13 @@ $ kubectl logs consul-2`
 
 将端口转发到本地机器:
 
-```
+```py
 `$ kubectl port-forward consul-1 8500:8500` 
 ```
 
 然后，在新的终端窗口中，确保所有成员都处于活动状态:
 
-```
+```py
 `$ consul members
 
 Node      Address          Status  Type    Build  Protocol  DC   Segment
@@ -307,7 +307,7 @@ consul-2  172.17.0.8:8301  alive   server  1.4.0  2         dc1  <all>`
 
 将我们创建的保管库 TLS 证书存储在一个秘密位置:
 
-```
+```py
 `$ kubectl create secret generic vault \
     --from-file=certs/ca.pem \
     --from-file=certs/vault.pem \
@@ -320,7 +320,7 @@ $ kubectl describe secrets vault`
 
 为 Vault 配置添加一个名为 *vault/config.json* 的新文件:
 
-```
+```py
 `{ "listener":  { "tcp":{ "address":  "127.0.0.1:8200", "tls_disable":  0, "tls_cert_file":  "/etc/tls/vault.pem", "tls_key_file":  "/etc/tls/vault-key.pem" } }, "storage":  { "consul":  { "address":  "consul:8500", "path":  "vault/", "disable_registration":  "true", "ha_enabled":  "true" } }, "ui":  true }` 
 ```
 
@@ -328,7 +328,7 @@ $ kubectl describe secrets vault`
 
 将此配置保存在配置映射中:
 
-```
+```py
 `$ kubectl create configmap vault --from-file=vault/config.json
 $ kubectl describe configmap vault` 
 ```
@@ -337,13 +337,13 @@ $ kubectl describe configmap vault`
 
 *vault/service.yaml* :
 
-```
+```py
 `apiVersion:  v1 kind:  Service metadata: name:  vault labels: app:  vault spec: type:  ClusterIP ports: -  port:  8200 targetPort:  8200 protocol:  TCP name:  vault selector: app:  vault` 
 ```
 
 创建:
 
-```
+```py
 `$ kubectl create -f vault/service.yaml
 $ kubectl get service vault` 
 ```
@@ -352,19 +352,19 @@ $ kubectl get service vault`
 
 *vault/deployment.yaml* :
 
-```
+```py
 `apiVersion:  apps/v1 kind:  Deployment metadata: name:  vault labels: app:  vault spec: replicas:  1 selector: matchLabels: app:  vault template: metadata: labels: app:  vault spec: containers: -  name:  vault command:  ["vault",  "server",  "-config",  "/vault/config/config.json"] image:  "vault:0.11.5" imagePullPolicy:  IfNotPresent securityContext: capabilities: add: -  IPC_LOCK volumeMounts: -  name:  configurations mountPath:  /vault/config/config.json subPath:  config.json -  name:  vault mountPath:  /etc/tls -  name:  consul-vault-agent image:  "consul:1.4.0" env: -  name:  GOSSIP_ENCRYPTION_KEY valueFrom: secretKeyRef: name:  consul key:  gossip-encryption-key -  name:  NAMESPACE valueFrom: fieldRef: fieldPath:  metadata.namespace args: -  "agent" -  "-retry-join=consul-0.consul.$(NAMESPACE).svc.cluster.local" -  "-retry-join=consul-1.consul.$(NAMESPACE).svc.cluster.local" -  "-retry-join=consul-2.consul.$(NAMESPACE).svc.cluster.local" -  "-encrypt=$(GOSSIP_ENCRYPTION_KEY)" -  "-config-file=/consul/myconfig/config.json" -  "-domain=cluster.local" -  "-datacenter=dc1" -  "-disable-host-node-id" -  "-node=vault-1" volumeMounts: -  name:  config mountPath:  /consul/myconfig -  name:  tls mountPath:  /etc/tls volumes: -  name:  configurations configMap: name:  vault -  name:  config configMap: name:  consul -  name:  tls secret: secretName:  consul -  name:  vault secret: secretName:  vault` 
 ```
 
 部署保管库:
 
-```
+```py
 `$ kubectl apply -f vault/deployment.yaml` 
 ```
 
 要进行测试，请获取 Pod 名称，然后转发端口:
 
-```
+```py
 `$ kubectl get pods
 
 NAME                     READY     STATUS    RESTARTS   AGE
@@ -384,20 +384,20 @@ $ kubectl port-forward vault-64754b559d-dw459 8200:8200`
 
 在端口转发仍然打开的情况下，在新的终端窗口中，导航到项目目录并设置`VAULT_ADDR`和`VAULT_CACERT`环境变量:
 
-```
+```py
 `$ export VAULT_ADDR=https://127.0.0.1:8200
 $ export VAULT_CACERT="certs/ca.pem"` 
 ```
 
 [在本地安装保险库客户端](https://www.vaultproject.io/docs/install/)，如果您还没有的话，然后用一个密钥初始化保险库:
 
-```
+```py
 `$ vault operator init -key-shares=1 -key-threshold=1` 
 ```
 
 记下解封密钥和初始根令牌。
 
-```
+```py
 `Unseal Key 1: iejZsVPrDFPbQL+JUW5HGMub9tlAwSSr7bR5NuAX9pg=
 
 Initial Root Token: 85kVUa6mxr2VFawubh1YFG6t
@@ -416,7 +416,7 @@ existing unseal keys shares. See "vault operator rekey" for more information.`
 
 虚构的
 
-```
+```py
 `$ vault operator unseal
 
 Unseal Key (will be hidden):
@@ -439,7 +439,7 @@ Active Node Address    <none>`
 
 使用根令牌进行身份验证:
 
-```
+```py
 `$ vault login
 
 Token (will be hidden):
@@ -461,7 +461,7 @@ policies             ["root"]`
 
 创建新的秘密:
 
-```
+```py
 `$ vault kv put secret/precious foo=bar
 
 Success! Data written to: secret/precious` 
@@ -469,7 +469,7 @@ Success! Data written to: secret/precious`
 
 阅读:
 
-```
+```py
 `$ vault kv get secret/precious
 
 === Data ===
@@ -495,7 +495,7 @@ foo    bar`
 
 将名为 *create.sh* 的新文件添加到项目根目录:
 
-```
+```py
 `#!/bin/bash
 
 echo "Generating the Gossip encryption key..."
@@ -562,7 +562,7 @@ kubectl port-forward $POD 8200:8200`
 
 在新的终端窗口中，导航到项目目录并运行:
 
-```
+```py
 `$ export VAULT_ADDR=https://127.0.0.1:8200
 $ export VAULT_CACERT="certs/ca.pem"` 
 ```

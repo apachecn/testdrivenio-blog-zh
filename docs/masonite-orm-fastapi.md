@@ -49,14 +49,14 @@ API 端点:
 
 创建一个目录来保存名为“fastapi-masonite”的项目:
 
-```
+```py
 `$ mkdir fastapi-masonite
 $ cd fastapi-masonite` 
 ```
 
 创建虚拟环境并激活它:
 
-```
+```py
 `$ python3.10 -m venv .env
 $ source .env/bin/activate
 
@@ -67,7 +67,7 @@ $ source .env/bin/activate
 
 创建一个 *requirements.txt* 文件，并向其中添加以下需求:
 
-```
+```py
 `fastapi==0.89.1
 uvicorn==0.20.0` 
 ```
@@ -76,13 +76,13 @@ uvicorn==0.20.0`
 
 安装要求:
 
-```
+```py
 `(.env)$ pip install -r requirements.txt` 
 ```
 
 在项目的根文件夹中创建一个 *main.py* 文件，并添加以下几行:
 
-```
+```py
 `from fastapi import FastAPI
 
 app = FastAPI()
@@ -94,7 +94,7 @@ def say_hello():
 
 使用以下命令运行 FastAPI 服务器:
 
-```
+```py
 `(.env)$ uvicorn main:app --reload` 
 ```
 
@@ -104,20 +104,20 @@ def say_hello():
 
 将以下需求添加到 *requirements.txt* 文件中:
 
-```
+```py
 `masonite-orm==2.18.6
 psycopg2-binary==2.9.5` 
 ```
 
 安装新的依赖项:
 
-```
+```py
 `(.env)$ pip install -r requirements.txt` 
 ```
 
 创建以下文件夹:
 
-```
+```py
 `models
 databases/migrations
 config` 
@@ -133,7 +133,7 @@ config`
 
 在 *database.py* 文件中，我们需要添加`DATABASE`变量和一些连接信息，从`masonite-orm.connections`导入`ConnectionResolver`，并注册连接细节:
 
-```
+```py
 `# config/database.py
 
 from masoniteorm.connections import ConnectionResolver
@@ -187,19 +187,19 @@ DB = ConnectionResolver().set_connection_details(DATABASES)`
 
 要创建一个新的样板文件 [Masonite 模型](https://orm.masoniteproject.com/models#creating-a-model)，从终端的项目根文件夹中运行下面的`masonite-orm`命令:
 
-```
+```py
 `(.env)$ masonite-orm model User --directory models` 
 ```
 
 您应该会看到一条成功消息:
 
-```
+```py
 `Model created: models/User.py` 
 ```
 
 因此，该命令应该在“models”目录中创建一个包含以下内容的 *User.py* 文件:
 
-```
+```py
 `""" User Model """
 
 from masoniteorm.models import Model
@@ -214,7 +214,7 @@ class User(Model):
 
 对帖子和评论模型运行相同的命令:
 
-```
+```py
 `(.env)$ masonite-orm model Post --directory models
 > Model created: models/Post.py
 
@@ -224,7 +224,7 @@ class User(Model):
 
 接下来，我们可以创建初始迁移:
 
-```
+```py
 `(.env)$ masonite-orm migration migration_for_user_table --create users` 
 ```
 
@@ -236,7 +236,7 @@ class User(Model):
 
 内容:
 
-```
+```py
 `"""MigrationForUserTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -260,7 +260,7 @@ class MigrationForUserTable(Migration):
 
 创建剩余的迁移文件:
 
-```
+```py
 `(.env)$ masonite-orm migration migration_for_post_table --create posts
 > Migration file created: databases/migrations/2022_05_04_084820_migration_for_post_table.py
 
@@ -282,7 +282,7 @@ class MigrationForUserTable(Migration):
 
 将与用户模型相关联的迁移文件更改为:
 
-```
+```py
 `"""MigrationForUserTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -314,7 +314,7 @@ class MigrationForUserTable(Migration):
 
 帖子:
 
-```
+```py
 `"""MigrationForPostTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -341,7 +341,7 @@ class MigrationForPostTable(Migration):
 
 评论:
 
-```
+```py
 `"""MigrationForCommentTable Migration."""
 
 from masoniteorm.migrations import Migration
@@ -369,7 +369,7 @@ class MigrationForCommentTable(Migration):
 
 注意到:
 
-```
+```py
 `table.integer("user_id").unsigned()
 table.foreign("user_id").references("id").on("users")` 
 ```
@@ -378,13 +378,13 @@ table.foreign("user_id").references("id").on("users")`
 
 要应用迁移，请在终端中运行以下命令:
 
-```
+```py
 `(.env)$ masonite-orm migrate` 
 ```
 
 您应该会看到关于每个迁移的成功消息:
 
-```
+```py
 `Migrating: 2022_05_04_084807_migration_for_user_table
 Migrated: 2022_05_04_084807_migration_for_user_table (0.08s)
 Migrating: 2022_05_04_084820_migration_for_post_table
@@ -399,7 +399,7 @@ Migrated: 2022_05_04_084833_migration_for_comment_table (0.02s)`
 
 为了定义一对多的关系，我们需要从*模型/User.py* 中的`masoniteorm.relationships`导入`has_many`，并将其作为装饰者添加到我们的函数中:
 
-```
+```py
 `# models/User.py
 
 from masoniteorm.models import Model
@@ -430,7 +430,7 @@ class User(Model):
 
 对*型号/Post.py* 进行同样的操作:
 
-```
+```py
 `# models/Post.py
 
 from masoniteorm.models import Model
@@ -456,7 +456,7 @@ FastAPI 严重依赖 [Pydantic](https://pydantic-docs.helpmanual.io/) 来操作(
 
 在根文件夹中，创建一个名为 *schema.py* 的新 Python 文件:
 
-```
+```py
 `# schema.py
 
 from pydantic import BaseModel
@@ -486,7 +486,7 @@ class UserResult(UserBase):
 
 在`UserResult` Pydantic 类中，我们增加了一个`Config`类，并将`orm_mode`设置为`True`。这告诉 Pydantic 不仅要将数据作为 dict 读取，还要作为具有属性的对象读取。因此，您可以选择:
 
-```
+```py
 `user_id = user["id"]   # as a dict
 
 user_id = user.id  # as an attribute` 
@@ -496,7 +496,7 @@ user_id = user.id  # as an attribute`
 
 接下来，为帖子和评论对象添加模型:
 
-```
+```py
 `# schema.py
 
 from pydantic import BaseModel
@@ -552,7 +552,7 @@ class CommentResult(CommentBase):
 
 现在，让我们添加 API 端点。在 *main.py* 文件中，导入 Pydantic 模式和 Masonite 模型:
 
-```
+```py
 `import schema
 
 from models.Post import Post
@@ -562,7 +562,7 @@ from models.Comment import Comment`
 
 要获取所有用户，可以使用 Masonite 的[。集合实例上用户模型的所有方法调用](https://orm.masoniteproject.com/models#selecting)返回:
 
-```
+```py
 `@app.get("/api/v1/users", response_model=List[schema.UserResult])
 def get_all_users():
     users = User.all()
@@ -573,7 +573,7 @@ def get_all_users():
 
 要添加用户，请添加以下发布端点:
 
-```
+```py
 `@app.post("/api/v1/users", response_model=schema.UserResult)
 def add_user(user_data: schema.UserCreate):
     user = User.where("email", user_data.email).get()
@@ -592,13 +592,13 @@ def add_user(user_data: schema.UserCreate):
 
 导入[http 异常](https://fastapi.tiangolo.com/tutorial/handling-errors/#import-httpexception):
 
-```
+```py
 `from fastapi import FastAPI, HTTPException` 
 ```
 
 检索单个用户:
 
-```
+```py
 `@app.get("/api/v1/users/{user_id}", response_model=schema.UserResult)
 def get_single_user(user_id: int):
     user = User.find(user_id)
@@ -607,7 +607,7 @@ def get_single_user(user_id: int):
 
 发布端点:
 
-```
+```py
 `@app.get("/api/v1/posts", response_model=List[schema.PostResult])
 def get_all_posts():
     all_posts = Post.all()
@@ -638,7 +638,7 @@ def add_new_post(post_data: schema.PostCreate):
 
 注释端点:
 
-```
+```py
 `@app.post("/api/v1/{post_id}/comments", response_model=schema.CommentResult)
 def add_new_comment(post_id: int, comment_data: schema.CommentCreate):
     post = Post.find(post_id)
@@ -673,7 +673,7 @@ def get_user_comments(user_id):
 
 如果 FastAPI 服务器尚未运行，请启动它:
 
-```
+```py
 `(.env)$ uvicorn main:app --reload` 
 ```
 
@@ -691,13 +691,13 @@ def get_user_comments(user_id):
 
 安装:
 
-```
+```py
 `(.env)$ pip install -r requirements.txt` 
 ```
 
 接下来，让我们为测试创建一个单独的配置文件，这样我们就不会覆盖主开发数据库中的数据。在“config”文件夹中，创建一个名为 *test_config.py* 的新文件:
 
-```
+```py
 `# config/test_config.py
 
 from masoniteorm.connections import ConnectionResolver
@@ -719,7 +719,7 @@ DB = ConnectionResolver().set_connection_details(DATABASES)`
 
 创建一个名为“tests”的新文件夹，并在这个新文件夹中创建一个 *conftest.py* 文件:
 
-```
+```py
 `import pytest
 from masoniteorm.migrations import Migration
 
@@ -737,7 +737,7 @@ def setup_database():
 
 现在，让我们为用户、帖子和评论定义一些装置:
 
-```
+```py
 `import pytest
 from masoniteorm.migrations import Migration
 
@@ -800,7 +800,7 @@ def comment(user, post):
 
 首先添加以下代码来实例化一个 [TestClient](https://fastapi.tiangolo.com/tutorial/testing/) :
 
-```
+```py
 `from fastapi.testclient import TestClient
 
 from main import app  # => FastAPI app created in our main.py file
@@ -816,7 +816,7 @@ client = TestClient(app)`
 
 代码:
 
-```
+```py
 `from fastapi.testclient import TestClient
 
 from main import app  # => FastAPI app created in our main.py file

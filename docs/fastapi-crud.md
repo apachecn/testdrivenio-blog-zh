@@ -43,7 +43,7 @@ FastAPI 是一个现代的、高性能的、内置电池的 Python web 框架，
 
 > 以下命令将创建项目结构:
 > 
-> ```
+> ```py
 > `$ mkdir fastapi-crud && \
 >     cd fastapi-crud && \
 >     touch docker-compose.yml && \
@@ -59,7 +59,7 @@ FastAPI 是一个现代的、高性能的、内置电池的 Python web 框架，
 
 您现在应该已经:
 
-```
+```py
 `fastapi-crud
     ├── docker-compose.yml
     └── src
@@ -76,7 +76,7 @@ FastAPI 是一个现代的、高性能的、内置电池的 Python web 框架，
 
 将 FastAPI 和 Uvicorn 添加到需求文件中:
 
-```
+```py
 `fastapi==0.88.0
 uvicorn==0.20.0` 
 ```
@@ -85,7 +85,7 @@ uvicorn==0.20.0`
 
 然后，在 *main.py* 中，创建一个新的 FastAPI 实例，并设置一个健全性检查路径:
 
-```
+```py
 `from fastapi import FastAPI
 
 app = FastAPI()
@@ -97,7 +97,7 @@ def pong():
 
 安装 [Docker](https://docs.docker.com/install/) ，如果你还没有的话，然后更新“src”目录下的 *Dockerfile* :
 
-```
+```py
 `# pull official base image
 FROM  python:3.11.0-alpine
 
@@ -134,7 +134,7 @@ COPY  . /usr/src/app/`
 
 接下来，将以下内容添加到项目根目录下的 *docker-compose.yml* 文件中:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./src command:  uvicorn app.main:app --reload --workers 1 --host 0.0.0.0 --port 8000 volumes: -  ./src/:/usr/src/app/ ports: -  8002:8000` 
 ```
 
@@ -151,7 +151,7 @@ COPY  . /usr/src/app/`
 
 构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -165,7 +165,7 @@ COPY  . /usr/src/app/`
 
 在“src”中创建一个“tests”文件夹，然后添加一个 *__init__。py* 文件与一个 *test_main.py* 文件一起“测试”:
 
-```
+```py
 `from starlette.testclient import TestClient
 
 from app.main import app
@@ -182,7 +182,7 @@ def test_ping():
 
 将 pytest 和 httpx 添加到 *requirements.txt* :
 
-```
+```py
 `fastapi==0.88.0
 uvicorn==0.20.0
 
@@ -193,14 +193,14 @@ httpx==0.23.1`
 
 更新图像，然后运行测试:
 
-```
+```py
 `$ docker-compose up -d --build
 $ docker-compose exec web pytest .` 
 ```
 
 您应该看到:
 
-```
+```py
 `=============================== test session starts ===============================
 platform linux -- Python 3.11.0, pytest-7.2.0, pluggy-1.0.0
 rootdir: /usr/src/app
@@ -214,7 +214,7 @@ tests/test_main.py .                                                        [100
 
 在继续之前，添加一个`test_app` pytest [fixture](https://docs.pytest.org/en/latest/how-to/fixtures.html) 到一个名为 *src/tests/conftest.py* 的新文件中:
 
-```
+```py
 `import pytest
 from starlette.testclient import TestClient
 
@@ -228,7 +228,7 @@ def test_app():
 
 更新测试文件，以便它使用 fixture:
 
-```
+```py
 `def test_ping(test_app):
     response = test_app.get("/ping")
     assert response.status_code == 200
@@ -237,7 +237,7 @@ def test_app():
 
 您的项目结构现在应该如下所示:
 
-```
+```py
 `fastapi-crud
     ├── docker-compose.yml
     └── src
@@ -258,7 +258,7 @@ def test_app():
 
 FastAPI 使异步交付路线变得很容易，而不必经历创建任务队列(如 Celery 或 RQ)或利用线程的麻烦。只要处理程序中没有任何阻塞的 I/O 调用，就可以简单地通过添加关键字`async`将处理程序声明为异步的，如下所示:
 
-```
+```py
 `@app.get("/ping")
 async def pong():
     # some async operation could happen here
@@ -268,7 +268,7 @@ async def pong():
 
 就是这样。更新代码中的处理程序，然后确保测试仍然通过:
 
-```
+```py
 `=============================== test session starts ===============================
 platform linux -- Python 3.11.0, pytest-7.2.0, pluggy-1.0.0
 rootdir: /usr/src/app
@@ -309,7 +309,7 @@ tests/test_main.py .                                                        [100
 
 现在我们可以将`/ping`路径移动到一个名为 *src/app/api/ping.py* 的新文件中:
 
-```
+```py
 `from fastapi import APIRouter
 
 router = APIRouter()
@@ -323,7 +323,7 @@ async def pong():
 
 然后，像这样更新 *main.py* 以删除旧路由，并将路由器连接到我们的主应用程序:
 
-```
+```py
 `from fastapi import FastAPI
 
 from app.api import ping
@@ -337,7 +337,7 @@ app.include_router(ping.router)`
 
 确保[http://localhost:8002/ping](http://localhost:8002/ping)和[http://localhost:8002/docs](http://localhost:8002/docs)仍然工作。此外，在继续之前，确保测试仍然通过。
 
-```
+```py
 `fastapi-crud
     ├── docker-compose.yml
     └── src
@@ -361,7 +361,7 @@ app.include_router(ping.router)`
 
 首先，向 *docker-compose.yml* 添加一个名为`db`的新服务:
 
-```
+```py
 `version:  '3.8' services: web: build:  ./src command:  | bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; uvicorn app.main:app --reload --workers 1 --host 0.0.0.0 --port 8000' volumes: -  ./src/:/usr/src/app/ ports: -  8002:8000 environment: -  DATABASE_URL=postgresql://hello_fastapi:[[email protected]](/cdn-cgi/l/email-protection)/hello_fastapi_dev db: image:  postgres:15.1-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=hello_fastapi -  POSTGRES_PASSWORD=hello_fastapi -  POSTGRES_DB=hello_fastapi_dev volumes: postgres_data:` 
 ```
 
@@ -373,7 +373,7 @@ app.include_router(ping.router)`
 
 更新 docker 文件以安装 asyncpg 所需的适当软件包:
 
-```
+```py
 `# pull official base image
 FROM  python:3.11.0-alpine
 
@@ -402,7 +402,7 @@ COPY  . /usr/src/app/`
 
 将 asyncpg 添加到 *src/requirements.txt* :
 
-```
+```py
 `asyncpg==0.27.0
 fastapi==0.88.0
 uvicorn==0.20.0
@@ -414,7 +414,7 @@ httpx==0.23.1`
 
 接下来，在“src/app”中添加一个 *db.py* 文件:
 
-```
+```py
 `import os
 
 from databases import Database
@@ -444,7 +444,7 @@ database = Database(DATABASE_URL)`
 
 更新要求:
 
-```
+```py
 `asyncpg==0.27.0 databases[postgresql]==0.6.2 fastapi==0.88.0 psycopg2-binary==2.9.5 SQLAlchemy==1.4.41 uvicorn==0.20.0 #  dev pytest==7.2.0 httpx==0.23.1` 
 ```
 
@@ -456,7 +456,7 @@ database = Database(DATABASE_URL)`
 
 给 *src/app/db.py* 添加一个`notes`模型:
 
-```
+```py
 `import os
 
 from sqlalchemy import (
@@ -492,7 +492,7 @@ database = Database(DATABASE_URL)`
 
 连接数据库和 *main.py* 中的模型，添加[启动和关闭事件处理程序](https://fastapi.tiangolo.com/advanced/events/)，用于连接和断开数据库；
 
-```
+```py
 `from fastapi import FastAPI
 
 from app.api import ping
@@ -515,13 +515,13 @@ app.include_router(ping.router)`
 
 构建新的映像并旋转两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 确保`notes`表已创建:
 
-```
+```py
 `$ docker-compose exec db psql --username=hello_fastapi --dbname=hello_fastapi_dev
 
 psql (15.1)
@@ -558,7 +558,7 @@ hello_fastapi_dev=# \q`
 
 在“src/app/api”中一个名为 *models.py* 的新文件中创建一个`NoteSchema` Pydantic [模型](https://pydantic-docs.helpmanual.io/usage/models/)，其中有两个必填字段`title`和`description`:
 
-```
+```py
 `from pydantic import BaseModel
 
 class NoteSchema(BaseModel):
@@ -576,7 +576,7 @@ class NoteSchema(BaseModel):
 
 在“src/app/api”文件夹中创建一个名为 *notes.py* 的新文件:
 
-```
+```py
 `from fastapi import APIRouter, HTTPException
 
 from app.api import crud
@@ -609,7 +609,7 @@ async def create_note(payload: NoteSchema):
 
 接下来，在“src/app/api”文件夹中创建一个名为 *crud.py* 的新文件:
 
-```
+```py
 `from app.api.models import NoteSchema
 from app.db import notes, database
 
@@ -625,13 +625,13 @@ async def post(payload: NoteSchema):
 
 接下来，我们需要定义一个新的 Pydantic 模型作为 [response_model](https://fastapi.tiangolo.com/tutorial/response-model/) :
 
-```
+```py
 `@router.post("/", response_model=NoteDB, status_code=201)` 
 ```
 
 更新 *models.py* 这样:
 
-```
+```py
 `from pydantic import BaseModel
 
 class NoteSchema(BaseModel):
@@ -646,7 +646,7 @@ class NoteDB(NoteSchema):
 
 在 *main.py* 中连接新路由器:
 
-```
+```py
 `from fastapi import FastAPI
 
 from app.api import notes, ping
@@ -672,13 +672,13 @@ app.include_router(notes.router, prefix="/notes", tags=["notes"])`
 
 用 curl 或 [HTTPie](https://httpie.org/) 测试一下:
 
-```
+```py
 `$ http --json POST http://localhost:8002/notes/ title=foo description=bar` 
 ```
 
 您应该看到:
 
-```
+```py
 `HTTP/1.1 201 Created
 content-length: 42
 content-type: application/json
@@ -698,7 +698,7 @@ server: uvicorn
 
 将以下测试添加到名为 *src/tests/test_notes.py* 的新测试文件中:
 
-```
+```py
 `import json
 
 import pytest
@@ -726,7 +726,7 @@ def test_create_note_invalid_json(test_app):
 
 这个测试使用 pytest [monkeypatch](https://docs.pytest.org/en/latest/how-to/monkeypatch.html) 夹具来模拟`crud.post`函数。然后，我们断言端点用预期的状态代码和响应体进行响应。
 
-```
+```py
 `$ docker-compose exec web pytest .
 
 =============================== test session starts ===============================
@@ -743,7 +743,7 @@ tests/test_ping.py .                                                        [100
 
 这样，我们就可以使用测试驱动开发来配置剩余的 CRUD 路径。
 
-```
+```py
 `fastapi-crud
     ├── docker-compose.yml
     └── src
@@ -772,7 +772,7 @@ tests/test_ping.py .                                                        [100
 
 将以下测试添加到 *src/tests/test_notes.py* 中:
 
-```
+```py
 `def test_read_note(test_app, monkeypatch):
     test_data = {"id": 1, "title": "something", "description": "something else"}
 
@@ -798,7 +798,7 @@ def test_read_note_incorrect_id(test_app, monkeypatch):
 
 他们应该失败:
 
-```
+```py
 `=============================== test session starts ===============================
 platform linux -- Python 3.11.0, pytest-7.2.0, pluggy-1.0.0
 rootdir: /usr/src/app
@@ -847,7 +847,7 @@ FAILED tests/test_notes.py::test_read_note_incorrect_id - AttributeError: <modul
 
 将处理函数添加到 *src/app/api/notes.py* :
 
-```
+```py
 `@router.get("/{id}/", response_model=NoteDB)
 async def read_note(id: int):
     note = await crud.get(id)
@@ -860,7 +860,7 @@ async def read_note(id: int):
 
 将`get`实用函数添加到 *crud.py* 中:
 
-```
+```py
 `async def get(id: int):
     query = notes.select().where(id == notes.c.id)
     return await database.fetch_one(query=query)` 
@@ -872,7 +872,7 @@ async def read_note(id: int):
 
 接下来，添加一个阅读所有笔记的测试:
 
-```
+```py
 `def test_read_all_notes(test_app, monkeypatch):
     test_data = [
         {"title": "something", "description": "something else", "id": 1},
@@ -895,7 +895,7 @@ async def read_note(id: int):
 
 将处理函数添加到 *src/app/api/notes.py* :
 
-```
+```py
 `@router.get("/", response_model=List[NoteDB])
 async def read_all_notes():
     return await crud.get_all()` 
@@ -907,7 +907,7 @@ async def read_all_notes():
 
 添加 CRUD 实用程序:
 
-```
+```py
 `async def get_all():
     query = notes.select()
     return await database.fetch_all(query=query)` 
@@ -919,7 +919,7 @@ async def read_all_notes():
 
 ### 试验
 
-```
+```py
 `def test_update_note(test_app, monkeypatch):
     test_update_data = {"title": "someone", "description": "someone else", "id": 1}
 
@@ -961,7 +961,7 @@ def test_update_note_invalid(test_app, monkeypatch, id, payload, status_code):
 
 处理人:
 
-```
+```py
 `@router.put("/{id}/", response_model=NoteDB)
 async def update_note(id: int, payload: NoteSchema):
     note = await crud.get(id)
@@ -980,7 +980,7 @@ async def update_note(id: int, payload: NoteSchema):
 
 实用工具:
 
-```
+```py
 `async def put(id: int, payload: NoteSchema):
     query = (
         notes
@@ -996,7 +996,7 @@ async def update_note(id: int, payload: NoteSchema):
 
 ### 试验
 
-```
+```py
 `def test_remove_note(test_app, monkeypatch):
     test_data = {"title": "something", "description": "something else", "id": 1}
 
@@ -1029,7 +1029,7 @@ def test_remove_note_incorrect_id(test_app, monkeypatch):
 
 处理人:
 
-```
+```py
 `@router.delete("/{id}/", response_model=NoteDB)
 async def delete_note(id: int):
     note = await crud.get(id)
@@ -1043,7 +1043,7 @@ async def delete_note(id: int):
 
 实用工具:
 
-```
+```py
 `async def delete(id: int):
     query = notes.delete().where(id == notes.c.id)
     return await database.execute(query=query)` 
@@ -1051,7 +1051,7 @@ async def delete_note(id: int):
 
 确保所有测试都通过:
 
-```
+```py
 `=============================== test session starts ===============================
 platform linux -- Python 3.11.0, pytest-7.2.0, pluggy-1.0.0
 rootdir: /usr/src/app
@@ -1075,7 +1075,7 @@ tests/test_ping.py .                                                        [100
 
 更新`test_read_note_incorrect_id`测试:
 
-```
+```py
 `def test_read_note_incorrect_id(test_app, monkeypatch):
     async def mock_get(id):
         return None
@@ -1092,7 +1092,7 @@ tests/test_ping.py .                                                        [100
 
 测试应该会失败:
 
-```
+```py
 `>       assert response.status_code == 422
 E       assert 404 == 422
 E        +  where 404 = <Response [404]>.status_code` 
@@ -1100,7 +1100,7 @@ E        +  where 404 = <Response [404]>.status_code`
 
 更新处理程序:
 
-```
+```py
 `@router.get("/{id}/", response_model=NoteDB)
 async def read_note(id: int = Path(..., gt=0),):
     note = await crud.get(id)
@@ -1111,7 +1111,7 @@ async def read_note(id: int = Path(..., gt=0),):
 
 确保导入`Path`:
 
-```
+```py
 `from fastapi import APIRouter, HTTPException, Path` 
 ```
 
@@ -1128,7 +1128,7 @@ async def read_note(id: int = Path(..., gt=0),):
 
 更新`test_create_note_invalid_json`测试:
 
-```
+```py
 `def test_create_note_invalid_json(test_app):
     response = test_app.post("/notes/", content=json.dumps({"title": "something"}))
     assert response.status_code == 422
@@ -1139,7 +1139,7 @@ async def read_note(id: int = Path(..., gt=0),):
 
 为了让测试通过，像这样更新`NoteSchema`模型:
 
-```
+```py
 `class NoteSchema(BaseModel):
     title: str = Field(..., min_length=3, max_length=50)
     description: str = Field(..., min_length=3, max_length=50)` 
@@ -1149,7 +1149,7 @@ async def read_note(id: int = Path(..., gt=0),):
 
 添加导入:
 
-```
+```py
 `from pydantic import BaseModel, Field` 
 ```
 
@@ -1157,7 +1157,7 @@ async def read_note(id: int = Path(..., gt=0),):
 
 向`test_update_note_invalid`添加三个场景:
 
-```
+```py
 `@pytest.mark.parametrize(
     "id, payload, status_code",
     [
@@ -1181,7 +1181,7 @@ def test_update_note_invalid(test_app, monkeypatch, id, payload, status_code):
 
 处理人:
 
-```
+```py
 `@router.put("/{id}/", response_model=NoteDB)
 async def update_note(payload: NoteSchema, id: int = Path(..., gt=0),):
     note = await crud.get(id)
@@ -1202,7 +1202,7 @@ async def update_note(payload: NoteSchema, id: int = Path(..., gt=0),):
 
 测试:
 
-```
+```py
 `def test_remove_note_incorrect_id(test_app, monkeypatch):
     async def mock_get(id):
         return None
@@ -1219,7 +1219,7 @@ async def update_note(payload: NoteSchema, id: int = Path(..., gt=0),):
 
 处理人:
 
-```
+```py
 `@router.delete("/{id}/", response_model=NoteDB)
 async def delete_note(id: int = Path(..., gt=0)):
     note = await crud.get(id)
@@ -1233,7 +1233,7 @@ async def delete_note(id: int = Path(..., gt=0)):
 
 测试应该通过:
 
-```
+```py
 `=============================== test session starts ===============================
 platform linux -- Python 3.11.0, pytest-7.2.0, pluggy-1.0.0
 rootdir: /usr/src/app

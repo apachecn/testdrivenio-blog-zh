@@ -49,20 +49,20 @@ Fly.io 是一个流行的平台即服务(PaaS)平台，为 web 应用程序提�
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装需求并迁移数据库:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt
 (venv)$ python manage.py migrate` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -76,7 +76,7 @@ Fly.io 是一个流行的平台即服务(PaaS)平台，为 web 应用程序提�
 
 要在 Linux 上安装它，请运行:
 
-```
+```py
 `$ curl -L https://fly.io/install.sh | sh` 
 ```
 
@@ -84,14 +84,14 @@ Fly.io 是一个流行的平台即服务(PaaS)平台，为 web 应用程序提�
 
 安装完成后，将`flyctl`添加到`PATH`:
 
-```
+```py
 `$ export FLYCTL_INSTALL="/home/$USER/.fly"
 $ export PATH="$FLYCTL_INSTALL/bin:$PATH"` 
 ```
 
 接下来，使用您的 Fly.io 帐户进行身份验证:
 
-```
+```py
 `$ fly auth login
 
 # In case you don't have an account yet:
@@ -102,7 +102,7 @@ $ export PATH="$FLYCTL_INSTALL/bin:$PATH"`
 
 为确保一切正常，请尝试列出应用程序:
 
-```
+```py
 `$ fly apps list
 
 NAME         OWNER           STATUS          PLATFORM        LATEST DEPLOY` 
@@ -122,7 +122,7 @@ NAME         OWNER           STATUS          PLATFORM        LATEST DEPLOY`
 
 然后，在 *core/settings.py* 的顶部导入并初始化 python-dotenv，如下所示:
 
-```
+```py
 `# core/settings.py
 
 from pathlib import Path
@@ -137,7 +137,7 @@ load_dotenv(BASE_DIR / '.env')`
 
 接下来，从环境中加载`SECRET_KEY`、`DEBUG`、`ALLOWED_HOSTS`和`CSRF_TRUSTED_ORIGINS`:
 
-```
+```py
 `# core/settings.py
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -160,7 +160,7 @@ CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS').split(' ')`
 
 当我们在本教程的后面创建 Postgres 实例时，一个受[十二因素应用](https://12factor.net/)启发的名为`DATABASE_URL`的环境变量将被设置并以如下格式传递给我们的 web 应用:
 
-```
+```py
 `postgres://USER:PASSWORD@HOST:PORT/NAME` 
 ```
 
@@ -170,7 +170,7 @@ CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS').split(' ')`
 
 接下来，导航到 *core/settings.py* ，将`DATABASES`更改如下:
 
-```
+```py
 `# core/settings.py
 
 DATABASES = {
@@ -198,7 +198,7 @@ DATABASES = {
 
 首先，在项目根目录下创建一个名为 *Dockerfile* 的新文件，内容如下:
 
-```
+```py
 `# pull official base image
 FROM  python:3.9.6-alpine
 
@@ -233,7 +233,7 @@ CMD  ["gunicorn",  "--bind",  ":8000",  "--workers",  "2",  "core.wsgi:applicati
 
 接下来，创建一个*。dockerignore* :
 
-```
+```py
 `*.pyc *.pyo *.mo *.db *.css.map *.egg-info *.sql.gz .cache .project .idea .pydevproject .DS_Store .git/ .sass-cache .vagrant/ __pycache__ dist docs env logs Dockerfile` 
 ```
 
@@ -247,7 +247,7 @@ CMD  ["gunicorn",  "--bind",  ":8000",  "--workers",  "2",  "core.wsgi:applicati
 
 要创建和配置新的应用程序，请运行:
 
-```
+```py
 `$ fly launch
 
 Creating app in /dev/django-flyio
@@ -288,7 +288,7 @@ Your app is ready! Deploy with `flyctl deploy``
 
 确保应用程序已成功创建:
 
-```
+```py
 `$ fly apps list
 
 NAME                            OWNER           STATUS          PLATFORM        LATEST DEPLOY
@@ -301,7 +301,7 @@ fly-builder-damp-wave-89        personal        deployed        machines`
 
 检查你的应用程序的状态:
 
-```
+```py
 `$ fly status
 
 App
@@ -323,13 +323,13 @@ App has not been deployed yet.`
 
 首先，将端口`8080`更改为 Django 的首选端口`8000`:
 
-```
+```py
 `# fly.toml app  =  "django-images" kill_signal  =  "SIGINT" kill_timeout  =  5 processes  =  [] [env] PORT  =  "8000"  # new [experimental] allowed_public_ports  =  [] auto_rollback  =  true [[services]] http_checks  =  [] internal_port  =  8000  # changed processes  =  ["app"] protocol  =  "tcp" script_checks  =  [] [services.concurrency] hard_limit  =  25 soft_limit  =  20 type  =  "connections"` 
 ```
 
 接下来，为了确保数据库得到迁移，添加一个[部署](https://fly.io/docs/reference/configuration/#the-deploy-section)部分，并在新创建的部分中定义一个`release_command`:
 
-```
+```py
 `# fly.toml [deploy] release_command  =  "python manage.py migrate --noinput"` 
 ```
 
@@ -337,7 +337,7 @@ App has not been deployed yet.`
 
 > 如果将来需要运行多个命令，可以在项目文件中创建一个 bash 脚本，然后像这样执行它:
 > 
-> ```
+> ```py
 > `# fly.toml [deploy] release_command  =  "sh /path/to/your/script"` 
 > ```
 
@@ -345,7 +345,7 @@ App has not been deployed yet.`
 
 设置我们在 Django 的 *settings.py* 中使用的秘密:
 
-```
+```py
 `$ fly secrets set DEBUG="1"
 $ fly secrets set ALLOWED_HOSTS="localhost 127.0.0.1 [::1] <your_app_hostname>"
 $ fly secrets set CSRF_TRUSTED_ORIGINS="https://<your_app_hostname>"
@@ -354,7 +354,7 @@ $ fly secrets set SECRET_KEY="[[email protected]](/cdn-cgi/l/email-protection)"
 
 确保将`<your_app_hostname>`替换为您实际的应用程序主机名。例如:
 
-```
+```py
 `$ fly secrets set ALLOWED_HOSTS="localhost 127.0.0.1 [::1] django-images.fly.dev"
 $ fly secrets set CSRF_TRUSTED_ORIGINS="https://django-images.fly.dev"` 
 ```
@@ -363,7 +363,7 @@ $ fly secrets set CSRF_TRUSTED_ORIGINS="https://django-images.fly.dev"`
 
 确保密码设置成功:
 
-```
+```py
 `$ fly secrets list
 
 NAME                    DIGEST                  CREATED AT
@@ -376,7 +376,7 @@ SECRET_KEY              62ac51c770a436f9        10s ago`
 
 > 部署 Fly 应用程序后，每个秘密修改都会触发重新部署。如果您需要一次设置多个密码，并且不希望您的应用程序多次重新部署，您可以在一个命令中连接这些密码，如下所示:
 > 
-> ```
+> ```py
 > `$ fly secrets set NAME1="VALUE1" NAME2="VALUE2"` 
 > ```
 
@@ -384,7 +384,7 @@ SECRET_KEY              62ac51c770a436f9        10s ago`
 
 要将应用程序部署到 Fly 平台，请运行:
 
-```
+```py
 `$ fly deploy
 
 ==> Verifying app config
@@ -418,7 +418,7 @@ image size: 152 MB
 
 部署应用程序后，检查其状态:
 
-```
+```py
 `$ fly status
 
 App
@@ -443,7 +443,7 @@ c009e8b0        app     1       fra     run     running 1 total, 1 passing      
 
 检查日志:
 
-```
+```py
 `$ fly logs
 
 [info]Starting init (commit: 81d5330)...
@@ -477,7 +477,7 @@ Fly.io(以及许多其他类似的服务，如 Heroku)提供了一个短暂的�
 
 首先，在与您的应用程序相同的区域创建一个宗卷:
 
-```
+```py
 `$ fly volumes create <volume_name> --region <region> --size <in_gigabytes>
 
 # For example:
@@ -497,7 +497,7 @@ Created at: 04 Nov 22 13:20 UTC`
 
 接下来，进入 *core/settings.py* ，修改`STATIC_ROOT`和`MEDIA_ROOT`如下:
 
-```
+```py
 `# core/settings.py
 
 STATIC_URL = '/static/'
@@ -511,7 +511,7 @@ MEDIA_ROOT = BASE_DIR / 'data/mediafiles'`
 
 要将目录挂载到 Fly 卷，请转到您的 *fly.toml* 并添加以下内容:
 
-```
+```py
 `# fly.toml [mounts] source="django_images_data" destination="/app/data"` 
 ```
 
@@ -524,7 +524,7 @@ MEDIA_ROOT = BASE_DIR / 'data/mediafiles'`
 
 SSH 进入 Fly 服务器，导航到“app”目录，运行`collectstatic`:
 
-```
+```py
 `$ fly ssh console
 # cd /app
 # python manage.py collectstatic --noinput` 
@@ -532,7 +532,7 @@ SSH 进入 Fly 服务器，导航到“app”目录，运行`collectstatic`:
 
 为了确保文件收集成功，请查看一下 */app/data* 文件夹:
 
-```
+```py
 `# ls /app/data
 
 lost+found   staticfiles` 
@@ -542,7 +542,7 @@ lost+found   staticfiles`
 
 通过检查管理面板，确保已经成功收集了静态文件:
 
-```
+```py
 `http://<your_app_hostname>/admin` 
 ```
 
@@ -557,7 +557,7 @@ lost+found   staticfiles`
 
 首先，使用 Fly CLI SSH 进入服务器:
 
-```
+```py
 `$ fly ssh console
 
 Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... complete` 
@@ -565,7 +565,7 @@ Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... complete`
 
 然后，导航到我们的应用程序文件所在的 */app* ，运行`createsuperuser`命令:
 
-```
+```py
 `# cd /app
 # python manage.py createsuperuser` 
 ```
@@ -574,7 +574,7 @@ Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... complete`
 
 要确保已成功创建超级用户，请导航至管理控制面板并登录:
 
-```
+```py
 `http://<your_app_hostname>/admin` 
 ```
 
@@ -590,7 +590,7 @@ Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... complete`
 
 若要将域添加到您的应用程序，您首先需要获取一个证书:
 
-```
+```py
 `$ fly certs add <your_full_domain_name>
 
 # For example:
@@ -599,7 +599,7 @@ Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... complete`
 
 接下来，进入你的域名注册服务商 DNS 设置，添加一个新的“CNAME 记录”指向你的应用程序的主机名，如下所示:
 
-```
+```py
 `+----------+--------------+----------------------------+-----------+ | Type     | Host         | Value                      | TTL       |
 +----------+--------------+----------------------------+-----------+ | A Record | <some host> | <your_app_hostname> | Automatic |
 +----------+--------------+----------------------------+-----------+` 
@@ -607,7 +607,7 @@ Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... complete`
 
 示例:
 
-```
+```py
 `+----------+--------------+----------------------------+-----------+ | Type     | Host         | Value                      | TTL       |
 +----------+--------------+----------------------------+-----------+ | A Record | fly          | django-images.fly.dev      | Automatic |
 +----------+--------------+----------------------------+-----------+` 
@@ -617,7 +617,7 @@ Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... complete`
 
 检查域是否已成功添加:
 
-```
+```py
 `$ fly certs list
 
 Host Name                 Added                Status
@@ -626,7 +626,7 @@ fly.testdriven.io         5 minutes ago        Awaiting configuration`
 
 检查证书是否已颁发:
 
-```
+```py
 `$ fly certs check <your_full_domain_name>
 
 # For example:
@@ -638,7 +638,7 @@ Your certificate for fly.testdriven.io is being issued. Status is Awaiting certi
 
 如果证书尚未颁发，请等待大约十分钟，然后重试:
 
-```
+```py
 `$ fly certs check fly.testdriven.io
 
 The certificate for fly.testdriven.io has been issued.
@@ -652,7 +652,7 @@ Source                    = fly`
 
 最后，将新的域添加到`ALLOWED_HOSTS`和`CSRF_TRUSTED_ORIGINS`:
 
-```
+```py
 `$ fly secrets set ALLOWED_HOSTS="localhost 127.0.0.1 [::1] <your_app_hostname> <your_full_domain_name>"
 $ fly secrets set CSRF_TRUSTED_ORIGINS="https://<your_app_hostname> https://<your_full_domain_name>"
 

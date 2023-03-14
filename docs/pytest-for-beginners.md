@@ -48,7 +48,7 @@ pytest 的一些显著优势是:
 
 创建并激活虚拟环境，并安装要求:
 
-```
+```py
 `$ python3.10 -m venv venv
 $ source venv/bin/activate
 (venv)$ pip install -r requirements.txt` 
@@ -82,7 +82,7 @@ $ source venv/bin/activate
 
 让我们看看`test_return_sum`(在*test _ calculation _ endpoints . py*文件中)测试函数是什么样子的:
 
-```
+```py
 `# tests/test_endpoints/test_calculation_endpoints.py
 
 def test_return_sum(self):
@@ -125,7 +125,7 @@ pytest 为您提供了很多控制，让您可以决定要运行哪些测试:
 > 
 > 对于您自己的项目，`pytest`可以作为任何其他带有 pip 的包安装:
 > 
-> ```
+> ```py
 > `(venv)$ pip install pytest` 
 > ```
 
@@ -133,7 +133,7 @@ pytest 为您提供了很多控制，让您可以决定要运行哪些测试:
 
 运行`pytest`命令将简单地运行 pytest 可以找到的所有测试:
 
-```
+```py
 `(venv)$ python -m pytest
 
 =============================== test session starts ===============================
@@ -159,7 +159,7 @@ pytest 将通知您找到了多少个测试，以及这些测试是在哪个模�
 
 例如，如果您将`TestCalculationEndpoints`类重命名为`CalculationEndpointsTest`，那么其中的所有测试都不会运行:
 
-```
+```py
 `=============================== test session starts ===============================
 platform darwin -- Python 3.10.4, pytest-7.1.2, pluggy-1.0.0
 rootdir: /Users/michael/repos/testdriven/pytest_for_beginners_test_project
@@ -180,7 +180,7 @@ tests/test_calculations/test_commutative_operations.py ..                   [100
 
 破坏`test_calculate_sum`中`assert`语句的预测输出，看看失败测试的输出是什么样的:
 
-```
+```py
 `# tests/test_calculations/test_commutative_operations.py
 
 def test_calculate_sum():
@@ -192,7 +192,7 @@ def test_calculate_sum():
 
 运行测试。您应该会看到类似如下的内容:
 
-```
+```py
 `=============================== test session starts ===============================
 platform darwin -- Python 3.10.4, pytest-7.1.2, pluggy-1.0.0
 rootdir: /Users/michael/repos/testdriven/pytest_for_beginners_test_project
@@ -231,7 +231,7 @@ FAILED tests/test_calculations/test_commutative_operations.py::test_calculate_su
 
 **对于一个包:**
 
-```
+```py
 `(venv)$ python -m pytest tests/test_calculations` 
 ```
 
@@ -239,7 +239,7 @@ FAILED tests/test_calculations/test_commutative_operations.py::test_calculate_su
 
 **对于模块:**
 
-```
+```py
 `(venv)$ python -m pytest tests/test_calculations/test_commutative_operations.py` 
 ```
 
@@ -251,7 +251,7 @@ FAILED tests/test_calculations/test_commutative_operations.py::test_calculate_su
 
 要在 pytest 中访问一个特定的类，您需要写一个到它的模块的相对路径，然后在`::`之后添加这个类:
 
-```
+```py
 `(venv)$ python -m pytest tests/test_endpoints/test_calculation_endpoints.py::TestCalculationEndpoints` 
 ```
 
@@ -261,7 +261,7 @@ FAILED tests/test_calculations/test_commutative_operations.py::test_calculate_su
 
 您可以像访问类一样访问特定的测试，在相对路径后加上两个冒号，后跟测试名称:
 
-```
+```py
 `(venv)$ python -m pytest tests/test_calculations/test_commutative_operations.py::test_calculate_sum` 
 ```
 
@@ -271,7 +271,7 @@ FAILED tests/test_calculations/test_commutative_operations.py::test_calculate_su
 
 例如:
 
-```
+```py
 `(venv)$ python -m pytest tests/test_endpoints/test_calculation_endpoints.py::TestCalculationEndpoints::test_return_sum` 
 ```
 
@@ -279,13 +279,13 @@ FAILED tests/test_calculations/test_commutative_operations.py::test_calculate_su
 
 现在，假设您只想运行与组织相关的测试。因为我们在处理除法的测试名称中包含了单词“divided ”,所以您可以像这样运行这些测试:
 
-```
+```py
 `(venv)$ python -m pytest -k "dividend"` 
 ```
 
 因此，8 个测试中的 2 个将运行:
 
-```
+```py
 `=============================== test session starts ===============================
 platform darwin -- Python 3.10.4, pytest-7.1.2, pluggy-1.0.0
 rootdir: /Users/michael/repos/testdriven/pytest_for_beginners_test_project
@@ -322,7 +322,7 @@ pytest 包括许多[标志](https://docs.pytest.org/en/7.1.x/reference/reference
 
 例如，对于反交换运算，传递的数字的顺序很重要。明智的做法是涵盖更多情况，以确保该函数在所有情况下都能正常工作:
 
-```
+```py
 `# tests/test_calculations/test_anticommutative_operations.py
 
 import pytest
@@ -354,7 +354,7 @@ def test_calculate_difference(first_value, second_value, expected_output):
 
 如果您运行该测试，它将运行 4 次，每次使用不同的输入和输出:
 
-```
+```py
 `(venv)$ python -m pytest -v  tests/test_calculations/test_anticommutative_operations.py::test_calculate_difference
 
 =============================== test session starts ===============================
@@ -383,7 +383,7 @@ tests/test_calculations/test_anticommutative_operations.py::test_calculate_diffe
 
 例如:
 
-```
+```py
 `# tests/test_endpoints/test_calculation_endpoints.py
 
 def test_return_sum(self):
@@ -401,7 +401,7 @@ def test_return_sum(self):
 
 在 *advanced_topics* 分支中，您会看到该方法现在看起来更加清晰:
 
-```
+```py
 `# tests/test_endpoints/test_calculation_endpoints.py
 
 def test_return_sum(self, test_app):
@@ -420,7 +420,7 @@ def test_return_sum(self, test_app):
 
 `test_return_sum`现在使用一个名为`test_app`的夹具，你可以在 *conftest.py* 文件中看到:
 
-```
+```py
 `# tests/conftest.py
 
 import pytest
@@ -460,7 +460,7 @@ Fixtures 是在测试第一次请求时创建的，但是它们是基于它们�
 
 要更改上例中的范围，只需设置`scope`参数:
 
-```
+```py
 `# tests/conftest.py
 
 import pytest
@@ -487,7 +487,7 @@ def test_app():
 
 要测试的代码可以在 *store_calculations.py* 中找到:
 
-```
+```py
 `# store_calculations.py
 
 import json
@@ -516,7 +516,7 @@ class CalculationsStoreJSON:
 
 幸运的是，pytest 提供了许多[内置夹具](https://docs.pytest.org/en/7.1.x/reference/fixtures.html#built-in-fixtures)，其中一个我们可以在这里使用，叫做 [tmppath](https://docs.pytest.org/en/7.1.x/how-to/tmp_path.html) :
 
-```
+```py
 `# tests/test_advanced/test_calculations_storage.py
 
 from store_calculations import CalculationsStoreJSON
@@ -551,7 +551,7 @@ def test_correct_calculations_listed_from_json(tmp_path):
 
 让我们深入了解一下。在我们的应用程序中，有一个函数返回从公共 API 中检索到的某个数字的事实:
 
-```
+```py
 `# number_facts.py
 
 import requests
@@ -574,7 +574,7 @@ def get_number_fact(number):
 
 在这种情况下，您想要模拟响应，所以它返回我们感兴趣的部分*，而不需要*实际发出 HTTP 请求:
 
-```
+```py
 `# tests/test_advanced/test_number_facts.py
 
 import requests

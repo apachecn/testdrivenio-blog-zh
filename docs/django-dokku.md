@@ -47,20 +47,20 @@ Dokku 极其轻便。其唯一的[系统要求](https://dokku.com/docs/getting-s
 
 创建新的虚拟环境并激活它:
 
-```
+```py
 `$ python3 -m venv venv && source venv/bin/activate` 
 ```
 
 安装需求并迁移数据库:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt
 (venv)$ python manage.py migrate` 
 ```
 
 运行服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -76,7 +76,7 @@ Dokku 极其轻便。其唯一的[系统要求](https://dokku.com/docs/getting-s
 
 将生成的令牌添加到您的环境:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=<your_digital_ocean_token>` 
 ```
 
@@ -86,7 +86,7 @@ Dokku 极其轻便。其唯一的[系统要求](https://dokku.com/docs/getting-s
 
 创建一个水滴:
 
-```
+```py
 `$ curl -X POST -H 'Content-Type: application/json' \
      -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' -d \
     '{"name":"django-dokku","region":"fra1","size":"s-1vcpu-2gb","image":"ubuntu-20-04-x64"}' \
@@ -99,7 +99,7 @@ DigitalOcean 旋转一滴大约需要 3-5 分钟。
 
 检查其状态:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -108,7 +108,7 @@ DigitalOcean 旋转一滴大约需要 3-5 分钟。
 
 如果您安装了 [jq](https://stedolan.github.io/jq/) ，您可以像这样解析 JSON 响应:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -124,7 +124,7 @@ DigitalOcean 旋转一滴大约需要 3-5 分钟。
 
 将密钥保存到 */root/。ssh/id_rsa* 并且不设置密码短语。这将分别生成一个公钥和私钥- *id_rsa* 和 *id_rsa.pub* 。要设置无密码 SSH 登录，请将公钥复制到 *authorized_keys* 文件中，并设置适当的权限:
 
-```
+```py
 `$ cat ~/.ssh/id_rsa.pub
 $ vi ~/.ssh/authorized_keys
 $ chmod 600 ~/.ssh/authorized_keys
@@ -135,7 +135,7 @@ $ chmod 600 ~/.ssh/id_rsa`
 
 退出 SSH 会话，然后将密钥设置为本地计算机上的环境变量:
 
-```
+```py
 `export PRIVATE_KEY='-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA04up8hoqzS1+APIB0RhjXyObwHQnOzhAk5Bd7mhkSbPkyhP1
 ...
@@ -146,7 +146,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 将密钥添加到 ssh 代理中:
 
-```
+```py
 `$ ssh-add - <<< "${PRIVATE_KEY}"` 
 ```
 
@@ -158,7 +158,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 要安装最新的稳定 Dokku 版本，首先 SSH 回到 droplet，然后导航到[安装最新的稳定版本](https://dokku.com/docs/getting-started/installation/#installing-the-latest-stable-version)并复制 bootstrap 命令。在撰写本文时，它看起来是这样的:
 
-```
+```py
 `wget https://raw.githubusercontent.com/dokku/dokku/v0.28.1/bootstrap.sh
 sudo DOKKU_TAG=v0.28.1 bash bootstrap.sh` 
 ```
@@ -167,7 +167,7 @@ sudo DOKKU_TAG=v0.28.1 bash bootstrap.sh`
 
 安装完成后，检查 Dokku 版本:
 
-```
+```py
 `$ dokku version
 
 dokku version 0.28.1` 
@@ -177,7 +177,7 @@ Dokku 的部署是通过 git 处理的。每次将代码推送到远程 repo 时
 
 为了避免基于密码的认证，将您的 SSH 密钥添加到 Dokku:
 
-```
+```py
 `$ cat ~/.ssh/authorized_keys | dokku ssh-keys:add admin` 
 ```
 
@@ -187,7 +187,7 @@ Dokku 的部署是通过 git 处理的。每次将代码推送到远程 repo 时
 
 要创建 Dokku 应用程序，请运行:
 
-```
+```py
 `$ dokku apps:create django-dokku
 
 -----> Creating django-dokku...` 
@@ -195,7 +195,7 @@ Dokku 的部署是通过 git 处理的。每次将代码推送到远程 repo 时
 
 检查应用程序是否已成功创建:
 
-```
+```py
 `$ dokku apps:list
 
 =====> My Apps
@@ -208,7 +208,7 @@ django-dokku`
 
 接下来，将您的 droplet 的 IP 地址链接到您的 Dokku 应用程序:
 
-```
+```py
 `$ dokku domains:add django-dokku <your_droplet_ip>` 
 ```
 
@@ -220,13 +220,13 @@ django-dokku`
 
 从安装 dokku-postgres 开始:
 
-```
+```py
 `$ sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres` 
 ```
 
 接下来创建一个名为`mydb`的 Postgres 服务，运行:
 
-```
+```py
 `$ dokku postgres:create mydb
 
        Waiting for container to be ready
@@ -251,7 +251,7 @@ Dokku 将推出一个安装了 Postgres 的新 Docker 容器。
 
 检查码头集装箱:
 
-```
+```py
 `$ docker ps
 
 CONTAINER ID   IMAGE           COMMAND                  CREATED        STATUS        PORTS      NAMES
@@ -260,7 +260,7 @@ CONTAINER ID   IMAGE           COMMAND                  CREATED        STATUS   
 
 最后，将 Postgres 服务链接到 Dokku 应用程序:
 
-```
+```py
 `$ dokku postgres:link mydb django-dokku
 
 -----> Setting config vars
@@ -271,7 +271,7 @@ CONTAINER ID   IMAGE           COMMAND                  CREATED        STATUS   
 
 这将设置一个名为`DATABASE_URL`的新环境变量。这个变量是一个受[十二因素应用](https://www.12factor.net/backing-services)启发的 URL，稍后将允许我们连接到数据库。
 
-```
+```py
 `postgres://postgres:88e242667bf9579a47c4cf5895524b8c@dokku-postgres-mydb:5432/mydb syntax: protocol://username:password@host:port/dbname` 
 ```
 
@@ -291,7 +291,7 @@ CONTAINER ID   IMAGE           COMMAND                  CREATED        STATUS   
 
 然后，在 *core/settings.py* 的顶部导入并初始化 python-dotenv，如下所示:
 
-```
+```py
 `# core/settings.py
 
 from pathlib import Path
@@ -306,7 +306,7 @@ load_dotenv(BASE_DIR / '.env')  # new`
 
 接下来，从环境中加载`SECRET_KEY`、`DEBUG`和`ALLOWED_HOSTS`:
 
-```
+```py
 `# core/settings.py
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -332,7 +332,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS').split(' ')`
 
 接下来，转到 *core/settings.py* ，把`DATABASES`改成这样:
 
-```
+```py
 `# core/settings.py
 
 DATABASES = {
@@ -354,7 +354,7 @@ DATABASES = {
 
 在项目根目录中创建一个 *Procfile* 并填充它:
 
-```
+```py
 `web:  gunicorn  core.wsgi:application release:  django-admin  migrate  --no-input  &&  django-admin  collectstatic  --no-input` 
 ```
 
@@ -368,7 +368,7 @@ DATABASES = {
 
 我们的应用程序现在可以部署了。让我们添加所有文件并将它们提交给 git:
 
-```
+```py
 `$ git add -A
 $ git commit -m "prepared the app for Dokku deployment"` 
 ```
@@ -377,7 +377,7 @@ $ git commit -m "prepared the app for Dokku deployment"`
 
 在部署应用程序之前，回到 droplet 上，我们需要将 Django 设置中使用的环境变量添加到 Dokku 中:
 
-```
+```py
 `$ dokku config:set --no-restart django-dokku SECRET_KEY=h8710y7yaaaqopvbxtyxebdmtcewi_vuf1ah4gaxyjj4goij0u
 $ dokku config:set --no-restart django-dokku DEBUG=1
 $ dokku config:set --no-restart django-dokku ALLOWED_HOSTS=*` 
@@ -391,13 +391,13 @@ $ dokku config:set --no-restart django-dokku ALLOWED_HOSTS=*`
 
 此外，添加`DJANGO_SETTINGS_MODULE`，这是使用`django-admin`命令所必需的:
 
-```
+```py
 `$ dokku config:set --no-restart django-dokku DJANGO_SETTINGS_MODULE=core.settings` 
 ```
 
 检查环境变量，确保所有内容都已正确添加:
 
-```
+```py
 `$ dokku config:show django-dokku
 
 =====> django-dokku env vars
@@ -416,7 +416,7 @@ SECRET_KEY:              h8710y7yaaaqopvbxtyxebdmtcewi_vuf1ah4gaxyjj4goij0u`
 
 向我们的 git 存储库添加一个新的 remote，并将代码推送到 droplet:
 
-```
+```py
 `$ git remote add dokku [[email protected]](/cdn-cgi/l/email-protection)<your_droplet_ip_address>:django-dokku
 $ git push dokku master` 
 ```
@@ -438,7 +438,7 @@ Dokku 完成部署后，您可以 SSH 到您的 droplet 并检查应用程序的
 
 最后，在浏览器中找到你的 droplet 的 IP 地址，测试应用程序，看看它是否工作。
 
-```
+```py
 `http://<your_droplet_ip_address>/` 
 ```
 
@@ -454,7 +454,7 @@ Dokku 应用程序在容器中运行。因此，如果一个容器被破坏，�
 
 所以，回到 droplet，运行:
 
-```
+```py
 `$ mkdir /var/lib/dokku/data/storage/django-dokku/
 $ chown -R dokku:dokku /var/lib/dokku/data/storage/django-dokku/` 
 ```
@@ -464,20 +464,20 @@ $ chown -R dokku:dokku /var/lib/dokku/data/storage/django-dokku/`
 1.  应用程序名称
 2.  一个`host-path:container-path`或`docker-volume:container-path`组合
 
-```
+```py
 `$ dokku storage:mount django-dokku /var/lib/dokku/data/storage/django-dokku/staticfiles:/app/staticfiles
 $ dokku storage:mount django-dokku /var/lib/dokku/data/storage/django-dokku/mediafiles:/app/mediafiles` 
 ```
 
 重新部署 Dokku 应用程序以确保收集到文件:
 
-```
+```py
 `$ dokku ps:restart django-dokku` 
 ```
 
 列出目录:
 
-```
+```py
 `$ ls /var/lib/dokku/data/storage/django-dokku
 
 mediafiles  staticfiles` 
@@ -487,7 +487,7 @@ mediafiles  staticfiles`
 
 目前我们有`DEBUG=1`并通过 Django 提供我们的静态和媒体文件:
 
-```
+```py
 `# core/urls.py
 
 if settings.DEBUG:
@@ -497,7 +497,7 @@ if settings.DEBUG:
 
 让我们禁用调试模式，并学习如何通过 Nginx 服务它们。
 
-```
+```py
 `$ dokku config:set django-dokku DEBUG=0` 
 ```
 
@@ -505,20 +505,20 @@ if settings.DEBUG:
 
 要将 Nginx 配置为在生产中提供静态和媒体文件，请在 Dokku 应用程序文件中创建一个名为“nginx.conf.d”的新目录。然后在这个目录中创建一个名为 *static.conf* 的新文件。
 
-```
+```py
 `$ mkdir -p /home/dokku/django-dokku/nginx.conf.d
 $ vi /home/dokku/django-dokku/nginx.conf.d/static.conf` 
 ```
 
 将以下内容放入 *static.conf* :
 
-```
+```py
 `location  /static/  { alias  /var/lib/dokku/data/storage/django-dokku/staticfiles/; } location  /media/  { alias  /var/lib/dokku/data/storage/django-dokku/mediafiles/; }` 
 ```
 
 目录结构:
 
-```
+```py
 `└── nginx.conf.d
     └── static.conf` 
 ```
@@ -527,7 +527,7 @@ $ vi /home/dokku/django-dokku/nginx.conf.d/static.conf`
 
 让 dokku 用户成为配置的所有者，并重新启动应用程序:
 
-```
+```py
 `$ chown -R dokku:dokku /home/dokku/django-dokku/nginx.conf.d
 $ dokku ps:restart django-dokku` 
 ```
@@ -543,7 +543,7 @@ $ dokku ps:restart django-dokku`
 
 由于这是一次性任务，我们将使用第一种方法:
 
-```
+```py
 `$ dokku run django-dokku python manage.py createsuperuser` 
 ```
 
@@ -551,7 +551,7 @@ $ dokku ps:restart django-dokku`
 
 要确保已成功创建超级用户，请导航到管理控制面板并登录。
 
-```
+```py
 `http://<your_droplet_ip_address>/admin` 
 ```
 
@@ -570,7 +570,7 @@ $ dokku ps:restart django-dokku`
 
 由于我们只有一个应用程序，我们将利用一个应用程序域。检查当前应用程序域设置:
 
-```
+```py
 `$ dokku domains:report django-dokku
 
 =====> django-dokku domains information
@@ -582,7 +582,7 @@ $ dokku ps:restart django-dokku`
 
 若要添加域，请前往您的域的注册商> DNS 设置，并创建一个指向您的 droplet 的 IP 地址的新“A 记录”,如下所示:
 
-```
+```py
 `+----------+--------------+----------------------------+-----------+ | Type     | Host         | Value                      | TTL       |
 +----------+--------------+----------------------------+-----------+ | A Record | <some host> | <your_droplet_ip_address> | Automatic |
 +----------+--------------+----------------------------+-----------+` 
@@ -590,7 +590,7 @@ $ dokku ps:restart django-dokku`
 
 示例:
 
-```
+```py
 `+----------+--------------+----------------------------+-----------+ | Type     | Host         | Value                      | TTL       |
 +----------+--------------+----------------------------+-----------+ | A Record | django-dokku | 159.89.24.5                | Automatic |
 +----------+--------------+----------------------------+-----------+` 
@@ -600,7 +600,7 @@ $ dokku ps:restart django-dokku`
 
 最后，将域添加到 Dokku:
 
-```
+```py
 `$  dokku  domains:set  django-dokku  django-dokku.testdriven.io ----->  Set  django-dokku.testdriven.io  for  django-dokku ----->  Configuring  django-dokku.testdriven.io...(using  built-in  template) ----->  Creating  http  nginx.conf Reloading  nginx` 
 ```
 
@@ -610,7 +610,7 @@ Dokku 将配置所有的东西(包括 Nginx 配置)来与域一起工作。
 
 再次检查域报告，您将看到一个新的应用虚拟主机:
 
-```
+```py
 `$ dokku domains:report django-dokku
 
 =====> django-dokku domains information
@@ -628,13 +628,13 @@ Dokku 将配置所有的东西(包括 Nginx 配置)来与域一起工作。
 
 首先，安装另一个名为 [dokku-letsencrypt](https://github.com/dokku/dokku-letsencrypt) 的 Dokku 社区插件:
 
-```
+```py
 `$ sudo dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git` 
 ```
 
 在获得证书之前，您需要添加一个带有您的电子邮件地址的 env 变量:
 
-```
+```py
 `$ dokku config:set --no-restart django-dokku DOKKU_LETSENCRYPT_EMAIL=<your_email>
 
 -----> Setting config vars
@@ -645,7 +645,7 @@ Dokku 将配置所有的东西(包括 Nginx 配置)来与域一起工作。
 
 接下来，运行插件命令来启用 HTTPS:
 
-```
+```py
 `$ sudo dokku letsencrypt:enable django-dokku` 
 ```
 
@@ -657,7 +657,7 @@ Dokku 将配置所有的东西(包括 Nginx 配置)来与域一起工作。
 
 要设置自动证书续订，请运行:
 
-```
+```py
 `$ dokku letsencrypt:cron-job --add` 
 ```
 
@@ -665,7 +665,7 @@ Dokku 将配置所有的东西(包括 Nginx 配置)来与域一起工作。
 
 最后，配置 Django 的`ALLOWED_HOSTS`只允许通过 HTTPS 访问网站:
 
-```
+```py
 `$ dokku config:set django-dokku "ALLOWED_HOSTS=localhost 127.0.0.1 [::1] <your_domain>"` 
 ```
 

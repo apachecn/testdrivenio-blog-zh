@@ -38,7 +38,7 @@
 
 版本一:
 
-```
+```py
 `numbers = []
 
 while True:
@@ -53,7 +53,7 @@ print('Numbers: %s' % numbers)`
 
 版本二:
 
-```
+```py
 `numbers = []
 
 while (answer := input("Enter a number: ")) != "quit":
@@ -64,7 +64,7 @@ print(f"Numbers: {numbers}")`
 
 版本三:
 
-```
+```py
 `numbers = []
 
 while True:
@@ -101,7 +101,7 @@ print(f"Numbers: {numbers}")`
 
 假设您将以下代码保存到一个名为 *my_module.py* 的文件中:
 
-```
+```py
 `from requests import *
 
 def get_error_message(error_type):
@@ -128,13 +128,13 @@ if __name__ == '__main__':
 
 要 lint 这个文件，您只需运行:
 
-```
+```py
 `$ python -m flake8 my_module.py` 
 ```
 
 这将产生以下输出:
 
-```
+```py
 `my_module.py:1:1: F403 'from requests import *' used; unable to detect undefined names
 my_module.py:3:1: E302 expected 2 blank lines, found 1
 my_module.py:15:11: F405 'get' may be undefined, or defined from star imports: requests
@@ -155,7 +155,7 @@ my_module.py:25:1: E303 too many blank lines (4)`
 
 纠正违规后，您应该:
 
-```
+```py
 `from requests import get
 
 def get_error_message(error_type):
@@ -184,7 +184,7 @@ if __name__ == '__main__':
 
 例如，`get_error_message`函数的复杂度为 4，因为有四个可能的分支(或代码路径):
 
-```
+```py
 `def get_error_message(error_type):
     if error_type == 404:
         return 'red'
@@ -198,19 +198,19 @@ if __name__ == '__main__':
 
 要强制最大复杂性为 3 或更低，请运行:
 
-```
+```py
 `$ python -m flake8 --max-complexity 3 my_module.py` 
 ```
 
 Flake8 应失败，出现以下情况:
 
-```
+```py
 `my_module.py:4:1: C901 'get_error_message' is too complex (4)` 
 ```
 
 像这样重构代码:
 
-```
+```py
 `def get_error_message(error_type):
     colors = {
         404: 'red',
@@ -222,31 +222,31 @@ Flake8 应失败，出现以下情况:
 
 薄片 8 现在应该通过:
 
-```
+```py
 `$ python -m flake8 --max-complexity 3 my_module.py` 
 ```
 
 你可以通过它强大的插件系统给 Flake8 添加额外的检查。例如，为了实施 PEP-8 命名约定，安装 [pep8-naming](https://github.com/PyCQA/pep8-naming) :
 
-```
+```py
 `$ pip install pep8-naming` 
 ```
 
 运行:
 
-```
+```py
 `$ python -m flake8 my_module.py` 
 ```
 
 您应该看到:
 
-```
+```py
 `my_module.py:15:6: N806 variable 'STATUS' in function should be lowercase` 
 ```
 
 修复:
 
-```
+```py
 `def main():
     res = get('https://api.github.com/events')
     status = res.status_code
@@ -286,7 +286,7 @@ Flake8 应失败，出现以下情况:
 
 然后，成组的导入按字母顺序逐个排列。
 
-```
+```py
 `# standard library
 import datetime
 import os
@@ -308,13 +308,13 @@ from your_module import some_method`
 
 要对单个文件运行它:
 
-```
+```py
 `$ python -m isort my_module.py` 
 ```
 
 之前:
 
-```
+```py
 `import os
 import datetime
 from your_module import some_method
@@ -325,7 +325,7 @@ from flask import Flask`
 
 之后:
 
-```
+```py
 `import datetime
 import os
 
@@ -338,7 +338,7 @@ from your_module import some_method`
 
 要检查您的导入是否正确排序，并且不做任何更改，请使用`--check-only`标志:
 
-```
+```py
 `$ python -m isort my_module.py --check-only
 
 ERROR: my_module.py Imports are incorrectly sorted and/or formatted.` 
@@ -346,7 +346,7 @@ ERROR: my_module.py Imports are incorrectly sorted and/or formatted.`
 
 要查看更改，而不应用更改，请使用`--diff`标志:
 
-```
+```py
 `$ python -m isort my_module.py --diff
 
 --- my_module.py:before      2022-02-28 22:04:45.977272
@@ -367,7 +367,7 @@ ERROR: my_module.py Imports are incorrectly sorted and/or formatted.`
 
 使用 isort 和 Black 时，您应该使用`--profile black` [选项](https://pycqa.github.io/isort/docs/configuration/black_compatibility.html),以避免代码风格冲突:
 
-```
+```py
 `$ python -m isort --profile black .` 
 ```
 
@@ -381,13 +381,13 @@ ERROR: my_module.py Imports are incorrectly sorted and/or formatted.`
 
 它也可以针对单个文件运行:
 
-```
+```py
 `$ python -m black my_module.py` 
 ```
 
 之前:
 
-```
+```py
 `import pytest
 
 @pytest.fixture(scope="module")
@@ -399,7 +399,7 @@ def authenticated_client(app):
 
 之后:
 
-```
+```py
 `import pytest
 
 @pytest.fixture(scope="module")
@@ -421,7 +421,7 @@ def authenticated_client(app):
 would reformat my_module.py
 Oh no! 💥 💔 💥
 1 file would be reformatted.` 
-```
+```py
 
 与此同时,`--diff`标志显示了当前代码和重新格式化后的代码之间的差异:
 
@@ -450,7 +450,7 @@ would reformat my_module.py
 
 All done! ✨ 🍰 ✨
 1 file would be reformatted.` 
-```
+```py
 
 > [YAPF](https://github.com/google/yapf) 和 [autopep8](https://github.com/hhatto/autopep8) 是类似于 Black 的代码格式化程序，也值得一看。
 
@@ -474,7 +474,7 @@ eval(evaluate)
 
 evaluate = 'open("secret_file.txt").read()'
 eval(evaluate)` 
-```
+```py
 
 您应该会看到以下警告:
 
@@ -500,7 +500,7 @@ eval(evaluate)`
 6   eval(evaluate)
 
 --------------------------------------------------` 
-```
+```py
 
 ### 安全
 
@@ -536,7 +536,7 @@ eval(evaluate)`
 | flask                      | 0.12.2    | <0.12.3                  | 36388    |
 | flask                      | 0.12.2    | <1.0                     | 38654    |
 +==============================================================================+` 
-```
+```py
 
 现在你已经知道了工具，下一个问题是:什么时候应该使用它们？
 
@@ -567,13 +567,13 @@ eval(evaluate)`
 
 ```
 `repos: -  repo:  https://gitlab.com/PyCQA/flake8 rev:  4.0.1 hooks: -  id:  flake8` 
-```
+```py
 
 最后，要设置 git 挂钩脚本，运行:
 
 ```
 `(venv)$ pre-commit install` 
-```
+```py
 
 现在，每次运行`git commit` Flake8 都会在实际提交之前运行。如果有任何问题，提交将被中止。
 
@@ -590,7 +590,7 @@ eval(evaluate)`
 ```
 `$ mkdir flask_example
 $ cd flask_example` 
-```
+```py
 
 接下来，用[诗歌](https://python-poetry.org)初始化你的项目:
 
@@ -607,14 +607,14 @@ Compatible Python versions [^3.10]:
 Would you like to define your main dependencies interactively? (yes/no) [yes] no
 Would you like to define your development dependencies interactively? (yes/no) [yes] no
 Do you confirm generation? (yes/no) [yes]` 
-```
+```py
 
 之后，添加 Flask、pytest、Flake8、Black、isort、Bandit 和 Safety:
 
 ```
 `$ poetry add flask
 $ poetry add --dev pytest flake8 black isort safety bandit` 
-```
+```py
 
 创建一个文件来保存名为 *test_app.py* 的测试:
 
@@ -633,7 +633,7 @@ def test_home(client):
     response = client.get('/')
 
     assert response.status_code == 200` 
-```
+```py
 
 接下来，为 Flask 应用程序添加一个名为 *app.py* 的文件:
 
@@ -648,7 +648,7 @@ def home():
 
 if __name__ == '__main__':
     app.run()` 
-```
+```py
 
 现在，我们准备添加预提交配置。
 
@@ -659,27 +659,27 @@ if __name__ == '__main__':
 ```
 `$ poetry add --dev pre-commit
 $ poetry run pre-commit install` 
-```
+```py
 
 为名为*的配置创建一个文件。预提交配置. yaml* :
 
 ```
 `repos: -  repo:  https://gitlab.com/PyCQA/flake8 rev:  4.0.1 hooks: -  id:  flake8` 
-```
+```py
 
 在提交之前，运行 isort 和 Black:
 
 ```
 `$ poetry run isort . --profile black
 $ poetry run black .` 
-```
+```py
 
 提交您的更改以触发预提交挂钩:
 
 ```
 `$ git add .
 $ git commit -m 'Initial commit'` 
-```
+```py
 
 最后，让我们通过 [GitHub Actions](https://github.com/features/actions) 配置一个 CI 管道。
 
@@ -689,13 +689,13 @@ $ git commit -m 'Initial commit'`
 `.github
 └── workflows
     └── main.yaml` 
-```
+```py
 
 *。github/workflows/main.yaml* :
 
 ```
 `name:  CI on:  [push] jobs: test: strategy: fail-fast:  false matrix: python-version:  [3.10.2] poetry-version:  [1.1.13] os:  [ubuntu-latest] runs-on:  ${{ matrix.os }} steps: -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) with: python-version:  ${{ matrix.python-version }} -  name:  Run image uses:  abatilo/[[email protected]](/cdn-cgi/l/email-protection) with: poetry-version:  ${{ matrix.poetry-version }} -  name:  Install dependencies run:  poetry install -  name:  Run tests run:  poetry run pytest code-quality: strategy: fail-fast:  false matrix: python-version:  [3.10.2] poetry-version:  [1.1.13] os:  [ubuntu-latest] runs-on:  ${{ matrix.os }} steps: -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) -  uses:  actions/[[email protected]](/cdn-cgi/l/email-protection) with: python-version:  ${{ matrix.python-version }} -  name:  Run image uses:  abatilo/[[email protected]](/cdn-cgi/l/email-protection) with: poetry-version:  ${{ matrix.poetry-version }} -  name:  Install dependencies run:  poetry install -  name:  Run black run:  poetry run black . --check -  name:  Run isort run:  poetry run isort . --check-only --profile black -  name:  Run flake8 run:  poetry run flake8 . -  name:  Run bandit run:  poetry run bandit . -  name:  Run saftey run:  poetry run safety check` 
-```
+```py
 
 这种配置:
 
@@ -711,7 +711,7 @@ $ git commit -m 'Initial commit'`
 ```
 `$ git add .github/workflows/main.yaml
 $ git commit -m 'Add CI config'` 
-```
+```py
 
 在 [GitHub](https://github.com/new) 上创建一个新的资源库，并将您的项目推送到新创建的 remote。
 

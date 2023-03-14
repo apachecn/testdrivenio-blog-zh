@@ -20,7 +20,7 @@
 
 Flask 是所有这些东西的包装。
 
-```
+```py
 `$ pip install Flask
 $ pip freeze
 
@@ -67,7 +67,7 @@ Werkzeug 提供以下功能(*哪个烧瓶使用*):
 
 首先创建一个新项目:
 
-```
+```py
 `$ mkdir werkzeug_movie_app
 $ cd werkzeug_movie_app
 $ python3 -m venv venv
@@ -77,7 +77,7 @@ $ source venv/bin/activate
 
 安装工具，Jinja，和[redis py](https://redis-py.readthedocs.io/):
 
-```
+```py
 `(venv)$ pip install Werkzeug Jinja2 redis
 (venv)$ pip freeze > requirements.txt` 
 ```
@@ -90,7 +90,7 @@ Werkzeug 是用于构建兼容 WSGI 的 web 应用程序的库集合。它没有
 
 在项目的顶层文件夹中创建一个新的 *app.py* 文件:
 
-```
+```py
 `from werkzeug.wrappers import Request, Response
 
 class MovieApp(object):
@@ -124,7 +124,7 @@ def create_app():
 
 当一个请求进来时，它在`wsgi_app()`中被处理:
 
-```
+```py
 `def wsgi_app(self, environ, start_response):
     """WSGI application that processes requests and returns responses."""
     request = Request(environ)
@@ -144,7 +144,7 @@ def create_app():
 
 将以下代码添加到 *app.py* 的底部，以运行 Werkzeug 开发服务器:
 
-```
+```py
 `if __name__ == '__main__':
     # Run the Werkzeug development server to serve the WSGI application (MovieApp)
     from werkzeug.serving import run_simple
@@ -172,7 +172,7 @@ web 服务器/应用程序要执行的一个重要功能是提供静态文件(CS
 
 要使用`SharedDataMiddleware`，首先将一个名为“static”的新文件夹添加到带有“css”和“img”文件夹的项目中:
 
-```
+```py
 `├── app.py
 ├── requirements.txt
 └── static
@@ -184,7 +184,7 @@ web 服务器/应用程序要执行的一个重要功能是提供静态文件(CS
 
  *接下来，扩展应用程序工厂功能:
 
-```
+```py
 `def create_app():
     """Application factory function that returns an instance of MovieApp."""
     app = MovieApp()
@@ -196,7 +196,7 @@ web 服务器/应用程序要执行的一个重要功能是提供静态文件(CS
 
 更新顶部的导入:
 
-```
+```py
 `import os
 
 from werkzeug.middleware.shared_data import SharedDataMiddleware
@@ -219,7 +219,7 @@ from werkzeug.wrappers import Request, Response`
 > 
 > 为了说明这个概念，在 Flask 应用程序的顶层项目中运行`flask routes`,您将看到:
 > 
-> ```
+> ```py
 > (venv)$ flask routes
 > 
 > Endpoint     Methods  Rule
@@ -234,7 +234,7 @@ from werkzeug.wrappers import Request, Response`
 
 首先向项目中添加一个名为“templates”的新文件夹:
 
-```
+```py
 `├── app.py
 ├── requirements.txt
 ├── static
@@ -246,7 +246,7 @@ from werkzeug.wrappers import Request, Response`
 
 为了利用 Jinja，扩展`MovieApp`类的构造函数:
 
-```
+```py
 `def __init__(self):
     """Initializes the Jinja templating engine to render from the 'templates' folder."""
     template_path = os.path.join(os.path.dirname(__file__), 'templates')
@@ -256,7 +256,7 @@ from werkzeug.wrappers import Request, Response`
 
 添加导入:
 
-```
+```py
 `from jinja2 import Environment, FileSystemLoader` 
 ```
 
@@ -266,7 +266,7 @@ from werkzeug.wrappers import Request, Response`
 
 在`MovieApp`类中，添加一个新的`render_template()`方法:
 
-```
+```py
 `def render_template(self, template_name, **context):
     """Renders the specified template file using the Jinja templating engine."""
     template = self.jinja_env.get_template(template_name)
@@ -281,7 +281,7 @@ from werkzeug.wrappers import Request, Response`
 
 要查看`render_template()`的运行情况，请更新`dispatch_request()`以呈现模板:
 
-```
+```py
 `def dispatch_request(self, request):
     """Dispatches the request."""
     return self.render_template('base.html')` 
@@ -289,7 +289,7 @@ from werkzeug.wrappers import Request, Response`
 
 对应用程序的所有请求现在都将呈现*模板/base.html* 模板。
 
-```
+```py
 `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -319,7 +319,7 @@ from werkzeug.wrappers import Request, Response`
 
 让我们在`MovieApp`构造函数中创建`Map`对象来说明这是如何工作的:
 
-```
+```py
 `def __init__(self):
     """Initializes the Jinja templating engine to render from the 'templates' folder."""
     template_path = os.path.join(os.path.dirname(__file__), 'templates')
@@ -333,13 +333,13 @@ from werkzeug.wrappers import Request, Response`
 
 不要忘记重要的一点:
 
-```
+```py
 `from werkzeug.routing import Map, Rule` 
 ```
 
 每个`Rule`对象定义一个 URL 和一个视图函数(`endpoint`)，如果 URL 匹配，则调用该函数:
 
-```
+```py
  `self.url_map = Map([
         Rule('/', endpoint='index'),
         Rule('/movies', endpoint='movies'),
@@ -354,7 +354,7 @@ from werkzeug.wrappers import Request, Response`
 
 为了利用 URL 映射，需要更新`dispatch_request()`:
 
-```
+```py
 `def dispatch_request(self, request):
     """Dispatches the request."""
     adapter = self.url_map.bind_to_environ(request.environ)
@@ -371,13 +371,13 @@ from werkzeug.wrappers import Request, Response`
 
 添加导入:
 
-```
+```py
 `from werkzeug.exceptions import HTTPException` 
 ```
 
 我们已经在`url_map`中指定了两个视图函数，所以现在让我们在`MovieApp`类中创建它们:
 
-```
+```py
 `def index(self, request):
     return self.render_template('base.html')
 
@@ -387,7 +387,7 @@ def movies(self, request):
 
 虽然 *templates/base.html* 已在前一部分创建，但现在需要创建 *templates/movies.html* :
 
-```
+```py
 `{% extends "base.html" %}
 
 {% block body %}
@@ -439,7 +439,7 @@ def movies(self, request):
 
 当在`url_map`中没有找到 URL 时，返回的页面是默认的错误页面:
 
-```
+```py
 `def dispatch_request(self, request):
     """Dispatches the request."""
     adapter = self.url_map.bind_to_environ(request.environ)
@@ -452,13 +452,13 @@ def movies(self, request):
 
 此外，您应该在控制台中看到以下内容:
 
-```
+```py
 `127.0.0.1 - - [07/Mar/2021 12:13:17] "GET /movies2 HTTP/1.1" 404 -` 
 ```
 
 让我们通过展开`dispatch_request()`来创建一个定制的错误页面:
 
-```
+```py
 `def dispatch_request(self, request):
     """Dispatches the request."""
     adapter = self.url_map.bind_to_environ(request.environ)
@@ -473,13 +473,13 @@ def movies(self, request):
 
 更新导入:
 
-```
+```py
 `from werkzeug.exceptions import HTTPException, NotFound` 
 ```
 
 现在，当在`url_map`中没有找到 URL 时，将通过调用`error_404()`来处理它。在`MovieApp`类中创建这个新方法:
 
-```
+```py
 `def error_404(self):
     response = self.render_template("404.html")
     response.status_code = 404
@@ -488,7 +488,7 @@ def movies(self, request):
 
 创建*模板/404.html* :
 
-```
+```py
 `{% extends "base.html" %}
 
 {% block body %}
@@ -520,7 +520,7 @@ def movies(self, request):
 
 > 启动和运行 Redis 的最快方法是使用 Docker:
 > 
-> ```
+> ```py
 > $ docker run --name some-redis -d -p 6379:6379 redis 
 > ```
 > 
@@ -528,7 +528,7 @@ def movies(self, request):
 > 
 > 要停止正在运行的 Redis 容器:
 > 
-> ```
+> ```py
 > $ docker stop some-redis  # Use name of Docker container
 > ```
 > 
@@ -536,7 +536,7 @@ def movies(self, request):
 
 为了利用 Redis，首先更新`MovieApp`构造函数来创建`StrictRedis`的实例:
 
-```
+```py
 `def __init__(self, config):  # Updated!!
     """Initializes the Jinja templating engine to render from the 'templates' folder,
  defines the mapping of URLs to view methods, and initializes the Redis interface."""
@@ -555,13 +555,13 @@ def movies(self, request):
 
 导入:
 
-```
+```py
 `from redis import StrictRedis` 
 ```
 
 传递给构造函数的配置参数需要在应用程序工厂函数中指定:
 
-```
+```py
 `def create_app():
     """Application factory function that returns an instance of MovieApp."""
     app = MovieApp({'redis_host': 'localhost', 'redis_port': 6379})
@@ -575,7 +575,7 @@ def movies(self, request):
 
 为了允许用户向 Redis 存储器添加电影，我们需要在`url_map`中添加一个新的查看功能:
 
-```
+```py
 `def __init__(self, config):
     """Initializes the Jinja templating engine to render from the 'templates' folder,
  defines the mapping of URLs to view methods, and initializes the Redis interface."""
@@ -593,7 +593,7 @@ def movies(self, request):
 
 `url_map`中的`Rule`条目已经扩展为指定每个 URL 允许的 HTTP 方法。此外，还添加了“/add”URL:
 
-```
+```py
 `Rule('/add', endpoint='add_movie', methods=['GET', 'POST']),` 
 ```
 
@@ -601,7 +601,7 @@ def movies(self, request):
 
 接下来，我们需要在`MovieApp`类中创建`add_movie()`视图函数:
 
-```
+```py
 `def add_movie(self, request):
     """Adds a movie to the list of favorite movies."""
     if request.method == 'POST':
@@ -613,7 +613,7 @@ def movies(self, request):
 
 导入:
 
-```
+```py
 `from werkzeug.utils import redirect` 
 ```
 
@@ -621,7 +621,7 @@ def movies(self, request):
 
 创建*模板/add_movie.html* 模板文件:
 
-```
+```py
 `{% extends "base.html" %}
 
 {% block body %}
@@ -643,7 +643,7 @@ def movies(self, request):
 
 因为我们现在将电影存储在 Redis 中，所以需要更新`movie()`视图函数来读取 Redis 中的`movies`列表:
 
-```
+```py
 `def movies(self, request):
     """Displays the list of favorite movies."""
     movies = self.redis.lrange('movies', 0, -1)
@@ -652,7 +652,7 @@ def movies(self, request):
 
 电影列表将被传递到 *templates/movies.html* 模板文件，该文件需要更新以遍历该列表来创建电影表:
 
-```
+```py
 `{% extends "base.html" %}
 
 {% block body %}

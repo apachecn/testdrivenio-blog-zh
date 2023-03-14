@@ -82,7 +82,7 @@ staticfiles 应用程序提供了以下[管理命令](https://docs.djangoproject
 > 
 > 假设你有两个 Django 应用，`app1`和`app2`。每个应用程序都有一个名为“静态”的文件夹，在每个文件夹中，都有一个名为 *app.css* 的文件。来自 *settings.py* 的相关设置:
 > 
-> ```
+> ```py
 > `STATIC_ROOT = 'staticfiles'
 > 
 > INSTALLED_APPS = [
@@ -94,7 +94,7 @@ staticfiles 应用程序提供了以下[管理命令](https://docs.djangoproject
 > 
 > 运行`python manage.py collectstatic`时，将创建“staticfiles”目录，并将适当的静态文件复制到其中:
 > 
-> ```
+> ```py
 > `$ ls staticfiles/
 > 
 > admin   app.css` 
@@ -102,7 +102,7 @@ staticfiles 应用程序提供了以下[管理命令](https://docs.djangoproject
 > 
 > 只有一个 *app.css* 文件，因为当存在多个同名文件时，staticfiles finder 将使用第一个找到的文件。要查看哪个文件被复制，您可以使用`findstatic`命令:
 > 
-> ```
+> ```py
 > `$ python manage.py findstatic app.css
 > 
 > Found 'app.css' here:
@@ -112,7 +112,7 @@ staticfiles 应用程序提供了以下[管理命令](https://docs.djangoproject
 > 
 > 由于只收集第一个遇到的文件，要检查复制到“staticfiles”目录的 *app.css* 的源代码，请运行:
 > 
-> ```
+> ```py
 > `$ python manage.py findstatic app.css --first
 > 
 > Found 'app.css' here:
@@ -136,7 +136,7 @@ staticfiles 应用程序提供了以下[管理命令](https://docs.djangoproject
 
 例如:
 
-```
+```py
 `{% load static %}
 
 <link rel="stylesheet" href="{% static 'base.css' %}">` 
@@ -154,7 +154,7 @@ staticfiles 应用程序提供了以下[管理命令](https://docs.djangoproject
 
 典型开发配置:
 
-```
+```py
 `# settings.py
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -181,7 +181,7 @@ STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'`
 
 Nginx 配置示例:
 
-```
+```py
 `upstream  hello_django  { server  web:8000; } server  { listen  80; location  /  { proxy_pass  http://hello_django; proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for; proxy_set_header  Host  $host; proxy_redirect  off; } location  /static/  { alias  /home/app/web/staticfiles/; } }` 
 ```
 
@@ -200,7 +200,7 @@ Nginx 配置示例:
 
 最基本的设置很简单。安装完软件包后，将 WhiteNoise 添加到除了`django.middleware.security.SecurityMiddleware`之外的所有其他中间件之上的`MIDDLEWARE`列表中:
 
-```
+```py
 `MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # <---- WhiteNoise!
@@ -215,7 +215,7 @@ Nginx 配置示例:
 
 然后，为了支持压缩和缓存，像这样更新`STATICFILES_STORAGE`:
 
-```
+```py
 `STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'` 
 ```
 
@@ -239,7 +239,7 @@ Nginx 配置示例:
 
 典型开发配置:
 
-```
+```py
 `MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'uploads'` 
 ```
@@ -248,7 +248,7 @@ MEDIA_ROOT = BASE_DIR / 'uploads'`
 
 示例:
 
-```
+```py
 `from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -267,7 +267,7 @@ if settings.DEBUG:
 
 Nginx 配置示例:
 
-```
+```py
 `upstream  hello_django  { server  web:8000; } server  { listen  80; location  /  { proxy_pass  http://hello_django; proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for; proxy_set_header  Host  $host; proxy_redirect  off; } location  /media/  { alias  /home/app/web/mediafiles/; } }` 
 ```
 

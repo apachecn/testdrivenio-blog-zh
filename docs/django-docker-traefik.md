@@ -8,7 +8,7 @@
 
 首先创建一个项目目录:
 
-```
+```py
 `$ mkdir django-docker-traefik && cd django-docker-traefik
 $ mkdir app && cd app
 $ python3.11 -m venv venv
@@ -19,7 +19,7 @@ $ source venv/bin/activate`
 
 接下来，让我们安装 Django 并创建一个简单的 Django 应用程序:
 
-```
+```py
 `(venv)$ pip install django==4.1.6
 (venv)$ django-admin startproject config .
 (venv)$ python manage.py migrate` 
@@ -27,7 +27,7 @@ $ source venv/bin/activate`
 
 运行应用程序:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -39,7 +39,7 @@ $ source venv/bin/activate`
 
 您的项目目录应该如下所示:
 
-```
+```py
 `└── app
     ├── config
     │   ├── __init__.py
@@ -55,7 +55,7 @@ $ source venv/bin/activate`
 
 安装 [Docker](https://docs.docker.com/install/) ，如果你还没有，那么在“app”目录下添加一个 *Dockerfile* :
 
-```
+```py
 `# app/Dockerfile
 
 # pull the official docker image
@@ -87,7 +87,7 @@ COPY  . .`
 
 接下来，将一个 *docker-compose.yml* 文件添加到项目根:
 
-```
+```py
 `# docker-compose.yml version:  '3.8' services: web: build:  ./app command:  python manage.py runserver 0.0.0.0:8000 volumes: -  ./app:/app ports: -  8008:8000 environment: -  DEBUG=1` 
 ```
 
@@ -107,7 +107,7 @@ COPY  . .`
 
 首先，向 *docker-compose.yml* 添加一个名为`db`的新服务:
 
-```
+```py
 `# docker-compose.yml version:  '3.8' services: web: build:  ./app command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; python manage.py runserver 0.0.0.0:8000' volumes: -  ./app:/app ports: -  8008:8000 environment: -  DEBUG=1 -  DATABASE_URL=postgresql://django_traefik:[[email protected]](/cdn-cgi/l/email-protection):5432/django_traefik depends_on: -  db db: image:  postgres:15-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=django_traefik -  POSTGRES_PASSWORD=django_traefik -  POSTGRES_DB=django_traefik volumes: postgres_data:` 
 ```
 
@@ -119,7 +119,7 @@ COPY  . .`
 
 注意`web`服务中的新命令:
 
-```
+```py
 `bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; python manage.py runserver 0.0.0.0:8000'` 
 ```
 
@@ -127,7 +127,7 @@ COPY  . .`
 
 要配置 Postgres，添加 [django-environ](https://django-environ.readthedocs.io/en/latest/) ，加载/读取环境变量，添加 [Psycopg2](https://github.com/psycopg/psycopg2) 到 *requirements.txt* :
 
-```
+```py
 `Django==4.1.6
 django-environ==0.9.0
 psycopg2-binary==2.9.5` 
@@ -135,7 +135,7 @@ psycopg2-binary==2.9.5`
 
 初始化 *config/settings.py* 顶部的 environ:
 
-```
+```py
 `# config/settings.py
 
 import environ
@@ -145,7 +145,7 @@ env = environ.Env()`
 
 然后，更新`DATABASES`字典:
 
-```
+```py
 `# config/settings.py
 
 DATABASES = {
@@ -155,13 +155,13 @@ DATABASES = {
 
 django-environ 将自动解析我们添加到 *docker-compose.yml* 中的数据库连接 URL 字符串:
 
-```
+```py
 `DATABASE_URL=postgresql://django_traefik:django_traefik@db:5432/django_traefik` 
 ```
 
 同样更新`DEBUG`变量:
 
-```
+```py
 `# config/settings.py
 
 DEBUG = env('DEBUG')` 
@@ -169,19 +169,19 @@ DEBUG = env('DEBUG')`
 
 构建新的映像并旋转两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 运行初始迁移:
 
-```
+```py
 `$ docker-compose exec web python manage.py migrate --noinput` 
 ```
 
 确保创建了默认的 Django 表:
 
-```
+```py
 `$ docker-compose exec db psql --username=django_traefik --dbname=django_traefik
 
 psql (15.2)
@@ -223,13 +223,13 @@ django_traefik=# \q`
 
 您也可以通过运行以下命令来检查该卷是否已创建:
 
-```
+```py
 `$ docker volume inspect django-docker-traefik_postgres_data` 
 ```
 
 您应该会看到类似如下的内容:
 
-```
+```py
 `[
     {
         "CreatedAt": "2023-02-11T18:01:42Z",
@@ -251,7 +251,7 @@ django_traefik=# \q`
 
 接下来，对于生产环境，让我们将 [Gunicorn](https://gunicorn.org/) ，一个生产级的 WSGI 服务器，添加到需求文件中:
 
-```
+```py
 `Django==4.1.6
 django-environ==0.9.0
 psycopg2-binary==2.9.5
@@ -260,7 +260,7 @@ gunicorn==20.1.0`
 
 由于我们仍然希望在开发中使用 Django 的内置服务器，因此为生产创建一个名为 *docker-compose.prod.yml* 的新合成文件:
 
-```
+```py
 `# docker-compose.prod.yml version:  '3.8' services: web: build:  ./app command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; gunicorn --bind 0.0.0.0:8000 config.wsgi' ports: -  8008:8000 environment: -  DEBUG=0 -  DATABASE_URL=postgresql://django_traefik:[[email protected]](/cdn-cgi/l/email-protection):5432/django_traefik depends_on: -  db db: image:  postgres:15-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=django_traefik -  POSTGRES_PASSWORD=django_traefik -  POSTGRES_DB=django_traefik volumes: postgres_data_prod:` 
 ```
 
@@ -272,13 +272,13 @@ gunicorn==20.1.0`
 
 然后，构建生产映像并启动容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
 运行迁移:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput` 
 ```
 
@@ -290,7 +290,7 @@ gunicorn==20.1.0`
 
 创建一个名为 *Dockerfile.prod* 的新 Dockerfile，用于生产构建:
 
-```
+```py
 `# app/Dockerfile.prod
 
 ###########
@@ -364,13 +364,13 @@ USER  app`
 
 更新 *docker-compose.prod.yml* 文件中的`web`服务，用 *Dockerfile.prod* 构建:
 
-```
+```py
 `web: build: context:  ./app dockerfile:  Dockerfile.prod command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; gunicorn --bind 0.0.0.0:8000 config.wsgi' ports: -  8008:8000 environment: -  DEBUG=0 -  DATABASE_URL=postgresql://django_traefik:[[email protected]](/cdn-cgi/l/email-protection):5432/django_traefik depends_on: -  db` 
 ```
 
 现在，让我们重建生产映像并启动容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml down -v
 $ docker-compose -f docker-compose.prod.yml up -d --build
 $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput` 
@@ -398,7 +398,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 添加一个名为 *traefik.dev.toml* 的新文件:
 
-```
+```py
 `# traefik.dev.toml # listen on port 80 [entryPoints] [entryPoints.web] address  =  ":80" # Traefik dashboard over http [api] insecure  =  true [log] level  =  "DEBUG" [accessLog] # containers are not discovered automatically [providers] [providers.docker] exposedByDefault  =  false` 
 ```
 
@@ -406,7 +406,7 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 接下来，更新 *docker-compose.yml* 文件，以便 Traefik 发现我们的`web`服务并添加一个新的`traefik`服务:
 
-```
+```py
 `# docker-compose.yml version:  '3.8' services: web: build:  ./app command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; python manage.py runserver 0.0.0.0:8000' volumes: -  ./app:/app expose:  # new -  8000 environment: -  DEBUG=1 -  DATABASE_URL=postgresql://django_traefik:[[email protected]](/cdn-cgi/l/email-protection):5432/django_traefik depends_on: -  db labels:  # new -  "traefik.enable=true" -  "traefik.http.routers.django.rule=Host(`django.localhost`)" db: image:  postgres:15-alpine volumes: -  postgres_data:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=django_traefik -  POSTGRES_PASSWORD=django_traefik -  POSTGRES_DB=django_traefik traefik:  # new image:  traefik:v2.9.6 ports: -  8008:80 -  8081:8080 volumes: -  "$PWD/traefik.dev.toml:/etc/traefik/traefik.toml" -  "/var/run/docker.sock:/var/run/docker.sock:ro" volumes: postgres_data:` 
 ```
 
@@ -422,14 +422,14 @@ $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --
 
 要进行测试，首先取下任何现有的容器:
 
-```
+```py
 `$ docker-compose down -v
 $ docker-compose -f docker-compose.prod.yml down -v` 
 ```
 
 构建新的开发映像并启动容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -453,7 +453,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 首先将 Traefik 配置的生产版本添加到名为 *traefik.prod.toml* 的文件中:
 
-```
+```py
 `# traefik.prod.toml [entryPoints] [entryPoints.web] address  =  ":80" [entryPoints.web.http] [entryPoints.web.http.redirections] [entryPoints.web.http.redirections.entryPoint] to  =  "websecure" scheme  =  "https" [entryPoints.websecure] address  =  ":443" [accessLog] [api] dashboard  =  true [providers] [providers.docker] exposedByDefault  =  false [certificatesResolvers.letsencrypt.acme] email  =  "[[email protected]](/cdn-cgi/l/email-protection)" storage  =  "/certificates/acme.json" [certificatesResolvers.letsencrypt.acme.httpChallenge] entryPoint  =  "web"` 
 ```
 
@@ -469,7 +469,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 最后，请注意:
 
-```
+```py
 `[certificatesResolvers.letsencrypt.acme] email  =  "[[email protected]](/cdn-cgi/l/email-protection)" storage  =  "/certificates/acme.json" [certificatesResolvers.letsencrypt.acme.httpChallenge] entryPoint  =  "web"` 
 ```
 
@@ -484,7 +484,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 接下来，像这样更新 *docker-compose.prod.yml* :
 
-```
+```py
 `# docker-compose.prod.yml version:  '3.8' services: web: build: context:  ./app dockerfile:  Dockerfile.prod command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; gunicorn --bind 0.0.0.0:8000 config.wsgi' expose:  # new -  8000 environment: -  DEBUG=0 -  DATABASE_URL=postgresql://django_traefik:[[email protected]](/cdn-cgi/l/email-protection):5432/django_traefik -  DJANGO_ALLOWED_HOSTS=.your-domain.com depends_on: -  db labels:  # new -  "traefik.enable=true" -  "traefik.http.routers.django.rule=Host(`django-traefik.your-domain.com`)" -  "traefik.http.routers.django.tls=true" -  "traefik.http.routers.django.tls.certresolver=letsencrypt" db: image:  postgres:15-alpine volumes: -  postgres_data_prod:/var/lib/postgresql/data/ expose: -  5432 environment: -  POSTGRES_USER=django_traefik -  POSTGRES_PASSWORD=django_traefik -  POSTGRES_DB=django_traefik traefik:  # new build: context:  . dockerfile:  Dockerfile.traefik ports: -  80:80 -  443:443 volumes: -  "/var/run/docker.sock:/var/run/docker.sock:ro" -  "./traefik-public-certificates:/certificates" labels: -  "traefik.enable=true" -  "traefik.http.routers.dashboard.rule=Host(`dashboard-django-traefik.your-domain.com`)" -  "traefik.http.routers.dashboard.tls=true" -  "traefik.http.routers.dashboard.tls.certresolver=letsencrypt" -  "[[email protected]](/cdn-cgi/l/email-protection)" -  "traefik.http.routers.dashboard.middlewares=auth" -  "traefik.http.middlewares.auth.basicauth.users=testuser:$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1" volumes: postgres_data_prod: traefik-public-certificates:` 
 ```
 
@@ -510,7 +510,7 @@ $ docker-compose -f docker-compose.prod.yml down -v`
 
 您可以使用 htpasswd 实用程序创建新的密码哈希:
 
-```
+```py
 `# username: testuser
 # password: password
 
@@ -520,14 +520,14 @@ testuser:$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1`
 
 随意使用一个`env_file`来存储用户名和密码作为环境变量
 
-```
+```py
 `USERNAME=testuser
 HASHED_PASSWORD=$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1` 
 ```
 
 接下来，更新 *config/settings.py* 中的`ALLOWED_HOSTS`环境变量，如下所示:
 
-```
+```py
 `# config/settings.py
 
 ALLOWED_HOSTS = env('DJANGO_ALLOWED_HOSTS', default=[])` 
@@ -535,7 +535,7 @@ ALLOWED_HOSTS = env('DJANGO_ALLOWED_HOSTS', default=[])`
 
 最后，添加一个名为 *Dockerfile.traefik* 的新 Dockerfile:
 
-```
+```py
 `# Dockerfile.traefik
 
 FROM  traefik:v2.9.6
@@ -545,7 +545,7 @@ COPY  ./traefik.prod.toml ./etc/traefik/traefik.toml`
 
 接下来，旋转新容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
@@ -564,7 +564,7 @@ COPY  ./traefik.prod.toml ./etc/traefik/traefik.toml`
 
 首先，将包添加到 *requirements.txt* 文件中:
 
-```
+```py
 `Django==4.1.6
 django-environ==0.9.0
 psycopg2-binary==2.9.5
@@ -574,7 +574,7 @@ whitenoise==6.3.0`
 
 像这样更新 *config/settings.py* 中的中间件:
 
-```
+```py
 `# config/settings.py
 
 MIDDLEWARE = [
@@ -591,7 +591,7 @@ MIDDLEWARE = [
 
 然后用`STATIC_ROOT`配置静态文件的处理:
 
-```
+```py
 `# config/settings.py
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'` 
@@ -599,7 +599,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'`
 
 最后，添加压缩和缓存支持:
 
-```
+```py
 `# config/settings.py
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'` 
@@ -607,13 +607,13 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'`
 
 要进行测试，请更新图像和容器:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml up -d --build` 
 ```
 
 收集静态文件:
 
-```
+```py
 `$ docker-compose -f docker-compose.prod.yml exec web python manage.py collectstatic` 
 ```
 

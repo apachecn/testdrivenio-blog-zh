@@ -32,7 +32,7 @@
 
 ### 姜戈
 
-```
+```py
 `from django.http import JsonResponse
 
 def ping(request):
@@ -44,7 +44,7 @@ def ping(request):
 
 ### 瓶
 
-```
+```py
 `from flask import Flask, request, jsonify
 
 @app.route('/ping')
@@ -57,7 +57,7 @@ def ping():
 
 ### FastAPI
 
-```
+```py
 `from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -73,7 +73,7 @@ def ping(request: Request):
 
 您还需要建立一种机制来计算请求和响应时间。如果您的客户端是浏览器，那么您可以设置一个简单的 JavaScript 函数，如下所示:
 
-```
+```py
 `function  ping()  { const  startTime  =  new  Date().getTime();  // start the timer const  xhr  =  new  XMLHttpRequest();  // create a new request xhr.open("GET",  "/ping",  true);  // call the ping endpoint xhr.onreadystatechange  =  function  ()  { if  (xhr.readyState  ==  4)  { const  endTime  =  new  Date().getTime();  // stop the timer const  time  =  endTime  -  startTime;  // calculate the time it took to get the response console.log(time); } } xhr.send(); }` 
 ```
 
@@ -91,13 +91,13 @@ def ping(request: Request):
 
 例如:
 
-```
+```py
 `Time:  71ms Time:  76ms Time:  65ms Time:  67ms Time:  64ms Time:  75ms Time:  71ms Time:  70ms Time:  72ms Time:  75ms` 
 ```
 
 如果你有一个 VPN，你可以看到世界各地用户的响应时间。以下是西班牙某 IP 的样子:
 
-```
+```py
 `Time:  324ms Time:  320ms Time:  320ms Time:  330ms Time:  324ms Time:  319ms Time:  326ms Time:  321ms Time:  320ms Time:  324ms` 
 ```
 

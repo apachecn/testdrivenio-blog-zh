@@ -10,7 +10,7 @@ CSRF 代表跨站点请求伪造，是一种针对 web 应用程序的攻击，�
 
 这种攻击通常是通过诱骗用户点击按钮或提交表单来实现的。例如，假设您的银行 web 应用程序容易受到 CSRF 攻击。攻击者可以创建一个包含以下形式的银行网站的克隆:
 
-```
+```py
 `<form action="https://centralbank.com/api/account" method="POST">
   <input type="hidden" name="transaction" value="transfer">
   <input type="hidden" name="amount" value="100">
@@ -48,7 +48,7 @@ CSRF 代表跨站点请求伪造，是一种针对 web 应用程序的攻击，�
 
 浏览器将随每个后续请求一起向`localhost:5000`域发送 cookie。记下与 *app.py* 中的账户页面相关联的路线:
 
-```
+```py
 `@app.route("/accounts", methods=["GET", "POST"])
 @login_required
 def accounts():
@@ -73,7 +73,7 @@ def accounts():
 
 这里没有什么太复杂的:在 POST 请求中，从用户的余额中减去提供的金额，并添加到与提供的帐号相关联的余额中。当用户通过身份验证时，银行服务器基本上信任来自浏览器的请求。由于这个路由处理程序无法抵御 CSRF 攻击，攻击者可以利用这种信任，诱使某人在不知情的情况下在银行服务器上执行操作。这正是 *hacker/index.html* 页面所做的:
 
-```
+```py
 `<form hidden id="hack" target="csrf-frame" action="http://localhost:5000/accounts" method="POST" autocomplete="off">
     <input type="number" name="amount" value="2000">
 </form>
@@ -89,7 +89,7 @@ def accounts():
 
 您可以在 [http://localhost:8002](http://localhost:8002) 上提供此页面，方法是导航到项目目录，并在新的终端窗口中运行以下命令:
 
-```
+```py
 `$ python -m http.server --directory hacker 8002` 
 ```
 
@@ -121,7 +121,7 @@ def accounts():
 
 接下来，在 *app.py* 中全局注册 [CSRFProtect](https://flask-wtf.readthedocs.io/csrf.html#csrf-protection) :
 
-```
+```py
 `from flask import Flask, Response, abort, redirect, render_template, request, url_for
 from flask_login import (
     LoginManager,
@@ -154,7 +154,7 @@ csrf.init_app(app)
 
 *模板/索引. html* :
 
-```
+```py
 `<form action='/' method='POST' autocomplete="off">
     <input type='text' name='username' id='email' placeholder='username'/>
     <input type='password' name='password' id='password' placeholder='password'/>
@@ -165,7 +165,7 @@ csrf.init_app(app)
 
 *模板/账户. html* :
 
-```
+```py
 `<h3>Central bank account of {{username}}</h3> <a href="/logout">logout</a>
 
 <br><br>
@@ -185,7 +185,7 @@ csrf.init_app(app)
 
 如果在 *hacker/index.html* 中的表单中添加相同的隐藏字段会怎么样？
 
-```
+```py
 `<form hidden id="hack" target="csrf-frame" action="http://localhost:5000/accounts" method="POST" autocomplete="off">
     <input type="number" name="amount" value="2000">
     <input type="number" name="account" value="2">

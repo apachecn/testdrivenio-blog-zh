@@ -38,7 +38,7 @@ Django 中的权限遵循以下命名顺序:
 
 让我们假设我们在一个名为“博客”的应用程序中有以下模型:
 
-```
+```py
 `from django.db import models
 
 class Post(models.Model):
@@ -55,7 +55,7 @@ class Post(models.Model):
 
 然后，您可以检查用户(通过 Django 用户对象)是否拥有使用`has_perm()`方法的权限:
 
-```
+```py
 `from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User, Permission
 from django.contrib.contenttypes.models import ContentType
@@ -89,7 +89,7 @@ print(user.has_perm("blog.view_post"))
 
 超级用户将始终拥有设置为`True`的权限，即使该权限不存在:
 
-```
+```py
 `from django.contrib.auth.models import User
 
 superuser = User.objects.create_superuser(
@@ -128,7 +128,7 @@ print(superuser.has_perm("foo.add_bar"))`
 
 代码:
 
-```
+```py
 `from django.contrib.auth.models import Group, User, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
@@ -173,7 +173,7 @@ print(user.has_perm("blog.add_post")) # => True`
 
 要在基于类的视图中实施权限，您可以使用来自`django.contrib.auth.mixins`的[permissionrequiredminix](https://docs.djangoproject.com/en/4.0/topics/auth/default/#django.contrib.auth.mixins.PermissionRequiredMixin)，如下所示:
 
-```
+```py
 `from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.views.generic import ListView
 
@@ -187,7 +187,7 @@ class PostListView(PermissionRequiredMixin, ListView):
 
 `permission_required`可以是单一权限，也可以是可重复的权限。如果使用 iterable，用户必须拥有所有权限才能访问视图:
 
-```
+```py
 `from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.views.generic import ListView
 
@@ -201,7 +201,7 @@ class PostListView(PermissionRequiredMixin, ListView):
 
 对于基于函数的视图，使用`permission_required`装饰器:
 
-```
+```py
 `from django.contrib.auth.decorators import permission_required
 
 @permission_required("blog.view_post")
@@ -213,7 +213,7 @@ def post_list_view(request):
 
 例如:
 
-```
+```py
 `{% if perms.blog.view_post %}
   {# Your content here #}
 {% endif %}` 
@@ -225,7 +225,7 @@ def post_list_view(request):
 
 让我们给`Post`模型添加一个`is_published`标志:
 
-```
+```py
 `from django.db import models
 
 class Post(models.Model):
@@ -236,7 +236,7 @@ class Post(models.Model):
 
 接下来，我们将设置一个名为`set_published_status`的自定义权限:
 
-```
+```py
 `from django.db import models
 
 class Post(models.Model):
@@ -257,7 +257,7 @@ class Post(models.Model):
 
 下面是一个基于类的视图，它检查用户是否有权限设置帖子的发布状态:
 
-```
+```py
 `from django.contrib.auth.mixins import UserPassesTestMixin
 from django.shortcuts import render
 from django.views.generic import View

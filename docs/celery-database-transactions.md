@@ -38,7 +38,7 @@
 
 让我们先来看看 Django 的观点:
 
-```
+```py
 `def test_view(request):
     user = User.objects.create_user('john', '[[email protected]](/cdn-cgi/l/email-protection)', 'johnpassword')
     logger.info(f'create user {user.pk}')
@@ -59,7 +59,7 @@ Django 的默认行为是[自动提交](https://docs.djangoproject.com/en/3.2/to
 
 因此，让我们使用`transaction.atomic`重写视图:
 
-```
+```py
 `def transaction_test(request):
     with transaction.atomic():
         user = User.objects.create_user('john1', '[[email protected]](/cdn-cgi/l/email-protection)', 'johnpassword')
@@ -73,7 +73,7 @@ Django 的默认行为是[自动提交](https://docs.djangoproject.com/en/3.2/to
 
 它也可以像这样用作装饰器:
 
-```
+```py
 `@transaction.atomic
 def transaction_test2(request):
     user = User.objects.create_user('john1', '[[email protected]](/cdn-cgi/l/email-protection)hebeatles.com', 'johnpassword')
@@ -85,7 +85,7 @@ def transaction_test2(request):
 
 如果您想将`transaction.atomic`用于所有视图功能，您可以在 Django 设置文件中将`ATOMIC_REQUESTS`设置为`True`:
 
-```
+```py
 `ATOMIC_REQUESTS=True
 
 # or
@@ -95,7 +95,7 @@ DATABASES["default"]["ATOMIC_REQUESTS"] = True`
 
 然后，您可以覆盖该行为，以便视图以自动提交模式运行:
 
-```
+```py
 `@transaction.non_atomic_requests` 
 ```
 
@@ -105,7 +105,7 @@ DATABASES["default"]["ATOMIC_REQUESTS"] = True`
 
 让我们看一个例子:
 
-```
+```py
 `@transaction.atomic
 def transaction_celery(request):
     username = random_username()
@@ -119,7 +119,7 @@ def transaction_celery(request):
 
 任务代码如下所示:
 
-```
+```py
 `@shared_task()
 def task_send_welcome_email(user_pk):
     user = User.objects.get(pk=user_pk)
@@ -132,7 +132,7 @@ def task_send_welcome_email(user_pk):
 
 运行时，您会看到以下错误:
 
-```
+```py
 `django.contrib.auth.models.User.DoesNotExist: User matching query does not exist.` 
 ```
 
@@ -151,13 +151,13 @@ def task_send_welcome_email(user_pk):
 
     例如，要暂停 10 秒钟:
 
-    ```
+    ```py
     task_send_welcome_email.apply_async(args=[user.pk], countdown=10) 
     ```
 
 3.  Django 有一个名为`transaction.on_commit`的回调函数，在事务成功提交后执行。要使用它，请按如下方式更新视图:
 
-    ```
+    ```py
     @transaction.atomic
     def transaction_celery2(request):
         username = random_username()
@@ -186,7 +186,7 @@ Django 的`TestCase`将每个测试包装在一个事务中，然后在每个测
 
 一个简单的方法是`with transaction.atomic()`:
 
-```
+```py
 `@shared_task()
 def task_transaction_test():
     with transaction.atomic():
@@ -200,7 +200,7 @@ def task_transaction_test():
 
 更好的方法是编写一个支持`transaction`的自定义`decorator`:
 
-```
+```py
 `class custom_celery_task:
     """
  This is a decorator we can use to add custom logic to our Celery task

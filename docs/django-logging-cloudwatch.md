@@ -39,7 +39,7 @@
 
 > 您也可以从命令行附加角色，如下所示:
 > 
-> ```
+> ```py
 > $ aws ec2 associate-iam-instance-profile \
 >     --instance-id <YOUR_INSTANCE_ID> \
 >     --iam-instance-profile Name=CloudWatchAgentRole 
@@ -55,7 +55,7 @@ SSH 到 EC2 实例，直接从 S3 下载并安装 CloudWatch 日志代理。
 
 示例:
 
-```
+```py
 `# download
 $ curl https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
 
@@ -69,7 +69,7 @@ $ sudo dpkg -i -E ./amazon-cloudwatch-agent.deb`
 
 例如:
 
-```
+```py
 `LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -93,13 +93,13 @@ $ sudo dpkg -i -E ./amazon-cloudwatch-agent.deb`
 
 例如:
 
-```
+```py
 `version:  "3.8" services: api: build:  ./project command:  gunicorn core.wsgi:application --bind 0.0.0.0:8000 --log-level=debug logging: driver:  "awslogs" options: awslogs-region:  "us-east-1" awslogs-group:  "your-log-group" awslogs-stream:  "your-log-stream"` 
 ```
 
 不使用 compose？假设您已经构建并标记了图像，像这样旋转容器:
 
-```
+```py
 `$ docker run \
     --log-driver="awslogs" \
     --log-opt awslogs-region="use-east-1" \

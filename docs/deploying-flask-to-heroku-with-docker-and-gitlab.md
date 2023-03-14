@@ -23,7 +23,7 @@
 
 如果你想继续，从 GitHub 克隆出 [flask-vue-crud](https://github.com/testdrivenio/flask-vue-crud) repo，创建并激活一个虚拟环境，然后启动 flask 应用程序:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/flask-vue-crud
 $ cd flask-vue-crud
 $ cd server
@@ -41,7 +41,7 @@ $ source env/bin/activate
 
 然后，安装依赖项并在不同的终端选项卡中运行 Vue 应用程序:
 
-```
+```py
 `$ cd client
 $ npm install
 $ npm run serve` 
@@ -59,7 +59,7 @@ $ npm run serve`
 
 将以下 Dockerfile 文件添加到项目根目录。
 
-```
+```py
 `# build
 FROM  node:15.7.0-alpine3.10  as  build-vue
 WORKDIR  /app
@@ -99,32 +99,32 @@ CMD  gunicorn -b 0.0.0.0:5000 app:app --daemon && \
 
 接下来，向项目根目录添加一个名为“nginx”的新文件夹，然后向该文件夹添加一个名为 *default.conf* 的新配置文件:
 
-```
+```py
 `server  { listen  $PORT; root  /usr/share/nginx/html; index  index.html  index.html; location  /  { try_files  $uri  /index.html  =404; } location  /ping  { proxy_pass  http://127.0.0.1:5000; proxy_http_version  1.1; proxy_redirect  default; proxy_set_header  Upgrade  $http_upgrade; proxy_set_header  Connection  "upgrade"; proxy_set_header  Host  $host; proxy_set_header  X-Real-IP  $remote_addr; proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for; proxy_set_header  X-Forwarded-Host  $server_name; } location  /books  { proxy_pass  http://127.0.0.1:5000; proxy_http_version  1.1; proxy_redirect  default; proxy_set_header  Upgrade  $http_upgrade; proxy_set_header  Connection  "upgrade"; proxy_set_header  Host  $host; proxy_set_header  X-Real-IP  $remote_addr; proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for; proxy_set_header  X-Forwarded-Host  $server_name; } }` 
 ```
 
 要进行本地测试，首先删除*client/src/components/books . vue*和*client/src/components/ping . vue*中的`http://localhost:5000`的所有实例。例如，`Books`组件中的`getBooks`方法现在应该是这样的:
 
-```
+```py
 `getBooks()  { const  path  =  '/books'; axios.get(path) .then((res)  =>  { this.books  =  res.data.books; }) .catch((error)  =>  { // eslint-disable-next-line console.error(error); }); },` 
 ```
 
 接下来，构建映像并在[分离模式](https://docs.docker.com/engine/reference/run/#detached--d)下运行容器:
 
-```
+```py
 `$ docker build -t web:latest .
 $ docker run -d --name flask-vue -e "PORT=8765" -p 8007:8765 web:latest` 
 ```
 
 注意我们是如何传入一个名为`PORT`的环境变量的。如果一切顺利，那么我们应该在运行容器中的 *default.conf* 文件中看到这个变量:
 
-```
+```py
 `$ docker exec flask-vue cat ../etc/nginx/conf.d/default.conf` 
 ```
 
 确保 Nginx 正在监听端口 8765: `listen 8765;`。此外，确保该应用程序正在浏览器中的 [http://localhost:8007](http://localhost:8007) 上运行。完成后，停止并移除正在运行的容器:
 
-```
+```py
 `$ docker stop flask-vue
 $ docker rm flask-vue` 
 ```
@@ -135,7 +135,7 @@ $ docker rm flask-vue`
 
 创建新应用程序:
 
-```
+```py
 `$ heroku create
 Creating app... done, ⬢ lit-savannah-00898
 https://lit-savannah-00898.herokuapp.com/ | https://git.heroku.com/lit-savannah-00898.git` 
@@ -145,7 +145,7 @@ https://lit-savannah-00898.herokuapp.com/ | https://git.heroku.com/lit-savannah-
 
 重建图像，并使用以下格式对其进行标记:
 
-```
+```py
 `registry.heroku.com/<app>/<process-type>` 
 ```
 
@@ -153,19 +153,19 @@ https://lit-savannah-00898.herokuapp.com/ | https://git.heroku.com/lit-savannah-
 
 例如:
 
-```
+```py
 `$ docker build -t registry.heroku.com/lit-savannah-00898/web .` 
 ```
 
 将图像推送到注册表:
 
-```
+```py
 `$ docker push registry.heroku.com/lit-savannah-00898/web` 
 ```
 
 发布图像:
 
-```
+```py
 `$ heroku container:release --app lit-savannah-00898 web` 
 ```
 
@@ -185,13 +185,13 @@ https://lit-savannah-00898.herokuapp.com/ | https://git.heroku.com/lit-savannah-
 
 接下来，添加一个名为*的 GitLab CI/CD 配置文件。gitlab-ci.yml* 到项目根:
 
-```
+```py
 `image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay HEROKU_APP_NAME:  <APP_NAME> HEROKU_REGISTRY_IMAGE:  registry.heroku.com/${HEROKU_APP_NAME}/web stages: -  build docker-build: stage:  build script: -  apk add --no-cache curl -  docker build --tag $HEROKU_REGISTRY_IMAGE --file ./Dockerfile "." -  docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com -  docker push $HEROKU_REGISTRY_IMAGE -  chmod +x ./release.sh -  ./release.sh` 
 ```
 
 *release.sh* :
 
-```
+```py
 `#!/bin/sh
 
 IMAGE_ID=$(docker inspect ${HEROKU_REGISTRY_IMAGE} --format={{.Id}})
@@ -218,7 +218,7 @@ curl -n -X PATCH https://api.heroku.com/apps/$HEROKU_APP_NAME/formation \
 
 最后，更新配置脚本以利用 Docker 层缓存:
 
-```
+```py
 `image:  docker:stable services: -  docker:dind variables: DOCKER_DRIVER:  overlay HEROKU_APP_NAME:  <APP_NAME> CACHE_IMAGE:  ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME} HEROKU_REGISTRY_IMAGE:  registry.heroku.com/${HEROKU_APP_NAME}/web stages: -  build docker-build: stage:  build script: -  apk add --no-cache curl -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $CACHE_IMAGE:build-vue || true -  docker pull $CACHE_IMAGE:production || true -  docker build --target build-vue --cache-from $CACHE_IMAGE:build-vue --tag $CACHE_IMAGE:build-vue --file ./Dockerfile "." -  docker build --cache-from $CACHE_IMAGE:production --tag $CACHE_IMAGE:production --tag $HEROKU_REGISTRY_IMAGE --file ./Dockerfile "." -  docker push $CACHE_IMAGE:build-vue -  docker push $CACHE_IMAGE:production -  docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com -  docker push $HEROKU_REGISTRY_IMAGE -  chmod +x ./release.sh -  ./release.sh` 
 ```
 

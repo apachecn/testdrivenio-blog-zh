@@ -24,14 +24,14 @@ Beanie 是 MongoDB 的异步对象文档映射器(ODM ),它支持开箱即用的
 
 首先创建一个新文件夹来保存名为“fastapi-beanie”的项目:
 
-```
+```py
 `$ mkdir fastapi-beanie
 $ cd fastapi-beanie` 
 ```
 
 接下来，创建并激活虚拟环境:
 
-```
+```py
 `$ python3.10 -m venv venv
 $ source venv/bin/activate
 (venv)$ export PYTHONPATH=$PWD` 
@@ -41,7 +41,7 @@ $ source venv/bin/activate
 
 接下来，创建以下文件和文件夹:
 
-```
+```py
 `├── app
 │   ├── __init__.py
 │   ├── main.py
@@ -55,7 +55,7 @@ $ source venv/bin/activate
 
 将以下依赖项添加到您的 *requirements.txt* 文件中:
 
-```
+```py
 `beanie==1.11.0
 fastapi==0.78.0
 uvicorn==0.17.6` 
@@ -63,13 +63,13 @@ uvicorn==0.17.6`
 
 从终端安装依赖项:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 在 *app/main.py* 文件中，定义运行应用程序的入口点:
 
-```
+```py
 `import uvicorn
 
 if __name__ == "__main__":
@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
 在通过入口点文件启动服务器之前，在 *app/server/app.py* 中创建一个基本路由:
 
-```
+```py
 `from fastapi import FastAPI
 
 app = FastAPI()
@@ -92,13 +92,13 @@ async def read_root() -> dict:
 
 从控制台运行入口点文件:
 
-```
+```py
 `(venv)$ python app/main.py` 
 ```
 
 在浏览器中导航至 [http://localhost:8000](http://localhost:8000) 。您应该看到:
 
-```
+```py
 `{ "message":  "Welcome to your beanie powered app!" }` 
 ```
 
@@ -119,7 +119,7 @@ Beanie 允许您创建[文档](https://roman-right.github.io/beanie/api-document
 
 示例:
 
-```
+```py
 `from beanie import Document
 
 class TestDrivenArticle(Document):
@@ -131,7 +131,7 @@ class TestDrivenArticle(Document):
 
 定义的文档表示文章将如何存储在数据库中。然而，它是一个普通的文档类，没有与之相关联的数据库集合。要关联一个集合，只需添加一个`Settings`类作为子类:
 
-```
+```py
 `from beanie import Document
 
 class TestDrivenArticle(Document):
@@ -146,7 +146,7 @@ class TestDrivenArticle(Document):
 
 现在我们已经知道了模式是如何创建的，我们将为我们的应用程序创建模式。在“app/server/models”文件夹中，创建一个名为 *product_review.py* 的新文件:
 
-```
+```py
 `from datetime import datetime
 
 from beanie import Document
@@ -168,7 +168,7 @@ class ProductReview(Document):
 
 像这样添加`Config`子类:
 
-```
+```py
 `from datetime import datetime
 
 from beanie import Document
@@ -203,7 +203,7 @@ class ProductReview(Document):
 
 最后，让我们定义更新产品评论的模式:
 
-```
+```py
 `class UpdateProductReview(BaseModel):
     name: Optional[str]
     product: Optional[str]
@@ -239,7 +239,7 @@ class ProductReview(Document):
 
 作为参考，本教程使用 MongoDB 社区版 v5.0.7。
 
-```
+```py
 `$ mongo --version
 MongoDB shell version v5.0.7
 
@@ -259,7 +259,7 @@ Build Info: {
 
 在 *database.py* 中，添加以下内容:
 
-```
+```py
 `from beanie import init_beanie
 import motor.motor_asyncio
 
@@ -280,7 +280,7 @@ async def init_db():
 
 `init_db`函数将在应用程序启动事件中被调用。更新 *app.py* 以包含启动事件:
 
-```
+```py
 `from fastapi import FastAPI
 
 from app.server.database import init_db
@@ -309,7 +309,7 @@ async def read_root() -> dict:
 
 在“routes”文件夹中，创建名为 *product_review.py* 的文件:
 
-```
+```py
 `from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException
 from typing import List
@@ -323,14 +323,14 @@ router = APIRouter()`
 
 Beanie 文档模型允许我们用更少的代码直接与数据库交互。例如，要检索数据库集合中的所有记录，我们所要做的就是:
 
-```
+```py
 `data = await ProductReview.find_all().to_list()
 return data # A list of all records in the collection.` 
 ```
 
 在我们开始为 CRUD 操作编写 route 函数之前，让我们在 *app.py* 中注册路由:
 
-```
+```py
 `from fastapi import FastAPI
 
 from app.server.database import init_db
@@ -352,7 +352,7 @@ async def read_root() -> dict:
 
 在 *routes/product_review.py* 中，添加以下内容:
 
-```
+```py
 `@router.post("/", response_description="Review added to the database")
 async def add_product_review(review: ProductReview) -> dict:
     await review.create()
@@ -365,13 +365,13 @@ async def add_product_review(review: ProductReview) -> dict:
 
 上面的路由需要类似的有效负载，如下所示:
 
-```
+```py
 `{ "name":  "Abdulazeez", "product":  "TestDriven TDD Course", "rating":  4.9, "review":  "Excellent course!", "date":  "2022-05-17T13:53:17.196135" }` 
 ```
 
 测试路线:
 
-```
+```py
 `$ curl -X 'POST' \
   'http://0.0.0.0:8000/reviews/' \
   -H 'accept: application/json' \
@@ -387,7 +387,7 @@ async def add_product_review(review: ProductReview) -> dict:
 
 上面的请求应该会返回一条成功的消息:
 
-```
+```py
 `{ "message":  "Review added successfully" }` 
 ```
 
@@ -395,7 +395,7 @@ async def add_product_review(review: ProductReview) -> dict:
 
 接下来是使我们能够检索数据库中存在的单个评论和所有评论的路线:
 
-```
+```py
 `@router.get("/{id}", response_description="Review record retrieved")
 async def get_review_record(id: PydanticObjectId) -> ProductReview:
     review = await ProductReview.get(id)
@@ -414,14 +414,14 @@ async def get_reviews() -> List[ProductReview]:
 
 > 另一种可以用来检索单个条目的方法是采用条件的 [find_one()](https://roman-right.github.io/beanie/tutorial/finding-documents/#finding-single-documents) 方法。例如:
 > 
-> ```
+> ```py
 > `# Return a record who has a rating of 4.0
 > await ProductReview.find_one(ProductReview.rating == 4.0)` 
 > ```
 
 让我们测试检索所有记录的第一条路线:
 
-```
+```py
 `$ curl -X 'GET' \
   'http://0.0.0.0:8000/reviews/' \
   -H 'accept: application/json'` 
@@ -429,13 +429,13 @@ async def get_reviews() -> List[ProductReview]:
 
 回应:
 
-```
+```py
 `[ { "_id":  "62839ad1d9a88a040663a734", "name":  "Abdulazeez", "product":  "TestDriven TDD Course", "rating":  4.9, "review":  "Excellent course!", "date":  "2022-05-17T13:53:17.196000" } ]` 
 ```
 
 接下来，让我们测试检索与提供的 ID 匹配的单个记录的路径:
 
-```
+```py
 `$ curl -X 'GET' \
   'http://0.0.0.0:8000/reviews/62839ad1d9a88a040663a734' \
   -H 'accept: application/json'` 
@@ -443,7 +443,7 @@ async def get_reviews() -> List[ProductReview]:
 
 回应:
 
-```
+```py
 `{ "_id":  "62839ad1d9a88a040663a734", "name":  "Abdulazeez", "product":  "TestDriven TDD Course", "rating":  4.9, "review":  "Excellent course!", "date":  "2022-05-17T13:53:17.196000" }` 
 ```
 
@@ -451,7 +451,7 @@ async def get_reviews() -> List[ProductReview]:
 
 接下来，我们来写一下更新复习记录的路线:
 
-```
+```py
 `@router.put("/{id}", response_description="Review record updated")
 async def update_student_data(id: PydanticObjectId, req: UpdateProductReview) -> ProductReview:
     req = {k: v for k, v in req.dict().items() if v is not None}
@@ -476,7 +476,7 @@ async def update_student_data(id: PydanticObjectId, req: UpdateProductReview) ->
 
 让我们测试一下路线:
 
-```
+```py
 `$ curl -X 'PUT' \
   'http://0.0.0.0:8000/reviews/62839ad1d9a88a040663a734' \
   -H 'accept: application/json' \
@@ -490,7 +490,7 @@ async def update_student_data(id: PydanticObjectId, req: UpdateProductReview) ->
 
 回应:
 
-```
+```py
 `{ "_id":  "62839ad1d9a88a040663a734", "name":  "Abdulazeez Abdulazeez", "product":  "TestDriven TDD Course", "rating":  5.0, "review":  "Excellent course!", "date":  "2022-05-17T13:53:17.196000" }` 
 ```
 
@@ -498,7 +498,7 @@ async def update_student_data(id: PydanticObjectId, req: UpdateProductReview) ->
 
 最后，让我们编写负责删除记录的路由:
 
-```
+```py
 `@router.delete("/{id}", response_description="Review record deleted from the database")
 async def delete_student_data(id: PydanticObjectId) -> dict:
     record = await ProductReview.get(id)
@@ -519,7 +519,7 @@ async def delete_student_data(id: PydanticObjectId) -> dict:
 
 让我们测试一下路线:
 
-```
+```py
 `$ curl -X 'DELETE' \
   'http://0.0.0.0:8000/reviews/62839ad1d9a88a040663a734' \
   -H 'accept: application/json'` 
@@ -527,7 +527,7 @@ async def delete_student_data(id: PydanticObjectId) -> dict:
 
 回应:
 
-```
+```py
 `{ "message":  "Record deleted successfully" }` 
 ```
 

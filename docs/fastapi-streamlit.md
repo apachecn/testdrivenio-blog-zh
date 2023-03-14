@@ -42,14 +42,14 @@ FastAPI 还支持通过 [pydantic](https://pydantic-docs.helpmanual.io/) 和[自
 
 创建名为“style-transfer”的项目文件夹:
 
-```
+```py
 `$ mkdir style-transfer
 $ cd style-transfer` 
 ```
 
 然后，用“style-transfer”新建两个文件夹:
 
-```
+```py
 `$ mkdir frontend
 $ mkdir backend` 
 ```
@@ -60,7 +60,7 @@ $ mkdir backend`
 
 向“后端”添加一个名为 *main.py* 的新文件:
 
-```
+```py
 `# backend/main.py
 
 import uuid
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
 接下来，将以下配置添加到名为 *backend/config.py* 的新文件中:
 
-```
+```py
 `# backend/config.py
 
 MODEL_PATH = "./models/"
@@ -121,7 +121,7 @@ STYLES = {
 
 现在，我们需要下载模型。向名为 *download_models.sh* 的项目根目录添加一个脚本:
 
-```
+```py
 `BASE_URL="https://cs.stanford.edu/people/jcjohns/fast-neural-style/models/"
 
 mkdir -p backend/models/
@@ -142,7 +142,7 @@ curl -O "$BASE_URL/eccv16/composition_vii.t7"`
 
 将`inference`函数添加到 *backend/inference.py* :
 
-```
+```py
 `# backend/inference.py
 
 import config
@@ -188,7 +188,7 @@ def inference(model, image):
 
 最后，将依赖项添加到需求文件中:
 
-```
+```py
 `# backend/requirements.txt
 
 fastapi
@@ -205,7 +205,7 @@ uvicorn`
 
 首先，将一个 *Dockerfile* 添加到“后端”文件夹:
 
-```
+```py
 `# backend/Dockerfile
 
 FROM  python:3.10.1-slim
@@ -232,13 +232,13 @@ CMD  ["python",  "main.py"]`
 
 从终端的“后端”文件夹中，构建映像:
 
-```
+```py
 `$ docker build -t backend .` 
 ```
 
 运行容器:
 
-```
+```py
 `$ docker run -p 8080:8080 backend
 
 INFO:     Started server process [1]
@@ -249,7 +249,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)`
 
 在浏览器中，导航至 [http://localhost:8080/](http://localhost:8080/) 。您应该看到:
 
-```
+```py
 `{ "message":  "Welcome from the API" }` 
 ```
 
@@ -259,7 +259,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)`
 
 对于 UI，添加一个 *main.py* 文件到“前端”文件夹:
 
-```
+```py
 `# frontend/main.py
 
 import requests
@@ -306,7 +306,7 @@ if st.button("Style Transfer"):
 
 将 [Streamlit 依赖关系](https://pypi.org/project/streamlit/)添加到 *requirements.txt* 文件中:
 
-```
+```py
 `# frontend/requirements.txt
 
 streamlit==1.2.0` 
@@ -318,7 +318,7 @@ streamlit==1.2.0`
 
 *前端/Dockerfile* :
 
-```
+```py
 `# frontend/Dockerfile
 
 FROM  python:3.10.1-slim
@@ -337,7 +337,7 @@ CMD  ["streamlit",  "run",  "main.py"]`
 
 *码头-化合物. yml* :
 
-```
+```py
 `version:  '3' services: frontend: build:  frontend ports: -  8501:8501 depends_on: -  backend volumes: -  ./storage:/storage backend: build:  backend ports: -  8080:8080 volumes: -  ./storage:/storage` 
 ```
 
@@ -345,7 +345,7 @@ CMD  ["streamlit",  "run",  "main.py"]`
 
 因此，后端和前端都可以从同一个共享卷访问映像:
 
-```
+```py
 `# backend
 name = f"/storage/{str(uuid.uuid4())}.jpg"
 cv2.imwrite(name, output)
@@ -358,7 +358,7 @@ image = Image.open(img_path.get("name"))`
 
 要进行测试，从项目根目录开始，构建映像并启动两个容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -374,7 +374,7 @@ FastAPI 最强大的特性之一是它支持异步函数。因此，让我们利
 
 向 *backend/main.py* 添加以下函数:
 
-```
+```py
 `# backend/main.py
 
 async def generate_remaining_models(models, image, name: str):
@@ -398,7 +398,7 @@ def process_image(models, image, name: str):
 
 添加以下导入内容:
 
-```
+```py
 `import asyncio
 
 from concurrent.futures import ProcessPoolExecutor
@@ -408,7 +408,7 @@ from functools import partial`
 
 更新`get_image`函数，以便它在发送回响应之前创建异步任务:
 
-```
+```py
 `# backend/main.py
 
 @app.post("/{style}")
@@ -431,7 +431,7 @@ async def get_image(style: str, file: UploadFile = File(...)):
 
 接下来，更新 *frontend/main.py* 中下面的`if`语句块:
 
-```
+```py
 `# frontend/main.py
 
 if st.button("Style Transfer"):
@@ -468,7 +468,7 @@ if st.button("Style Transfer"):
 
 更新容器并测试:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 

@@ -17,14 +17,14 @@
 
 首先创建一个新文件夹来保存名为“fastapi-mongo”的项目:
 
-```
+```py
 `$ mkdir fastapi-mongo
 $ cd fastapi-mongo` 
 ```
 
 接下来，创建并激活虚拟环境:
 
-```
+```py
 `$ python3.9 -m venv venv
 $ source venv/bin/activate
 $ export PYTHONPATH=$PWD` 
@@ -34,7 +34,7 @@ $ export PYTHONPATH=$PWD`
 
 接下来，创建以下文件和文件夹:
 
-```
+```py
 `├── app
 │   ├── __init__.py
 │   ├── main.py
@@ -48,20 +48,20 @@ $ export PYTHONPATH=$PWD`
 
 将以下依赖项添加到您的 *requirements.txt* 文件中:
 
-```
+```py
 `fastapi==0.73.0
 uvicorn==0.17.4` 
 ```
 
 安装它们:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 在 *app/main.py* 文件中，定义运行应用程序的入口点:
 
-```
+```py
 `import uvicorn
 
 if __name__ == "__main__":
@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
 在通过入口点文件启动服务器之前，在 *app/server/app.py* 中创建一个基本路由:
 
-```
+```py
 `from fastapi import FastAPI
 
 app = FastAPI()
@@ -86,13 +86,13 @@ async def read_root():
 
 从控制台运行入口点文件:
 
-```
+```py
 `(venv)$ python app/main.py` 
 ```
 
 在浏览器中导航至 [http://localhost:8000](http://localhost:8000) 。您应该看到:
 
-```
+```py
 `{ "message":  "Welcome to this fantastic app!" }` 
 ```
 
@@ -116,7 +116,7 @@ async def read_root():
 
 在“app/server/models”文件夹中，创建一个名为 *student.py* 的新文件:
 
-```
+```py
 `from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -187,7 +187,7 @@ def ErrorResponseModel(error, code, message):
 
 安装:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
@@ -205,7 +205,7 @@ def ErrorResponseModel(error, code, message):
 
 作为参考，本教程使用 MongoDB 社区版 v5.0.6。
 
-```
+```py
 `$ mongo --version
 
 MongoDB shell version v5.0.6
@@ -230,13 +230,13 @@ Build Info: {
 
 安装:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 回到应用程序，将数据库连接信息添加到 *app/server/database.py* :
 
-```
+```py
 `import motor.motor_asyncio
 
 MONGO_DETAILS = "mongodb://localhost:27017"
@@ -256,7 +256,7 @@ student_collection = database.get_collection("students_collection")`
 
 将此内容也添加到 *database.py* 文件中:
 
-```
+```py
 `import motor.motor_asyncio
 
 MONGO_DETAILS = "mongodb://localhost:27017"
@@ -286,7 +286,7 @@ def student_helper(student) -> dict:
 
 首先从 *database.py* 文件顶部的 [bson](https://github.com/py-bson/bson) 包中导入`ObjectId`方法:
 
-```
+```py
 `from bson.objectid import ObjectId` 
 ```
 
@@ -294,7 +294,7 @@ def student_helper(student) -> dict:
 
 接下来，为 CRUD 操作添加以下每个函数:
 
-```
+```py
 `# Retrieve all students present in the database
 async def retrieve_students():
     students = []
@@ -346,7 +346,7 @@ async def delete_student(id: str):
 
 在“routes”文件夹中，创建一个名为 *student.py* 的新文件，并向其中添加以下内容:
 
-```
+```py
 `from fastapi import APIRouter, Body
 from fastapi.encoders import jsonable_encoder
 
@@ -371,7 +371,7 @@ router = APIRouter()`
 
 接下来，在 *app/server/app.py* 中连线学生路线:
 
-```
+```py
 `from fastapi import FastAPI
 
 from app.server.routes.student import router as StudentRouter
@@ -389,7 +389,7 @@ async def read_root():
 
 回到 routes 文件，添加以下用于创建新学生的处理程序:
 
-```
+```py
 `@router.post("/", response_description="Student data added into the database")
 async def add_student_data(student: StudentSchema = Body(...)):
     student = jsonable_encoder(student)
@@ -399,13 +399,13 @@ async def add_student_data(student: StudentSchema = Body(...)):
 
 因此，该路由期望一个匹配`StudentSchema`格式的有效载荷。示例:
 
-```
+```py
 `{ "fullname":  "John Doe", "email":  "[[email protected]](/cdn-cgi/l/email-protection)", "course_of_study":  "Water resources engineering", "year":  2, "gpa":  "3.0", }` 
 ```
 
 启动 Uvicorn 服务器:
 
-```
+```py
 `(venv)$ python app/main.py` 
 ```
 
@@ -430,7 +430,7 @@ async def add_student_data(student: StudentSchema = Body(...)):
 
 向右移动，添加以下路线来检索所有学生和单个学生:
 
-```
+```py
 `@router.get("/", response_description="Students retrieved")
 async def get_students():
     students = await retrieve_students()
@@ -456,7 +456,7 @@ async def get_student_data(id):
 
 接下来，编写更新学生数据的单独路径:
 
-```
+```py
 `@router.put("/{id}")
 async def update_student_data(id: str, req: UpdateStudentModel = Body(...)):
     req = {k: v for k, v in req.dict().items() if v is not None}
@@ -479,7 +479,7 @@ async def update_student_data(id: str, req: UpdateStudentModel = Body(...)):
 
 最后，添加删除路径:
 
-```
+```py
 `@router.delete("/{id}", response_description="Student data deleted from the database")
 async def delete_student_data(id: str):
     deleted_student = await delete_student(id)
@@ -520,13 +520,13 @@ async def delete_student_data(id: str):
 
 复制连接 URL，确保更新密码。将默认数据库也设置为“学生”。它将类似于:
 
-```
+```py
 `mongodb+srv://foobar:foobar@cluster0.0reol.mongodb.net/students?retryWrites=true&w=majority` 
 ```
 
 我们将定义它有一个环境变量，而不是在我们的应用程序中硬编码这个值。创建一个名为*的新文件。项目根中的 env* 以及到它的连接信息:
 
-```
+```py
 `MONGO_DETAILS=your_connection_url` 
 ```
 
@@ -536,13 +536,13 @@ async def delete_student_data(id: str):
 
 安装:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 在 *app/server/database.py* 文件中，导入库:
 
-```
+```py
 `from decouple import config` 
 ```
 
@@ -550,7 +550,7 @@ async def delete_student_data(id: str):
 
 接下来，将`MONGO_DETAILS`变量改为:
 
-```
+```py
 `MONGO_DETAILS = config("MONGO_DETAILS")  # read environment variable` 
 ```
 
@@ -576,7 +576,7 @@ async def delete_student_data(id: str):
 
 接下来，将一个 *Procfile* 添加到您的项目的根目录:
 
-```
+```py
 `web:  uvicorn  app.server.app:app  --host  0.0.0.0  --port=$PORT` 
 ```
 
@@ -587,7 +587,7 @@ async def delete_student_data(id: str):
 
 您的项目现在应该有以下文件和文件夹:
 
-```
+```py
 `├── .env
 ├── .gitignore
 ├── Procfile
@@ -606,7 +606,7 @@ async def delete_student_data(id: str):
 
 在项目的根目录中，初始化一个新的 git 存储库:
 
-```
+```py
 `(venv)$ git init
 (venv)$ git add .
 (venv)$ git commit -m "My fastapi and mongo application"` 
@@ -622,7 +622,7 @@ async def delete_student_data(id: str):
 
 既然我们没有加上*。env* 文件到 git，我们需要在 Heroku 环境中设置环境变量:
 
-```
+```py
 `(venv)$ heroku config:set MONGO_DETAILS="your_mongo_connection_url"` 
 ```
 
@@ -630,7 +630,7 @@ async def delete_student_data(id: str):
 
 将您的代码推送到 Heroku，并确保至少有一个应用程序实例正在运行:
 
-```
+```py
 `(venv)$ git push heroku master
 (venv)$ heroku ps:scale web=1` 
 ```

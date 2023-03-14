@@ -30,7 +30,7 @@ pyenv 是一个工具，它简化了在同一台机器上不同版本 Python 之
 
 一旦[安装了](https://github.com/pyenv/pyenv#installation)，你就可以轻松地安装 Python 的特定版本，如下所示:
 
-```
+```py
 `$ pyenv install 3.8.5
 $ pyenv install 3.8.6
 $ pyenv install 3.9.0
@@ -46,7 +46,7 @@ $ pyenv versions
 
 然后，您可以像这样设置您的全局 Python 版本:
 
-```
+```py
 `$ pyenv global 3.8.6
 
 $ pyenv versions
@@ -64,7 +64,7 @@ Python 3.8.6`
 
 以类似的方式，您可以为当前文件夹设置 Python 解释器:
 
-```
+```py
 `$ pyenv local 3.10.2
 
 $ pyenv versions
@@ -96,7 +96,7 @@ Python 3.10.2`
 
 创建好环境后，您仍然需要通过在虚拟环境中获取 *activate* 脚本来激活它:
 
-```
+```py
 `$ source my_venv/bin/activate
 (my_venv)$` 
 ```
@@ -105,7 +105,7 @@ Python 3.10.2`
 
 在虚拟环境激活时运行`which python`将返回虚拟环境内 Python 解释器的路径:
 
-```
+```py
 `(my_venv)$ which python
 
 /Users/michael/repos/testdriven/python-environments/my_venv/bin/python` 
@@ -113,7 +113,7 @@ Python 3.10.2`
 
 您可以通过在激活虚拟环境的情况下运行`pip install <package-name>`来安装项目的本地包:
 
-```
+```py
 `(my_venv)$ python -m pip install requests` 
 ```
 
@@ -121,7 +121,7 @@ pip 从 [PyPI](https://pypi.org/) (Python 包索引)下载包，然后在虚拟�
 
 为了环境的可再现性，您通常希望在一个 *requirements.txt* 文件中保存一个项目所需包的列表。您可以手动创建文件并添加它们，或者使用 [pip 冻结](https://pip.pypa.io/en/latest/cli/pip_freeze/)命令来生成它:
 
-```
+```py
 `(my_venv)$ python -m pip freeze > requirements.txt
 
 (my_venv)$ cat requirements.txt
@@ -138,7 +138,7 @@ urllib3==1.26.8`
 
 *需求-开发文本*:
 
-```
+```py
 `# prod
 -r requirements.txt
 
@@ -156,7 +156,7 @@ pytest-mock==3.7.0`
 
 *需求. txt* :
 
-```
+```py
 `Django==4.0.2
 django-allauth==0.49.0
 django-crispy-forms==1.14.0
@@ -178,14 +178,14 @@ whitenoise==6.0.0`
 
 诗歌可以说是 Python 中功能最丰富的依赖管理工具。它附带了一个用于创建和管理 Python 项目的强大的 CLI。一旦[安装了](https://python-poetry.org/docs/#installation)，脚手架上一个新的项目开始运行:
 
-```
+```py
 `$ poetry new sample-project
 $ cd sample-project` 
 ```
 
 这将创建以下文件和文件夹:
 
-```
+```py
 `sample-project
 ├── README.rst
 ├── pyproject.toml
@@ -198,7 +198,7 @@ $ cd sample-project`
 
 依赖项在 *pyproject.toml* 文件中进行管理:
 
-```
+```py
 `[tool.poetry] name  =  "sample-project" version  =  "0.1.0" description  =  "" authors  =  ["John Doe <[[email protected]](/cdn-cgi/l/email-protection)>"] [tool.poetry.dependencies] python  =  "^3.10" [tool.poetry.dev-dependencies] pytest  =  "^5.2" [build-system] requires  =  ["poetry-core>=1.0.0"] build-backend  =  "poetry.core.masonry.api"` 
 ```
 
@@ -206,7 +206,7 @@ $ cd sample-project`
 
 要添加新的依赖项，只需运行:
 
-```
+```py
 `$ poetry add [--dev] <package name>` 
 ```
 
@@ -216,7 +216,7 @@ $ cd sample-project`
 
 这将从 PyPI 下载并安装 Flask 到 poem 管理的虚拟环境中，将它和所有子依赖项一起添加到*poem . lock*文件中，并自动将它(一个顶级依赖项)添加到 *pyproject.toml* :
 
-```
+```py
 `[tool.poetry.dependencies] python  =  "^3.10" Flask  =  "^2.0.3"` 
 ```
 
@@ -224,7 +224,7 @@ $ cd sample-project`
 
 要在虚拟环境中运行一个命令，在命令前加上前缀[poem run](https://python-poetry.org/docs/cli/#run)。例如，使用`pytest`运行测试:
 
-```
+```py
 `$ poetry run python -m pytest` 
 ```
 
@@ -241,7 +241,7 @@ Pipenv 试图解决与诗歌相同的问题:
 
 一旦[安装了](https://github.com/pypa/pipenv#installation)，要用 Pipenv 创建一个新项目，运行:
 
-```
+```py
 `$ mkdir sample-project
 $ cd sample-project
 $ pipenv --python 3.10.2` 
@@ -249,7 +249,7 @@ $ pipenv --python 3.10.2`
 
 这将创建一个新的虚拟环境，并将一个 *Pipfile* 添加到项目中:
 
-```
+```py
 `[[source]] name  =  "pypi" url  =  "https://pypi.org/simple" verify_ssl  =  true [dev-packages] [packages] [requires] python_version  =  "3.10"` 
 ```
 
@@ -257,7 +257,7 @@ $ pipenv --python 3.10.2`
 
 您可以像这样安装一个新的依赖项:
 
-```
+```py
 `$ pipenv install [--dev] <package name>` 
 ```
 
@@ -269,7 +269,7 @@ $ pipenv --python 3.10.2`
 
 要在 Pipenv 管理的虚拟环境中运行脚本，您需要使用 [pipenv run](https://github.com/pypa/pipenv#-usage) 命令来运行它。例如，要用`pytest`运行测试，运行:
 
-```
+```py
 `$ pipenv run python -m pytest` 
 ```
 
@@ -277,7 +277,7 @@ $ pipenv --python 3.10.2`
 
 Pipenv 与 pyenv 配合也很好。例如，当您想从尚未安装的 Python 版本创建一个虚拟环境时，它会询问您是否想先用 pyenv 安装它:
 
-```
+```py
 `$ pipenv --python 3.7.5
 
 Warning: Python 3.7.5 was not found on your system…
@@ -327,7 +327,7 @@ Would you like us to install CPython 3.7.5 with Pyenv? [Y/n]: Y`
 
 首先，创建一个名为“flask_example”的新目录，并在其中移动:
 
-```
+```py
 `$ mkdir flask_example
 $ cd flask_example` 
 ```
@@ -336,7 +336,7 @@ $ cd flask_example`
 
 接下来，用诗歌初始化一个新的 Python 项目:
 
-```
+```py
 `$ poetry init
 
 Package name [flask_example]:
@@ -355,7 +355,7 @@ Do you confirm generation? (yes/no) [yes]`
 
 最后但同样重要的是，添加 [pytest](https://pytest.org/) 作为开发依赖项:
 
-```
+```py
 `$ poetry add --dev pytest` 
 ```
 
@@ -363,7 +363,7 @@ Do you confirm generation? (yes/no) [yes]`
 
 添加一个名为 *test_app.py* 的文件:
 
-```
+```py
 `import pytest
 
 from app import app
@@ -383,7 +383,7 @@ def test_health_check(client):
 
 之后，将一个基本的 Flask 应用程序添加到一个名为 *app.py* 的新文件中:
 
-```
+```py
 `from flask import Flask
 
 app = Flask(__name__)
@@ -398,13 +398,13 @@ if __name__ == '__main__':
 
 现在，要运行测试，运行:
 
-```
+```py
 `$ poetry run python -m pytest` 
 ```
 
 您可以像这样运行开发服务器:
 
-```
+```py
 `$ poetry run python -m flask run` 
 ```
 

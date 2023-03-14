@@ -55,7 +55,7 @@ Django 中的缓存可以在不同的层次上实现(或者站点的不同部分
 
 这是在 Django 中实现缓存的最简单的方法。要做到这一点，您只需将两个中间件类添加到您的 *settings.py* 文件中:
 
-```
+```py
 `MIDDLEWARE = [
     'django.middleware.cache.UpdateCacheMiddleware',     # NEW
     'django.middleware.common.CommonMiddleware',
@@ -67,7 +67,7 @@ Django 中的缓存可以在不同的层次上实现(或者站点的不同部分
 
 然后，您需要添加以下设置:
 
-```
+```py
 `CACHE_MIDDLEWARE_ALIAS = 'default'  # which cache alias to use
 CACHE_MIDDLEWARE_SECONDS = '600'    # number of seconds to cache a page for (TTL)
 CACHE_MIDDLEWARE_KEY_PREFIX = ''    # should be used if the cache is shared across multiple sites that use the same Django instance` 
@@ -81,7 +81,7 @@ CACHE_MIDDLEWARE_KEY_PREFIX = ''    # should be used if the cache is shared acro
 
 您可以使用 [cache_page](https://docs.djangoproject.com/en/3.2/topics/cache/#django.views.decorators.cache.cache_page) 装饰器直接在视图函数上或者在`URLConf`内的路径中实现这种类型的缓存:
 
-```
+```py
 `from django.views.decorators.cache import cache_page
 
 @cache_page(60 * 15)
@@ -101,7 +101,7 @@ urlpatterns = [
 
 值得注意的是，直接在视图上实现缓存使得在某些情况下禁用缓存更加困难。例如，如果您希望允许某些用户在没有缓存的情况下访问视图，该怎么办？通过`URLConf`启用缓存提供了将不同的 URL 关联到不使用缓存的视图的机会:
 
-```
+```py
 `from django.views.decorators.cache import cache_page
 
 urlpatterns = [
@@ -118,7 +118,7 @@ urlpatterns = [
 
 要缓存对象列表:
 
-```
+```py
 `{% load cache %}
 
 {% cache 500 object_list %}
@@ -138,7 +138,7 @@ urlpatterns = [
 
 例如:
 
-```
+```py
 `from django.core.cache import cache
 
 def get_context_data(self, **kwargs):
@@ -157,7 +157,7 @@ def get_context_data(self, **kwargs):
 
 在本例中，当在数据库中添加、更改或删除对象时，您会希望使缓存失效(或删除)。管理这种情况的一种方法是通过数据库信号:
 
-```
+```py
 `from django.core.cache import cache
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
@@ -179,14 +179,14 @@ def object_post_save_handler(sender, **kwargs):
 
 从 [cache-django-view](https://github.com/testdrivenio/cache-django-view) repo 中克隆基础项目，然后检查基础分支:
 
-```
+```py
 `$ git clone https://github.com/testdrivenio/cache-django-view.git --branch base --single-branch
 $ cd cache-django-view` 
 ```
 
 创建(并激活)虚拟环境，并满足以下要求:
 
-```
+```py
 `$ python3.9 -m venv venv
 $ source venv/bin/activate
 (venv)$ pip install -r requirements.txt` 
@@ -194,7 +194,7 @@ $ source venv/bin/activate
 
 应用 Django 迁移，然后启动服务器:
 
-```
+```py
 `(venv)$ python manage.py migrate
 (venv)$ python manage.py runserver` 
 ```
@@ -209,7 +209,7 @@ $ source venv/bin/activate
 
 该指标来自 *core/middleware.py* :
 
-```
+```py
 `import logging
 import time
 
@@ -239,7 +239,7 @@ def metric_middleware(get_response):
 
 快速浏览一下 *apicalls/views.py* 中的视图:
 
-```
+```py
 `import datetime
 
 import requests
@@ -282,19 +282,19 @@ class ApiCalls(TemplateView):
 
 终止 Django dev 服务器并安装 Gunicorn:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 接下来，用 Gunicorn(和四个[工人](https://docs.gunicorn.org/en/stable/run.html#commonly-used-arguments))提供 Django 应用程序，如下所示:
 
-```
+```py
 `(venv)$ gunicorn core.wsgi:application -w 4` 
 ```
 
 在新的终端窗口中，运行 Apache Bench:
 
-```
+```py
 `$ ab -n 100 -c 10 http://127.0.0.1:8000/` 
 ```
 
@@ -302,7 +302,7 @@ class ApiCalls(TemplateView):
 
 记录每秒的请求数:
 
-```
+```py
 `Requests per second:    1.69 [#/sec] (mean)` 
 ```
 
@@ -310,7 +310,7 @@ class ApiCalls(TemplateView):
 
 关闭 Gunicorn 服务器，重新启动 Django dev 服务器:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -320,7 +320,7 @@ class ApiCalls(TemplateView):
 
 首先用`@cache_page`装饰器装饰`ApiCalls`视图，如下所示:
 
-```
+```py
 `import datetime
 
 import requests
@@ -349,14 +349,14 @@ class ApiCalls(TemplateView):
 
 或者，您可以在设置中这样设置:
 
-```
+```py
 `# Cache time to live is 5 minutes
 CACHE_TTL = 60 * 5` 
 ```
 
 然后，回到视图中:
 
-```
+```py
 `import datetime
 
 import requests
@@ -406,13 +406,13 @@ class ApiCalls(TemplateView):
 
 安装:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 接下来，将自定义后端添加到 *settings.py* 文件中:
 
-```
+```py
 `CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -426,7 +426,7 @@ class ApiCalls(TemplateView):
 
 现在，当您再次运行服务器时，Redis 将被用作缓存后端:
 
-```
+```py
 `(venv)$ python manage.py runserver` 
 ```
 
@@ -442,14 +442,14 @@ class ApiCalls(TemplateView):
 
 运行`ping`以确保一切正常工作:
 
-```
+```py
 `127.0.0.1:6379> ping
 PONG` 
 ```
 
 返回到设置文件。我们使用 Redis 数据库 1 号:`'LOCATION': 'redis://127.0.0.1:6379/1',`。因此，运行`select 1`来选择数据库，然后运行`keys *`来查看所有键:
 
-```
+```py
 `127.0.0.1:6379> select 1
 OK
 
@@ -462,13 +462,13 @@ OK
 
 要查看实际缓存的数据，运行`get`命令，将键作为参数:
 
-```
+```py
 `127.0.0.1:6379[1]> get ":1:views.decorators.cache.cache_page..GET.17abf5259517d604cc9599a00b7385d6.d41d8cd98f00b204e9800998ecf8427e.en-us.UTC"` 
 ```
 
 您应该会看到类似以下内容:
 
-```
+```py
 `"\x80\x05\x95D\x04\x00\x00\x00\x00\x00\x00\x8c\x18django.template.response\x94\x8c\x10TemplateResponse
 \x94\x93\x94)\x81\x94}\x94(\x8c\x05using\x94N\x8c\b_headers\x94}\x94(\x8c\x0ccontent-type\x94\x8c\
 x0cContent-Type\x94\x8c\x18text/html; charset=utf-8\x94\x86\x94\x8c\aexpires\x94\x8c\aExpires\x94\x8c\x1d
@@ -496,13 +496,13 @@ Get new data\n            </button>\n        </a>\n    </div>\n    Results recei
 
 安装依赖项:
 
-```
+```py
 `(venv)$ pip install -r requirements.txt` 
 ```
 
 接下来，我们需要更新 *core/settings.py* 中的设置，以启用 Memcached 后端:
 
-```
+```py
 `CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.memcached.PyMemcacheCache',
@@ -515,7 +515,7 @@ Get new data\n            </button>\n        </a>\n    </div>\n    Results recei
 
 接下来，我们需要安装并运行 Memcached 守护进程。最简单的安装方法是通过软件包管理器，如 APT、YUM、Homebrew 或 Chocolatey，具体取决于您的操作系统:
 
-```
+```py
 `# linux
 $ apt-get install memcached
 $ yum install memcached
@@ -529,7 +529,7 @@ $ choco install memcached`
 
 然后，在端口 11211 上的另一个终端中运行它:
 
-```
+```py
 `$ memcached -p 11211
 
 # test: telnet localhost 11211` 
@@ -555,7 +555,7 @@ $ choco install memcached`
 
 再次旋转 Gunicorn 并重新运行性能测试:
 
-```
+```py
 `$ ab -n 100 -c 10 http://127.0.0.1:8000/` 
 ```
 

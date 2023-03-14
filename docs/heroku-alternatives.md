@@ -71,7 +71,7 @@ Heroku 提供两种类型的运行时:
 
 这意味着，如果你不是企业用户，你只能在美国(弗吉尼亚州)或欧盟地区(爱尔兰都柏林)托管你的应用程序。
 
-```
+```py
 `$ heroku regions
 
 ID         Location                 Runtime

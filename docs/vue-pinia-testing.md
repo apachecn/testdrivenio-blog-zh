@@ -77,7 +77,7 @@ Vuex 是另一个流行的 Vue 项目状态管理库。虽然它在任何版本�
 
 如果你想在你的本地机器上运行这个应用，你需要克隆这个库并使用 [NPM](https://www.npmjs.com) 安装依赖项:
 
-```
+```py
 `$ git clone [[email protected]](/cdn-cgi/l/email-protection):patkennedy79/vue-weather-app.git
 $ cd vue-weather-app
 $ npm install` 
@@ -87,7 +87,7 @@ $ npm install`
 
 应用程序构建完成后，您会看到类似于以下内容的成功消息:
 
-```
+```py
 `vite v2.9.14 dev server running at:
 
  > Local: http://localhost:3000/
@@ -112,19 +112,19 @@ $ npm install`
 
 一旦安装完成，您应该会看到`pinia`已经作为依赖项添加到 *package.json* 中:
 
-```
+```py
 `"dependencies":  { "axios":  "^0.27.2", "pinia":  "^2.0.20", "vue":  "^3.2.37" },` 
 ```
 
 此外，因为我们将测试用 Pinia 创建的数据存储，所以安装 Pinia 测试包:
 
-```
+```py
 `$ npm install @pinia/testing --save-dev` 
 ```
 
 一旦安装完成，您应该会看到`@pinia/testing`已经作为开发依赖项添加到 *package.json* 中:
 
-```
+```py
 `"devDependencies":  { "@pinia/testing":  "^0.0.14", }` 
 ```
 
@@ -132,7 +132,7 @@ $ npm install`
 
 在 Vue 项目中,“src”文件夹包含 Vue 组件和 Pinia 数据存储:
 
-```
+```py
 `% tree -L 2 src
 src
 ├── App.vue
@@ -162,7 +162,7 @@ Pinia 数据存储的单元测试文件存储在“src/stores/__tests__”中。
 
 本教程将测试的 Pinia 数据存储存储不同城市的天气数据:
 
-```
+```py
 `import  {  defineStore  }  from  'pinia' export  const  useCitiesStore  =  defineStore('cities',  { // state is the data being stored in the data store state:  ()  =>  ({ // List of Objects representing the weather for cities: //   - cityName: name of the city //   - stateName: name of the state (if applicable) //   - countryAbbreviation: abbreviation of the country //   - weatherSummary: brief description of the current weather //   - currentTemperature: current temperature (in degrees F) //   - dailyHigh: high temperature (in degrees F) for today //   - dailyLow: low temperature (in degrees F) for today weatherData:  [] }), // getters return data from the data store getters:  { getNumberOfCities:  (state)  =>  {  return  state.weatherData.length  } }, // actions are operations that change the state actions:  { addCity(city,  state,  country,  summary,  currentTemp,  high,  low)  { // Check if the city is already saved if  (this.weatherData.find(({  cityName  })  =>  cityName  ===  city)  ===  undefined)  { this.weatherData.push({ 'cityName':  city, 'stateName':  state, 'countryAbbreviation':  country, 'weatherSummary':  summary, 'currentTemperature':  currentTemp, 'dailyHigh':  high, 'dailyLow':  low }) } }, clearAllCities()  { // Setting the `weatherData` array to a length of zero clears it this.weatherData.length  =  0 } } })` 
 ```
 
@@ -181,13 +181,13 @@ Pinia 数据存储的单元测试文件存储在“src/stores/__tests__”中。
 
 当对 Pinia 数据存储进行单元测试时，应通过导入来使用**实际**存储:
 
-```
+```py
 `import  {  describe,  it,  expect,  beforeEach  }  from  'vitest' import  {  setActivePinia,  createPinia  }  from  'pinia' import  {  useCitiesStore  }  from  '@/stores/cities'  // <-- !! describe('Data Store Test',  ()  =>  { let  store  =  null beforeEach(()  =>  { // create a fresh Pinia instance and make it active so it's automatically picked // up by any useStore() call without having to pass it to it: // `useStore(pinia)` setActivePinia(createPinia()) // create an instance of the data store store  =  useCitiesStore() }) it('initializes with correct values',  ()  =>  {  ...  }) it('test adding a new city',  ()  =>  {  ...}) it('test adding a duplicate city',  ()  =>  {  ...  }) it('test removing all cities',  ()  =>  {  ...  }) })` 
 ```
 
 Pinia 数据存储被导入以在单元测试文件中使用:
 
-```
+```py
 `import  {  useCitiesStore  }  from  '@/stores/cities'` 
 ```
 
@@ -195,7 +195,7 @@ Pinia 数据存储被导入以在单元测试文件中使用:
 
 在`beforeEach()`函数(在每个单元测试函数之前执行)中，`pinia`实例被创建并激活:
 
-```
+```py
 `beforeEach(()  =>  { // create a fresh Pinia instance and make it active so it's automatically picked // up by any useStore() call without having to pass it to it: // `useStore(pinia)` setActivePinia(createPinia()) // create an instance of the data store store  =  useCitiesStore() })` 
 ```
 
@@ -207,25 +207,25 @@ Pinia 数据存储被导入以在单元测试文件中使用:
 
 首先，检查 Pinia 数据存储是否用空数组初始化:
 
-```
+```py
 `it('initializes with zero cities',  ()  =>  { expect(store.getNumberOfCities).toEqual(0) })` 
 ```
 
 接下来，测试使用`addCity()`动作的名义场景:
 
-```
+```py
 `it('test adding a new city',  ()  =>  { // Call the 'addCity' action store.addCity('Chicago',  'Illinois',  'US',  'cloudy',  75.6,  78.9,  65.2) // Check that the city was added expect(store.getNumberOfCities).toEqual(1) expect(store.weatherData.length).toEqual(1) expect(store.weatherData[0]).toEqual({ 'cityName':  'Chicago', 'stateName':  'Illinois', 'countryAbbreviation':  'US', 'weatherSummary':  'cloudy', 'currentTemperature':  75.6, 'dailyHigh':  78.9, 'dailyLow':  65.2 }) })` 
 ```
 
 此外，在使用`addCity()`动作时，测试城市已经在`weatherData`数组中的非名义场景也是一个好主意:
 
-```
+```py
 `it('test adding a duplicate city',  ()  =>  { // Call the 'addCity' action store.addCity('New Orleans',  'Louisiana',  'US',  'sunny',  87.6,  78.9,  65.2) // Check that the city was added expect(store.weatherData.length).toEqual(1) expect(store.weatherData[0].cityName).toMatch('New Orleans') // Attempt to add the same city store.addCity('New Orleans',  'Louisiana',  'US',  'sunny',  87.6,  78.9,  65.2) // Check that only 1 instance of the city name is saved expect(store.weatherData.length).toEqual(1) expect(store.weatherData[0].cityName).toMatch('New Orleans') })` 
 ```
 
 最后，用`clearAllCities()`动作测试从存储中删除所有数据:
 
-```
+```py
 `it('test removing all cities',  ()  =>  { // Add two cities to the data store store.addCity('New Orleans',  'Louisiana',  'US',  'sunny',  87.6,  78.9,  65.2) store.addCity('Denver',  'Colorado',  'US',  'windy',  94.5,  95.6,  56.7) // Check that the cities were added expect(store.weatherData.length).toEqual(2) // Remove a city store.clearAllCities() // Check that zero cities remain in the data store expect(store.weatherData.length).toEqual(0) })` 
 ```
 
@@ -246,7 +246,7 @@ Pinia 数据存储被导入以在单元测试文件中使用:
 
 当单元测试使用 Pinia 数据存储的 Vue 组件时，您需要从 Pinia 测试模块导入`createTestingPinia`:
 
-```
+```py
 `import  {  describe,  it,  expect,  vi,  beforeEach,  afterEach  }  from  'vitest' import  {  shallowMount  }  from  '@vue/test-utils' import  CityList  from  '@/components/CityList.vue' import  {  createTestingPinia  }  from  '@pinia/testing'  // <-- !! import  {  useCitiesStore  }  from  '@/stores/cities'` 
 ```
 
@@ -256,31 +256,31 @@ Pinia 数据存储被导入以在单元测试文件中使用:
 
 第一个单元测试套件测试当 Pinia 数据存储为空时 Vue 组件如何工作:
 
-```
+```py
 `describe('CityList.vue Test with empty data store',  ()  =>  { let  wrapper  =  null // SETUP - run prior to each unit test beforeEach(()  =>  { // render the component wrapper  =  shallowMount(CityList,  { global:  { plugins:  [ createTestingPinia({ createSpy:  vi.fn }) ] } }) }) // TEARDOWN - run after each unit test afterEach(()  =>  { wrapper.unmount() }) it('initializes with zero elements displayed',  ()  =>  { // check that zero city cards are displayed expect(wrapper.findAll('h2').length).toEqual(0) // check that the 'Clear Weather Data' button is not displayed expect(wrapper.findAll('button').length).toEqual(1) expect(wrapper.findAll('button')[0].isVisible()).toBeFalsy() }) })` 
 ```
 
 当安装组件(使用`shallowMount()`)时，利用`createTestingPinia()`创建对所有动作的监视:
 
-```
+```py
 `// render the component wrapper  =  shallowMount(CityList,  { global:  { plugins:  [ createTestingPinia({ createSpy:  vi.fn }) ] } })` 
 ```
 
 该单元测试套件中的单个单元测试检查零卡是否显示，以及“清除天气数据”按钮是否显示:
 
-```
+```py
 `it('initializes with zero elements displayed',  ()  =>  { // check that zero city cards are displayed expect(wrapper.findAll('h2').length).toEqual(0) // check that the 'Clear Weather Data' button is not displayed expect(wrapper.findAll('button').length).toEqual(1) expect(wrapper.findAll('button')[0].isVisible()).toBeFalsy() })` 
 ```
 
 第二个单元测试套件用两个城市的天气数据初始化 Pinia 数据存储:
 
-```
+```py
 `describe('CityList.vue Test with filled data store',  ()  =>  { let  wrapper  =  null let  store  =  null // SETUP - run prior to each unit test beforeEach(()  =>  { // render the component and initialize the data store // to contain weather data for (2) cities wrapper  =  shallowMount(CityList,  { global:  { plugins:  [ createTestingPinia({ createSpy:  vi.fn, initialState:  { cities:  { weatherData:  [ { 'cityName':  'New Orleans', 'stateName':  'Louisiana', 'countryAbbreviation':  'US', 'weatherSummary':  'sunny', 'currentTemperature':  77.6, 'dailyHigh':  78.9, 'dailyLow':  65.2 }, { 'cityName':  'Dublin', 'stateName':  '', 'countryAbbreviation':  'IE', 'weatherSummary':  'windy', 'currentTemperature':  64.5, 'dailyHigh':  65.6, 'dailyLow':  46.7 } ] } } }) ] } }) // create the data store using the testing pinia store  =  useCitiesStore() }) // TEARDOWN - run after each unit test afterEach(()  =>  { wrapper.unmount() }) it('displays city weather from the data store',  ()  =>  {  ...  }) it('calls the correct action when the weather data is cleared',  async  ()  =>  {  ...  }) })` 
 ```
 
 当 Vue 组件被安装(通过`shallowMount()`)时，`createTestingPinia()`用于创建对所有动作的监视。此外，定义了`initialState`属性来初始化 Pinia 数据存储:
 
-```
+```py
 `// render the component and initialize the data store // to contain weather data for (2) cities wrapper  =  shallowMount(CityList,  { global:  { plugins:  [ createTestingPinia({ createSpy:  vi.fn, initialState:  { cities:  { weatherData:  [ { 'cityName':  'New Orleans', 'stateName':  'Louisiana', 'countryAbbreviation':  'US', 'weatherSummary':  'sunny', 'currentTemperature':  77.6, 'dailyHigh':  78.9, 'dailyLow':  65.2 }, { 'cityName':  'Dublin', 'stateName':  '', 'countryAbbreviation':  'IE', 'weatherSummary':  'windy', 'currentTemperature':  64.5, 'dailyHigh':  65.6, 'dailyLow':  46.7 } ] } } }) ] } })` 
 ```
 
@@ -288,13 +288,13 @@ Pinia 数据存储被导入以在单元测试文件中使用:
 
 指定了 Pinia 数据存储的首字母`state`后，该测试套件中的第一个单元测试检查来自存储的数据是否正确显示:
 
-```
+```py
 `it('displays city weather from the data store',  ()  =>  { // check that two city cards are displayed const  cityHeadings  =  wrapper.findAll('h2') expect(cityHeadings.length).toEqual(2) expect(cityHeadings[0].text()).toMatch('New Orleans, Louisiana') expect(cityHeadings[1].text()).toMatch('Dublin') const  citySubHeadings  =  wrapper.findAll('h3') expect(citySubHeadings.length).toEqual(2) expect(citySubHeadings[0].text()).toMatch('US') expect(citySubHeadings[1].text()).toMatch('IE') const  cityWeatherData  =  wrapper.findAll('p') expect(cityWeatherData.length).toEqual(6) expect(cityWeatherData[0].text()).toMatch('Weather Summary: sunny') expect(cityWeatherData[1].text()).toMatch('Current Temperature: 77.6') expect(cityWeatherData[2].text()).toMatch('High: 78.9°F / Low: 65.2°F') expect(cityWeatherData[3].text()).toMatch('Weather Summary: windy') expect(cityWeatherData[4].text()).toMatch('Current Temperature: 64.5') expect(cityWeatherData[5].text()).toMatch('High: 65.6°F / Low: 46.7°F') // check that the 'Clear Weather Data' button is displayed expect(wrapper.findAll('button').length).toEqual(1) expect(wrapper.findAll('button')[0].isVisible()).toBeTruthy() expect(wrapper.findAll('button')[0].text()).toMatch('Clear Weather Data (2)') })` 
 ```
 
 第二个单元测试检查单击“清除天气数据”按钮时是否调用了正确的“操作”:
 
-```
+```py
 `it('calls the correct action when the weather data is cleared',  async  ()  =>  { // create the data store using the testing pinia const  store  =  useCitiesStore() // trigger an event when the 'Clear Weather Data' button is clicked wrapper.findAll('button').at(0).trigger('click') // check that the 'clearAllCities' action was called on the data store expect(store.clearAllCities).toHaveBeenCalledTimes(1) })` 
 ```
 
@@ -306,7 +306,7 @@ Pinia 数据存储被导入以在单元测试文件中使用:
 
 下面是一个顶级测试文件的示例，它检查是否呈现了正确的组件:
 
-```
+```py
 `import  {  describe,  it,  expect,  vi  }  from  'vitest' import  {  mount  }  from  '@vue/test-utils' import  App  from  '@/App.vue' import  {  createTestingPinia  }  from  '@pinia/testing' describe('App.vue Test',  ()  =>  { it('renders the page',  ()  =>  { // render the component const  wrapper  =  mount(App,  { global:  { plugins:  [ createTestingPinia({ createSpy:  vi.fn }) ] } }) // check that all 3 sub-components are rendered expect(wrapper.getComponent({  name:  'WeatherHeader'  }).exists()).toBeTruthy() expect(wrapper.getComponent({  name:  'WeatherContent'  }).exists()).toBeTruthy() expect(wrapper.getComponent({  name:  'WeatherFooter'  }).exists()).toBeTruthy() }) })` 
 ```
 
@@ -316,7 +316,7 @@ Pinia 数据存储被导入以在单元测试文件中使用:
 
 Vitest 可用于运行单元测试，如下所示:
 
-```
+```py
 `$ npm run test:unit
 ...
 
@@ -343,7 +343,7 @@ Test Files  8 passed (8)
 
 Vitest 的默认配置是在[监视模式](https://vitest.dev/guide/features.html#watch-mode)下运行测试，这意味着每次保存到一个适用的文件时，测试套件都会被重新执行。要更改此配置，使 Vitest 只运行一次(没有“监视模式”)，请更新 *package.json* 中的`test:unit`配置，以包含`run`参数:
 
-```
+```py
 `"test:unit":  "vitest run --environment jsdom",` 
 ```
 

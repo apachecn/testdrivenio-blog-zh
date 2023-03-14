@@ -45,7 +45,7 @@
 
 [generic piview](https://www.django-rest-framework.org/api-guide/generic-views/#genericapiview)是所有其他通用视图的基类。它提供了[方法](https://www.django-rest-framework.org/api-guide/generic-views/#methods)，如`get_object` / `get_queryset`和`get_serializer`。尽管它被设计为与 mixins 结合使用(因为它是在通用视图中使用的)，但它也可以单独使用:
 
-```
+```py
 `from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 
@@ -87,7 +87,7 @@ class RetrieveDeleteItem(GenericAPIView):
 
 下面是一个 mixin 看起来像什么的例子:
 
-```
+```py
 `class RetrieveModelMixin:
     """
  Retrieve a model instance.
@@ -108,7 +108,7 @@ class RetrieveDeleteItem(GenericAPIView):
 
 通常，它们一起用于创建一个列表创建 API 端点:
 
-```
+```py
 `from rest_framework import mixins
 from rest_framework.generics import GenericAPIView
 
@@ -139,7 +139,7 @@ class CreateListItems(mixins.ListModelMixin, mixins.CreateModelMixin, GenericAPI
 
 例如:
 
-```
+```py
 `from rest_framework import mixins
 from rest_framework.generics import GenericAPIView
 
@@ -177,7 +177,7 @@ class CreateList(mixins.ListModelMixin, mixins.CreateModelMixin, GenericAPIView)
 
 在本例中，我们将所有三者结合成一个端点，用于详细视图的每个可能的操作:
 
-```
+```py
 `from rest_framework import mixins
 from rest_framework.generics import GenericAPIView
 
@@ -214,7 +214,7 @@ class RetrieveUpdateDeleteItem(
 
 您还可以将视图限制为特定操作:
 
-```
+```py
 `from rest_framework import mixins
 from rest_framework.generics import GenericAPIView
 
@@ -238,7 +238,7 @@ class RetrieveUpdateItem(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, Gen
 
 也就是说，你可以按照你认为合适的方式组合混音。例如，你*可以*组合`RetrieveModelMixin`和`CreateModelMixin`混音:
 
-```
+```py
 `from rest_framework import mixins
 from rest_framework.generics import GenericAPIView
 
@@ -268,7 +268,7 @@ class RetrieveCreate(mixins.RetrieveModelMixin, mixins.CreateModelMixin, Generic
 
 在这种情况下，创建一个[自定义 mixin](https://www.django-rest-framework.org/api-guide/generic-views/#creating-custom-mixins) 来将序列化器映射到请求方法是一个好主意:
 
-```
+```py
 `class SerializerByMethodMixin:
     def get_serializer_class(self, *args, **kwargs):
 
@@ -281,7 +281,7 @@ class RetrieveCreate(mixins.RetrieveModelMixin, mixins.CreateModelMixin, Generic
 
 现在您只需要将`SerializerByMethodMixin`添加到您的视图中，并设置`serializer_map`属性:
 
-```
+```py
 `class ListCreateItems(SerializerByMethodMixin, ListCreateAPIView):
 
     queryset = Item.objects.all()
@@ -299,7 +299,7 @@ class RetrieveCreate(mixins.RetrieveModelMixin, mixins.CreateModelMixin, Generic
 
 例如:
 
-```
+```py
 `class BaseCreateListView((MixinSingleOrListSerializer, ListCreateAPIView)):
     pass` 
 ```
@@ -310,7 +310,7 @@ class RetrieveCreate(mixins.RetrieveModelMixin, mixins.CreateModelMixin, Generic
 
 快速看一下其中一个具体视图类的代码，`ListCreateAPIView`:
 
-```
+```py
 `# https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/generics.py#L232
 
 class ListCreateAPIView(mixins.ListModelMixin,
@@ -369,7 +369,7 @@ class ListCreateAPIView(mixins.ListModelMixin,
 
 在这里，通过扩展`CreateAPIView`，我们创建了一个端点，用户可以在这里创建一个新项目:
 
-```
+```py
 `from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import IsAdminUser
 
@@ -386,7 +386,7 @@ class CreateItem(CreateAPIView):
 
 这里，我们扩展了`ListAPIView`来创建一个端点，其中列出了所有“未完成”的项目:
 
-```
+```py
 `from rest_framework.generics import ListAPIView
 
 class ItemsNotDone(ListAPIView):
@@ -399,7 +399,7 @@ class ItemsNotDone(ListAPIView):
 
 请记住，这些视图中的每一个都需要单独包含在 URL 中:
 
-```
+```py
 `# urls.py
 
 from django.urls import path
@@ -414,7 +414,7 @@ urlpatterns = [
 
 当`ListAPIView`返回所有项目的列表时，`RetrieveAPIView`用于检索单个项目:
 
-```
+```py
 `from rest_framework.generics import RetrieveAPIView
 
 class SingleItem(RetrieveAPIView):
@@ -425,7 +425,7 @@ class SingleItem(RetrieveAPIView):
 
 `RetrieveAPIView`的示例 *urls.py* (以及单个实例的其他视图):
 
-```
+```py
 `from django.urls import path
 from .views import SingleItem
 >
@@ -438,7 +438,7 @@ urlpatterns = [
 
 扩展`DestroyAPIView`创建一个端点，唯一的目的是删除一个条目:
 
-```
+```py
 `from rest_framework.generics import DestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 
@@ -455,7 +455,7 @@ class DeleteItem(DestroyAPIView):
 
 用于更新单个项目的端点:
 
-```
+```py
 `from rest_framework.generics import UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
@@ -475,7 +475,7 @@ class UpdateItem(UpdateAPIView):
 
 `ListCreateAPIView`是第一个具有多个责任的具体视图类，列出了所有项目**和**创建一个新项目:
 
-```
+```py
 `from rest_framework.generics import ListCreateAPIView
 
 class ListCreateItems(ListCreateAPIView):
@@ -492,7 +492,7 @@ class ListCreateItems(ListCreateAPIView):
 
 扩展`RetrieveUpdateAPIView`为检索**和更新单个项目的**创建一个端点:
 
-```
+```py
 `from rest_framework.generics import RetrieveUpdateAPIView
 
 class RetrieveUpdateItem(RetrieveUpdateAPIView):
@@ -508,7 +508,7 @@ class RetrieveUpdateItem(RetrieveUpdateAPIView):
 
 在这里，通过扩展`RetrieveDestroyAPIView`，我们创建了一个端点来检索**和删除单个项目的**:
 
-```
+```py
 `from rest_framework.generics import RetrieveDestroyAPIView
 
 class RetrieveDeleteItem(RetrieveDestroyAPIView):
@@ -521,7 +521,7 @@ class RetrieveDeleteItem(RetrieveDestroyAPIView):
 
 这里，通过扩展`RetrieveUpdateDestroyAPIView`，我们创建了一个端点，在这里可以访问单个项目的所有可能的操作:检索、(部分)更新和删除。
 
-```
+```py
 `from rest_framework.generics import RetrieveUpdateDestroyAPIView
 
 class RetrieveUpdateDeleteItem(RetrieveUpdateDestroyAPIView):

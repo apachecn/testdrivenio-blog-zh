@@ -30,7 +30,7 @@
 
 示例:
 
-```
+```py
 `import boto3
 
 # configure session and client
@@ -74,20 +74,20 @@ client.download_file(
 
 从 GitHub 上的[django-digital ocean-spaces](https://github.com/testdrivenio/django-digitalocean-spaces)repo 中克隆基础项目:
 
-```
+```py
 `$ git clone -b base https://github.com/testdrivenio/django-digitalocean-spaces
 $ cd django-digitalocean-spaces` 
 ```
 
 从项目根目录，创建映像并启动 Docker 容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 构建完成后，收集静态文件:
 
-```
+```py
 `$ docker-compose exec web python manage.py collectstatic` 
 ```
 
@@ -101,7 +101,7 @@ $ cd django-digitalocean-spaces`
 
 在继续之前，快速浏览一下项目结构:
 
-```
+```py
 `├── .gitignore
 ├── LICENSE
 ├── README.md
@@ -144,7 +144,7 @@ $ cd django-digitalocean-spaces`
 
 更新需求文件:
 
-```
+```py
 `boto3==1.18.36
 Django==3.2
 django-storages==1.11.1
@@ -153,7 +153,7 @@ gunicorn==20.1.0`
 
 将`storages`添加到*设置. py* 中的`INSTALLED_APPS`中:
 
-```
+```py
 `INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -168,7 +168,7 @@ gunicorn==20.1.0`
 
 更新图像并旋转新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -176,7 +176,7 @@ gunicorn==20.1.0`
 
 接下来，我们需要更新对 *settings.py* 中静态文件的处理:
 
-```
+```py
 `STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = (BASE_DIR / 'static',)
@@ -187,7 +187,7 @@ MEDIA_ROOT = BASE_DIR / 'mediafiles'`
 
 用以下内容替换这些设置:
 
-```
+```py
 `USE_SPACES = os.getenv('USE_SPACES') == 'TRUE'
 
 if USE_SPACES:
@@ -223,7 +223,7 @@ MEDIA_ROOT = BASE_DIR / 'mediafiles'`
 
 向 *docker-compose.yml* 文件中的`web`服务添加适当的环境变量:
 
-```
+```py
 `web: build:  ./app command:  bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000' volumes: -  ./app/:/usr/src/app/ -  static_volume:/usr/src/app/staticfiles -  media_volume:/usr/src/app/mediafiles expose: -  8000 environment: -  SECRET_KEY=please_change_me -  SQL_ENGINE=django.db.backends.postgresql -  SQL_DATABASE=postgres -  SQL_USER=postgres -  SQL_PASSWORD=postgres -  SQL_HOST=db -  SQL_PORT=5432 -  DATABASE=postgres -  USE_SPACES=TRUE -  AWS_ACCESS_KEY_ID=UPDATE_ME -  AWS_SECRET_ACCESS_KEY=UPDATE_ME -  AWS_STORAGE_BUCKET_NAME=UPDATE_ME depends_on: -  db` 
 ```
 
@@ -231,14 +231,14 @@ MEDIA_ROOT = BASE_DIR / 'mediafiles'`
 
 要测试、重新构建和运行容器:
 
-```
+```py
 `$ docker-compose down -v
 $ docker-compose up -d --build` 
 ```
 
 收集静态文件:
 
-```
+```py
 `$ docker-compose exec web python manage.py collectstatic` 
 ```
 
@@ -264,7 +264,7 @@ $ docker-compose up -d --build`
 
 将名为 *storage_backends.py* 的新文件添加到“app/hello_django”文件夹中:
 
-```
+```py
 `from django.conf import settings
 from storages.backends.s3boto3 import S3Boto3Storage
 
@@ -280,7 +280,7 @@ class PublicMediaStorage(S3Boto3Storage):
 
 对 *settings.py* 进行以下更改:
 
-```
+```py
 `USE_SPACES = os.getenv('USE_SPACES') == 'TRUE'
 
 if USE_SPACES:
@@ -314,7 +314,7 @@ STATICFILES_DIRS = (BASE_DIR / 'static',)`
 
 *app/upload/models.py* :
 
-```
+```py
 `from django.db import models
 
 class Upload(models.Model):
@@ -324,7 +324,7 @@ class Upload(models.Model):
 
 *app/upload/views.py* :
 
-```
+```py
 `from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.shortcuts import render
@@ -351,7 +351,7 @@ def image_upload(request):
 
 创建新的迁移文件，然后构建新的映像:
 
-```
+```py
 `$ docker-compose exec web python manage.py makemigrations
 $ docker-compose down -v
 $ docker-compose up -d --build
@@ -364,7 +364,7 @@ $ docker-compose exec web python manage.py migrate`
 
 向 *storage_backends.py* 中添加一个新类:
 
-```
+```py
 `class PrivateMediaStorage(S3Boto3Storage):
     location = 'private'
     default_acl = 'private'
@@ -374,7 +374,7 @@ $ docker-compose exec web python manage.py migrate`
 
 添加适当的设置:
 
-```
+```py
 `USE_SPACES = os.getenv('USE_SPACES') == 'TRUE'
 
 if USE_SPACES:
@@ -407,7 +407,7 @@ STATICFILES_DIRS = (BASE_DIR / 'static',)`
 
 在 *app/upload/models.py* 中创建新模型:
 
-```
+```py
 `from django.db import models
 
 from hello_django.storage_backends import PublicMediaStorage, PrivateMediaStorage
@@ -423,7 +423,7 @@ class UploadPrivate(models.Model):
 
 然后，更新视图:
 
-```
+```py
 `from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.shortcuts import render
@@ -453,7 +453,7 @@ def image_upload(request):
 
 同样，创建迁移文件，重新构建映像，并启动新容器:
 
-```
+```py
 `$ docker-compose exec web python manage.py makemigrations
 $ docker-compose down -v
 $ docker-compose up -d --build

@@ -27,14 +27,14 @@
 
 从克隆基础项目开始:
 
-```
+```py
 `$ git clone https://gitlab.com/testdriven/django-gitlab-digitalocean.git --branch base --single-branch
 $ cd django-gitlab-digitalocean` 
 ```
 
 要进行本地测试，构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -48,7 +48,7 @@ $ cd django-gitlab-digitalocean`
 
 将令牌添加到您的环境中:
 
-```
+```py
 `$ export DIGITAL_OCEAN_ACCESS_TOKEN=[your_digital_ocean_token]` 
 ```
 
@@ -56,7 +56,7 @@ $ cd django-gitlab-digitalocean`
 
 接下来，使用预装的 Docker 创建一个新的 Droplet:
 
-```
+```py
 `$ curl -X POST \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -66,7 +66,7 @@ $ cd django-gitlab-digitalocean`
 
 检查状态:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -75,7 +75,7 @@ $ cd django-gitlab-digitalocean`
 
 如果您安装了 [jq](https://stedolan.github.io/jq/) ，那么您可以像这样解析 JSON 响应:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -89,7 +89,7 @@ root 密码应该会通过电子邮件发送给您。找回它。然后，一旦
 
 将密钥保存到 */root/。ssh/id_rsa* 并且不设置密码。这将分别生成一个公钥和私钥- *id_rsa* 和 *id_rsa.pub* 。要设置无密码 SSH 登录，请将公钥复制到 [authorized_keys](https://security.stackexchange.com/questions/20706/what-is-the-difference-between-authorized-keys-and-known-hosts-file-for-ssh) 文件中，并设置适当的权限:
 
-```
+```py
 `$ cat ~/.ssh/id_rsa.pub
 $ vi ~/.ssh/authorized_keys
 $ chmod 600 ~/.ssh/authorized_keys
@@ -100,7 +100,7 @@ $ chmod 600 ~/.ssh/id_rsa`
 
 将其设置为本地计算机上的环境变量:
 
-```
+```py
 `export PRIVATE_KEY='-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA04up8hoqzS1+APIB0RhjXyObwHQnOzhAk5Bd7mhkSbPkyhP1
 ...
@@ -111,7 +111,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 将密钥添加到 [ssh-agent](https://www.ssh.com/ssh/agent) 中:
 
-```
+```py
 `$ ssh-add - <<< "${PRIVATE_KEY}"` 
 ```
 
@@ -123,7 +123,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 接下来，让我们通过数字海洋的[托管数据库](https://www.digitalocean.com/products/managed-databases/)建立一个生产 Postgres 数据库:
 
-```
+```py
 `$ curl -X POST \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -133,7 +133,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 检查状态:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -143,7 +143,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 它应该需要几分钟才能旋转起来。一旦状态为`online`，获取连接信息:
 
-```
+```py
 `$ curl \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer '$DIGITAL_OCEAN_ACCESS_TOKEN'' \
@@ -153,7 +153,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 示例响应:
 
-```
+```py
 `{
   "protocol": "postgresql",
   "uri": "postgresql://doadmin:[[email protected]](/cdn-cgi/l/email-protection)locean.com:25060/defaultdb?sslmode=require",
@@ -174,7 +174,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 接下来，添加一个名为*的 GitLab CI/CD 配置文件。gitlab-ci.yml* 到项目根:
 
-```
+```py
 `image: name:  docker/compose:1.29.1 entrypoint:  [""] services: -  docker:dind stages: -  build variables: DOCKER_HOST:  tcp://docker:2375 DOCKER_DRIVER:  overlay2 build: stage:  build before_script: -  export IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME -  export WEB_IMAGE=$IMAGE:web -  export NGINX_IMAGE=$IMAGE:nginx script: -  apk add --no-cache bash -  chmod +x ./setup_env.sh -  bash ./setup_env.sh -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY -  docker pull $IMAGE:web || true -  docker pull $IMAGE:nginx || true -  docker-compose -f docker-compose.ci.yml build -  docker push $IMAGE:web -  docker push $IMAGE:nginx` 
 ```
 
@@ -191,7 +191,7 @@ q/SyqAWVmvwYuIhDiHDaV2A==
 
 将 *setup_env.sh* 文件添加到项目根目录:
 
-```
+```py
 `#!/bin/sh
 
 echo DEBUG=0 >> .env
@@ -227,7 +227,7 @@ echo SQL_PORT=$SQL_PORT >> .env`
 
 接下来，给*增加一个`deploy`阶段。gitlab-ci.yml* 并创建一个用于两个阶段的全局`before_script`:
 
-```
+```py
 `image: name:  docker/compose:1.29.1 entrypoint:  [""] services: -  docker:dind stages: -  build -  deploy variables: DOCKER_HOST:  tcp://docker:2375 DOCKER_DRIVER:  overlay2 before_script: -  export IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME -  export WEB_IMAGE=$IMAGE:web -  export NGINX_IMAGE=$IMAGE:nginx -  apk add --no-cache openssh-client bash -  chmod +x ./setup_env.sh -  bash ./setup_env.sh -  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY build: stage:  build script: -  docker pull $IMAGE:web || true -  docker pull $IMAGE:nginx || true -  docker-compose -f docker-compose.ci.yml build -  docker push $IMAGE:web -  docker push $IMAGE:nginx deploy: stage:  deploy script: -  mkdir -p ~/.ssh -  echo "$PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa -  cat ~/.ssh/id_rsa -  chmod 700 ~/.ssh/id_rsa -  eval "$(ssh-agent -s)" -  ssh-add ~/.ssh/id_rsa -  ssh-keyscan -H 'gitlab.com' >> ~/.ssh/known_hosts -  chmod +x ./deploy.sh -  scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml [[email protected]](/cdn-cgi/l/email-protection)$DIGITAL_OCEAN_IP_ADDRESS:/app -  bash ./deploy.sh` 
 ```
 
@@ -240,7 +240,7 @@ echo SQL_PORT=$SQL_PORT >> .env`
 
 将 *deploy.sh* 添加到项目根:
 
-```
+```py
 `#!/bin/sh
 
 ssh -o StrictHostKeyChecking=no [[email protected]](/cdn-cgi/l/email-protection)$DIGITAL_OCEAN_IP_ADDRESS << 'ENDSSH'
@@ -265,7 +265,7 @@ ENDSSH`
 
 更新 *setup_env.sh* 文件:
 
-```
+```py
 `#!/bin/sh
 
 echo DEBUG=0 >> .env
@@ -294,13 +294,13 @@ echo IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME >> .env`
 
 最后，更新`deploy`阶段，使其仅在对`master`分支进行更改时运行:
 
-```
+```py
 `deploy: stage:  deploy script: -  mkdir -p ~/.ssh -  echo "$PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa -  cat ~/.ssh/id_rsa -  chmod 700 ~/.ssh/id_rsa -  eval "$(ssh-agent -s)" -  ssh-add ~/.ssh/id_rsa -  ssh-keyscan -H 'gitlab.com' >> ~/.ssh/known_hosts -  chmod +x ./deploy.sh -  scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml [[email protected]](/cdn-cgi/l/email-protection)$DIGITAL_OCEAN_IP_ADDRESS:/app -  bash ./deploy.sh only: -  master` 
 ```
 
 为了测试，创建一个新的`develop`分支。在 *urls.py* 中的`world`后加一个感叹号:
 
-```
+```py
 `def home(request):
     return JsonResponse({'hello': 'world!'})` 
 ```

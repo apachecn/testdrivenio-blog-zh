@@ -117,7 +117,7 @@ pytest 和 unittest 的主要区别是:
 
 下面是“测试”目录的结构示例:
 
-```
+```py
 `└── tests
     ├── conftest.py
     ├── functional
@@ -131,7 +131,7 @@ pytest 和 unittest 的主要区别是:
 
 下面是“tests”文件夹如何适应一个典型的带有[蓝图](https://flask.palletsprojects.com/en/2.0.x/blueprints/)的 Flask 项目:
 
-```
+```py
 `├── app.py
 ├── project
 │   ├── __init__.py
@@ -158,7 +158,7 @@ pytest 和 unittest 的主要区别是:
 
 由于这个测试是单元测试，所以应该在[*tests/unit/test _ models . py*](https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/main/tests/unit/test_models.py)中实现:
 
-```
+```py
 `from project.models import User
 
 def test_new_user():
@@ -177,7 +177,7 @@ def test_new_user():
 
 导入之后，我们从测试内容的描述开始:
 
-```
+```py
 `"""
 GIVEN a User model
 WHEN a new User is created
@@ -209,7 +209,7 @@ THEN check the email, hashed_password, and role fields are defined correctly
 
 由于这个测试是一个功能测试，所以应该在[*tests/functional/test _ recipes . py*](https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/main/tests/functional/test_recipes.py)中实现:
 
-```
+```py
 `from project import create_app
 
 def test_home_page():
@@ -232,13 +232,13 @@ def test_home_page():
 
 这个项目使用[应用程序工厂模式](https://flask.palletsprojects.com/en/2.0.x/patterns/appfactories/)来创建 Flask 应用程序。因此，首先需要导入`create_app()`函数:
 
-```
+```py
 `from project import create_app` 
 ```
 
 测试函数`test_home_page()`以测试内容的给定时间描述开始。接下来，创建一个 Flask 应用程序(`flask_app`):
 
-```
+```py
 `flask_app = create_app('flask_test.cfg')` 
 ```
 
@@ -254,7 +254,7 @@ def test_home_page():
 
 非正常功能测试的一个示例是在访问“/”URL 时使用无效的 HTTP 方法(POST ):
 
-```
+```py
 `def test_home_page_post():
     """
  GIVEN a Flask application configured for testing
@@ -313,7 +313,7 @@ def test_home_page():
 
 为了帮助测试 [*项目/models.py*](https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/main/project/models.py) 中的`User`类，我们可以向[*tests/conftest . py*](https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/main/tests/conftest.py#L6)添加一个 fixture，用于创建一个`User`对象进行测试:
 
-```
+```py
 `from project.models import User
 
 @pytest.fixture(scope='module')
@@ -328,7 +328,7 @@ def new_user():
 
 我们可以通过使用[*tests/unit/test _ models . py*](https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/main/tests/unit/test_models.py#L22)中的`new_user` fixture 来简化前面的`test_new_user()`测试函数:
 
-```
+```py
 `def test_new_user_with_fixture(new_user):
     """
  GIVEN a User model
@@ -348,7 +348,7 @@ def new_user():
 
 为了帮助测试 Flask 项目中的所有视图函数，可以在[*tests/conftest . py*](https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/main/tests/conftest.py#L12)中创建一个 fixture:
 
-```
+```py
 `from project import create_app
 
 @pytest.fixture(scope='module')
@@ -364,13 +364,13 @@ def test_client():
 
 这个 fixture 使用上下文管理器创建测试客户机:
 
-```
+```py
 `with flask_app.test_client() as testing_client:` 
 ```
 
 接下来，应用程序上下文被推送到堆栈上，供测试函数使用:
 
-```
+```py
 `with flask_app.app_context():
     yield testing_client  # this is where the testing happens!` 
 ```
@@ -383,7 +383,7 @@ def test_client():
 
 我们可以用[*tests/functional/test _ recipes . py*](https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/main/tests/functional/test_recipes.py#L43)中的`test_client` fixture 来简化之前的功能测试:
 
-```
+```py
 `def test_home_page_with_fixture(test_client):
     """
  GIVEN a Flask application configured for testing
@@ -416,7 +416,7 @@ def test_home_page_post_with_fixture(test_client):
 
 要运行测试，导航到 Flask 项目的顶层文件夹，并通过 Python 解释器运行 pytest:
 
-```
+```py
 `(venv)$ python -m pytest
 ============================= test session starts ==============================
 
@@ -435,7 +435,7 @@ pytest 将递归地搜索您的项目结构，找到以`test_*.py`开头的 Pyth
 
 要查看已运行测试的更多详细信息:
 
-```
+```py
 `(venv)$ python -m pytest -v
 ============================= test session starts ==============================
 
@@ -465,7 +465,7 @@ tests/unit/test_models.py::test_user_id PASSED                           [100%]
 
 为了真正了解什么时候运行`test_client()` fixture，pytest 可以提供 fixture 和 test 的调用结构，并带有`--setup-show`参数:
 
-```
+```py
 `(venv)$ python -m pytest --setup-show tests/functional/test_recipes.py
 ====================================== test session starts =====================================
 
@@ -483,13 +483,13 @@ tests/functional/test_recipes.py
 
 如果您将`test_client`夹具的范围更改为“功能”范围:
 
-```
+```py
 `@pytest.fixture(scope='function')` 
 ```
 
 然后`test_client`夹具将在两个 *_with_fixture* 测试之前运行:
 
-```
+```py
 `(venv)$ python -m pytest --setup-show tests/functional/test_recipes.py
 ======================================= test session starts ======================================
 
@@ -523,7 +523,7 @@ tests/functional/test_recipes.py
 
 在检查代码覆盖率时运行 pytest 需要使用`--cov`参数来指示要检查哪个 Python 包(Flask 项目结构中的`project`)的覆盖率:
 
-```
+```py
 `(venv)$ python -m pytest --cov=project
 ============================= test session starts ==============================
 
@@ -549,7 +549,7 @@ TOTAL                           138      7    95%
 
 即使在检查代码覆盖率时，参数仍然可以传递给 pytest:
 
-```
+```py
 `(venv)$ python -m pytest --setup-show --cov=project` 
 ```
 

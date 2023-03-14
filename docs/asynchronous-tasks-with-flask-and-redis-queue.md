@@ -38,7 +38,7 @@
 
 想跟着去吗？克隆基础项目，然后检查代码和项目结构:
 
-```
+```py
 `$ git clone https://github.com/mjhea0/flask-redis-queue --branch base --single-branch
 $ cd flask-redis-queue` 
 ```
@@ -47,7 +47,7 @@ $ cd flask-redis-queue`
 
 要进行测试，请运行:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -59,13 +59,13 @@ $ cd flask-redis-queue`
 
 在*project/client/static/main . js*中设置了一个事件处理程序，它监听一个按钮点击，并用适当的任务类型向服务器发送一个 AJAX POST 请求:`1`、`2`或`3`。
 
-```
+```py
 `$('.btn').on('click',  function()  { $.ajax({ url:  '/tasks', data:  {  type:  $(this).data('type')  }, method:  'POST' }) .done((res)  =>  { getStatus(res.data.task_id); }) .fail((err)  =>  { console.log(err); }); });` 
 ```
 
 在服务器端，已经在*project/server/main/views . py*中配置了一个视图来处理请求:
 
-```
+```py
 `@main_blueprint.route("/tasks", methods=["POST"])
 def run_task():
     task_type = request.form["type"]
@@ -78,13 +78,13 @@ def run_task():
 
 因此，我们需要启动两个新流程:Redis 和一个 worker。将它们添加到 *docker-compose.yml* 文件中:
 
-```
+```py
 `version:  '3.8' services: web: build:  . image:  web container_name:  web ports: -  5004:5000 command:  python manage.py run -h 0.0.0.0 volumes: -  .:/usr/src/app environment: -  FLASK_DEBUG=1 -  APP_SETTINGS=project.server.config.DevelopmentConfig depends_on: -  redis worker: image:  web command:  python manage.py run_worker volumes: -  .:/usr/src/app environment: -  APP_SETTINGS=project.server.config.DevelopmentConfig depends_on: -  redis redis: image:  redis:6.2-alpine` 
 ```
 
 将任务添加到“项目/服务器/主目录”中名为 *tasks.py* 的新文件中:
 
-```
+```py
 `# project/server/main/tasks.py
 
 import time
@@ -96,7 +96,7 @@ def create_task(task_type):
 
 更新视图以连接到 Redis，对任务进行排队，并使用 id 进行响应:
 
-```
+```py
 `@main_blueprint.route("/tasks", methods=["POST"])
 def run_task():
     task_type = request.form["type"]
@@ -114,7 +114,7 @@ def run_task():
 
 不要忘记进口:
 
-```
+```py
 `import redis
 from rq import Queue, Connection
 from flask import render_template, Blueprint, jsonify, request, current_app
@@ -124,7 +124,7 @@ from project.server.main.tasks import create_task`
 
 更新`BaseConfig`:
 
-```
+```py
 `class BaseConfig(object):
     """Base configuration."""
 
@@ -139,7 +139,7 @@ from project.server.main.tasks import create_task`
 
 *manage.py* :
 
-```
+```py
 `@cli.command("run_worker")
 def run_worker():
     redis_url = app.config["REDIS_URL"]
@@ -155,7 +155,7 @@ def run_worker():
 
 也添加导入:
 
-```
+```py
 `import redis
 from rq import Connection, Worker` 
 ```
@@ -164,19 +164,19 @@ from rq import Connection, Worker`
 
 构建并旋转新容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
 要触发新任务，请运行:
 
-```
+```py
 `$ curl -F type=0 http://localhost:5004/tasks` 
 ```
 
 您应该会看到类似这样的内容:
 
-```
+```py
 `{
   "data": {
     "task_id": "bdad64d0-3865-430e-9cc3-ec1410ddb0fd"
@@ -189,13 +189,13 @@ from rq import Connection, Worker`
 
 回到客户端的事件处理程序:
 
-```
+```py
 `$('.btn').on('click',  function()  { $.ajax({ url:  '/tasks', data:  {  type:  $(this).data('type')  }, method:  'POST' }) .done((res)  =>  { getStatus(res.data.task_id); }) .fail((err)  =>  { console.log(err); }); });` 
 ```
 
 一旦最初的 AJAX 请求返回响应，我们就继续每秒调用带有任务 id 的`getStatus()`。如果响应成功，一个新行被添加到 DOM 上的表中。
 
-```
+```py
 `function  getStatus(taskID)  { $.ajax({ url:  `/tasks/${taskID}`, method:  'GET', }) .done((res)  =>  { const  html  =  `
  <tr>
  <td>${res.data.task_id}</td>
@@ -206,7 +206,7 @@ from rq import Connection, Worker`
 
 更新视图:
 
-```
+```py
 `@main_blueprint.route("/tasks/<task_id>", methods=["GET"])
 def get_status(task_id):
     with Connection(redis.from_url(current_app.config["REDIS_URL"])):
@@ -228,13 +228,13 @@ def get_status(task_id):
 
 向队列添加新任务:
 
-```
+```py
 `$ curl -F type=1 http://localhost:5004/tasks` 
 ```
 
 然后，从响应中获取`task_id`并调用更新的端点来查看状态:
 
-```
+```py
 `$ curl http://localhost:5004/tasks/5819789f-ebd7-4e67-afc3-5621c28acf02
 
 {
@@ -257,7 +257,7 @@ RQ Dashboard 是一个轻量级的、基于 web 的 Redis 队列监控系统。
 
 要进行设置，首先在“项目”目录中添加一个名为“仪表板”的新目录。然后，将新的 *Dockerfile* 添加到新创建的目录中:
 
-```
+```py
 `FROM  python:3.10-alpine
 
 RUN  pip install rq-dashboard
@@ -273,13 +273,13 @@ CMD  ["rq-dashboard"]`
 
 简单地将服务添加到 *docker-compose.yml* 文件中，如下所示:
 
-```
+```py
 `version:  '3.8' services: web: build:  . image:  web container_name:  web ports: -  5004:5000 command:  python manage.py run -h 0.0.0.0 volumes: -  .:/usr/src/app environment: -  FLASK_DEBUG=1 -  APP_SETTINGS=project.server.config.DevelopmentConfig depends_on: -  redis worker: image:  web command:  python manage.py run_worker volumes: -  .:/usr/src/app environment: -  APP_SETTINGS=project.server.config.DevelopmentConfig depends_on: -  redis redis: image:  redis:6.2-alpine dashboard: build:  ./project/dashboard image:  dashboard container_name:  dashboard ports: -  9181:9181 command:  rq-dashboard -H redis depends_on: -  redis` 
 ```
 
 构建映像并旋转容器:
 
-```
+```py
 `$ docker-compose up -d --build` 
 ```
 
@@ -293,7 +293,7 @@ CMD  ["rq-dashboard"]`
 
 试着增加几个工人，看看会有什么影响:
 
-```
+```py
 `$ docker-compose up -d --build --scale worker=3` 
 ```
 

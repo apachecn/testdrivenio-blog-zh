@@ -10,7 +10,7 @@
 
 让我们从建立一个基本的 Cypress 项目开始:
 
-```
+```py
 `$ mkdir cypress-parallel && cd cypress-parallel
 $ npm init -y
 $ npm install cypress --save-dev
@@ -19,7 +19,7 @@ $ ./node_modules/.bin/cypress open`
 
 这将创建一个新的项目文件夹，添加一个 *package.json* 文件，安装 Cypress，打开 Cypress GUI，并构建出以下文件和文件夹:
 
-```
+```py
 `├── cypress
 │   ├── fixtures
 │   │   └── example.json
@@ -56,31 +56,31 @@ $ ./node_modules/.bin/cypress open`
 
 *sample1.spec.js*
 
-```
+```py
 `describe('Cypress parallel run example - 1',  ()  =>  { it('should display the title',  ()  =>  { cy.visit(`https://mherman.org`); cy.get('a').contains('Michael Herman'); }); });` 
 ```
 
 *sample2.spec.js*
 
-```
+```py
 `describe('Cypress parallel run example - 2',  ()  =>  { it('should display the blog link',  ()  =>  { cy.visit(`https://mherman.org`); cy.get('a').contains('Blog'); }); });` 
 ```
 
 *sample3.spec.js*
 
-```
+```py
 `describe('Cypress parallel run example - 3',  ()  =>  { it('should display the about link',  ()  =>  { cy.visit(`https://mherman.org`); cy.get('a').contains('About'); }); });` 
 ```
 
 *sample4.spec.js*
 
-```
+```py
 `describe('Cypress parallel run example - 4',  ()  =>  { it('should display the rss link',  ()  =>  { cy.visit(`https://mherman.org`); cy.get('a').contains('RSS'); }); });` 
 ```
 
 您的项目现在应该具有以下结构:
 
-```
+```py
 `├── cypress
 │   ├── fixtures
 │   │   └── example.json
@@ -101,7 +101,7 @@ $ ./node_modules/.bin/cypress open`
 
 确保在继续之前通过测试:
 
-```
+```py
 `$ ./node_modules/.bin/cypress run
 
       Spec                                                Tests  Passing  Failing  Pending  Skipped
@@ -119,7 +119,7 @@ $ ./node_modules/.bin/cypress open`
 
 一旦完成，添加一个*。gitignore* 文件:
 
-```
+```py
 `node_modules/
 cypress/videos/
 cypress/screenshots/` 
@@ -135,7 +135,7 @@ cypress/screenshots/`
 
 向名为“”的文件夹中添加一个新文件。circleci”，然后向该文件夹添加一个名为 *config.yml* 的新文件:
 
-```
+```py
 `version:  2 jobs: build: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  checkout -  run:  pwd -  run:  ls -  restore_cache: keys: -  'v2-deps-{{  .Branch  }}-{{  checksum  "package-lock.json"  }}' -  'v2-deps-{{  .Branch  }}-' -  v2-deps- -  run:  npm ci -  save_cache: key:  'v2-deps-{{  .Branch  }}-{{  checksum  "package-lock.json"  }}' paths: -  ~/.npm -  ~/.cache -  persist_to_workspace: root:  ~/ paths: -  .cache -  tmp test: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests command:  $(npm bin)/cypress run -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots workflows: version:  2 build_and_test: jobs: -  build -  test: requires: -  build` 
 ```
 
@@ -153,7 +153,7 @@ cypress/screenshots/`
 
 我们将从手动拆分它们开始。像这样更新配置文件:
 
-```
+```py
 `version:  2 jobs: build: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  checkout -  run:  pwd -  run:  ls -  restore_cache: keys: -  'v2-deps-{{  .Branch  }}-{{  checksum  "package-lock.json"  }}' -  'v2-deps-{{  .Branch  }}-' -  v2-deps- -  run:  npm ci -  save_cache: key:  'v2-deps-{{  .Branch  }}-{{  checksum  "package-lock.json"  }}' paths: -  ~/.npm -  ~/.cache -  persist_to_workspace: root:  ~/ paths: -  .cache -  tmp test1: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 1 command:  $(npm bin)/cypress run --spec cypress/integration/sample1.spec.js -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots test2: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 2 command:  $(npm bin)/cypress run --spec cypress/integration/sample2.spec.js -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots test3: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 3 command:  $(npm bin)/cypress run --spec cypress/integration/sample3.spec.js -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots test4: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 4 command:  $(npm bin)/cypress run --spec cypress/integration/sample4.spec.js -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots workflows: version:  2 build_and_test: jobs: -  build -  test1: requires: -  build -  test2: requires: -  build -  test3: requires: -  build -  test4: requires: -  build` 
 ```
 
@@ -172,7 +172,7 @@ cypress/screenshots/`
 
 将`build`作业的配置添加到 *circle.json* :
 
-```
+```py
 `{ "version":  2, "jobs":  { "build":  { "working_directory":  "~/tmp", "docker":  [ { "image":  "cypress/base:10", "environment":  { "TERM":  "xterm" } } ], "steps":  [ "checkout", { "run":  "pwd" }, { "run":  "ls" }, { "restore_cache":  { "keys":  [ "v2-deps-{{ .Branch }}-{{ checksum \"package-lock.json\" }}", "v2-deps-{{ .Branch }}-", "v2-deps-" ] } }, { "run":  "npm ci" }, { "save_cache":  { "key":  "v2-deps-{{ .Branch }}-{{ checksum \"package-lock.json\" }}", "paths":  [ "~/.npm", "~/.cache" ] } }, { "persist_to_workspace":  { "root":  "~/", "paths":  [ ".cache", "tmp" ] } } ] } }, "workflows":  { "version":  2, "build_and_test":  { "jobs":  [ "build" ] } } }` 
 ```
 
@@ -187,7 +187,7 @@ cypress/screenshots/`
 
 代码:
 
-```
+```py
 `const  path  =  require('path'); const  fs  =  require('fs'); const  yaml  =  require('write-yaml'); /*
  helpers
 */ function  createJSON(fileArray,  data)  { for  (const  [index,  value]  of  fileArray.entries())  { data.jobs[`test${index  +  1}`]  =  { working_directory:  '~/tmp', docker:  [ { image:  'cypress/base:10', environment:  { TERM:  'xterm', }, }, ], steps:  [ { attach_workspace:  { at:  '~/', }, }, { run:  'ls -la cypress', }, { run:  'ls -la cypress/integration', }, { run:  { name:  `Running cypress tests ${index  +  1}`, command:  `$(npm bin)/cypress run --spec cypress/integration/${value}`, }, }, { store_artifacts:  { path:  'cypress/videos', }, }, { store_artifacts:  { path:  'cypress/screenshots', }, }, ], }; data.workflows.build_and_test.jobs.push({ [`test${index  +  1}`]:  { requires:  [ 'build', ], }, }); } return  data; } function  writeFile(data)  { yaml(path.join(__dirname,  '..',  '.circleci',  'config.yml'),  data,  (err)  =>  { if  (err)  { console.log(err); }  else  { console.log('Success!'); } }); } /*
@@ -199,7 +199,7 @@ cypress/screenshots/`
 
 安装 [write-yaml](https://www.npmjs.com/package/write-yaml) 然后生成新的配置文件:
 
-```
+```py
 `$ npm install write-yaml --save-dev
 $ node lib/generate-circle-config.js` 
 ```
@@ -212,25 +212,25 @@ $ node lib/generate-circle-config.js`
 
 安装:
 
-```
+```py
 `$ npm install mochawesome mocha --save-dev` 
 ```
 
 更新*generate-circle-config . js*中`createJSON`函数的以下`run`步骤:
 
-```
+```py
 `run:  { name:  `Running cypress tests ${index  +  1}`, command:  `$(npm bin)/cypress run --spec cypress/integration/${value} --reporter mochawesome --reporter-options "reportFilename=test${index  +  1}"`, },` 
 ```
 
 然后，添加一个新步骤，将生成的报告作为一个[工件](https://circleci.com/docs/2.0/artifacts/)存储到`createJSON`:
 
-```
+```py
 `{ store_artifacts:  { path:  'mochawesome-report', }, },` 
 ```
 
 `createJSON`现在应该是这样的:
 
-```
+```py
 `function  createJSON(fileArray,  data)  { for  (const  [index,  value]  of  fileArray.entries())  { data.jobs[`test${index  +  1}`]  =  { working_directory:  '~/tmp', docker:  [ { image:  'cypress/base:10', environment:  { TERM:  'xterm', }, }, ], steps:  [ { attach_workspace:  { at:  '~/', }, }, { run:  'ls -la cypress', }, { run:  'ls -la cypress/integration', }, { run:  { name:  `Running cypress tests ${index  +  1}`, command:  `$(npm bin)/cypress run --spec cypress/integration/${value} --reporter mochawesome --reporter-options "reportFilename=test${index  +  1}"`, }, }, { store_artifacts:  { path:  'cypress/videos', }, }, { store_artifacts:  { path:  'cypress/screenshots', }, }, { store_artifacts:  { path:  'mochawesome-report', }, }, ], }; data.workflows.build_and_test.jobs.push({ [`test${index  +  1}`]:  { requires:  [ 'build', ], }, }); } return  data; }` 
 ```
 
@@ -246,13 +246,13 @@ $ node lib/generate-circle-config.js`
 
 下一步是将单独的报告合并成一个报告。首先向`createJSON`函数添加一个新步骤，将生成的报告存储在[工作区](https://circleci.com/docs/2.0/configuration-reference/#persist_to_workspace)中:
 
-```
+```py
 `{ persist_to_workspace:  { root:  'mochawesome-report', paths:  [ `test${index  +  1}.json`, `test${index  +  1}.html`, ], }, },` 
 ```
 
 此外，向 *lib/circle.json* 添加一个名为`combine_reports`的新作业，它附加工作区，然后运行一个`ls`命令来显示目录的内容:
 
-```
+```py
 `"combine_reports":  { "working_directory":  "~/tmp", "docker":  [ { "image":  "cypress/base:10", "environment":  { "TERM":  "xterm" } } ], "steps":  [ { "attach_workspace":  { "at":  "/tmp/mochawesome-report" } }, { "run":  "ls /tmp/mochawesome-report" } ] }` 
 ```
 
@@ -260,19 +260,19 @@ $ node lib/generate-circle-config.js`
 
 因为这个作业依赖于测试作业，所以再次更新`createJSON`,就像这样:
 
-```
+```py
 `function  createJSON(fileArray,  data)  { const  jobs  =  []; for  (const  [index,  value]  of  fileArray.entries())  { jobs.push(`test${index  +  1}`); data.jobs[`test${index  +  1}`]  =  { working_directory:  '~/tmp', docker:  [ { image:  'cypress/base:10', environment:  { TERM:  'xterm', }, }, ], steps:  [ { attach_workspace:  { at:  '~/', }, }, { run:  'ls -la cypress', }, { run:  'ls -la cypress/integration', }, { run:  { name:  `Running cypress tests ${index  +  1}`, command:  `$(npm bin)/cypress run --spec cypress/integration/${value} --reporter mochawesome --reporter-options "reportFilename=test${index  +  1}"`, }, }, { store_artifacts:  { path:  'cypress/videos', }, }, { store_artifacts:  { path:  'cypress/screenshots', }, }, { store_artifacts:  { path:  'mochawesome-report', }, }, { persist_to_workspace:  { root:  'mochawesome-report', paths:  [ `test${index  +  1}.json`, `test${index  +  1}.html`, ], }, }, ], }; data.workflows.build_and_test.jobs.push({ [`test${index  +  1}`]:  { requires:  [ 'build', ], }, }); } data.workflows.build_and_test.jobs.push({ combine_reports:  { 'requires':  jobs, }, }); return  data; }` 
 ```
 
 生成配置:
 
-```
+```py
 `$ node lib/generate-circle-config.js` 
 ```
 
 配置文件现在应该看起来像这样:
 
-```
+```py
 `version:  2 jobs: build: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  checkout -  run:  pwd -  run:  ls -  restore_cache: keys: -  'v2-deps-{{  .Branch  }}-{{  checksum  "package-lock.json"  }}' -  'v2-deps-{{  .Branch  }}-' -  v2-deps- -  run:  npm ci -  save_cache: key:  'v2-deps-{{  .Branch  }}-{{  checksum  "package-lock.json"  }}' paths: -  ~/.npm -  ~/.cache -  persist_to_workspace: root:  ~/ paths: -  .cache -  tmp combine_reports: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  /tmp/mochawesome-report -  run:  ls /tmp/mochawesome-report test1: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 1 command:  >- $(npm bin)/cypress run --spec cypress/integration/sample1.spec.js --reporter mochawesome --reporter-options "reportFilename=test1" -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots -  store_artifacts: path:  mochawesome-report -  persist_to_workspace: root:  mochawesome-report paths: -  test1.json -  test1.html test2: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 2 command:  >- $(npm bin)/cypress run --spec cypress/integration/sample2.spec.js --reporter mochawesome --reporter-options "reportFilename=test2" -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots -  store_artifacts: path:  mochawesome-report -  persist_to_workspace: root:  mochawesome-report paths: -  test2.json -  test2.html test3: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 3 command:  >- $(npm bin)/cypress run --spec cypress/integration/sample3.spec.js --reporter mochawesome --reporter-options "reportFilename=test3" -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots -  store_artifacts: path:  mochawesome-report -  persist_to_workspace: root:  mochawesome-report paths: -  test3.json -  test3.html test4: working_directory:  ~/tmp docker: -  image:  'cypress/base:10' environment: TERM:  xterm steps: -  attach_workspace: at:  ~/ -  run:  ls -la cypress -  run:  ls -la cypress/integration -  run: name:  Running cypress tests 4 command:  >- $(npm bin)/cypress run --spec cypress/integration/sample4.spec.js --reporter mochawesome --reporter-options "reportFilename=test4" -  store_artifacts: path:  cypress/videos -  store_artifacts: path:  cypress/screenshots -  store_artifacts: path:  mochawesome-report -  persist_to_workspace: root:  mochawesome-report paths: -  test4.json -  test4.html workflows: version:  2 build_and_test: jobs: -  build -  test1: requires: -  build -  test2: requires: -  build -  test3: requires: -  build -  test4: requires: -  build -  combine_reports: requires: -  test1 -  test2 -  test3 -  test4` 
 ```
 
@@ -282,7 +282,7 @@ $ node lib/generate-circle-config.js`
 
 接下来，添加一个脚本来合并报告:
 
-```
+```py
 `const  fs  =  require('fs'); const  path  =  require('path'); const  shell  =  require('shelljs'); const  uuidv1  =  require('uuid/v1'); function  getFiles(dir,  ext,  fileList  =  [])  { const  files  =  fs.readdirSync(dir); files.forEach((file)  =>  { const  filePath  =  `${dir}/${file}`; if  (fs.statSync(filePath).isDirectory())  { getFiles(filePath,  fileList); }  else  if  (path.extname(file)  ===  ext)  { fileList.push(filePath); } }); return  fileList; } function  traverseAndModifyTimedOut(target,  deep)  { if  (target['tests']  &&  target['tests'].length)  { target['tests'].forEach(test  =>  { test.timedOut  =  false; }); } if  (target['suites'])  { target['suites'].forEach(suite  =>  { traverseAndModifyTimedOut(suite,  deep  +  1); }) } } function  combineMochaAwesomeReports()  { const  reportDir  =  path.join('/',  'tmp',  'mochawesome-report'); const  reports  =  getFiles(reportDir,  '.json',  []); const  suites  =  []; let  totalSuites  =  0; let  totalTests  =  0; let  totalPasses  =  0; let  totalFailures  =  0; let  totalPending  =  0; let  startTime; let  endTime; let  totalskipped  =  0; reports.forEach((report,  idx)  =>  { const  rawdata  =  fs.readFileSync(report); const  parsedData  =  JSON.parse(rawdata); if  (idx  ===  0)  {  startTime  =  parsedData.stats.start;  } if  (idx  ===  (reports.length  -  1))  {  endTime  =  parsedData.stats.end;  } totalSuites  +=  parseInt(parsedData.stats.suites,  10); totalskipped  +=  parseInt(parsedData.stats.skipped,  10); totalPasses  +=  parseInt(parsedData.stats.passes,  10); totalFailures  +=  parseInt(parsedData.stats.failures,  10); totalPending  +=  parseInt(parsedData.stats.pending,  10); totalTests  +=  parseInt(parsedData.stats.tests,  10); if  (parsedData  &&  parsedData.suites  &&  parsedData.suites.suites)  { parsedData.suites.suites.forEach(suite  =>  { suites.push(suite) }) } }); return  { totalSuites, totalTests, totalPasses, totalFailures, totalPending, startTime, endTime, totalskipped, suites, }; } function  getPercentClass(pct)  { if  (pct  <=  50)  { return  'danger'; }  else  if  (pct  >  50  &&  pct  <  80)  { return  'warning'; } return  'success'; } function  writeReport(obj,  uuid)  { const  sampleFile  =  path.join(__dirname,  'sample.json'); const  outFile  =  path.join(__dirname,  '..',  `${uuid}.json`); fs.readFile(sampleFile,  'utf8',  (err,  data)  =>  { if  (err)  throw  err; const  parsedSampleFile  =  JSON.parse(data); const  stats  =  parsedSampleFile.stats; stats.suites  =  obj.totalSuites; stats.tests  =  obj.totalTests; stats.passes  =  obj.totalPasses; stats.failures  =  obj.totalFailures; stats.pending  =  obj.totalPending; stats.start  =  obj.startTime; stats.end  =  obj.endTime; stats.duration  =  new  Date(obj.endTime)  -  new  Date(obj.startTime); stats.testsRegistered  =  obj.totalTests  -  obj.totalPending; stats.passPercent  =  Math.round((stats.passes  /  (stats.tests  -  stats.pending))  *  1000)  /  10; stats.pendingPercent  =  Math.round((stats.pending  /  stats.testsRegistered)  *  1000)  /10; stats.skipped  =  obj.totalskipped; stats.hasSkipped  =  obj.totalskipped  >  0; stats.passPercentClass  =  getPercentClass(stats.passPercent); stats.pendingPercentClass  =  getPercentClass(stats.pendingPercent); obj.suites.forEach(suit  =>  { traverseAndModifyTimedOut(suit,  0); }); parsedSampleFile.suites.suites  =  obj.suites; parsedSampleFile.suites.uuid  =  uuid; fs.writeFile(outFile,  JSON.stringify(parsedSampleFile),  {  flag:  'wx'  },  (error)  =>  { if  (error)  throw  error; }); }); } const  data  =  combineMochaAwesomeReports(); const  uuid  =  uuidv1(); writeReport(data,  uuid); shell.exec(`./node_modules/.bin/marge ${uuid}.json --reportDir mochareports --reportTitle ${uuid}`,  (code,  stdout,  stderr)  =>  { if  (stderr)  { console.log(stderr); }  else  { console.log('Success!'); } });` 
 ```
 
@@ -294,19 +294,19 @@ $ node lib/generate-circle-config.js`
 
 安装依赖项:
 
-```
+```py
 `$ npm install shelljs uuid --save-dev` 
 ```
 
 将 *sample.json* 添加到“lib”目录中:
 
-```
+```py
 `{ "stats":  { "suites":  0, "tests":  0, "passes":  0, "pending":  0, "failures":  0, "start":  "", "end":  "", "duration":  0, "testsRegistered":  0, "passPercent":  0, "pendingPercent":  0, "other":  0, "hasOther":  false, "skipped":  0, "hasSkipped":  false, "passPercentClass":  "success", "pendingPercentClass":  "success" }, "suites":  { "uuid":  "", "title":  "", "fullFile":  "", "file":  "", "beforeHooks":  [], "afterHooks":  [], "tests":  [], "suites":  [], "passes":  [], "failures":  [], "pending":  [], "skipped":  [], "duration":  0, "root":  true, "rootEmpty":  true, "_timeout":  2000 }, "copyrightYear":  2019 }` 
 ```
 
 更新 *circle.json* 中的`combine_reports`以运行 *combine.js* 脚本，然后将新报告保存为工件:
 
-```
+```py
 `"combine_reports":  { "working_directory":  "~/tmp", "docker":  [ { "image":  "cypress/base:10", "environment":  { "TERM":  "xterm" } } ], "steps":  [ "checkout", { "attach_workspace":  { "at":  "~/" } }, { "attach_workspace":  { "at":  "/tmp/mochawesome-report" } }, { "run":  "ls /tmp/mochawesome-report" }, { "run":  "node ./lib/combine.js" }, { "store_artifacts":  { "path":  "mochareports" } } ] }` 
 ```
 
@@ -324,7 +324,7 @@ $ node lib/generate-circle-config.js`
 
 将 *sample2.spec.js* 中的`cy.get('a').contains('Blog');`改为`cy.get('a').contains('Not Real');`:
 
-```
+```py
 `describe('Cypress parallel run example - 2',  ()  =>  { it('should display the blog link',  ()  =>  { cy.visit(`https://mherman.org`); cy.get('a').contains('Not Real'); }); });` 
 ```
 
@@ -340,7 +340,7 @@ $ node lib/generate-circle-config.js`
 
 在`createJSON`中再次更新以下`run`:
 
-```
+```py
 `run:  { name:  `Running cypress tests ${index  +  1}`, command:  `if $(npm bin)/cypress run --spec cypress/integration/${value} --reporter mochawesome --reporter-options "reportFilename=test${index  +  1}"; then echo 'pass'; else echo 'fail'; fi`, },` 
 ```
 
@@ -354,7 +354,7 @@ $ node lib/generate-circle-config.js`
 
 最后一件事:如果一个任务失败了，我们可能仍然会让整个构建失败。实现这个的最快方法是在 *combine.js* 中的`shell.exec`回调中:
 
-```
+```py
 `shell.exec(`./node_modules/.bin/marge ${uuid}.json --reportDir mochareports --reportTitle ${uuid}`,  (code,  stdout,  stderr)  =>  { if  (stderr)  { console.log(stderr); }  else  { console.log('Success!'); if  (data.totalFailures  >  0)  { process.exit(1); }  else  { process.exit(0); } } });` 
 ```
 

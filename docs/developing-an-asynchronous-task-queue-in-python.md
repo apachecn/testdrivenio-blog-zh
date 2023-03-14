@@ -19,7 +19,7 @@
 
 让我们从创建一个基本任务开始:
 
-```
+```py
 `# tasks.py
 
 import collections
@@ -68,13 +68,13 @@ if __name__ == "__main__":
 
 创建一个项目目录和一个虚拟环境。然后，使用 pip 安装 [NLTK](https://pypi.org/project/nltk/) :
 
-```
+```py
 `(env)$ pip install nltk==3.6.5` 
 ```
 
 安装完成后，调用 Python shell 并下载`stopwords` [文集](https://www.nltk.org/data.html):
 
-```
+```py
 `>>> import nltk
 >>> nltk.download("stopwords")
 
@@ -88,7 +88,7 @@ True`
 > 
 > 示例修复:
 > 
-> ```
+> ```py
 > >>> import nltk
 > >>> nltk.download('stopwords')
 > [nltk_data] Error loading stopwords: <urlopen error [SSL:
@@ -116,7 +116,7 @@ True`
 
 我们可以使用[多处理](https://docs.python.org/3/library/multiprocessing.html)库并行运行这个任务:
 
-```
+```py
 `# simple_pool.py
 
 import multiprocessing
@@ -170,7 +170,7 @@ if __name__ == "__main__":
 > 
 > 您的项目目录应该如下所示:
 > 
-> ```
+> ```py
 > ├── data
 > │   ├── dracula.txt
 > │   ├── frankenstein.txt
@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
 运行时间应该不到一秒钟:
 
-```
+```py
 `(env)$ python simple_pool.py
 
 Running with 15 processes!
@@ -205,7 +205,7 @@ Time taken = 0.6383581161`
 
 让我们看一个简单的例子:
 
-```
+```py
 `# simple_queue.py
 
 import multiprocessing
@@ -238,7 +238,7 @@ if __name__ == "__main__":
 
 现在，让我们看看更高级的例子:
 
-```
+```py
 `# simple_task_queue.py
 
 import multiprocessing
@@ -291,7 +291,7 @@ if __name__ == "__main__":
 
 多处理库也支持日志记录:
 
-```
+```py
 `# simple_task_queue_logging.py
 
 import logging
@@ -345,14 +345,14 @@ if __name__ == "__main__":
 
 要进行测试，请将`task_queue.put("dracula.txt")`更改为`task_queue.put("drakula.txt")`。您应该会在终端中看到以下错误输出十次:
 
-```
+```py
 `[ERROR/Process-4] [Errno 2] No such file or directory:
 'simple-task-queue/data/drakula.txt'` 
 ```
 
 想要记录到光盘吗？
 
-```
+```py
 `# simple_task_queue_logging.py
 
 import logging
@@ -415,7 +415,7 @@ if __name__ == "__main__":
 
 同样，通过更改其中一个文件名来导致错误，然后运行它。看一下 *process.log* 。因为 Python 日志库不使用进程间的共享锁，所以它并不像它应该的那样有组织。为了解决这个问题，我们让每个进程写入自己的文件。为了保持有序，请在项目文件夹中添加一个日志目录:
 
-```
+```py
 `#  simple_task_queue_logging_separate_files.py
 
 import logging
@@ -482,7 +482,7 @@ if __name__ == "__main__":
 
 > 跟着一起走？ [下载](https://redis.io/download)并安装 Redis，如果你还没有安装的话。然后，安装 Python [接口](https://pypi.org/project/redis/):
 > 
-> ```
+> ```py
 > (env)$ pip install redis==4.0.2 
 > ```
 
@@ -493,7 +493,7 @@ if __name__ == "__main__":
 3.  *redis_queue_worker* 出队并处理任务。
 4.  *redis_queue_server* 产生工作进程。
 
-```
+```py
 `# redis_queue.py
 
 import pickle
@@ -536,7 +536,7 @@ class SimpleTask(object):
 
 > 好奇`lpush()`、`brpop()`、`llen()`？参见[命令参考](https://redis.io/commands)页。(`The brpop()`函数特别酷，因为它阻塞连接，直到有值存在才弹出！)
 
-```
+```py
 `# redis_queue_client.py
 
 import redis
@@ -561,7 +561,7 @@ if __name__ == "__main__":
 
 这个模块将创建一个 Redis 和`SimpleQueue`类的新实例。然后，它将 40 个任务排队。
 
-```
+```py
 `# redis_queue_worker.py
 
 import redis
@@ -582,7 +582,7 @@ if __name__ == "__main__":
 
 如果任务可用，则调用`dequeue`方法，然后反序列化任务并调用`process_task`方法(在 *redis_queue.py* 中)。
 
-```
+```py
 `# redis_queue_server.py
 
 import multiprocessing

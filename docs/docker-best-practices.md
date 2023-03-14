@@ -45,7 +45,7 @@
 
 Web 开发示例:
 
-```
+```py
 `# temp stage
 FROM  python:3.9-slim  as  builder
 
@@ -75,7 +75,7 @@ RUN  pip install --no-cache /wheels/*`
 
 尺寸比较:
 
-```
+```py
 `REPOSITORY                 TAG                    IMAGE ID       CREATED          SIZE
 docker-single              latest                 8d6b6a4d7fb6   16 seconds ago   259MB
 docker-multi               latest                 813c2fa9b114   3 minutes ago    156MB` 
@@ -83,7 +83,7 @@ docker-multi               latest                 813c2fa9b114   3 minutes ago  
 
 数据科学示例:
 
-```
+```py
 `# temp stage
 FROM  python:3.9  as  builder
 
@@ -100,7 +100,7 @@ RUN  pip install --no-cache /wheels/*`
 
 尺寸比较:
 
-```
+```py
 `REPOSITORY                  TAG                   IMAGE ID       CREATED         SIZE
 ds-multi                    latest                b4195deac742   2 minutes ago   357MB
 ds-single                   latest                7c23c43aeda6   6 minutes ago   969MB` 
@@ -116,7 +116,7 @@ Docker 将每个步骤(或层)缓存在一个特定的 docker 文件中，以加
 
 示例:
 
-```
+```py
 `FROM  python:3.9-slim
 
 WORKDIR  /app
@@ -134,7 +134,7 @@ RUN  pip install -r /requirements.txt`
 
 因此，在上面的 docker 文件中，您应该将`COPY sample.py .`命令移到底部:
 
-```
+```py
 `FROM  python:3.9-slim
 
 WORKDIR  /app
@@ -164,7 +164,7 @@ COPY  sample.py .`
 
 下面是 Python 的各种 Docker 基本图像的大小比较:
 
-```
+```py
 `REPOSITORY   TAG                 IMAGE ID       CREATED      SIZE
 python       3.9.6-alpine3.14    f773016f760e   3 days ago   45.1MB
 python       3.9.6-slim          907fc13ca8e7   3 days ago   115MB
@@ -187,7 +187,7 @@ python       3.9.6-buster        cba42c28d9b8   3 days ago   886MB`
 
 您可以使用`docker history`命令对此进行测试:
 
-```
+```py
 `$ docker images
 REPOSITORY   TAG       IMAGE ID       CREATED          SIZE
 dockerfile   latest    180f98132d02   51 seconds ago   259MB
@@ -204,14 +204,14 @@ IMAGE          CREATED              CREATED BY                                  
 
 注意尺寸。只有`RUN`、`COPY`和`ADD`命令可以增加图像的大小。您可以通过尽可能组合命令来减小图像大小。例如:
 
-```
+```py
 `RUN  apt-get update
 RUN  apt-get install -y netcat` 
 ```
 
 可以组合成一个单独的`RUN`命令:
 
-```
+```py
 `RUN  apt-get update && apt-get install -y netcat` 
 ```
 
@@ -234,7 +234,7 @@ RUN  apt-get install -y netcat`
 
 最后，为了提高可读性，最好按字母数字顺序对多行参数进行排序:
 
-```
+```py
 `RUN  apt-get update && apt-get install -y \
     git \
     gcc \
@@ -252,7 +252,7 @@ RUN  apt-get install -y netcat`
 
 为了防止这种情况，请确保使用非 root 用户运行容器进程:
 
-```
+```py
 `RUN  addgroup --system app && adduser --system --group app
 
 USER  app` 
@@ -260,7 +260,7 @@ USER  app`
 
 您可以更进一步，删除 shell 访问，并确保没有主目录:
 
-```
+```py
 `RUN  addgroup --gid 1001 --system app && \
     adduser --no-create-home --shell /bin/false --disabled-password --uid 1001 --system --group app
 
@@ -269,7 +269,7 @@ USER  app`
 
 验证:
 
-```
+```py
 `$ docker run -i sample id
 
 uid=1001(app) gid=1001(app) groups=1001(app)` 
@@ -285,7 +285,7 @@ uid=1001(app) gid=1001(app) groups=1001(app)`
 
 这两个命令都允许您将文件从特定位置复制到 Docker 映像中:
 
-```
+```py
 `ADD  <src> <dest>
 COPY  <src> <dest>` 
 ```
@@ -295,7 +295,7 @@ COPY  <src> <dest>`
 *   `COPY`用于将本地文件或目录从 Docker 主机复制到镜像。
 *   `ADD`可用于下载外部文件。还有，如果你用的是压缩文件(tar，gzip，bzip2 等。)作为`<src>`参数，`ADD`会自动将内容解压到给定的位置。
 
-```
+```py
 `# copy local files on the host to the destination
 COPY  /source/path  /destination/path
 ADD  /source/path  /destination/path
@@ -321,7 +321,7 @@ ADD  source.file.tar.gz /destination/path`
 
 如果您正在利用 [Docker BuildKit](https://docs.docker.com/develop/develop-images/build_enhancements/) ，使用 BuildKit 缓存挂载来管理缓存:
 
-```
+```py
 `# syntax = docker/dockerfile:1.2
 
 ...
@@ -349,7 +349,7 @@ RUN  --mount=type=cache,target=/root/.cache/pip \
 
 您可以在 docker 文件中以数组(exec)或字符串(shell)格式编写`CMD`和`ENTRYPOINT`命令:
 
-```
+```py
 `# array (exec)
 CMD  ["gunicorn",  "-w",  "4",  "-k",  "uvicorn.workers.UvicornWorker",  "main:app"]
 
@@ -366,7 +366,7 @@ CMD  "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app"`
 
 示例:
 
-```
+```py
 `FROM  ubuntu:18.04
 
 # BAD: shell format
@@ -380,7 +380,7 @@ ENTRYPOINT  ["top",  "-d"]`
 
 另一个警告是，shell 格式携带 shell 的 PID，而不是进程本身。
 
-```
+```py
 `# array format
 [[email protected]](/cdn-cgi/l/email-protection):/app# ps ax
   PID TTY      STAT   TIME COMMAND
@@ -405,7 +405,7 @@ ENTRYPOINT  ["top",  "-d"]`
 
 在容器中运行命令有两种方式:
 
-```
+```py
 `CMD  ["gunicorn",  "config.wsgi",  "-b",  "0.0.0.0:8000"]
 
 # and
@@ -417,7 +417,7 @@ ENTRYPOINT  ["gunicorn",  "config.wsgi",  "-b",  "0.0.0.0:8000"]`
 
 `CMD`很容易被覆盖。如果您运行`docker run <image_name> uvicorn config.asgi`，上面的 CMD 将被新的参数替换，例如`uvicorn config.asgi`。然而要覆盖`ENTRYPOINT`命令，必须指定`--entrypoint`选项:
 
-```
+```py
 `docker run --entrypoint uvicorn config.asgi <image_name>` 
 ```
 
@@ -427,20 +427,20 @@ ENTRYPOINT  ["gunicorn",  "config.wsgi",  "-b",  "0.0.0.0:8000"]`
 
 例如:
 
-```
+```py
 `ENTRYPOINT  ["gunicorn",  "config.wsgi",  "-w"]
 CMD  ["4"]` 
 ```
 
 像这样一起使用时，运行来启动容器的命令是:
 
-```
+```py
 `gunicorn config.wsgi -w 4` 
 ```
 
 如上所述，`CMD`很容易被覆盖。因此，`CMD`可以用来将参数传递给`ENTRYPOINT`命令。工人的数量可以很容易地这样改变:
 
-```
+```py
 `docker run <image_name> 6` 
 ```
 
@@ -454,7 +454,7 @@ Docker 公开了一个 API，用于检查容器中运行的进程的状态，这
 
 例如，如果您正在提供一个 web 应用程序，那么您可以使用下面的方法来确定`/`端点是否启动并可以处理服务请求:
 
-```
+```py
 `HEALTHCHECK  CMD  curl --fail http://localhost:8000 || exit 1` 
 ```
 
@@ -462,14 +462,14 @@ Docker 公开了一个 API，用于检查容器中运行的进程的状态，这
 
 健康的例子:
 
-```
+```py
 `CONTAINER ID   IMAGE         COMMAND                  CREATED          STATUS                            PORTS                                       NAMES
 09c2eb4970d4   healthcheck   "python manage.py ru…"   10 seconds ago   Up 8 seconds (health: starting)   0.0.0.0:8000->8000/tcp, :::8000->8000/tcp   xenodochial_clarke` 
 ```
 
 不健康的例子:
 
-```
+```py
 `CONTAINER ID   IMAGE         COMMAND                  CREATED              STATUS                          PORTS                                       NAMES
 09c2eb4970d4   healthcheck   "python manage.py ru…"   About a minute ago   Up About a minute (unhealthy)   0.0.0.0:8000->8000/tcp, :::8000->8000/tcp   xenodochial_clarke` 
 ```
@@ -478,7 +478,7 @@ Docker 公开了一个 API，用于检查容器中运行的进程的状态，这
 
 以下是使用`docker inspect`查看健康检查状态的方式:
 
-```
+```py
 `❯ docker inspect --format "{{json .State.Health }}" ab94f2ac7889
 {
   "Status": "healthy",
@@ -495,7 +495,7 @@ Docker 公开了一个 API，用于检查容器中运行的进程的状态，这
 
 您还可以将运行状况检查添加到 Docker 撰写文件中:
 
-```
+```py
 `version:  "3.8" services: web: build:  . ports: -  '8000:8000' healthcheck: test:  curl --fail http://localhost:8000 || exit 1 interval:  10s timeout:  10s start_period:  10s retries:  3` 
 ```
 
@@ -532,7 +532,7 @@ Docker 公开了一个 API，用于检查容器中运行的进程的状态，这
 
 例如:
 
-```
+```py
 `docker build -t web-prod-a072c4e5d94b5a769225f621f08af3d4bf820a07-0.1.4 .` 
 ```
 
@@ -551,7 +551,7 @@ Docker 公开了一个 API，用于检查容器中运行的进程的状态，这
 
 不要以纯文本形式将秘密添加到 Docker 文件中，尤其是如果您将图像推送到像 [Docker Hub](https://hub.docker.com/) 这样的公共注册表中:
 
-```
+```py
 `FROM  python:3.9-slim
 
 ENV  DATABASE_PASSWORD "SuperSecretSauce"` 
@@ -567,7 +567,7 @@ ENV  DATABASE_PASSWORD "SuperSecretSauce"`
 
 最后，明确哪些文件将被复制到映像，而不是递归地复制所有文件:
 
-```
+```py
 `# BAD
 COPY  . .
 
@@ -581,7 +581,7 @@ copy  ./app.py .`
 
 您可以通过环境变量传递秘密，但是它们将在所有子进程、链接容器和日志中可见，也可以通过`docker inspect`传递。更新它们也很困难。
 
-```
+```py
 `$ docker run --detach --env "DATABASE_PASSWORD=SuperSecretSauce" python:3.9-slim
 
 d92cf5cf870eb0fdbf03c666e7fcf18f9664314b79ad58bc7618ea3445e39239
@@ -609,7 +609,7 @@ PYTHON_GET_PIP_SHA256=fa6f3fb93cce234cd4e8dd2beb54a51ab9c247653b52855a48dd44e6b2
 
 示例:
 
-```
+```py
 `FROM  python:3.9-slim
 
 ARG  DATABASE_PASSWORD` 
@@ -617,13 +617,13 @@ ARG  DATABASE_PASSWORD`
 
 构建:
 
-```
+```py
 `$ docker build --build-arg "DATABASE_PASSWORD=SuperSecretSauce" .` 
 ```
 
 如果您只需要在构建过程中临时使用密码(例如，用于克隆私有回购或下载私有包的 SSH 密钥)，则应该使用多阶段构建，因为构建器历史记录在临时阶段会被忽略:
 
-```
+```py
 `# temp stage
 FROM  python:3.9-slim  as  builder
 
@@ -656,7 +656,7 @@ COPY  --from=builder /your-repo /app/your-repo
 
 您还可以使用 Docker build 中新的`--secret`选项将秘密传递给 Docker 映像，这些秘密不会存储在映像中。
 
-```
+```py
 `# "docker_is_awesome" > secrets.txt
 
 FROM  alpine
@@ -669,7 +669,7 @@ RUN  --mount=type=secret,id=mysecret cat /run/secrets/mysecret`
 
 建立形象:
 
-```
+```py
 `docker build --no-cache --progress=plain --secret id=mysecret,src=secrets.txt .
 
 # output
@@ -687,7 +687,7 @@ RUN  --mount=type=secret,id=mysecret cat /run/secrets/mysecret`
 
 最后，查看历史记录，看看秘密是否泄露:
 
-```
+```py
 `❯ docker history 49574a19241c
 IMAGE          CREATED         CREATED BY                                      SIZE      COMMENT
 49574a19241c   5 minutes ago   CMD ["/bin/sh"]                                 0B        buildkit.dockerfile.v0
@@ -706,7 +706,7 @@ IMAGE          CREATED         CREATED BY                                      S
 
 创建 docker 机密:
 
-```
+```py
 `$ echo "supersecretpassword" | docker secret create postgres_password -
 qdqmbpizeef0lfhyttxqfbty0
 
@@ -740,7 +740,7 @@ qdqmbpizeef0lfhyttxqfbty0   postgres_password             4 seconds ago   4 seco
 
 示例:
 
-```
+```py
 `**/.git
 **/.gitignore
 **/.vscode
@@ -769,7 +769,7 @@ docker-compose.yml
 
 Hadolint 是最受欢迎的 Dockerfile linter:
 
-```
+```py
 `$ hadolint Dockerfile
 
 Dockerfile:1 DL3006 warning: Always tag the version of an image explicitly
@@ -803,7 +803,7 @@ Dockerfile:17 DL3025 warning: Use arguments JSON notation for CMD and ENTRYPOINT
 
 现在，如果您尝试提取未签名的图像，您将收到以下错误:
 
-```
+```py
 `Error: remote trust data does not exist for docker.io/namespace/unsigned-image:
 notary.docker.io does not have trust data for docker.io/namespace/unsigned-image` 
 ```
@@ -822,7 +822,7 @@ notary.docker.io does not have trust data for docker.io/namespace/unsigned-image
 
 带轮子的例子:
 
-```
+```py
 `# temp stage
 FROM  python:3.9-slim  as  builder
 
@@ -850,7 +850,7 @@ RUN  pip install --no-cache /wheels/*`
 
 virtualenv 示例:
 
-```
+```py
 `# temp stage
 FROM  python:3.9-slim  as  builder
 
@@ -884,7 +884,7 @@ ENV  PATH="/opt/venv/bin:$PATH"`
 
 限制内存使用的最简单方法是在 Docker cli 中使用`--memory`和`--cpu`选项:
 
-```
+```py
 `$ docker run --cpus=2 -m 512m nginx` 
 ```
 
@@ -892,7 +892,7 @@ ENV  PATH="/opt/venv/bin:$PATH"`
 
 您可以在 Docker 合成文件中做同样的事情，如下所示:
 
-```
+```py
 `version:  "3.9" services: redis: image:  redis:alpine deploy: resources: limits: cpus:  2 memory:  512M reservations: cpus:  1 memory:  256M` 
 ```
 
@@ -919,7 +919,7 @@ Gunicorn 使用基于文件的心跳系统来确保所有分叉的工作进程�
 
 幸运的是，有一个简单的修复方法:通过`--worker-tmp-dir`标志将 heartbeat 目录更改为内存映射目录。
 
-```
+```py
 `gunicorn --worker-tmp-dir /dev/shm config.wsgi -b 0.0.0.0:8000` 
 ```
 
