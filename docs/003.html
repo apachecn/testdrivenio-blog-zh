@@ -1,0 +1,557 @@
+<html>
+<head>
+<title>Generating a Static Site with Flask and Deploying it to Netlify </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Flask生成静态站点并将其部署到Netlify</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/static-site-flask-and-netlify/#0001-01-01">https://testdriven.io/blog/static-site-flask-and-netlify/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程着眼于如何利用Python的<a href="https://jamstack.org/"> JAMstack </a>和<a href="https://flask.palletsprojects.com/en/2.2.x/"> Flask </a>。你将学习如何用Flask通过<a href="https://pythonhosted.org/Frozen-Flask/">freeze-Flask</a>生成一个静态站点，并将其部署到<a href="https://www.netlify.com"> Netlify </a>。我们还将看看如何用<a href="https://docs.pytest.org/en/stable/"> pytest </a>测试静态站点。</p>
+<blockquote>
+<p>本教程假设你有使用Flask的经验。如果你有兴趣学习更多关于Flask的知识，请查看我的课程，学习如何构建、测试和部署Flask应用程序:<a href="/courses/learn-flask/">用Python和Flask开发Web应用程序</a>。</p>
+</blockquote>
+<p>在本教程中创建的网站可以在:<a href="https://www.kennedyrecipes.com">https://www.kennedyrecipes.com</a>找到</p>
+
+
+
+<h2 id="static-vs-dynamic-websites">静态与动态网站</h2>
+<p>静态网站旨在通过为每个用户显示相同的内容来提供信息。与此同时，动态网站提供不同的内容，并通过支持用户互动来实现<strong>功能</strong>。</p>
+<p>以下是这些差异的总结:</p>
+<table>
+<thead>
+<tr>
+<th>描述</th>
+<th>静态站点</th>
+<th>动态网站</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>向用户显示内容？</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>允许用户交互(表单)？</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>客户端文件(HTML，CSS)？</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>服务器端代码(Python等。)?</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>无服务器托管(Netlify等。)?</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>需要web服务器资源？</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>“无服务器托管”类别旨在表明静态网站可以使用无服务器解决方案(例如，Netlify、Cloudflare、GitHub Pages等)轻松部署。).动态网站也可以使用无服务器解决方案(如AWS Lambda)托管，但这是一个复杂得多的过程。</p>
+</blockquote>
+<p>静态网站为访问网站的每个用户显示相同的固定内容。通常，静态网站是用HTML、CSS和JavaScript编写的。</p>
+<p>另一方面，动态网站可以向每个用户显示不同的内容，并提供用户交互(登录/注销、创建和修改数据库中的项目等)。).动态网站比静态网站复杂得多，因为它们需要服务器端资源和应用程序代码来处理请求。需要维护应用程序代码(崩溃修复、安全更新、语言升级等)。)也是。</p>
+<p><strong>为什么要开发静态网站？</strong></p>
+<p>如果你正在创建一个旨在提供信息的网站，静态网站是一个很好的选择。静态网站比动态网站更容易创建和维护，只要你了解它们的局限性。</p>
+<h3 id="jamstack">JAMstack</h3>
+<p>JAMstack是一个web架构，专注于两个关键概念:预渲染内容和解耦服务。</p>
+<blockquote>   <ul>
+<li><strong>JAM</strong>——JavaScript、API和标记</li>
+<li><strong>栈</strong> -技术层</li>
+</ul>
+</blockquote>
+<p>预呈现内容意味着前端内容(HTML、CSS、JavaScript和其他静态文件)被构建到静态站点中。这个过程的优点是静态内容可以从一个<a href="https://en.wikipedia.org/wiki/Content_delivery_network"> CDN </a>(内容交付网络)快速提供给网络浏览器。</p>
+<blockquote>
+<p>在本教程中，我们将使用Netlify来部署静态站点。多亏了广泛的CDN，Netlify能以闪电般的速度为网站提供服务。</p>
+</blockquote>
+<p>分离服务意味着利用提供服务和产品的令人难以置信的API集。API可用于:</p>
+<ol>
+<li>认证和授权(<a href="https://www.okta.com/"> Okta </a>)</li>
+<li>支付(<a href="https://stripe.com/">条纹</a>)</li>
+<li>表单(<a href="https://formspree.io/">表单狂欢</a>)</li>
+<li>搜索(<a href="https://www.algolia.com/"> Algolia </a>)</li>
+<li>注释(<a href="https://disqus.com/"> Disqus </a>)</li>
+</ol>
+<blockquote>
+<p>更多API服务，请查看<a href="https://github.com/agarrharr/awesome-static-website-services">令人敬畏的静态网站服务</a>。</p>
+</blockquote>
+<p>与传统的web应用相比，JAMstack应用的层数更少:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/jamstack_vs_traditional_app.png" loading="lazy" class="lazyload" alt="JAMstack vs. Traditional Web Apps" src="../Images/a687bef632259ed7b5abee9aaa6183b1.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/jamstack_vs_traditional_app.png"/></p>
+<blockquote>
+<p>来源:JAMstack.org</p>
+</blockquote>
+<p>使用JAMstack(相对于传统方法)的一个关键原因是尽可能“无服务器”,依靠托管解决方案(Netlify)和外部服务(API)。</p>
+<p>JAMstack是建筑的绝佳架构选择:</p>
+<ol>
+<li>依赖外部服务(API)的客户端应用</li>
+<li>为用户提供信息的静态站点</li>
+</ol>
+<p>当构建侧重于服务器端应用的数据库驱动的应用时，传统的web应用是一个很好的方法。</p>
+<h3 id="alternatives">可供选择的事物</h3>
+<p><strong>内容管理系统(CMS)解决方案</strong></p>
+<p>CMS解决方案用于管理和部署网站。WordPress是最流行的CMS工具，很多产品都是使用WordPress开发的。</p>
+<p>如今，建立网站有很多复杂的选择，包括:</p>
+<ol>
+<li><a href="https://wordpress.com"> WordPress </a></li>
+<li><a href="https://www.wix.com"> Wix </a></li>
+<li><a href="https://www.squarespace.com">平方空间</a></li>
+<li><a href="https://www.bluehost.com">蓝主机</a></li>
+<li><a href="https://www.godaddy.com"> GoDaddy </a></li>
+<li><a href="https://www.weebly.com"> Weebly </a></li>
+<li><a href="https://www.netlifycms.org"> Netlify CMS </a></li>
+<li><a href="https://wagtail.io/">鹞鹰</a></li>
+</ol>
+<p>这些选项中的大部分都允许在不编写任何代码的情况下创建网站。这些选项是快速开发显示内容的网站(如博客)的绝佳选择。</p>
+<blockquote>
+<p>我目前正在使用WordPress创建我的个人博客网站:<a href="https://www.patricksoftwareblog.com">https://www.patricksoftwareblog.com</a>。</p>
+</blockquote>
+<p>Lektor是一个流行的用Python编写的CMS解决方案，尽管它也有很多静态站点生成器的特性。</p>
+<blockquote>
+<p>莱克特是由阿明·罗纳彻创造的，他也是烧瓶的创造者！</p>
+</blockquote>
+<p><strong>静态现场发电机</strong></p>
+<p>静态站点生成器通过解析用markdown语言(通常是<a href="https://en.wikipedia.org/wiki/Markdown"> Markdown </a>或<a href="https://en.wikipedia.org/wiki/ReStructuredText"> reStructuredText </a>)创建的内容，创建静态文件(HTML、CSS和JavaScript)来发布网站。</p>
+<p>杰基尔、<a href="https://www.11ty.dev/">十一</a>、<a href="https://www.gatsbyjs.com/">盖茨比</a>和<a href="https://gohugo.io/">雨果</a>是最受欢迎的静态站点生成器。</p>
+<p>还有几个基于Python的选项<a href="https://www.fullstackpython.com/static-site-generator.html"/>。</p>
+<p>Pelican 是用Python编写的最流行的静态站点生成器之一。它有一些强大的功能:</p>
+<ol>
+<li>内容是用Markdown或reStructuredText编写的</li>
+<li>用于生成静态内容的CLI(命令行界面)工具</li>
+<li>快速开发网页的主题</li>
+<li>以多种语言出版</li>
+</ol>
+<p>带有<a href="https://pythonhosted.org/Frozen-Flask/">冷冻瓶</a>的瓶子(我们将在本教程中使用)也可以被认为是一个静态站点生成器。这种方法的优点是能够利用Flask的现有开发过程来开发静态站点。此外，在使用Flask和freeze-Flask时，<strong>测试</strong>静态站点的能力是一个很大的优势，因为在开发静态站点时测试经常被忽略。</p>
+<blockquote>
+<p>本教程中的方法不是“纯”静态站点生成器，因为内容是在HTML文件中创建的。为了使这种方法成为“纯”静态站点生成器，您可以利用<a href="https://flask-flatpages.readthedocs.io/en/latest/"> Flask-FlatPages </a>在Markdown中创建内容。</p>
+</blockquote>
+<p>如果你更熟悉Django，<a href="https://github.com/meeb/django-distill">Django-distilt</a>是Django应用程序的静态站点生成器。</p>
+<h2 id="why-use-flask-for-static-sites">为什么对静态站点使用Flask？</h2>
+<p>如果您已经习惯使用Python和Flask开发应用程序，那么您可以继续使用相同的工具和工作流来开发静态站点。换句话说，没有必要学习任何新的工具或语言。</p>
+<p>使用Flask，您可以继续使用以下工具和流程:</p>
+<ol>
+<li>用于生成HTML代码的Jinja模板(包括模板继承)</li>
+<li>组织项目的蓝图</li>
+<li>进行更改时，开发服务器可以热重装(不需要任何复杂的编译步骤)</li>
+<li>使用pytest进行测试</li>
+</ol>
+<p>此外，如果您决定在未来将您的网站扩展为一个需要后端数据库的完整web应用程序，因为您是从Flask开始的，所以您不需要重新编写应用程序。你只需要:</p>
+<ol>
+<li>移除冷冻烧瓶</li>
+<li>与数据库接口</li>
+<li><a href="/blog/flask-render-deployment/">部署以呈现</a>(或类似的托管解决方案)</li>
+</ol>
+<h2 id="workflow">工作流程</h2>
+<p>下图说明了使用Flask开发静态站点并将其部署到Netlify的典型工作流:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/flask_netlify_static_content_workflow.png" loading="lazy" class="lazyload" alt="Deploy Static Site Using Flask and Netlify Workflow" src="../Images/5d02f0f886bc1228af8d99dbdcf6a874.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/flask_netlify_static_content_workflow.png"/></p>
+<p>让我们深入了解这个工作流程的细节...</p>
+<h2 id="flask-project">烧瓶项目</h2>
+<p>虽然这个Flask项目将生成静态文件，但它仍然使用Flask应用程序的最佳实践:</p>
+<ol>
+<li><a href="https://flask.palletsprojects.com/en/2.2.x/patterns/appfactories/">应用工厂</a></li>
+<li><a href="https://flask.palletsprojects.com/en/2.2.x/blueprints/">蓝图</a></li>
+<li><a href="https://flask.palletsprojects.com/en/2.2.x/templating/">金贾模板</a></li>
+<li><a href="/blog/flask-pytest/">测试</a>(使用<a href="https://docs.pytest.org/en/stable/"> pytest </a></li>
+</ol>
+<p>另外，<a href="https://pythonhosted.org/Frozen-Flask/">冻瓶</a>包用于生成静态内容。</p>
+<blockquote>
+<p>本教程中创建的项目的源代码可以在GitLab上找到:<a href="https://gitlab.com/patkennedy79/flask-recipe-app"> Flask Recipe App </a>。</p>
+</blockquote>
+<h3 id="project-structure">项目结构</h3>
+<p>项目的文件夹结构是Flask项目的典型结构:</p>
+<div class="codehilite"><pre><span/><code>├── project
+│   ├── build           <span class="c1"># Static files are created here by Frozen-Flask!</span>
+│   ├── blog            <span class="c1"># Blueprint for blog posts</span>
+│   │   └── templates   <span class="c1"># Templates specific to the blog blueprint</span>
+│   ├── recipes         <span class="c1"># Blueprint for recipes</span>
+│   │   └── templates   <span class="c1"># Templates specific to the recipes blueprint</span>
+│   ├── static
+│   │   ├── css         <span class="c1"># CSS files for styling the pages</span>
+│   │   └── img         <span class="c1"># Images displayed in recipes and blog posts</span>
+│   └── templates       <span class="c1"># Base templates</span>
+├── tests
+│   └── functional      <span class="c1"># Test files</span>
+└── venv
+</code></pre></div>
+
+<p>要突出显示的关键文件夹是“project/build”文件夹，它将由带有静态文件的freeze-Flask包生成。</p>
+<p>首先，从<a href="https://gitlab.com/patkennedy79/flask-recipe-app">这个</a> GitLab仓库中下载源代码:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://gitlab.com/patkennedy79/flask-recipe-app.git
+</code></pre></div>
+
+<p>创建新的虚拟环境:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">cd</span> flask-recipe-app
+$ python3 -m venv venv
+</code></pre></div>
+
+<p>激活虚拟环境:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装requirements.txt中指定的Python包:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<h3 id="recipe-routes">配方路线</h3>
+<p>在<code>recipes</code>蓝图中定义了网站上显示的配方路线。</p>
+<blockquote>
+<p>蓝图允许你干净地将你的Flask项目的源代码组织成不同的组件。每个蓝图都应该封装应用程序中的重要功能。</p>
+</blockquote>
+<p>例如，使用以下变量和视图函数在<em>project/recipes/routes . py</em>中定义早餐食谱:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">recipes_blueprint</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">render_template</span><span class="p">,</span> <span class="n">abort</span>
+
+
+<span class="n">breakfast_recipes_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'pancakes'</span><span class="p">,</span> <span class="s1">'acai_bowl'</span><span class="p">,</span> <span class="s1">'honey_bran_muffins'</span><span class="p">,</span> <span class="s1">'breakfast_scramble'</span><span class="p">,</span>
+                           <span class="s1">'pumpkin_donuts'</span><span class="p">,</span> <span class="s1">'waffles'</span><span class="p">,</span> <span class="s1">'omelette'</span><span class="p">]</span>
+
+
+<span class="nd">@recipes_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/breakfast/'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">breakfast_recipes</span><span class="p">():</span>
+   <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s1">'recipes/breakfast.html'</span><span class="p">)</span>
+
+
+<span class="nd">@recipes_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/breakfast/&lt;recipe_name&gt;/'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">breakfast_recipe</span><span class="p">(</span><span class="n">recipe_name</span><span class="p">):</span>
+   <span class="k">if</span> <span class="n">recipe_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">breakfast_recipes_names</span><span class="p">:</span>
+       <span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+
+   <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="sa">f</span><span class="s1">'recipes/</span><span class="si">{</span><span class="n">recipe_name</span><span class="si">}</span><span class="s1">.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p><code>breakfast_recipes()</code>视图功能呈现显示所有早餐食谱的模板。</p>
+<p><code>breakfast_recipe(recipe_name)</code>视图功能呈现指定的早餐食谱。如果指定了无效的配方标题，则返回404(未找到)错误。</p>
+<p>这一组相同的查看功能用于每种配方类型:</p>
+<ul>
+<li>早餐</li>
+<li>主餐</li>
+<li>正菜外的附加菜</li>
+<li>甜点</li>
+<li>八面玲珑的男人/果汁</li>
+<li>烘焙食品</li>
+</ul>
+<h3 id="jinja-templates">Jinja模板</h3>
+<p>Flask附带了开箱即用的<a href="https://flask.palletsprojects.com/en/2.2.x/templating/"> Jinja </a>模板引擎，我们将使用它来生成我们的HTML文件。</p>
+<p>模板文件包含变量和/或表达式，当模板被<em>渲染</em>时，这些变量和/或表达式被替换为值:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/jinja_template_processing.png" loading="lazy" class="lazyload" alt="Jinja Template Processing" src="../Images/a2c8d408bb767ef294a9494406a25615.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/jinja_template_processing.png"/></p>
+<p>模板继承允许模板文件继承其他模板。您可以创建一个基础模板来定义网站的布局。由于子模板将使用这种布局，它们可以只关注内容。</p>
+<p>基础模板在<em>project/templates/base . html</em>中定义:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+        <span class="cm">&lt;!-- Required meta tags --&gt;</span>
+        <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1, shrink-to-fit=no"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Flask Recipe App<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+
+        <span class="cm">&lt;!-- Local CSS file for styling the application--&gt;</span>
+        <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ url_for('static', filename='css/base_style.css') }}"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"shortcut icon"</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ url_for('static', filename='img/favicon.ico') }}"</span> <span class="na">type</span><span class="o">=</span><span class="s">"image/x-icon"</span><span class="p">&gt;</span>
+
+        <span class="cm">&lt;!-- Additional Styling --&gt;</span>
+        {% block styling %}
+        {% endblock %}
+    <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+
+    <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">header</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Kennedy Family Recipes<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">nav</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">ul</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">li</span> <span class="na">class</span><span class="o">=</span><span class="s">"nav__item"</span><span class="p">&gt;&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ url_for('recipes.recipes') }}"</span> <span class="na">class</span><span class="o">=</span><span class="s">"nav__link"</span><span class="p">&gt;</span>Recipes<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;&lt;/</span><span class="nt">li</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">li</span> <span class="na">class</span><span class="o">=</span><span class="s">"nav__item"</span><span class="p">&gt;&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ url_for('blog.blog') }}"</span> <span class="na">class</span><span class="o">=</span><span class="s">"nav__link"</span><span class="p">&gt;</span>Blog<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;&lt;/</span><span class="nt">li</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">li</span> <span class="na">class</span><span class="o">=</span><span class="s">"nav__item"</span><span class="p">&gt;&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ url_for('blog.about') }}"</span> <span class="na">class</span><span class="o">=</span><span class="s">"nav__link"</span><span class="p">&gt;</span>About<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;&lt;/</span><span class="nt">li</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">ul</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">nav</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">header</span><span class="p">&gt;</span>
+
+        <span class="p">&lt;</span><span class="nt">main</span> <span class="na">class</span><span class="o">=</span><span class="s">"content"</span><span class="p">&gt;</span>
+            <span class="cm">&lt;!-- child template --&gt;</span>
+            {% block content %}
+            {% endblock %}
+        <span class="p">&lt;/</span><span class="nt">main</span><span class="p">&gt;</span>
+
+        <span class="p">&lt;</span><span class="nt">footer</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Created by <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://www.patricksoftwareblog.com/"</span><span class="p">&gt;</span>Patrick Kennedy<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span> (2023)<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">footer</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>基础模板定义了导航栏(<code>&lt;header&gt;</code>标签)和页脚(<code>&lt;footer&gt;</code>标签)。要显示的内容在<code>&lt;main&gt;</code>标签中指定，但是该内容应该由子模板填充。</p>
+<p>例如，用于显示早餐食谱列表的模板(在<em>project/recipes/templates/recipes/breakfast . html</em>中定义)在基础模板上展开，以显示所有的早餐食谱:</p>
+<div class="codehilite"><pre><span/><code>{% extends "base.html" %}
+
+{% block content %}
+<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"recipe-container"</span><span class="p">&gt;</span>
+
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ url_for('recipes.breakfast_recipe', recipe_name='pancakes') }}"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">img</span>
+              <span class="na">src</span><span class="o">=</span><span class="s">"{{ url_for('static', filename='img/pancakes.jpg') }}"</span>
+              <span class="na">alt</span><span class="o">=</span><span class="s">"Pancakes"</span>
+              <span class="na">class</span><span class="o">=</span><span class="s">"card__image"</span> <span class="p">/&gt;</span>
+            <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card__body"</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">h2</span><span class="p">&gt;</span>Pancakes<span class="p">&lt;/</span><span class="nt">h2</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">p</span> <span class="na">class</span><span class="o">=</span><span class="s">"recipe-badge dairy-free-badge"</span><span class="p">&gt;</span>Dairy-Free<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">p</span> <span class="na">class</span><span class="o">=</span><span class="s">"recipe-badge soy-free-badge"</span><span class="p">&gt;</span>Soy-Free<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ url_for('recipes.breakfast_recipe', recipe_name='honey_bran_muffins') }}"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">img</span>
+              <span class="na">src</span><span class="o">=</span><span class="s">"{{ url_for('static', filename='img/honey_bran_muffins.jpg') }}"</span>
+              <span class="na">alt</span><span class="o">=</span><span class="s">"Honey Bran Muffins"</span>
+              <span class="na">class</span><span class="o">=</span><span class="s">"card__image"</span> <span class="p">/&gt;</span>
+            <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card__body"</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">h2</span><span class="p">&gt;</span>Honey Bran Muffins<span class="p">&lt;/</span><span class="nt">h2</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">p</span> <span class="na">class</span><span class="o">=</span><span class="s">"recipe-badge dairy-free-badge"</span><span class="p">&gt;</span>Dairy-Free<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">p</span> <span class="na">class</span><span class="o">=</span><span class="s">"recipe-badge soy-free-badge"</span><span class="p">&gt;</span>Soy-Free<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+
+    ...
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<h3 id="testing">测试</h3>
+<p>pytest是Python的一个测试框架，用于编写、组织和运行测试用例。在建立了基本的测试结构之后，pytest使得编写测试变得容易，并且为运行测试提供了很大的灵活性。</p>
+<p>测试文件在<em>测试/功能/ </em>目录中指定。例如，早餐食谱的测试在<em>tests/functional/test _ recipes . py</em>中指定:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""</span>
+<span class="sd">This file (test_recipes.py) contains the functional tests for the `recipes` blueprint.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span> <span class="nn">project.recipes.routes</span> <span class="kn">import</span> <span class="n">breakfast_recipes_names</span>
+
+
+<span class="k">def</span> <span class="nf">test_get_breakfast_recipes</span><span class="p">(</span><span class="n">test_client</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    GIVEN a Flask application configured for testing</span>
+<span class="sd">    WHEN the '/breakfast/' page is requested (GET)</span>
+<span class="sd">    THEN check the response is valid</span>
+<span class="sd">    """</span>
+    <span class="n">recipes</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s1">'Pancakes'</span><span class="p">,</span> <span class="sa">b</span><span class="s1">'Honey Bran Muffins'</span><span class="p">,</span> <span class="sa">b</span><span class="s1">'Acai Bowl'</span><span class="p">,</span>
+               <span class="sa">b</span><span class="s1">'Breakfast Scramble'</span><span class="p">,</span> <span class="sa">b</span><span class="s1">'Pumpkin Donuts'</span><span class="p">,</span> <span class="sa">b</span><span class="s1">'Waffles'</span><span class="p">,</span>
+               <span class="sa">b</span><span class="s1">'Omelette'</span><span class="p">]</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">test_client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'/breakfast/'</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+    <span class="k">for</span> <span class="n">recipe</span> <span class="ow">in</span> <span class="n">recipes</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">recipe</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">data</span>
+
+
+<span class="k">def</span> <span class="nf">test_get_individual_breakfast_recipes</span><span class="p">(</span><span class="n">test_client</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    GIVEN a Flask application configured for testing</span>
+<span class="sd">    WHEN the '/breakfast/&lt;recipe_name&gt;' page is requested (GET)</span>
+<span class="sd">    THEN check the response is valid</span>
+<span class="sd">    """</span>
+    <span class="k">for</span> <span class="n">recipe_name</span> <span class="ow">in</span> <span class="n">breakfast_recipes_names</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">test_client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">'/breakfast/</span><span class="si">{</span><span class="n">recipe_name</span><span class="si">}</span><span class="s1">/'</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+        <span class="k">assert</span> <span class="nb">str</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">recipe_name</span><span class="p">)</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">data</span>
+</code></pre></div>
+
+<p>这些是高层次的检查，以确保预期的页面正确呈现。</p>
+<p>这些测试功能中的每一个都使用在<em>测试/conftest.py </em>中定义的<code>test_client</code>夹具:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">pytest</span>
+<span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">create_app</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s1">'module'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">test_client</span><span class="p">():</span>
+    <span class="n">flask_app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">()</span>
+
+    <span class="c1"># Create a test client using the Flask application configured for testing</span>
+    <span class="k">with</span> <span class="n">flask_app</span><span class="o">.</span><span class="n">test_client</span><span class="p">()</span> <span class="k">as</span> <span class="n">testing_client</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">testing_client</span>  <span class="c1"># this is where the testing happens!</span>
+</code></pre></div>
+
+<p>测试应该从顶级目录运行:</p>
+
+
+<p>他们应该通过:</p>
+<div class="codehilite"><pre><span/><code><span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">=================================</span>
+platform darwin -- Python <span class="m">3</span>.11.0, pytest-7.2.1, pluggy-1.0.0
+plugins: cov-4.0.0
+collected <span class="m">18</span> items
+
+tests/functional/test_blog.py ....                                               <span class="o">[</span><span class="m">22</span>%<span class="o">]</span>
+tests/functional/test_recipes.py ..............                                 <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+<span class="o">================================</span> <span class="m">18</span> passed <span class="k">in</span> <span class="m">0</span>.33s <span class="o">==================================</span>
+</code></pre></div>
+
+<h2 id="frozen-flask">冷冻烧瓶</h2>
+<p>到目前为止，Flask应用程序看起来像一个典型的web应用程序。这就是<a href="https://pythonhosted.org/Frozen-Flask/">冷冻瓶</a>发挥作用的地方。我们可以自动生成静态文件和URL<a href="https://pythonhosted.org/Frozen-Flask/#finding-urls"/>。</p>
+<p>回想一下到目前为止的项目。我们为什么需要创建URL？</p>
+<ol>
+<li>在<em>项目/静态</em>中找到静态文件</li>
+<li>在<em>项目/recipes/routes.py中找到的路线</em></li>
+</ol>
+<p>freeze-Flask将自动生成静态文件的所有URL。例如:</p>
+<ol>
+<li><code>static/css/base_style.css</code></li>
+<li><code>static/img/acai_bowl.jpg</code></li>
+</ol>
+<p>记下<em>项目/配方/路线. py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@recipes_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">recipes</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s1">'recipes/recipes.html'</span><span class="p">)</span>
+
+
+<span class="nd">@recipes_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/breakfast/'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">breakfast_recipes</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s1">'recipes/breakfast.html'</span><span class="p">)</span>
+
+
+<span class="nd">@recipes_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/breakfast/&lt;recipe_name&gt;/'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">breakfast_recipe</span><span class="p">(</span><span class="n">recipe_name</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">recipe_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">breakfast_recipe_names</span><span class="p">:</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="sa">f</span><span class="s1">'recipes/</span><span class="si">{</span><span class="n">recipe_name</span><span class="si">}</span><span class="s1">.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>freezed-Flask将自动为GET routes生成URL，URL中没有可变部分。在我们的例子中，它将为<code>/</code>和<code>/breakfast/</code>生成URL。</p>
+<p><code>'/breakfast/&lt;recipe_name&gt;/</code>怎么样？来自<code>url_for()</code>的任何链接也将被发现，这应该涵盖一切。</p>
+<blockquote>
+<p>例如，<em>breakfast.html</em>模板包含每种早餐食谱的<code>url_for()</code>调用。</p>
+</blockquote>
+<h3 id="development">发展</h3>
+<p>在开发过程中，我们希望能够在本地计算机上测试路线，就像任何Flask应用程序一样。</p>
+<p><em> app.py </em>文件用于运行Flask开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask_frozen</span> <span class="kn">import</span> <span class="n">Freezer</span>
+<span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">create_app</span>
+
+<span class="c1"># Call the application factory function to construct a Flask application</span>
+<span class="c1"># instance using the development configuration</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">()</span>
+
+<span class="c1"># Create an instance of Freezer for generating the static files from</span>
+<span class="c1"># the Flask application routes ('/', '/breakfast', etc.)</span>
+<span class="n">freezer</span> <span class="o">=</span> <span class="n">Freezer</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="c1"># Run the development server that generates the static files</span>
+    <span class="c1"># using Frozen-Flask</span>
+    <span class="n">freezer</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>该文件首先调用应用程序工厂函数，创建Flask应用程序。接下来，创建一个<code>Freezer</code>(来自freeze-Flask)实例。最后，运行来自freeze-Flask的开发服务器:</p>
+<p>启动开发服务器就像任何其他Flask应用程序一样:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ flask --app app --debug run
+</code></pre></div>
+
+<p>现在您可以导航到<a href="http://127.0.0.1:5000/"> http://127.0.0.1:5000/ </a>:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/example_app.png" loading="lazy" class="lazyload" alt="Development Server Example" src="../Images/627afba00c444f8ae9f12d97bf547d2e.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/example_app.png"/></p>
+<h3 id="build-script">构建脚本</h3>
+<p>一旦您准备好部署静态文件，您需要<strong>构建</strong>文件来生成包含应用程序内容的静态文件。顶层文件夹中的<em> build.py </em>脚本运行Freezer-Flask生成静态文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask_frozen</span> <span class="kn">import</span> <span class="n">Freezer</span>
+<span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">create_app</span>
+
+<span class="c1"># Call the application factory function to construct a Flask application</span>
+<span class="c1"># instance using the development configuration</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">()</span>
+
+<span class="c1"># Create an instance of Freezer for generating the static files from</span>
+<span class="c1"># the Flask application routes ('/', '/breakfast', etc.)</span>
+<span class="n">freezer</span> <span class="o">=</span> <span class="n">Freezer</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="c1"># Generate the static files using Frozen-Flask</span>
+    <span class="n">freezer</span><span class="o">.</span><span class="n">freeze</span><span class="p">()</span>
+</code></pre></div>
+
+<p>运行脚本:</p>
+
+
+<p>该脚本基于Flask应用程序中的路径生成所有静态文件，并将它们写入“项目/构建”文件夹:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ tree -L <span class="m">3</span> project/build
+project/build
+├── breakfast
+│   ├── acai_bowl
+│   │   └── index.html
+│   ├── breakfast_scramble
+│   │   └── index.html
+│   ├── index.html
+│   └── waffles
+│       └── index.html
+├── index.html
+└── static
+    ├── css
+    │   ├── base_style.css
+    │   └── recipe_style.css
+    └── img
+</code></pre></div>
+
+<p>这个文件夹就是我们要部署到Netlify的！</p>
+<h2 id="deploy-to-netlify">部署到网络</h2>
+<h3 id="what-is-netlify">什么是Netlify？</h3>
+<p><a href="https://www.netlify.com"> Netlify </a>是一项简化托管前端web应用的服务。</p>
+<p>Netlify提供前端web应用程序的免费托管，他们还提供为您的应用程序购买自定义域名的能力。我特别喜欢他们的服务，因为他们为HTTPS提供所有的托管解决方案。</p>
+<p>在我们进入这些步骤之前，您需要确保在Netlify上创建一个帐户。前往<a href="https://www.netlify.com">https://www.netlify.com</a>，点击“注册”创建一个新账户(这是免费的，不需要信用卡)。</p>
+<blockquote>
+<p>Netlify的一些替代方案有:<a href="https://www.cloudflare.com"> Cloudflare </a>，<a href="https://pages.github.com"> GitHub Pages </a>，is<a href="https://docs.gitlab.com/ee/user/project/pages/">GitLab Pages</a>。</p>
+</blockquote>
+<h3 id="configure">安装ˌ使成形</h3>
+<p>登录Netlify后，转到您的帐户页面，点击“添加新网站”，然后点击“导入现有项目”:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/netlify_step1.png" loading="lazy" class="lazyload" alt="Deploy using Netlify - Step 1" src="../Images/5eb630217acb4d4d84dd952740c43f36.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/netlify_step1.png"/></p>
+<p>现在，您可以选择git托管解决方案(GitLab、GitHub、BitBucket、Azure DevOps)来存储您的git存储库:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/netlify_step2.png" loading="lazy" class="lazyload" alt="Deploy using Netlify - Step 2" src="../Images/935897d56f1ba51ad946712bada706f1.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/netlify_step2.png"/></p>
+<p>如果您以前没有将Netlify连接到您的git托管服务，将有一个额外的步骤允许Netlify访问您的git存储库。接下来，选择您想要托管的git存储库。</p>
+<p>现在，您可以选择谁是项目的所有者，以及您希望从哪个分支部署构建(我选择“main”分支，因为这是我为这个项目构建的稳定分支):</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/netlify_step3.png" loading="lazy" class="lazyload" alt="Deploy using Netlify - Step 3" src="../Images/d7291ffceb1259719a13762230f72d75.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/netlify_step3.png"/></p>
+<blockquote>
+<p>如果您对将git存储库中的默认分支从<code>master</code>更改为<code>main</code>的步骤感兴趣，请参考这篇非常有用的博文:<a href="https://boleary.dev/blog/2020-06-11-change-your-default-branch.html">将您的Git默认分支从master重命名为main(带有GitLab截图)</a>。</p>
+</blockquote>
+<p>继续向下滚动，您现在可以选择运行哪个命令来构建您的应用程序，以及应该从哪里部署代码:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/netlify_step4.png" loading="lazy" class="lazyload" alt="Deploy using Netlify - Step 4" src="../Images/d913010a75bca3f3a2074c9bf3e232c5.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/netlify_step4.png"/></p>
+<p>由于部署了一组静态文件(HTML、CSS、JavaScript ),因此只需将“发布目录”指定为静态文件组的路径:<em> /project/build/ </em></p>
+<p>使用此配置集，单击“部署站点”按钮。</p>
+<p>Netlify需要一些时间(&lt; 1分钟)来部署站点:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/netlify_step5.png" loading="lazy" class="lazyload" alt="Deploy using Netlify - Step 5" src="../Images/0d4f680a12821e013fa144037d48e192.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/netlify_step5.png"/></p>
+<p>您应该会看到该站点的预览，并确认该站点已部署。</p>
+<p>点击链接(如<a href="https://enchanting-arithmetic-3ca519.netlify.app/">https://enchanting-arithmetic-3ca519.netlify.app/</a>)查看网站！</p>
+<p>现在，您可以从任何连接到互联网的设备上查看该web应用程序！</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/example_app.png" loading="lazy" class="lazyload" alt="Development Server Example" src="../Images/627afba00c444f8ae9f12d97bf547d2e.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/example_app.png"/></p>
+<h3 id="workflow_1">工作流程</h3>
+<p>与许多流程一样，配置步骤有点复杂，但现在Netlify会注意到您的存储库(在GitLab、GitHub或BitBucket上)的“主”分支上的任何新提交，并使用新提交重新部署您的网站。请记住:Netlify将发布“项目/构建”文件夹中的文件，因此请确保在提交更改之前始终构建静态站点:</p>
+
+
+<p>回顾一下，下图说明了使用Flask开发静态站点并将其部署到Netlify的典型工作流:</p>
+<p><img data-src="/static/images/blog/flask/static-site-flask-and-netlify/flask_netlify_static_content_workflow.png" loading="lazy" class="lazyload" alt="Deploy Static Site Using Flask and Netlify Workflow" src="../Images/5d02f0f886bc1228af8d99dbdcf6a874.png" data-original-src="https://testdriven.io/static/images/blog/flask/static-site-flask-and-netlify/flask_netlify_static_content_workflow.png"/></p>
+<h3 id="additional-features-of-netlify">Netlify的其他功能</h3>
+<p>Netlify还提供了几个工具，用于向应用程序添加类似服务器的功能，而实际上并不需要服务器端的应用程序。例如:</p>
+<ol>
+<li><a href="https://www.netlify.com/products/functions/">网络功能</a></li>
+<li><a href="https://docs.netlify.com/forms/setup/">网络生活形式</a></li>
+</ol>
+<h2 id="conclusion">结论</h2>
+<p>本教程展示了如何创建一个Flask应用程序，然后使用freeze-Flask为所有指定的路由生成静态文件。然后静态文件被发布到Netlify以部署静态站点。</p>
+<p>如果您熟悉Flask应用程序的开发，那么这个过程是开发可以轻松部署到web上的静态站点的好方法。</p>
+<blockquote>
+<p>如果你有兴趣学习更多关于Flask的知识，请查看我的课程，学习如何构建、测试和部署Flask应用程序:<a href="/courses/learn-flask/">用Python和Flask开发Web应用程序</a>。</p>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

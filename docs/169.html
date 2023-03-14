@@ -1,0 +1,274 @@
+<html>
+<head>
+<title>Migrating from Heroku to AWS </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>从Heroku迁移到AWS</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/migrating-from-heroku-to-aws/#0001-01-01">https://testdriven.io/blog/migrating-from-heroku-to-aws/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我抓住了两个主要目标:</p>
+<ol>
+<li>给我的个人应用一个更专业的UX</li>
+<li>将我的总体托管成本降低50%</li>
+</ol>
+<p>我一直在使用Heroku的<a href="https://www.heroku.com/pricing">免费层</a>来提供演示应用和创建沙盒教程。这是一个很好的服务，易于使用且免费，但它在初始页面加载时会有很长的滞后时间(大约7秒)。以任何人的标准来看，这都是一段很长的时间。根据akamai.com<a href="https://blog.kissmetrics.com/loading-time/?wide=1">和kissmetrics </a>的说法，7秒的加载时间，超过25%的用户会在你的第一个div出现之前就放弃你的页面。我不想简单地升级到Heroku的付费等级，我想探索我的选择，并在这个过程中学习一些有用的技能。</p>
+<p>更重要的是，我还有一个关于<a href="https://ghost.org/"> Ghost </a>的托管博客。这是一个非常好的平台，但是有点贵。幸运的是，他们提供了他们的开源软件，并提供了一个很好的使用Node和MySQL的教程。你只需要一个地方来托管它。</p>
+<p>通过与我的托管博客分道扬镳，从一台服务器上提供多种资源，我可以为我的个人应用程序提供更好的UX，同时节省一些钱。这篇文章组织了网上一些最好的教程来快速安全地完成这项工作。</p>
+<p>这需要几种不同的技术协同工作来实现目标:</p>
+<table>
+<thead>
+<tr>
+<th>技术</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EC2</td>
+<td>提供廉价、可靠的云计算能力</td>
+</tr>
+<tr>
+<td>人的本质</td>
+<td>处理我们程序运行的操作系统</td>
+</tr>
+<tr>
+<td>码头工人</td>
+<td>隔离层提供一致的执行环境</td>
+</tr>
+<tr>
+<td>Nginx</td>
+<td>以可靠和安全的方式处理请求</td>
+</tr>
+<tr>
+<td>Certbot</td>
+<td>提供SSL/HTTPS安全的web应用程序，进而提高SSO(搜索引擎优化)</td>
+</tr>
+<tr>
+<td>《人鬼情未了》</td>
+<td>提供一个具有GUI和持久性的简单博客</td>
+</tr>
+<tr>
+<td>反应</td>
+<td>允许快速、可组合的web应用程序</td>
+</tr>
+</tbody>
+</table>
+
+
+
+<h3 id="objectives">目标</h3>
+<ul>
+<li>主办个人项目，投资组合网站，博客-&gt;便宜，没有加载滞后时间</li>
+<li>熟悉Nginx</li>
+<li>服务HTTPS加密网站</li>
+<li>Dockerize反应</li>
+</ul>
+<h3 id="technologies-used">使用的技术</h3>
+<ul>
+<li>亚马逊EC2</li>
+<li>人的本质</li>
+<li>Nginx</li>
+<li>反应</li>
+<li>让我们加密和认证(SSL)</li>
+<li>码头工人</li>
+<li>Ghost博客平台</li>
+</ul>
+<h3 id="takeaways">外卖食品</h3>
+<p>完成本教程后，您将能够:</p>
+<ul>
+<li>设置EC2实例</li>
+<li>设置Nginx</li>
+<li>用子域配置您的DNS</li>
+<li>在EC2实例上设置Ghost博客平台</li>
+<li>对静态React应用程序进行Dockerize</li>
+<li>为静态站点服务</li>
+<li>用加密和证书来配置SSL</li>
+</ul>
+<h3 id="the-finances">财务状况</h3>
+<p><strong>当前托管解决方案(无延迟时间)</strong></p>
+
+<p><br/></p>
+<p><strong>自托管选项</strong></p>
+
+<p>因此，对于一个托管解决方案，对于一个博客和一个应用程序，我每月将支付26美元，每个新应用程序每月将增加7美元。每年，每个额外的应用程序需要312美元+84美元。通过这篇文章中概述的一些跑腿工作，我以每月不到10美元的费用托管了多个应用程序和一个博客。</p>
+<p>我决定采用AWS解决方案。虽然它更贵，但它是一种超级受欢迎的企业技术，我想更加熟悉它。</p>
+<h3 id="thanks">谢谢</h3>
+<p>非常感谢所有参考资料的作者。这篇文章的大部分内容由链接和证明效果良好的资源片段组成，并包含了为满足我的需要而需要的细微修改。</p>
+<p>也谢谢你的阅读。我们开始吧！</p>
+<h2 id="ec2-setup">EC2设置</h2>
+<p>下面是如何创建一个新的EC2实例。</p>
+<p><em>资源</em>:【https://www.nginx.com/blog/setting-up-nginx】T2</p>
+<p>您真正需要的是上面的教程，以便设置EC2实例和安装Nginx。自从Nginx在Ghost博客平台安装期间安装后，我就停止了EC2的创建。</p>
+<h2 id="elastic-ip">弹性IP</h2>
+<p><em>资源</em>:<a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html">https://docs . AWS . Amazon . com/AWS ec2/latest/user guide/elastic-IP-addresses-EIP . html</a></p>
+<p>接下来，您将把DNS(域名系统)指向EC2实例的公共IP地址。这意味着您不希望它因为任何原因而改变(例如，停止和启动实例)。有两种方法可以实现这一点:</p>
+<ol>
+<li>激活AWS账户中的<a href="https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/default-vpc.html">默认VPC </a>(虚拟私有云)</li>
+<li>分配一个<a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html">弹性IP地址</a></li>
+</ol>
+<p>这两个选项都提供了一个免费的静态IP地址。在本教程中，我使用了弹性IP来实现这个目标，因为在设置好服务器之后，添加到服务器上真的很简单。</p>
+<p>按照上述资源中的步骤创建一个弹性IP地址，并将其与您的EC2实例相关联。</p>
+<h2 id="ssh-key">SSH密钥</h2>
+<p><em>资源</em>:<a href="https://www.digitalocean.com/community/tutorials/initial-server-setup-with-ubuntu-16-04">https://www . digital ocean . com/community/tutorials/initial-server-setup-with-Ubuntu-16-04</a></p>
+<p>我跟随这个教程到了T...非常有效。您将使用自己的SSH密钥设置自己的超级用户，并创建一个防火墙来限制传入流量，只允许SSH。</p>
+<p>一分钟后，您将为请求打开HTTP和HTTPS。</p>
+<h2 id="dns-configuration">DNS配置</h2>
+<p>我用Name.com的<a href="https://www.name.com/"/>作为我的DNS主机，因为他们有一个不错的用户界面，并且在丹佛(我居住的地方)本地。我已经拥有了<code>petej.org</code>，并且一直指向一个<a href="https://pages.github.com/"> github pages </a>托管的静态站点。我决定为博客建立一个子域-<a href="https://blog.petej.org">blog.petej.org</a>-使用<strong> A记录</strong>指向我的EC2实例的公共IP地址。我创建了两个<em> A记录</em>，一个处理<code>www</code>前缀，另一个处理空URL:</p>
+<p><img data-src="/static/images/blog/heroku-to-aws/a-record.png" loading="lazy" class="lazyload" alt="a-record" src="../Images/9d6293f37d6649faf04707916482bf4c.png" data-original-src="https://testdriven.io/static/images/blog/heroku-to-aws/a-record.png"/></p>
+<p>现在通过命令行，使用<code>dig</code>实用程序来检查新的A记录是否正在工作。这可以从本地机器或EC2实例完成:</p>
+<div class="codehilite"><pre><span/><code>$ dig A blog.petej.org
+
+<span class="p">;</span> &lt;&lt;&gt;&gt; DiG <span class="m">9</span>.9.7-P3 &lt;&lt;&gt;&gt; A blog.petej.org
+<span class="p">;;</span> global options: +cmd
+<span class="p">;;</span> Got answer:
+<span class="p">;;</span> -&gt;&gt;HEADER<span class="s">&lt;&lt;- opco</span>de: QUERY, status: NOERROR, id: <span class="m">44050</span>
+<span class="p">;;</span> flags: qr rd ra<span class="p">;</span> QUERY: <span class="m">1</span>, ANSWER: <span class="m">1</span>, AUTHORITY: <span class="m">0</span>, ADDITIONAL: <span class="m">1</span>
+
+<span class="p">;;</span> OPT PSEUDOSECTION:
+<span class="p">;</span> EDNS: version: <span class="m">0</span>, flags:<span class="p">;</span> udp: <span class="m">512</span>
+<span class="p">;;</span> QUESTION SECTION:
+<span class="p">;</span>blog.petej.org.            IN  A
+
+<span class="p">;;</span> ANSWER SECTION:
+blog.petej.org.     <span class="m">300</span> IN  A   <span class="m">35</span>.153.44.46
+
+<span class="p">;;</span> Query time: <span class="m">76</span> msec
+<span class="p">;;</span> SERVER: <span class="m">75</span>.75.75.75#53<span class="o">(</span><span class="m">75</span>.75.75.75<span class="o">)</span>
+<span class="p">;;</span> WHEN: Sat Jan <span class="m">27</span> <span class="m">10</span>:13:50 MST <span class="m">2018</span>
+<span class="p">;;</span> MSG SIZE  rcvd: <span class="m">59</span>
+</code></pre></div>
+
+<blockquote>
+<p><strong>注意</strong>:<em>A记录</em>几乎立即生效，但可能需要一个小时来解决以前使用该URL时产生的缓存问题。所以，如果你已经设置好了域名，这可能需要一点时间。</p>
+</blockquote>
+<p>Nice:域名- &gt; √。现在您需要让EC2实例提供一些内容！</p>
+<h2 id="ghost-blog-platform">Ghost博客平台</h2>
+<p><em>资源</em>:【https://docs.ghost.org/install/ubuntu/】T2</p>
+<p>又一个很棒的教程。我一路跟着它，它是金色的。有些步骤我们已经在上面介绍过了，比如设置Ubuntu实例的最佳实践，所以你可以跳过这些步骤。确保从<em>更新包</em>部分开始(在<em>服务器设置</em>下)。</p>
+<blockquote>
+<p><strong>注意:</strong>严格按照这个顺序进行设置。第一次，我忽略了为MySQL数据库设置用户，最后不得不从机器上移除Ghost，重新安装，然后从头开始。</p>
+</blockquote>
+<p>在逐步完成Ghost安装过程后，您现在应该有一个在您的域名下运行的博客了——在浏览器中查看一下吧！</p>
+<h2 id="midway-recap">中途回顾</h2>
+<p>你完成了什么？</p>
+<ul>
+<li>Ubuntu服务器启动并运行</li>
+<li>SSH访问我们的服务器</li>
+<li>安装了Ghost平台</li>
+<li>Nginx处理传入流量</li>
+<li>自主持博客，up！</li>
+</ul>
+<h3 id="so-whats-next">那么下一步是什么？</h3>
+<p>您现在将:</p>
+<ol>
+<li>安装git并设置对GitHub帐户的SSH访问</li>
+<li>对静态React应用程序进行Dockerize</li>
+<li>在EC2实例上设置Docker</li>
+<li>配置Nginx反向代理层，将流量路由到React应用程序</li>
+<li>将SSL证书与您的博客和react应用程序相关联，以便可以在HTTPS提供这些证书</li>
+</ol>
+<p>向前...</p>
+<h2 id="gotta-have-git">必须有饭桶</h2>
+<p>在EC2实例上安装git:</p>
+<div class="codehilite"><pre><span/><code>$ sudo apt-get install git
+</code></pre></div>
+
+<p>专门为GitHub访问创建一个新的SSH密钥:<a href="https://help.github.com/articles/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent">https://help . GitHub . com/articles/generating-a-new-SSH-key-and-add-it-to-the-SSH-agent</a></p>
+<p>因为你之前为Ubuntu服务器设置了用户，所以<em>/根目录</em>和你的<em> ~目录</em>(用户的主目录)是不一样的。考虑到这一点，在<code>ssh-add</code>步骤中改为这样做:</p>
+<div class="codehilite"><pre><span/><code>cp /root/.ssh/id_rsa ~/.ssh/id_rsa
+<span class="nb">cd</span> ~/.ssh
+ssh-add
+</code></pre></div>
+
+
+
+<p>复制输出并将其作为一个新的SSH密钥添加到GitHub中，详见下面的链接。</p>
+<p>从<strong>开始第二步</strong>-&gt;<a href="https://help.github.com/articles/adding-a-new-ssh-key-to-your-github-account">https://help . github . com/articles/add-a-new-ssh-key-to-your-github-account</a></p>
+<p>您已经设置好<code>git</code>。克隆，然后提交一个repo，以确保一切都连接正确。</p>
+<h2 id="static-react-app">静态反应应用程序</h2>
+<p><em>资源</em>:<a href="https://medium.com/ai2-blog/dockerizing-a-react-application-3563688a2378">https://medium . com/ai2-blog/dockerizing-a-react-application-3563688 a 2378</a></p>
+<p>一旦你用Docker在本地运行了React应用程序，将图片上传到Docker Hub :</p>
+<p>你需要一个Docker Hub账户-&gt;<a href="https://hub.docker.com">https://hub.docker.com</a></p>
+<div class="codehilite"><pre><span/><code>$ docker login
+Username:
+Password:
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code>$ docker tag &lt;image-name&gt; &lt;username&gt;/&lt;image-name&gt;:&lt;tag-name&gt;
+$ docker push &lt;username&gt;/&lt;image-name&gt;
+</code></pre></div>
+
+<p>这需要一段时间。大约5分钟。咖啡时间...</p>
+<p>我们回来了。继续登录GitHub，确保你的图片已经上传。</p>
+<p>现在回到您的EC2实例。嘘它。</p>
+<p>安装docker:</p>
+<div class="codehilite"><pre><span/><code>$ sudo apt install docker.io
+</code></pre></div>
+
+<p>在本地拉下您最近上传的Docker图像:</p>
+<div class="codehilite"><pre><span/><code>$ sudo docker pull &lt;username&gt;/&lt;image-name&gt;
+</code></pre></div>
+
+<p>获取图像id并使用它启动应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ sudo docker images
+<span class="c1"># Copy the image ID</span>
+$ sudo docker run -d -it -p <span class="m">5000</span>:5000 &lt;image-id&gt;
+</code></pre></div>
+
+<p>既然React应用程序已经运行，那么让我们通过设置Nginx配置来公开它。</p>
+<h2 id="nginx-setup-for-react-app">React应用程序的Nginx设置</h2>
+<p><em>资源</em>:<a href="https://www.digitalocean.com/community/tutorials/how-to-install-nginx-on-ubuntu-16-04">https://www . digital ocean . com/community/tutorials/how-to-install-nginx-on-Ubuntu-16-04</a></p>
+<blockquote>
+<p><strong>注意</strong>:我没有像教程建议的那样使用<em>/etc/nginx/sites-available/default</em>，而是专门为URL制作了一个&gt; <em>文件，完全不用理会默认文件。</em></p>
+</blockquote>
+<p>我们还需要建立一个符号链接:</p>
+<div class="codehilite"><pre><span/><code>$ sudo ln -s /etc/nginx/sites-available/circle-grid.petej.org.conf /etc/nginx/sites-enabled/
+</code></pre></div>
+
+<blockquote>
+<p><strong>注意</strong>:为什么是符号链接？如你所见，如果你在<em> /etc/nginx/nginx.conf </em>中查找，只有<em> /sites-enabled </em>中的文件被考虑在内。符号链接将通过在<em> sites_available </em>文件中表示这个文件，使它能够被Nginx发现，来为我们处理这个问题。如果您以前使用过Apache，您将会熟悉这种模式。您也可以像删除文件一样删除符号链接:<code>rm ./path/to/symlink</code>。</p>
+</blockquote>
+<p>关于“符号链接”的更多信息:<a href="http://manpages.ubuntu.com/manpages/xenial/en/man7/symlink.7.html">http://man pages . Ubuntu . com/man pages/xenial/en/man 7/symlink . 7 . html</a></p>
+<h2 id="lets-encrypt-with-certbot">让我们用Certbot加密</h2>
+<p><em>资源</em>:<a href="https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-16-04">https://www . digital ocean . com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-Ubuntu-16-04</a></p>
+<p>现在，要确保Certbot配置了一个cron作业来自动续订您的证书，请运行以下命令:</p>
+
+
+<p>如果有一个<em> certbot </em>文件在里面，你就可以开始了。</p>
+<p>如果没有，请按照下列步骤操作:</p>
+<ol>
+<li>
+<p>手动测试续订流程:</p>
+<p><code>$ sudo certbot renew --dry-run</code></p>
+</li>
+<li>
+<p>如果成功，则:</p>
+<p><code>$ nano /etc/cron.d/certbot</code></p>
+</li>
+<li>
+<p>将这一行添加到文件中:</p>
+<p><code>0 */12 * * * root test -x /usr/bin/certbot -a \! -d /run/systemd/system &amp;&amp; perl -e 'sleep int(rand(3600))' &amp;&amp; certbot -q renew</code></p>
+</li>
+<li>
+<p>省省吧，都搞定了。</p>
+</li>
+</ol>
+<p>现在，您已经将任务配置为每12小时运行一次，该任务将升级任何在30天内过期的证书。</p>
+<h2 id="conclusion">结论</h2>
+<p>您现在应该能够:</p>
+<ul>
+<li>设置EC2实例</li>
+<li>设置Nginx</li>
+<li>用子域配置您的DNS</li>
+<li>搭建一个幽灵博客平台</li>
+<li>将React应用程序归档</li>
+<li>提供一个静态React应用程序</li>
+<li>配置SSL -&gt;让我们加密和认证</li>
+</ul>
+<p>我希望这是一个有用的链接和教程集合，可以帮助你使用个人应用服务器。如有任何问题或意见，请随时联系我。</p>
+<p><strong>感谢阅读</strong>。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

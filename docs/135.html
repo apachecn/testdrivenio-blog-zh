@@ -1,0 +1,499 @@
+<html>
+<head>
+<title>Asynchronous Tasks with FastAPI and Celery </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>FastAPI和Celery的异步任务</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/fastapi-and-celery/#0001-01-01">https://testdriven.io/blog/fastapi-and-celery/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>如果长时间运行的流程是应用程序工作流的一部分，而不是阻塞响应，您应该在后台处理它，在正常的请求/响应流之外。</p>
+<p>也许您的web应用程序要求用户在注册时提交一个缩略图(可能需要重新调整大小)并确认他们的电子邮件。如果您的应用程序处理了图像并直接在请求处理程序中发送了确认电子邮件，那么最终用户将不得不在页面加载或更新之前不必要地等待他们完成处理。相反，您会希望将这些进程传递给任务队列，并让一个单独的工作进程来处理它，这样您就可以立即将响应发送回客户端。最终用户可以在处理过程中在客户端做其他事情。您的应用程序还可以自由地响应来自其他用户和客户端的请求。</p>
+<p>为了实现这一点，我们将带您完成设置和配置<a href="https://docs.celeryq.dev/en/stable/"> Celery </a>和Redis的过程，以便在FastAPI应用程序中处理长时间运行的流程。我们还将使用Docker和Docker Compose将所有内容联系在一起。最后，我们将看看如何用单元测试和集成测试来测试Celery任务。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>将芹菜集成到FastAPI应用程序中，并创建任务。</li>
+<li>集装箱FastAPI、Celery和Redis with Docker。</li>
+<li>使用单独的工作进程在后台运行进程。</li>
+<li>将芹菜日志保存到文件中。</li>
+<li>设置<a href="https://flower.readthedocs.io/en/latest/"> Flower </a>来监控和管理芹菜作业和工人。</li>
+<li>用单元测试和集成测试来测试芹菜任务。</li>
+</ol>
+<h2 id="background-tasks">后台任务</h2>
+<p>同样，为了改善用户体验，长时间运行的流程应该在正常的HTTP请求/响应流程之外，在后台进程中运行。</p>
+<p>示例:</p>
+<ol>
+<li>运行机器学习模型</li>
+<li>发送确认电子邮件</li>
+<li>刮擦和爬行</li>
+<li>分析数据</li>
+<li>处理图像</li>
+<li>生成报告</li>
+</ol>
+<p>当你构建一个应用程序时，试着区分应该在请求/响应生命周期中运行的任务(比如CRUD操作)和应该在后台运行的任务。</p>
+<p>值得注意的是，你可以利用FastAPI的<a href="https://fastapi.tiangolo.com/tutorial/background-tasks/"> BackgroundTasks </a>类在后台运行任务，该类直接来自<a href="https://github.com/encode/starlette/blob/0.14.2/starlette/background.py"> Starlette </a>。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">BackgroundTasks</span>
+
+
+<span class="k">def</span> <span class="nf">send_email</span><span class="p">(</span><span class="n">email</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="n">background_tasks</span><span class="p">:</span> <span class="n">BackgroundTasks</span><span class="p">):</span>
+    <span class="n">background_tasks</span><span class="o">.</span><span class="n">add_task</span><span class="p">(</span><span class="n">send_email</span><span class="p">,</span> <span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2d48404c44416d4c49495f485e5e034e4240">[email protected]</a>"</span><span class="p">,</span> <span class="s2">"Hi!"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"pong!"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>那么，什么时候应该用芹菜代替<code>BackgroundTasks</code>？</p>
+<ol>
+<li><strong> CPU密集型任务</strong> : Celery应该用于执行繁重后台计算的任务，因为<code>BackgroundTasks</code>运行在服务于应用程序请求的同一个事件循环中。</li>
+<li><strong>任务队列:</strong>如果你需要一个任务队列来管理任务和工作者，那么你应该使用芹菜。通常，您会希望检索一个作业的状态，然后根据该状态执行一些操作——例如，发送一封错误电子邮件，启动一个不同的后台任务，或者重试该任务。芹菜为你管理这一切。</li>
+</ol>
+<h2 id="workflow">工作流程</h2>
+<p>我们的目标是开发一个与Celery协同工作的FastAPI应用程序，以处理正常请求/响应周期之外的长时间运行的流程。</p>
+<ol>
+<li>最终用户通过向服务器端发送POST请求开始一项新任务。</li>
+<li>在路由处理程序中，一个任务被添加到队列中，任务ID被发送回客户端。</li>
+<li>使用AJAX，当任务本身在后台运行时，客户机继续轮询服务器以检查任务的状态。</li>
+</ol>
+<p><img data-src="/static/images/blog/fastapi/fastapi-celery/fastapi-celery-flow.png" loading="lazy" class="lazyload" alt="fastapi and celery queue user flow" src="../Images/e8244e81354e37e9e72770349e5fdbe8.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-celery/fastapi-celery-flow.png"/></p>
+<h2 id="project-setup">项目设置</h2>
+<p>从<a href="https://github.com/testdrivenio/fastapi-celery"> fastapi-celery </a> repo中克隆出基础项目，然后将<a href="https://github.com/testdrivenio/fastapi-celery/tree/v1"> v1 </a>标签签出到主分支:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/fastapi-celery --branch v1 --single-branch
+$ <span class="nb">cd</span> fastapi-celery
+$ git checkout v1 -b master
+</code></pre></div>
+
+<p>由于我们总共需要管理三个进程(FastAPI、Redis、Celery worker)，我们将使用Docker来简化我们的工作流，方法是将它们连接起来，以便它们都可以通过一个命令从一个终端窗口运行。</p>
+<p>从项目根目录，创建映像并启动Docker容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>构建完成后，导航到<a href="http://localhost:8004"> http://localhost:8004 </a>:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-celery/fastapi_celery.png" loading="lazy" class="lazyload" alt="fastapi project" src="../Images/3358350675aa80256128e0220314d789.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-celery/fastapi_celery.png"/></p>
+<p>确保测试也通过:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python -m <span class="nv">pytest</span>
+
+<span class="o">==================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">===================================</span>
+platform linux -- Python <span class="m">3</span>.9.5, pytest-6.2.4, py-1.10.0, pluggy-0.13.1
+rootdir: /usr/src/app
+collected <span class="m">1</span> item
+
+tests/test_tasks.py .                                                               <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">===================================</span> <span class="m">1</span> passed <span class="k">in</span> <span class="m">0</span>.06s <span class="o">====================================</span>
+</code></pre></div>
+
+<p>在继续之前，快速浏览一下项目结构:</p>
+<div class="codehilite"><pre><span/><code>├── .gitignore
+├── LICENSE
+├── README.md
+├── docker-compose.yml
+└── project
+    ├── Dockerfile
+    ├── main.py
+    ├── requirements.txt
+    ├── static
+    │   ├── main.css
+    │   └── main.js
+    ├── templates
+    │   ├── _base.html
+    │   ├── footer.html
+    │   └── home.html
+    └── tests
+        ├── __init__.py
+        ├── conftest.py
+        └── test_tasks.py
+</code></pre></div>
+
+<h2 id="trigger-a-task">触发任务</h2>
+<p>在<em>project/templates/home . html</em>中设置了一个<code>onclick</code>事件处理程序来监听按钮点击:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn-group"</span> <span class="na">role</span><span class="o">=</span><span class="s">"group"</span> <span class="na">aria-label</span><span class="o">=</span><span class="s">"Basic example"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span> <span class="na">onclick</span><span class="o">=</span><span class="s">"handleClick(1)"</span><span class="p">&gt;</span>Short<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span> <span class="na">onclick</span><span class="o">=</span><span class="s">"handleClick(2)"</span><span class="p">&gt;</span>Medium<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span> <span class="na">onclick</span><span class="o">=</span><span class="s">"handleClick(3)"</span><span class="p">&gt;</span>Long<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p><code>onclick</code>调用<em> project/static/main.js </em>中的<code>handleClick</code>，它向服务器发送一个AJAX POST请求，并带有适当的任务类型:<code>1</code>、<code>2</code>或<code>3</code>。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">function</span><span class="w"> </span><span class="nx">handleClick</span><span class="p">(</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">fetch</span><span class="p">(</span><span class="s1">'/tasks'</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">'POST'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="s1">'Content-Type'</span><span class="o">:</span><span class="w"> </span><span class="s1">'application/json'</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="nx">type</span><span class="w"> </span><span class="p">}),</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">response</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">res</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_id</span><span class="p">));</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>在服务器端，已经配置了一个路由来处理<em> project/main.py </em>中的请求:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">run_task</span><span class="p">(</span><span class="n">payload</span> <span class="o">=</span> <span class="n">Body</span><span class="p">(</span><span class="o">...</span><span class="p">)):</span>
+    <span class="n">task_type</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">JSONResponse</span><span class="p">(</span><span class="n">task_type</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在有趣的部分来了——给芹菜布线！</p>
+<h2 id="celery-setup">芹菜装置</h2>
+<p>首先将Celery和Redis添加到<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code>aiofiles==0.6.0
+celery==4.4.7
+fastapi==0.64.0
+Jinja2==2.11.3
+pytest==6.2.4
+redis==3.5.3
+requests==2.25.1
+uvicorn==0.13.4
+</code></pre></div>
+
+<blockquote>
+<p>本教程使用芹菜v <a href="https://pypi.org/project/celery/4.4.7/"> 4.4.7 </a>因为花<a href="https://github.com/mher/flower/issues/1029">不支持芹菜5 </a>。</p>
+</blockquote>
+<p>Celery使用消息<a href="https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html">代理</a> - <a href="https://www.rabbitmq.com/"> RabbitMQ </a>、<a href="https://redis.io/"> Redis </a>或<a href="https://aws.amazon.com/sqs/"> AWS简单队列服务(SQS) </a> -来促进Celery worker和web应用程序之间的通信。消息被添加到代理中，然后由工作人员进行处理。一旦完成，结果被添加到后端。</p>
+<p>Redis将被用作代理和后端。将Redis和芹菜<a href="https://docs.celeryq.dev/en/stable/userguide/workers.html">工人</a>添加到<em> docker-compose.yml </em>文件中，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8004:8000</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uvicorn main:app --host 0.0.0.0 --reload</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project:/usr/src/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_BROKER_URL=redis://redis:6379/0</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_RESULT_BACKEND=redis://redis:6379/0</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">worker</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">celery worker --app=worker.celery --loglevel=info</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project:/usr/src/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_BROKER_URL=redis://redis:6379/0</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_RESULT_BACKEND=redis://redis:6379/0</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">redis</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis:6-alpine</span><span class="w"/>
+</code></pre></div>
+
+<p>请注意<code>celery worker --app=worker.celery --loglevel=info</code>:</p>
+<ol>
+<li><code>celery worker</code>是用来开动芹菜<a href="https://docs.celeryq.dev/en/stable/userguide/workers.html#starting-the-worker">的工人</a></li>
+<li><code>--app=worker.celery</code>运行芹菜<a href="https://docs.celeryq.dev/en/stable/userguide/application.html">应用程序</a>(我们将很快对其进行定义)</li>
+<li><code>--loglevel=info</code>将<a href="https://docs.celeryq.dev/en/v4.4.7/reference/celery.bin.worker.html#cmdoption-celery-worker-l">记录级别</a>设置为信息</li>
+</ol>
+<p>接下来，在“项目”中创建一个名为<em> worker.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">from</span> <span class="nn">celery</span> <span class="kn">import</span> <span class="n">Celery</span>
+
+
+<span class="n">celery</span> <span class="o">=</span> <span class="n">Celery</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">celery</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">broker_url</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"CELERY_BROKER_URL"</span><span class="p">,</span> <span class="s2">"redis://localhost:6379"</span><span class="p">)</span>
+<span class="n">celery</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">result_backend</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"CELERY_RESULT_BACKEND"</span><span class="p">,</span> <span class="s2">"redis://localhost:6379"</span><span class="p">)</span>
+
+
+<span class="nd">@celery</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"create_task"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">create_task</span><span class="p">(</span><span class="n">task_type</span><span class="p">):</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">task_type</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>这里，我们创建了一个新的Celery实例，并使用<a href="https://docs.celeryq.dev/en/stable/reference/celery.html#celery.Celery.task">任务</a>装饰器，我们定义了一个名为<code>create_task</code>的新Celery任务函数。</p>
+<blockquote>
+<p>请记住，任务本身将由芹菜工人执行。</p>
+</blockquote>
+<h2 id="trigger-a-task_1">触发任务</h2>
+<p>更新路由处理程序以启动任务，并使用任务ID进行响应:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">run_task</span><span class="p">(</span><span class="n">payload</span> <span class="o">=</span> <span class="n">Body</span><span class="p">(</span><span class="o">...</span><span class="p">)):</span>
+    <span class="n">task_type</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">create_task</span><span class="o">.</span><span class="n">delay</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">task_type</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">JSONResponse</span><span class="p">({</span><span class="s2">"task_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
+</code></pre></div>
+
+<p>不要忘记导入任务:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">worker</span> <span class="kn">import</span> <span class="n">create_task</span>
+</code></pre></div>
+
+<p>构建映像并旋转新容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>要触发新任务，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ curl http://localhost:8004/tasks -H <span class="s2">"Content-Type: application/json"</span> --data <span class="s1">'{"type": 0}'</span>
+</code></pre></div>
+
+<p>您应该会看到类似这样的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"task_id"</span>: <span class="s2">"14049663-6257-4a1f-81e5-563c714e90af"</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<h2 id="task-status">任务状态</h2>
+<p>回到客户端的<code>handleClick</code>功能:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">function</span><span class="w"> </span><span class="nx">handleClick</span><span class="p">(</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">fetch</span><span class="p">(</span><span class="s1">'/tasks'</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">'POST'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="s1">'Content-Type'</span><span class="o">:</span><span class="w"> </span><span class="s1">'application/json'</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="nx">type</span><span class="w"> </span><span class="p">}),</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">response</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">res</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_id</span><span class="p">));</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>当响应从最初的AJAX请求返回时，我们继续每秒调用带有任务ID的<code>getStatus()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">function</span><span class="w"> </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">taskID</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">fetch</span><span class="p">(</span><span class="sb">`/tasks/</span><span class="si">${</span><span class="nx">taskID</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">'GET'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="s1">'Content-Type'</span><span class="o">:</span><span class="w"> </span><span class="s1">'application/json'</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">response</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">res</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">html</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">      &lt;tr&gt;</span>
+<span class="sb">        &lt;td&gt;</span><span class="si">${</span><span class="nx">taskID</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">        &lt;td&gt;</span><span class="si">${</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_status</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">        &lt;td&gt;</span><span class="si">${</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_result</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">      &lt;/tr&gt;`</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s1">'tasks'</span><span class="p">).</span><span class="nx">prepend</span><span class="p">(</span><span class="nx">html</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">newRow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s1">'table'</span><span class="p">).</span><span class="nx">insertRow</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">newRow</span><span class="p">.</span><span class="nx">innerHTML</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">html</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">taskStatus</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_status</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">taskStatus</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'finished'</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">taskStatus</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'failed'</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_id</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"> </span><span class="mf">1000</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="nx">err</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">err</span><span class="p">));</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>如果响应成功，一个新行被添加到DOM上的表中。</p>
+<p>更新<code>get_status</code>路线处理器以返回状态:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks/</span><span class="si">{task_id}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_status</span><span class="p">(</span><span class="n">task_id</span><span class="p">):</span>
+    <span class="n">task_result</span> <span class="o">=</span> <span class="n">AsyncResult</span><span class="p">(</span><span class="n">task_id</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"task_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span>
+        <span class="s2">"task_status"</span><span class="p">:</span> <span class="n">task_result</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+        <span class="s2">"task_result"</span><span class="p">:</span> <span class="n">task_result</span><span class="o">.</span><span class="n">result</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">JSONResponse</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</code></pre></div>
+
+<p>导入<a href="https://docs.celeryq.dev/en/stable/reference/celery.result.html">异步结果</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">celery.result</span> <span class="kn">import</span> <span class="n">AsyncResult</span>
+</code></pre></div>
+
+<p>更新容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>触发新任务:</p>
+<div class="codehilite"><pre><span/><code>$ curl http://localhost:8004/tasks -H <span class="s2">"Content-Type: application/json"</span> --data <span class="s1">'{"type": 1}'</span>
+</code></pre></div>
+
+<p>然后，从响应中获取<code>task_id</code>并调用更新的端点来查看状态:</p>
+<div class="codehilite"><pre><span/><code>$ curl http://localhost:8004/tasks/f3ae36f1-58b8-4c2b-bf5b-739c80e9d7ff
+
+<span class="o">{</span>
+  <span class="s2">"task_id"</span>: <span class="s2">"455234e0-f0ea-4a39-bbe9-e3947e248503"</span>,
+  <span class="s2">"task_result"</span>: true,
+  <span class="s2">"task_status"</span>: <span class="s2">"SUCCESS"</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>也在浏览器中测试一下:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-celery/fastapi_celery_updated.png" loading="lazy" class="lazyload" alt="fastapi, celery, docker" src="../Images/6742ab16c2cdfd3f0d9c5ae1141840d5.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-celery/fastapi_celery_updated.png"/></p>
+<h2 id="celery-logs">芹菜原木</h2>
+<p>更新<em> docker-compose.yml </em>中的<code>worker</code>服务，以便将芹菜日志转储到一个日志文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">worker</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">celery worker --app=worker.celery --loglevel=info --logfile=logs/celery.log</span><span class="w"/>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project:/usr/src/app</span><span class="w"/>
+<span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_BROKER_URL=redis://redis:6379/0</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_RESULT_BACKEND=redis://redis:6379/0</span><span class="w"/>
+<span class="w">  </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+</code></pre></div>
+
+<p>向“项目”添加一个名为“日志”的新目录。然后，将名为<em> celery.log </em>的新文件添加到新创建的目录中。</p>
+<p>更新:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>由于我们设置了一个卷，您应该看到日志文件在本地被填满:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span><span class="m">2021</span>-05-08 <span class="m">15</span>:32:24,407: INFO/MainProcess<span class="o">]</span> Connected to redis://redis:6379/0
+<span class="o">[</span><span class="m">2021</span>-05-08 <span class="m">15</span>:32:24,415: INFO/MainProcess<span class="o">]</span> mingle: searching <span class="k">for</span> neighbors
+<span class="o">[</span><span class="m">2021</span>-05-08 <span class="m">15</span>:32:25,434: INFO/MainProcess<span class="o">]</span> mingle: all alone
+<span class="o">[</span><span class="m">2021</span>-05-08 <span class="m">15</span>:32:25,448: INFO/MainProcess<span class="o">]</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1576707970676c552623207426772d2623742c24">[email protected]</a> ready.
+<span class="o">[</span><span class="m">2021</span>-05-08 <span class="m">15</span>:32:29,834: INFO/MainProcess<span class="o">]</span>
+    Received task: create_task<span class="o">[</span>013df48c-4548-4a2b-9b22-7267da215361<span class="o">]</span>
+<span class="o">[</span><span class="m">2021</span>-05-08 <span class="m">15</span>:32:39,825: INFO/ForkPoolWorker-7<span class="o">]</span>
+    Task create_task<span class="o">[</span>013df48c-4548-4a2b-9b22-7267da215361<span class="o">]</span>
+    succeeded <span class="k">in</span> <span class="m">10</span>.02114040000015s: True
+</code></pre></div>
+
+<h2 id="flower-dashboard">花卉仪表板</h2>
+<p><a href="https://flower.readthedocs.io/en/latest/"> Flower </a>是一个轻量级的、实时的、基于网络的芹菜监控工具。您可以监控当前正在运行的任务，增加或减少工作池，查看图表和一些统计数据，等等。</p>
+<p>添加到<em> requirements.txt </em>:</p>
+<div class="codehilite"><pre><span/><code>aiofiles==0.6.0
+celery==4.4.7
+fastapi==0.64.0
+flower==0.9.7
+Jinja2==2.11.3
+pytest==6.2.4
+redis==3.5.3
+requests==2.25.1
+uvicorn==0.13.4
+</code></pre></div>
+
+<p>然后，向<em> docker-compose.yml </em>添加一个新服务:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">dashboard</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">flower --app=worker.celery --port=5555 --broker=redis://redis:6379/0</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5556:5555</span><span class="w"/>
+<span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_BROKER_URL=redis://redis:6379/0</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_RESULT_BACKEND=redis://redis:6379/0</span><span class="w"/>
+<span class="w">  </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">worker</span><span class="w"/>
+</code></pre></div>
+
+<p>测试一下:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:5556"> http://localhost:5556 </a>查看仪表板。您应该看到一名员工准备就绪:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-celery/flower_dashboard.png" loading="lazy" class="lazyload" alt="flower dashboard" src="../Images/07ab11c9f8690305169988750faf0d13.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-celery/flower_dashboard.png"/></p>
+<p>开始几项任务来全面测试仪表板:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-celery/flower_dashboard2.png" loading="lazy" class="lazyload" alt="flower dashboard" src="../Images/78214ca99bcbbd5d203dbc1a66871a45.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-celery/flower_dashboard2.png"/></p>
+<p>试着增加几个工人，看看会有什么影响:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build --scale <span class="nv">worker</span><span class="o">=</span><span class="m">3</span>
+</code></pre></div>
+
+<h2 id="tests">试验</h2>
+<p>让我们从最基本的测试开始:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_task</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+</code></pre></div>
+
+<p>将上述测试用例添加到<em>project/tests/test _ tasks . py</em>中，然后添加以下导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">worker</span> <span class="kn">import</span> <span class="n">create_task</span>
+</code></pre></div>
+
+<p>单独运行测试:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python -m pytest -k <span class="s2">"test_task and not test_home"</span>
+</code></pre></div>
+
+<p>运行应该需要大约一分钟:</p>
+<div class="codehilite"><pre><span/><code><span class="o">==================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">===================================</span>
+platform linux -- Python <span class="m">3</span>.9.5, pytest-6.2.4, py-1.10.0, pluggy-0.13.1
+rootdir: /usr/src/app
+plugins: celery-4.4.7
+collected <span class="m">2</span> items / <span class="m">1</span> deselected / <span class="m">1</span> selected
+
+tests/test_tasks.py .                                                               <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">======================</span> <span class="m">1</span> passed, <span class="m">1</span> deselected <span class="k">in</span> <span class="m">60</span>.05s <span class="o">(</span><span class="m">0</span>:01:00<span class="o">)</span>  <span class="o">========================</span>
+</code></pre></div>
+
+<p>值得注意的是，在上面的断言中，我们使用了<code>.run</code>方法(而不是<code>.delay</code>)来直接运行任务，而没有芹菜工人。</p>
+<p>想要模仿<code>.run</code>方法来加快速度吗？</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@patch</span><span class="p">(</span><span class="s2">"worker.create_task.run"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">test_mock_task</span><span class="p">(</span><span class="n">mock_run</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="o">.</span><span class="n">assert_called_once_with</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="o">.</span><span class="n">call_count</span> <span class="o">==</span> <span class="mi">2</span>
+
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">create_task</span><span class="o">.</span><span class="n">run</span><span class="o">.</span><span class="n">call_count</span> <span class="o">==</span> <span class="mi">3</span>
+</code></pre></div>
+
+<p>导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">unittest.mock</span> <span class="kn">import</span> <span class="n">patch</span><span class="p">,</span> <span class="n">call</span>
+</code></pre></div>
+
+<p>测试:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python -m pytest -k <span class="s2">"test_mock_task"</span>
+
+<span class="o">==================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">===================================</span>
+platform linux -- Python <span class="m">3</span>.9.5, pytest-6.2.4, py-1.10.0, pluggy-0.13.1
+rootdir: /usr/src/app
+plugins: celery-4.4.7
+collected <span class="m">3</span> items / <span class="m">2</span> deselected / <span class="m">1</span> selected
+
+tests/test_tasks.py .                                                               <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">============================</span> <span class="m">1</span> passed, <span class="m">2</span> deselected <span class="k">in</span> <span class="m">0</span>.13s <span class="o">=============================</span>
+</code></pre></div>
+
+<p>快多了！</p>
+<p>全面整合测试怎么样？</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_task_status</span><span class="p">(</span><span class="n">test_app</span><span class="p">):</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">test_app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+        <span class="s2">"/tasks"</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"type"</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+    <span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="n">task_id</span> <span class="o">=</span> <span class="n">content</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">task_id</span>
+
+    <span class="n">response</span> <span class="o">=</span> <span class="n">test_app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"tasks/</span><span class="si">{</span><span class="n">task_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">content</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"task_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span> <span class="s2">"task_status"</span><span class="p">:</span> <span class="s2">"PENDING"</span><span class="p">,</span> <span class="s2">"task_result"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+
+    <span class="k">while</span> <span class="n">content</span><span class="p">[</span><span class="s2">"task_status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"PENDING"</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">test_app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"tasks/</span><span class="si">{</span><span class="n">task_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">content</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">content</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"task_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span> <span class="s2">"task_status"</span><span class="p">:</span> <span class="s2">"SUCCESS"</span><span class="p">,</span> <span class="s2">"task_result"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+</code></pre></div>
+
+<p>请记住，这个测试使用开发中使用的相同的代理和后端。您可能想要实例化一个新的Celery应用程序来进行测试。</p>
+<p>添加导入:</p>
+
+
+<p>确保测试通过。</p>
+<h2 id="conclusion">结论</h2>
+<p>这是关于如何配置Celery在FastAPI应用程序中运行长时间运行的任务的基本指南。您应该让队列处理任何可能阻塞或减慢面向用户的代码的进程。</p>
+<p>Celery还可以用于执行可重复的任务，分解复杂的资源密集型任务，以便将计算工作量分布到多个机器上，从而减少(1)完成时间和(2)处理客户端请求的机器上的负载。</p>
+<p>从<a href="https://github.com/testdrivenio/fastapi-celery">回购</a>中抓取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

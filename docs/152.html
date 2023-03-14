@@ -1,0 +1,237 @@
+<html>
+<head>
+<title>Sessions in Flask </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>烧瓶中的会话</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/flask-sessions/#0001-01-01">https://testdriven.io/blog/flask-sessions/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>这篇文章介绍了会话在Flask中是如何工作的。</p>
+<p>本文是关于如何在Flask中使用会话的两部分系列文章的一部分:</p>
+<ol>
+<li>客户端:<a href="/blog/flask-sessions/">烧瓶中的会话</a> ( <em>本文！</em>)</li>
+<li>服务器端:<a href="/blog/flask-server-side-sessions">带有Redis的Flask中的服务器端会话</a></li>
+</ol>
+<blockquote>
+<p>本文假设您之前有使用Flask的经验。如果您有兴趣了解有关Flask的更多信息，请查看我关于如何构建、测试和部署Flask应用程序的课程:</p>
+<p><a href="/courses/learn-flask/">用Python和Flask开发Web应用</a></p>
+</blockquote>
+
+
+
+<h2 id="sessions">会议</h2>
+<p>由于HTTP是一个无状态协议，每个请求都不知道以前执行过的任何请求:</p>
+<p><img data-src="/static/images/blog/flask-sessions/flask_requests_responses_diagram.png" loading="lazy" class="lazyload" alt="Flask Requests Responses Diagram" src="../Images/56f63b408165cdd0376f4c6b50024869.png" data-original-src="https://testdriven.io/static/images/blog/flask-sessions/flask_requests_responses_diagram.png"/></p>
+<p>虽然这极大地简化了客户端/服务器通信，但是当用户与应用程序本身交互时，web应用程序通常需要一种方法来存储每个请求之间的数据。</p>
+<p>例如，在电子商务网站上，您通常会将用户添加到购物车中的商品存储到数据库中，这样一旦他们完成购物，就可以查看他们的购物车来购买这些商品。不过，这个在数据库中存储项目的工作流只对经过身份验证的用户有效。因此，您需要一种方法在请求之间为未经身份验证的用户存储特定于用户的数据。</p>
+<p>这就是会话发挥作用的地方。</p>
+<p>一个<a href="https://en.wikipedia.org/wiki/Session_(computer_science)">会话</a>用于在用户与web应用程序交互时，跨不同请求存储与用户相关的信息。因此，在上面的例子中，购物车商品将被添加到用户的会话中。</p>
+<p>为会话存储的数据应被视为临时数据，因为会话最终会过期。为了永久存储数据，你需要利用数据库。</p>
+<blockquote>
+<p>计算机存储在这里是一个很好的类比:计算机上的临时项目存储在RAM(随机存取存储器)中，很像会话，而永久项目存储在硬盘上，很像数据库。</p>
+</blockquote>
+<p>存储在会话中的数据示例:</p>
+<ul>
+<li>用户购物车中的商品</li>
+<li>无论用户是否登录</li>
+<li>首选项(语言、货币、明暗模式)</li>
+</ul>
+<p>存储在数据库中的数据示例:</p>
+<ul>
+<li>用户凭据(电子邮件、用户名、哈希密码、电子邮件确认布尔值)</li>
+<li>用户输入的数据(股票数据、食谱、博客文章)</li>
+</ul>
+<p>在Flask中，您可以在会话期间存储特定于用户的信息。保存数据以供整个会话使用允许web应用程序在多次请求中保持数据的持久性，例如，当用户访问web应用程序中的不同页面时。</p>
+<h2 id="sessions-in-flask">烧瓶中的会话</h2>
+<p>web开发中通常使用两种类型的会话:</p>
+<ol>
+<li><strong>客户端</strong> -会话存储在客户端的浏览器cookies中</li>
+<li><strong>服务器端</strong> -会话存储在服务器端(通常会创建一个会话标识符并存储在客户端的浏览器cookies中)</li>
+</ol>
+<blockquote>
+<p><a href="https://en.wikipedia.org/wiki/HTTP_cookie"> Cookies </a>是网络浏览器存储在你电脑上的小块数据，其初衷是在浏览不同网站时记住状态信息。</p>
+</blockquote>
+<p>Flask使用客户端方法。</p>
+<p><strong>优点</strong>:</p>
+<ul>
+<li>验证和创建会话速度很快(无数据存储)</li>
+<li>易于扩展(无需跨web服务器复制会话数据)</li>
+</ul>
+<p><strong>缺点</strong>:</p>
+<ul>
+<li>敏感数据不能存储在会话数据中，因为它存储在web浏览器中</li>
+<li>会话数据受限于cookie的大小(通常为4 KB)</li>
+<li>Flask应用程序不能立即撤销会话</li>
+</ul>
+<p>为了跨多个请求存储数据，Flask利用加密签名的cookies(存储在web浏览器上)来存储会话数据。这个cookie和每个请求一起被发送到服务器端的Flask应用程序，并在那里被解码。</p>
+<p>因为会话数据存储在加密签名的cookies中(不是<em>加密的</em>！)，会话不应用于存储任何敏感信息。永远不要在会话数据中包含密码或个人信息。</p>
+<blockquote>
+<p>如果你更喜欢使用服务器端会话，可以查看一下<a href="https://flask-session.readthedocs.io/en/latest/"> Flask-Session </a>包以及Flask with Redis 文章中的<a href="/blog/flask-server-side-sessions">服务器端会话。</a></p>
+</blockquote>
+<h2 id="session-example-in-flask">Flask中的会话示例</h2>
+<p>下面的<em> app.py </em>文件说明了会话在Flask中的工作方式:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">render_template_string</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="n">redirect</span><span class="p">,</span> <span class="n">url_for</span>
+
+
+<span class="c1"># Create the Flask application</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># Details on the Secret Key: https://flask.palletsprojects.com/en/1.1.x/config/#SECRET_KEY</span>
+<span class="c1"># NOTE: The secret key is used to cryptographically-sign the cookies used for storing</span>
+<span class="c1">#       the session data.</span>
+<span class="n">app</span><span class="o">.</span><span class="n">secret_key</span> <span class="o">=</span> <span class="s1">'BAD_SECRET_KEY'</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/set_email'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">set_email</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+        <span class="c1"># Save the form data to the session object</span>
+        <span class="n">session</span><span class="p">[</span><span class="s1">'email'</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">'email_address'</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="s1">'get_email'</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="s2">"""</span>
+<span class="s2">        &lt;form method="post"&gt;</span>
+<span class="s2">            &lt;label for="email"&gt;Enter your email address:&lt;/label&gt;</span>
+<span class="s2">            &lt;input type="email" id="email" name="email_address" required /&gt;</span>
+<span class="s2">            &lt;button type="submit"&gt;Submit&lt;/button</span>
+<span class="s2">        &lt;/form&gt;</span>
+<span class="s2">        """</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/get_email'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_email</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template_string</span><span class="p">(</span><span class="s2">"""</span>
+<span class="s2">            {</span><span class="si">% i</span><span class="s2">f session['email'] %}</span>
+<span class="s2">                &lt;h1&gt;Welcome {{ session['email'] }}!&lt;/h1&gt;</span>
+<span class="s2">            {</span><span class="si">% e</span><span class="s2">lse %}</span>
+<span class="s2">                &lt;h1&gt;Welcome! Please enter your email &lt;a href="{{ url_for('set_email') }}"&gt;here.&lt;/a&gt;&lt;/h1&gt;</span>
+<span class="s2">            {</span><span class="si">% e</span><span class="s2">ndif %}</span>
+<span class="s2">        """</span><span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/delete_email'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">delete_email</span><span class="p">():</span>
+    <span class="c1"># Clear the email stored in the session object</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'email'</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">'&lt;h1&gt;Session deleted!&lt;/h1&gt;'</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>要运行此示例，首先创建并激活一个新的虚拟环境:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir flask-session
+$ <span class="nb">cd</span> flask-session
+$ python3 -m venv venv
+$ <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装烧瓶:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install Flask
+</code></pre></div>
+
+<p>将上述代码保存到一个<em> app.py </em>文件中。然后，启动Flask开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ <span class="nb">export</span> <span class="nv">FLASK_APP</span><span class="o">=</span>app.py
+<span class="o">(</span>venv<span class="o">)</span>$ <span class="nb">export</span> <span class="nv">FLASK_ENV</span><span class="o">=</span>development
+<span class="o">(</span>venv<span class="o">)</span>$ python -m flask run
+</code></pre></div>
+
+<p>现在，使用您最喜欢的网络浏览器导航到<a href="http://localhost:5000/get_email">http://localhost:5000/get _ email</a>:</p>
+<p><img data-src="/static/images/blog/flask-sessions/flask_session_example_step1.png" loading="lazy" class="lazyload" alt="Flask Session Example - Step 1" src="../Images/52f025444c6ab8053fa06d8002e22bc1.png" data-original-src="https://testdriven.io/static/images/blog/flask-sessions/flask_session_example_step1.png"/></p>
+<h3 id="setting-session-data">设置会话数据</h3>
+<p>在本例中，<code>set_email</code>视图函数在提交表单时处理电子邮件:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/set_email'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">set_email</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+        <span class="c1"># Save the form data to the session object</span>
+        <span class="n">session</span><span class="p">[</span><span class="s1">'email'</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">'email_address'</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="s1">'get_email'</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="s2">"""</span>
+<span class="s2">        &lt;form method="post"&gt;</span>
+<span class="s2">            &lt;label for="email"&gt;Enter your email address:&lt;/label&gt;</span>
+<span class="s2">            &lt;input type="email" id="email" name="email_address" required /&gt;</span>
+<span class="s2">            &lt;button type="submit"&gt;Submit&lt;/button</span>
+<span class="s2">        &lt;/form&gt;</span>
+<span class="s2">        """</span>
+</code></pre></div>
+
+<p>这个视图函数支持GET和POST HTTP方法。当使用GET方法时，会返回一个HTML表单供您输入电子邮件地址:</p>
+<p><img data-src="/static/images/blog/flask-sessions/flask_session_example_step2.png" loading="lazy" class="lazyload" alt="Flask Session Example - Step 2" src="../Images/a624d482a106f15904ea5d7fcec62d92.png" data-original-src="https://testdriven.io/static/images/blog/flask-sessions/flask_session_example_step2.png"/></p>
+<p>当您使用您的电子邮件地址提交表单时(通过POST方法)，电子邮件将保存在<code>session</code>对象中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Save the form data to the session object</span>
+<span class="n">session</span><span class="p">[</span><span class="s1">'email'</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">'email_address'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>请在<a href="http://localhost:5000/set_email">http://localhost:5000/set _ email</a>中输入您的电子邮件，然后提交表单。</p>
+<h3 id="accessing-the-session-data">访问会话数据</h3>
+<p>当电子邮件没有存储在会话中时，<code>get_email</code>视图功能利用Jinja模板引擎显示存储在<code>session</code>对象中的电子邮件地址或者到<code>set_email()</code>视图功能的链接:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/get_email'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_email</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template_string</span><span class="p">(</span><span class="s2">"""</span>
+<span class="s2">            {</span><span class="si">% i</span><span class="s2">f session['email'] %}</span>
+<span class="s2">                &lt;h1&gt;Welcome {{ session['email'] }}!&lt;/h1&gt;</span>
+<span class="s2">            {</span><span class="si">% e</span><span class="s2">lse %}</span>
+<span class="s2">                &lt;h1&gt;Welcome! Please enter your email &lt;a href="{{ url_for('set_email') }}"&gt;here.&lt;/a&gt;&lt;/h1&gt;</span>
+<span class="s2">            {</span><span class="si">% e</span><span class="s2">ndif %}</span>
+<span class="s2">        """</span><span class="p">)</span>
+</code></pre></div>
+
+<p><code>session</code>对象可以在模板文件中使用！</p>
+<p>输入您的电子邮件地址后，当您导航到<a href="http://localhost:5000/get_email">http://localhost:5000/get _ email</a>URL时，您的电子邮件将显示:</p>
+<p><img data-src="/static/images/blog/flask-sessions/flask_session_example_step3.png" loading="lazy" class="lazyload" alt="Flask Session Example - Step 3" src="../Images/a8924dd9ca51267c10e198f9790afa5f.png" data-original-src="https://testdriven.io/static/images/blog/flask-sessions/flask_session_example_step3.png"/></p>
+<h3 id="deleting-the-session-data">删除会话数据</h3>
+<p>存储在<code>session</code>对象中的电子邮件地址可以通过<code>delete_email</code>查看功能删除:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/delete_email'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">delete_email</span><span class="p">():</span>
+    <span class="c1"># Clear the email stored in the session object</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'email'</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">'&lt;h1&gt;Session deleted!&lt;/h1&gt;'</span>
+</code></pre></div>
+
+<p>这个视图函数从<code>session</code>对象中获取<code>email</code>元素。<code>pop</code>方法将返回弹出的值，因此在<code>session</code>对象中没有定义元素的情况下，提供默认值是一个好的做法。</p>
+<p>当您导航到“<a href="http://localhost:5000/delete_email">http://localhost:5000/delete _ email</a>URL”时，您将看到:</p>
+<p><img data-src="/static/images/blog/flask-sessions/flask_session_example_step4.png" loading="lazy" class="lazyload" alt="Flask Session Example - Step 4" src="../Images/a14474f5690c7806fa20395a1b1f05f9.png" data-original-src="https://testdriven.io/static/images/blog/flask-sessions/flask_session_example_step4.png"/></p>
+<p>由于电子邮件地址不再存储在<code>session</code>对象中，当您导航到<a href="http://localhost:5000/get_email">http://localhost:5000/get _ email</a>URL时，将再次要求您输入您的电子邮件地址:</p>
+<p><img data-src="/static/images/blog/flask-sessions/flask_session_example_step5.png" loading="lazy" class="lazyload" alt="Flask Session Example - Step 5" src="../Images/d7f226bd7a33a5aab186cb5bf97f2c4d.png" data-original-src="https://testdriven.io/static/images/blog/flask-sessions/flask_session_example_step5.png"/></p>
+<h3 id="session-uniqueness">会话唯一性</h3>
+<p>为了演示每个用户的会话数据是如何不同的，请在<a href="http://localhost:5000/set_email">http://localhost:5000/set _ email</a>再次输入您的电子邮件地址。然后，在不同的浏览器(或当前浏览器中的私人/匿名窗口)中，导航至<a href="http://localhost:5000/set_email">http://localhost:5000/set _ email</a>并输入不同的电子邮件地址。在你被重定向到<a href="http://localhost:5000/get_email">http://localhost:5000/get _ email</a>之后，你希望看到什么？</p>
+<p>由于使用了不同的网络浏览器，这被认为是Flask应用程序的不同用户。因此，将有一个唯一的<code>session</code>用于该用户。</p>
+<h2 id="additional-notes">附加注释</h2>
+<h3 id="cookie-size">Cookie大小</h3>
+<p>Cookies是小块数据(通常为4KB)。</p>
+<p>如果在<code>session</code>对象中存储大量数据时遇到意外问题，请对照web浏览器支持的大小，检查您的响应中cookies的大小。由于Flask序列化了存储在<code>session</code>对象中的数据，并将其存储在一个cookie中，因此可能会出现整个cookie未被保存的问题。</p>
+<h3 id="detecting-changes-to-session-data">检测会话数据的更改</h3>
+<p>基于底层数据类型(<a href="https://github.com/pallets/werkzeug/blob/master/src/werkzeug/datastructures.py#L2172"> Werkzeug。CallbackDict </a>)的对象，它不会自动检测可变数据类型(列表、字典、集合等)的变化。).示例:</p>
+<div class="codehilite"><pre><span/><code><span class="n">session</span><span class="p">[</span><span class="s1">'shopping_cart'</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="o">...</span>
+<span class="c1"># Since a mutable data type (list) is being modified, this change</span>
+<span class="c1"># is not automatically detected by the session object</span>
+<span class="n">session</span><span class="p">[</span><span class="s1">'shopping_cart'</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'bike'</span><span class="p">)</span>
+
+<span class="c1"># Therefore, mark the session object as modified</span>
+<span class="n">session</span><span class="o">.</span><span class="n">modified</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+<h3 id="session-life">会话寿命</h3>
+<p>默认情况下，<code>session</code>对象保持不动，直到浏览器关闭。但是，如果您想要更改<code>session</code>对象的生命周期，请在创建Flask <code>app</code>之后定义<a href="https://flask.palletsprojects.com/en/1.1.x/config/#PERMANENT_SESSION_LIFETIME">PERMANENT _ SESSION _ LIFETIME</a>配置变量:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'PERMANENT_SESSION_LIFETIME'</span><span class="p">]</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+<p>当设置<code>session</code>中的数据时，指定会话应该是永久的(时间将基于<code>PERMANENT_SESSION_LIFETIME</code>):</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Save the form data to the session object</span>
+<span class="n">session</span><span class="p">[</span><span class="s1">'email'</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">'email_address'</span><span class="p">]</span>
+<span class="n">session</span><span class="o">.</span><span class="n">permanent</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>本文展示了会话如何在Flask中工作，并查看了一个在会话对象中存储用户电子邮件地址的示例。</p>
+<p>如果你想了解更多关于Flask中的会话，一定要看看我的课程- <a href="/courses/learn-flask/">用Python和Flask开发Web应用</a>。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

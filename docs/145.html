@@ -1,0 +1,661 @@
+<html>
+<head>
+<title>Effectively Using Django REST Framework Serializers </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>有效地使用Django REST框架序列化程序</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/drf-serializers/#0001-01-01">https://testdriven.io/blog/drf-serializers/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本文中，我们将通过例子来看看如何更有效地使用<a href="https://www.django-rest-framework.org/"> Django REST框架</a> (DRF)序列化器。一路上，我们将深入一些高级概念，比如使用<code>source</code>关键字、传递上下文、验证数据等等。</p>
+<blockquote>
+<p>本文假设您已经对Django REST框架有了相当的了解。</p>
+</blockquote>
+
+
+
+<h2 id="whats-covered">包括什么？</h2>
+<p>本文涵盖:</p>
+<ol>
+<li>在字段或对象级别验证数据</li>
+<li>自定义序列化和反序列化输出</li>
+<li>保存时传递附加数据</li>
+<li>将上下文传递给序列化程序</li>
+<li>重命名序列化程序输出字段</li>
+<li>将序列化程序函数响应附加到数据</li>
+<li>从一对一模型中获取数据</li>
+<li>将数据附加到序列化输出</li>
+<li>创建单独的读写序列化程序</li>
+<li>设置只读字段</li>
+<li>处理嵌套序列化</li>
+</ol>
+<blockquote>
+<p>本文中介绍的概念相互之间没有联系。我建议把这篇文章作为一个整体来读，但是你也可以自由地钻研你特别感兴趣的概念。</p>
+</blockquote>
+<h2 id="custom-data-validation">自定义数据验证</h2>
+<p>DRF在反序列化过程中强制执行数据验证，这就是为什么您需要在访问经过验证的数据之前调用<code>is_valid()</code>。如果数据无效，错误将被追加到序列化程序的<code>error</code>属性中，并抛出一个<code>ValidationError</code>。</p>
+<p>有两种类型的自定义数据验证器:</p>
+<ol>
+<li>自定义字段</li>
+<li>对象级</li>
+</ol>
+<p>让我们看一个例子。假设我们有一个<code>Movie</code>模型:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Movie</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span>
+    <span class="n">release_date</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateField</span><span class="p">()</span>
+    <span class="n">rating</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">PositiveSmallIntegerField</span><span class="p">()</span>
+
+    <span class="n">us_gross</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">IntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">worldwide_gross</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">IntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s1">'</span>
+</code></pre></div>
+
+<p>我们的型号有<code>title</code>、<code>description</code>、<code>release_date</code>、<code>rating</code>、<code>us_gross</code>和<code>worldwide_gross</code>。</p>
+<p>我们还有一个简单的<code>ModelSerializer</code>，它序列化所有的字段:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Movie</span>
+
+
+<span class="k">class</span> <span class="nc">MovieSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Movie</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+</code></pre></div>
+
+<p>假设只有当这两个条件都成立时，模型才有效:</p>
+<ol>
+<li><code>rating</code>介于1和10之间</li>
+<li><code>us_gross</code>小于<code>worldwide_gross</code></li>
+</ol>
+<p>我们可以为此使用定制的数据验证器。</p>
+<h3 id="custom-field-validation">自定义字段验证</h3>
+<p>自定义字段验证允许我们验证特定的字段。我们可以通过向序列化程序添加<code>validate_&lt;field_name&gt;</code>方法来使用它，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Movie</span>
+
+
+<span class="k">class</span> <span class="nc">MovieSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Movie</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+
+    <span class="k">def</span> <span class="nf">validate_rating</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">serializers</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">(</span><span class="s1">'Rating has to be between 1 and 10.'</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+</code></pre></div>
+
+<p>我们的<code>validate_rating</code>方法将确保评分始终保持在1到10之间。</p>
+<h3 id="object-level-validation">对象级验证</h3>
+<p>有时，为了验证字段，您必须将它们相互比较。这时您应该使用对象级验证方法。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Movie</span>
+
+
+<span class="k">class</span> <span class="nc">MovieSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Movie</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+
+    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s1">'us_gross'</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">data</span><span class="p">[</span><span class="s1">'worldwide_gross'</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="n">serializers</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">(</span><span class="s1">'worldwide_gross cannot be bigger than us_gross'</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data</span>
+</code></pre></div>
+
+<p><code>validate</code>方法将确保<code>us_gross</code>永远不会大于<code>worldwide_gross</code>。</p>
+<blockquote>
+<p>您应该避免通过<code>self.initial_data</code>访问定制字段验证器中的附加字段。该字典包含原始数据，这意味着您的数据类型不一定匹配所需的数据类型。DRF还会将验证错误附加到错误的字段中。</p>
+</blockquote>
+<h3 id="functional-validators">功能验证器</h3>
+<p>如果我们在多个序列化器中使用同一个验证器，我们可以创建一个函数验证器，而不是反复编写相同的代码。让我们编写一个验证器来检查数字是否在1到10之间:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">is_rating</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">serializers</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">(</span><span class="s1">'Value cannot be lower than 1.'</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">serializers</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">(</span><span class="s1">'Value cannot be higher than 10'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>我们现在可以像这样把它附加到我们的<code>MovieSerializer</code>中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Movie</span>
+
+
+<span class="k">class</span> <span class="nc">MovieSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">rating</span> <span class="o">=</span> <span class="n">IntegerField</span><span class="p">(</span><span class="n">validators</span><span class="o">=</span><span class="p">[</span><span class="n">is_rating</span><span class="p">])</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+<h2 id="custom-outputs">自定义输出</h2>
+<p>在<code>BaseSerializer</code>类中，我们可以覆盖的两个最有用的函数是<code>to_representation()</code>和<code>to_internal_value()</code>。通过重写它们，我们可以分别更改序列化和反序列化行为，以追加额外的数据、提取数据和处理关系。</p>
+<ol>
+<li><code>to_representation()</code>允许我们改变序列化输出</li>
+<li><code>to_internal_value()</code>允许我们更改反序列化输出</li>
+</ol>
+<p>假设您有以下模型:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Resource</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">256</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+    <span class="n">liked_by</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ManyToManyField</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s1">'</span>
+</code></pre></div>
+
+<p>每个资源都有一个<code>title</code>、<code>content</code>和<code>liked_by</code>字段。<code>liked_by</code>代表喜欢该资源的用户。</p>
+<p>我们的序列化程序是这样定义的:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Resource</span>
+
+
+<span class="k">class</span> <span class="nc">ResourceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Resource</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+</code></pre></div>
+
+<p>如果我们序列化一个资源并访问它的<code>data</code>属性，我们将得到以下输出:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">   </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"C++ with examples"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This is the resource's content."</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"liked_by"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="mi">2</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="mi">3</span><span class="w"/>
+<span class="w">   </span><span class="p">]</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="to_representation">至表示法()</h3>
+<p>现在，假设我们想给序列化数据添加一个总的赞数。实现这一点最简单的方法是在我们的序列化程序类中实现<code>to_representation</code>方法:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Resource</span>
+
+
+<span class="k">class</span> <span class="nc">ResourceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Resource</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+
+    <span class="k">def</span> <span class="nf">to_representation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+        <span class="n">representation</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">to_representation</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="n">representation</span><span class="p">[</span><span class="s1">'likes'</span><span class="p">]</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">liked_by</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">representation</span>
+</code></pre></div>
+
+<p>这段代码获取当前的表示，将<code>likes</code>附加到它上面，然后返回它。</p>
+<p>如果我们序列化另一个资源，我们将得到以下结果:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">   </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"C++ with examples"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This is the resource's content."</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"liked_by"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="mi">2</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="mi">3</span><span class="w"/>
+<span class="w">   </span><span class="p">],</span><span class="w"/>
+<span class="w">   </span><span class="nt">"likes"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="to_internal_value">至内部值()</h3>
+<p>假设使用我们的API的服务在创建资源时向端点附加了不必要的数据:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">   </span><span class="nt">"info"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">       </span><span class="nt">"extra"</span><span class="p">:</span><span class="w"> </span><span class="s2">"data"</span><span class="p">,</span><span class="w"/>
+<span class="w">       </span><span class="err">...</span><span class="w"/>
+<span class="w">   </span><span class="p">},</span><span class="w"/>
+<span class="w">   </span><span class="nt">"resource"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"C++ with examples"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This is the resource's content."</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"liked_by"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">         </span><span class="mi">2</span><span class="p">,</span><span class="w"/>
+<span class="w">         </span><span class="mi">3</span><span class="w"/>
+<span class="w">      </span><span class="p">],</span><span class="w"/>
+<span class="w">      </span><span class="nt">"likes"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="w"/>
+<span class="w">   </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>如果我们尝试序列化这些数据，我们的序列化程序将会失败，因为它将无法提取资源。</p>
+<p>我们可以覆盖<code>to_internal_value()</code>来提取资源数据:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Resource</span>
+
+
+<span class="k">class</span> <span class="nc">ResourceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Resource</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+
+    <span class="k">def</span> <span class="nf">to_internal_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">resource_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">'resource'</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">to_internal_value</span><span class="p">(</span><span class="n">resource_data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>耶！我们的序列化程序现在可以正常工作了。</p>
+<h2 id="serializer-save">序列化程序保存</h2>
+<p>调用<code>save()</code>将创建一个新实例或更新一个现有实例，这取决于在实例化序列化程序类时是否传递了一个现有实例:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># this creates a new instance</span>
+<span class="n">serializer</span> <span class="o">=</span> <span class="n">MySerializer</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+
+<span class="c1"># this updates an existing instance</span>
+<span class="n">serializer</span> <span class="o">=</span> <span class="n">MySerializer</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="passing-data-directly-to-save">将数据直接传递到保存</h3>
+<p>有时，您会希望在保存实例时传递额外的数据。这些附加数据可能包括当前用户、当前时间或请求数据等信息。</p>
+<p>您可以通过在调用<code>save()</code>时包含额外的关键字参数来做到这一点。例如:</p>
+<div class="codehilite"><pre><span/><code><span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>请记住，传递给<code>save()</code>的值不会被验证。</p>
+</blockquote>
+<h2 id="serializer-context">序列化程序上下文</h2>
+<p>有些情况下，您需要向序列化程序传递额外的数据。您可以通过使用serializer <code>context</code>属性来做到这一点。然后，您可以在序列化器(如<code>to_representation</code>)中或者在验证数据时使用这些数据。</p>
+<p>您通过关键字<code>context</code>将数据作为字典传递:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Resource</span>
+
+<span class="n">resource</span> <span class="o">=</span> <span class="n">Resource</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">serializer</span> <span class="o">=</span> <span class="n">ResourceSerializer</span><span class="p">(</span><span class="n">resource</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="s1">'key'</span><span class="p">:</span> <span class="s1">'value'</span><span class="p">})</span>
+</code></pre></div>
+
+<p>然后，您可以从<code>self.context</code>字典中的序列化程序类中获取它，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+<span class="kn">from</span> <span class="nn">examples.models</span> <span class="kn">import</span> <span class="n">Resource</span>
+
+
+<span class="k">class</span> <span class="nc">ResourceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Resource</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+
+    <span class="k">def</span> <span class="nf">to_representation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+        <span class="n">representation</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">to_representation</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="n">representation</span><span class="p">[</span><span class="s1">'key'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s1">'key'</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">representation</span>
+</code></pre></div>
+
+<p>我们的串行化器输出现在将包含带有<code>value</code>的<code>key</code>。</p>
+<h2 id="source-keyword">源关键字</h2>
+<p>DRF序列化器附带了<code>source</code>关键字，它非常强大，可以在多种情况下使用。我们可以用它来:</p>
+<ol>
+<li>重命名序列化程序输出字段</li>
+<li>将序列化程序函数响应附加到数据</li>
+<li>从一对一模型中提取数据</li>
+</ol>
+<p>假设您正在构建一个社交网络，每个用户都有自己的<code>UserProfile</code>，它与<code>User</code>模型有一对一的关系:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">UserProfile</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">OneToOneField</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">bio</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+    <span class="n">birth_date</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateField</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="si">}</span><span class="s1"> profile'</span>
+</code></pre></div>
+
+<p>我们使用一个<code>ModelSerializer</code>来序列化我们的用户:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">UserSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">User</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">,</span> <span class="s1">'email'</span><span class="p">,</span> <span class="s1">'is_staff'</span><span class="p">,</span> <span class="s1">'is_active'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>让我们序列化一个用户:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">   </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"admin"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"email"</span><span class="p">:</span><span class="w"> </span><span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="badbded7d3d4fadbded7d3d494d9d5d7">[email protected]</a>"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"is_staff"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"is_active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="rename-serializer-output-fields">重命名序列化程序输出字段</h3>
+<p>要重命名序列化程序输出字段，我们需要向序列化程序添加一个新字段，并将其传递给<code>fields</code>属性。</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">UserSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">active</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'is_active'</span><span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">User</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">,</span> <span class="s1">'email'</span><span class="p">,</span> <span class="s1">'is_staff'</span><span class="p">,</span> <span class="s1">'active'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>我们的活动字段现在将被命名为<code>active</code>而不是<code>is_active</code>。</p>
+<h3 id="attach-serializer-function-response-to-data">将序列化程序函数响应附加到数据</h3>
+<p>我们可以使用<code>source</code>添加一个等于函数返回的字段。</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">UserSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">full_name</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'get_full_name'</span><span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">User</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">,</span> <span class="s1">'full_name'</span><span class="p">,</span> <span class="s1">'email'</span><span class="p">,</span> <span class="s1">'is_staff'</span><span class="p">,</span> <span class="s1">'active'</span><span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p><code>get_full_name()</code>是Django用户模型中的一个方法，它连接了<code>user.first_name</code>和<code>user.last_name</code>。</p>
+</blockquote>
+<p>我们的响应现在将包含<code>full_name</code>。</p>
+<h3 id="append-data-from-one-to-one-models">从一对一模型追加数据</h3>
+<p>现在让我们假设我们也想在<code>UserSerializer</code>中包含用户的<code>bio</code>和<code>birth_date</code>。我们可以通过使用source关键字向序列化程序添加额外的字段来做到这一点。</p>
+<p>让我们修改序列化程序类:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">UserSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">bio</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'userprofile.bio'</span><span class="p">)</span>
+    <span class="n">birth_date</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">DateField</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'userprofile.birth_date'</span><span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">User</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">'id'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">,</span> <span class="s1">'email'</span><span class="p">,</span> <span class="s1">'is_staff'</span><span class="p">,</span>
+            <span class="s1">'is_active'</span><span class="p">,</span> <span class="s1">'bio'</span><span class="p">,</span> <span class="s1">'birth_date'</span>
+        <span class="p">]</span>  <span class="c1"># note we also added the new fields here</span>
+</code></pre></div>
+
+<p>我们可以访问<code>userprofile.&lt;field_name&gt;</code>，因为它与我们的用户是一对一的关系。</p>
+<p>这是我们最终的JSON回应:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">   </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"admin"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"email"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"is_staff"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"is_active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"bio"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This is my bio."</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"birth_date"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1995-04-27"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="serializermethodfield">SerializerMethodField</h2>
+<p><code>SerializerMethodField</code>是一个只读字段，它通过调用它所附加到的序列化程序类上的方法来获取其值。它可用于将任何类型的数据附加到对象的序列化表示中。</p>
+<p><code>SerializerMethodField</code>通过调用<code>get_&lt;field_name&gt;</code>获取其数据。</p>
+<p>如果我们想给我们的<code>User</code>序列化器添加一个<code>full_name</code>属性，我们可以这样实现:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">UserSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">full_name</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">SerializerMethodField</span><span class="p">()</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">User</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+
+    <span class="k">def</span> <span class="nf">get_full_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">obj</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">obj</span><span class="o">.</span><span class="n">last_name</span><span class="si">}</span><span class="s1">'</span>
+</code></pre></div>
+
+<p>这段代码创建了一个用户序列化器，它也包含了<code>get_full_name()</code>函数的结果<code>full_name</code>。</p>
+<h2 id="different-read-and-write-serializers">不同的读写序列化程序</h2>
+<p>如果您的序列化程序包含大量的嵌套数据，这对于写操作不是必需的，您可以通过创建单独的读和写序列化程序来提高API性能。</p>
+<p>您可以这样做，在您的<code>ViewSet</code>中覆盖<code>get_serializer_class()</code>方法，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">viewsets</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">MyModel</span>
+<span class="kn">from</span> <span class="nn">.serializers</span> <span class="kn">import</span> <span class="n">MyModelWriteSerializer</span><span class="p">,</span> <span class="n">MyModelReadSerializer</span>
+
+
+<span class="k">class</span> <span class="nc">MyViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">MyModel</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get_serializer_class</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"create"</span><span class="p">,</span> <span class="s2">"update"</span><span class="p">,</span> <span class="s2">"partial_update"</span><span class="p">,</span> <span class="s2">"destroy"</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="n">MyModelWriteSerializer</span>
+
+        <span class="k">return</span> <span class="n">MyModelReadSerializer</span>
+</code></pre></div>
+
+<p>这段代码检查使用了什么REST操作，并为写操作返回<code>MyModelWriteSerializer</code>,为读操作返回<code>MyModelReadSerializer</code>。</p>
+<h2 id="read-only-fields">只读字段</h2>
+<p>序列化器字段带有<code>read_only</code>选项。通过将它设置为<code>True</code>，DRF在API输出中包含该字段，但是在创建和更新操作中忽略它:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">AccountSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">IntegerField</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">'ID'</span><span class="p">,</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>设置<code>id</code>、<code>create_date</code>等字段。只读将会在写入操作时提高性能。</p>
+</blockquote>
+<p>如果您想将多个字段设置为<code>read_only</code>，您可以使用<code>Meta</code>中的<code>read_only_fields</code>来指定它们，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">AccountSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">IntegerField</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">'ID'</span><span class="p">)</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">read_only_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">]</span>
+</code></pre></div>
+
+<h2 id="nested-serializers">嵌套序列化程序</h2>
+<p>用<code>ModelSerializer</code>处理嵌套序列化有两种不同的方式:</p>
+<ol>
+<li>明确定义</li>
+<li>使用<code>depth</code>字段</li>
+</ol>
+<h3 id="explicit-definition">明确定义</h3>
+<p>显式定义的工作方式是将一个外部的<code>Serializer</code>作为一个字段传递给我们的主序列化程序。</p>
+<p>让我们看一个例子。我们有一个<code>Comment</code>，它是这样定义的:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Comment</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">author</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">datetime</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+</code></pre></div>
+
+<p>假设您有以下序列化程序:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">CommentSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">author</span> <span class="o">=</span> <span class="n">UserSerializer</span><span class="p">()</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Comment</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+</code></pre></div>
+
+<p>如果我们序列化一个<code>Comment</code>，你会得到如下输出:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"datetime"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2021-03-19T21:51:44.775609Z"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This is an interesting message."</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>如果我们还想序列化用户(而不是只显示他们的ID)，我们可以向我们的<code>Comment</code>添加一个<code>author</code>序列化器字段:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">UserSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">User</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">CommentSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">author</span> <span class="o">=</span> <span class="n">UserSerializer</span><span class="p">()</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Comment</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+</code></pre></div>
+
+<p>再次连载，你会得到这个:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"admin"</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nt">"datetime"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2021-03-19T21:51:44.775609Z"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This is an interesting message."</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="using-the-depth-field">使用深度场</h3>
+<p>谈到嵌套序列化，<code>depth</code>字段是最强大的特性之一。假设我们有三个模型- <code>ModelA</code>、<code>ModelB</code>和<code>ModelC</code>。<code>ModelA</code>取决于<code>ModelB</code>，而<code>ModelB</code>取决于<code>ModelC</code>。它们是这样定义的:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">ModelC</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ModelB</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">model_c</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">ModelC</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ModelA</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">model_b</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">ModelB</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+</code></pre></div>
+
+<p>我们的<code>ModelA</code>序列化器是顶级对象，看起来像这样:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">ModelASerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">ModelA</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+</code></pre></div>
+
+<p>如果我们序列化一个示例对象，我们将得到以下输出:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"A content"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"model_b"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>现在假设我们也想在序列化<code>ModelA</code>时包含<code>ModelB</code>的内容。我们可以将显式定义添加到我们的<code>ModelASerializer</code>中，或者使用<code>depth</code>字段。</p>
+<p>当我们在序列化器中将<code>depth</code>改为<code>1</code>时，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">ModelASerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">ModelA</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="s1">'__all__'</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="mi">1</span>
+</code></pre></div>
+
+<p>输出更改为以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"A content"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"model_b"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"B content"</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nt">"model_c"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>如果我们将其更改为<code>2</code>，我们的序列化程序将更深入地序列化:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"A content"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"model_b"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"B content"</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nt">"model_c"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">            </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">            </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"C content"</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>缺点是你无法控制孩子的序列化。换句话说，使用<code>depth</code>将包括子节点上的所有字段。</p>
+</blockquote>
+<h2 id="conclusion">结论</h2>
+<p>在本文中，您了解了许多更有效地使用DRF序列化程序的技巧和诀窍。</p>
+<p>总结我们具体涉及的内容:</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在字段或对象级别验证数据</td>
+<td><code>validate_&lt;field_name&gt;</code>或<code>validate</code></td>
+</tr>
+<tr>
+<td>自定义序列化和反序列化输出</td>
+<td><code>to_representation</code>和<code>to_internal_value</code></td>
+</tr>
+<tr>
+<td>保存时传递附加数据</td>
+<td><code>serializer.save(additional=data)</code></td>
+</tr>
+<tr>
+<td>将上下文传递给序列化程序</td>
+<td><code>SampleSerializer(resource, context={'key': 'value'})</code></td>
+</tr>
+<tr>
+<td>重命名序列化程序输出字段</td>
+<td><code>source</code>关键字</td>
+</tr>
+<tr>
+<td>将序列化程序函数响应附加到数据</td>
+<td><code>source</code>关键字</td>
+</tr>
+<tr>
+<td>从一对一模型中获取数据</td>
+<td><code>source</code>关键字</td>
+</tr>
+<tr>
+<td>将数据附加到序列化输出</td>
+<td><code>SerializerMethodField</code></td>
+</tr>
+<tr>
+<td>创建单独的读写序列化程序</td>
+<td><code>get_serializer_class()</code></td>
+</tr>
+<tr>
+<td>设置只读字段</td>
+<td><code>read_only_fields</code></td>
+</tr>
+<tr>
+<td>处理嵌套序列化</td>
+<td><code>depth</code>字段</td>
+</tr>
+</tbody>
+</table>
+  </div>
+
+  </div>    
+</body>
+</html>

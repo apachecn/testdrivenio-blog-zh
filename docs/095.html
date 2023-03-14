@@ -1,0 +1,452 @@
+<html>
+<head>
+<title>Deploying Self-Hosted GitHub Actions Runners with Docker </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Docker部署自托管GitHub动作运行器</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/github-actions-docker/#0001-01-01">https://testdriven.io/blog/github-actions-docker/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将详细介绍如何使用Docker将自托管的<a href="https://github.com/features/actions">GitHub Actions</a>runner部署到<a href="https://www.digitalocean.com/"> DigitalOcean </a>。我们还将看到如何在垂直方向(通过Docker Compose)和水平方向(通过Docker Swarm)扩展跑步者。</p>
+<p><em>依赖关系</em>:</p>
+<ul>
+<li>文档编号v19.03.8</li>
+<li>坞站-复合v1.29.2</li>
+<li>对接机v0.16.2</li>
+</ul>
+
+
+
+<h2 id="github-actions">GitHub操作</h2>
+<p>GitHub Actions是一个持续集成和交付(CI/CD)解决方案，与GitHub完全集成。GitHub Actions工作流中的作业在名为runners的应用程序上运行。你既可以使用GitHub托管的运行程序，也可以在自己的基础设施上运行自己的<a href="https://help.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners">自托管运行程序</a>。</p>
+<p>跑步者既可以添加到个人存储库中，也可以添加到组织中。我们将采用后一种方法，以便运行人员可以处理来自同一个GitHub组织中多个存储库的作业。</p>
+<p>开始之前，你需要<a href="https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line">创建</a>一个个人访问令牌。在您的<a href="https://github.com/settings/developers">开发者设置</a>中，点击“个人访问令牌”。然后，单击“生成新令牌”。提供描述性注释并选择<code>repo</code>、<code>workflow</code>和<code>admin:org</code>范围。</p>
+<h2 id="digitalocean-setup">数字海洋设置</h2>
+<p>首先，<a href="https://m.do.co/c/d8f211a4b4c2">注册</a>一个数字海洋账户，如果你还没有的话，然后<a href="https://www.digitalocean.com/docs/apis-clis/api/">生成</a>一个访问令牌，这样你就可以访问数字海洋API。</p>
+<p>将令牌添加到您的环境中:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="o">=[</span>your_digital_ocean_token<span class="o">]</span>
+</code></pre></div>
+
+<p>安装<a href="https://docs.docker.com/machine/install-machine/"> Docker Machine </a>如果你的本地机器上还没有的话。</p>
+<p>旋转出一个叫做<code>runner-node</code>的小液滴:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine create <span class="se">\</span>
+    --driver digitalocean <span class="se">\</span>
+    --digitalocean-access-token <span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span> <span class="se">\</span>
+    --digitalocean-region <span class="s2">"nyc1"</span> <span class="se">\</span>
+    --digitalocean-image <span class="s2">"debian-10-x64"</span> <span class="se">\</span>
+    --digitalocean-size <span class="s2">"s-4vcpu-8gb"</span> <span class="se">\</span>
+    --engine-install-url <span class="s2">"https://releases.rancher.com/install-docker/19.03.9.sh"</span> <span class="se">\</span>
+    runner-node<span class="p">;</span>
+</code></pre></div>
+
+<h2 id="docker-deployment">Docker部署</h2>
+<p>SSH进入droplet:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine ssh runner-node
+</code></pre></div>
+
+<p>添加以下docker文件，注意注释:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># base</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">ubuntu:18.04</span>
+
+<span class="c"># set the github runner version</span>
+<span class="k">ARG</span><span class="w"> </span><span class="nv">RUNNER_VERSION</span><span class="o">=</span><span class="s2">"2.283.3"</span>
+
+<span class="c"># update the base packages and add a non-sudo user</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get update -y <span class="o">&amp;&amp;</span> apt-get upgrade -y <span class="o">&amp;&amp;</span> useradd -m docker
+
+<span class="c"># install python and the packages the your code depends on along with jq so we can parse JSON</span>
+<span class="c"># add additional packages as necessary</span>
+<span class="k">RUN</span><span class="w"> </span><span class="nv">DEBIAN_FRONTEND</span><span class="o">=</span>noninteractive apt-get install -y --no-install-recommends <span class="se">\</span>
+    curl jq build-essential libssl-dev libffi-dev python3 python3-venv python3-dev python3-pip
+
+<span class="c"># cd into the user directory, download and unzip the github actions runner</span>
+<span class="k">RUN</span><span class="w"> </span><span class="nb">cd</span> /home/docker <span class="o">&amp;&amp;</span> mkdir actions-runner <span class="o">&amp;&amp;</span> <span class="nb">cd</span> actions-runner <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> curl -O -L https://github.com/actions/runner/releases/download/v<span class="si">${</span><span class="nv">RUNNER_VERSION</span><span class="si">}</span>/actions-runner-linux-x64-<span class="si">${</span><span class="nv">RUNNER_VERSION</span><span class="si">}</span>.tar.gz <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> tar xzf ./actions-runner-linux-x64-<span class="si">${</span><span class="nv">RUNNER_VERSION</span><span class="si">}</span>.tar.gz
+
+<span class="c"># install some additional dependencies</span>
+<span class="k">RUN</span><span class="w"> </span>chown -R docker ~docker <span class="o">&amp;&amp;</span> /home/docker/actions-runner/bin/installdependencies.sh
+
+<span class="c"># copy over the start.sh script</span>
+<span class="k">COPY</span><span class="w"> </span>start.sh start.sh
+
+<span class="c"># make the script executable</span>
+<span class="k">RUN</span><span class="w"> </span>chmod +x start.sh
+
+<span class="c"># since the config and run script for actions are not allowed to be run by root,</span>
+<span class="c"># set the user to "docker" so all subsequent commands are run as the docker user</span>
+<span class="k">USER</span><span class="w"> </span><span class="s">docker</span>
+
+<span class="c"># set the entrypoint to the start.sh script</span>
+<span class="k">ENTRYPOINT</span><span class="w"> </span><span class="p">[</span><span class="s2">"./start.sh"</span><span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>用最新版本的runner更新<code>RUNNER_VERSION</code>变量，可以在<a href="https://github.com/actions/runner/releases">这里</a>找到。</p>
+</blockquote>
+<p>同样添加<em> start.sh </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/bash</span>
+
+<span class="nv">ORGANIZATION</span><span class="o">=</span><span class="nv">$ORGANIZATION</span>
+<span class="nv">ACCESS_TOKEN</span><span class="o">=</span><span class="nv">$ACCESS_TOKEN</span>
+
+<span class="nv">REG_TOKEN</span><span class="o">=</span><span class="k">$(</span>curl -sX POST -H <span class="s2">"Authorization: token </span><span class="si">${</span><span class="nv">ACCESS_TOKEN</span><span class="si">}</span><span class="s2">"</span> https://api.github.com/orgs/<span class="si">${</span><span class="nv">ORGANIZATION</span><span class="si">}</span>/actions/runners/registration-token <span class="p">|</span> jq .token --raw-output<span class="k">)</span>
+
+<span class="nb">cd</span> /home/docker/actions-runner
+
+./config.sh --url https://github.com/<span class="si">${</span><span class="nv">ORGANIZATION</span><span class="si">}</span> --token <span class="si">${</span><span class="nv">REG_TOKEN</span><span class="si">}</span>
+
+cleanup<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">echo</span> <span class="s2">"Removing runner..."</span>
+    ./config.sh remove --unattended --token <span class="si">${</span><span class="nv">REG_TOKEN</span><span class="si">}</span>
+<span class="o">}</span>
+
+<span class="nb">trap</span> <span class="s1">'cleanup; exit 130'</span> INT
+<span class="nb">trap</span> <span class="s1">'cleanup; exit 143'</span> TERM
+
+./run.sh <span class="p">&amp;</span> <span class="nb">wait</span> <span class="nv">$!</span>
+</code></pre></div>
+
+<p><code>ORGANIZATION</code>和<code>ACCESS_TOKEN</code> (GitHub个人访问令牌)环境变量用于请求跑步者注册令牌。</p>
+<blockquote>
+<p>有关更多信息，请查看文档中的<a href="https://docs.github.com/en/rest/reference/actions#create-a-registration-token-for-an-organization">为组织创建注册令牌</a>一节。</p>
+</blockquote>
+<p>注意到:</p>
+<div class="codehilite"><pre><span/><code>cleanup<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">echo</span> <span class="s2">"Removing runner..."</span>
+    ./config.sh remove --unattended --token <span class="si">${</span><span class="nv">REG_TOKEN</span><span class="si">}</span>
+<span class="o">}</span>
+
+<span class="nb">trap</span> <span class="s1">'cleanup; exit 130'</span> INT
+<span class="nb">trap</span> <span class="s1">'cleanup; exit 143'</span> TERM
+
+./run.sh <span class="p">&amp;</span> <span class="nb">wait</span> <span class="nv">$!</span>
+</code></pre></div>
+
+<p>本质上，当容器停止时，用于在容器停止时移除流道的清理逻辑将会执行。</p>
+<blockquote>
+<p>关于shell信号处理和<code>wait</code>的更多信息，请查看这个堆栈交换<a href="https://unix.stackexchange.com/questions/146756/forward-sigterm-to-child-in-bash/146770#146770">答案</a>。</p>
+</blockquote>
+<p>构建映像并在分离模式下旋转容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker build --tag runner-image .
+
+$ docker run <span class="se">\</span>
+  --detach <span class="se">\</span>
+  --env <span class="nv">ORGANIZATION</span><span class="o">=</span>&lt;YOUR-GITHUB-ORGANIZATION&gt; <span class="se">\</span>
+  --env <span class="nv">ACCESS_TOKEN</span><span class="o">=</span>&lt;YOUR-GITHUB-ACCESS-TOKEN&gt; <span class="se">\</span>
+  --name runner <span class="se">\</span>
+  runner-image
+</code></pre></div>
+
+<blockquote>
+<p>确保分别用您的组织和个人访问令牌替换<code>&lt;YOUR-GITHUB-ORGANIZATION&gt;</code>和<code>&lt;YOUR-GITHUB-ACCESS-TOKEN&gt;</code>。</p>
+</blockquote>
+<p>快速查看一下容器日志:</p>
+
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>--------------------------------------------------------------------------------
+<span class="p">|</span>        ____ _ _   _   _       _          _        _   _                      <span class="p">|</span>
+<span class="p">|</span>       / ___<span class="o">(</span>_<span class="o">)</span> <span class="p">|</span>_<span class="p">|</span> <span class="p">|</span> <span class="p">|</span> <span class="p">|</span>_   _<span class="p">|</span> <span class="p">|</span>__      / <span class="se">\ </span>  ___<span class="p">|</span> <span class="p">|</span>_<span class="o">(</span>_<span class="o">)</span> ___  _ __  ___      <span class="p">|</span>
+<span class="p">|</span>      <span class="p">|</span> <span class="p">|</span>  _<span class="p">|</span> <span class="p">|</span> __<span class="p">|</span> <span class="p">|</span>_<span class="p">|</span> <span class="p">|</span> <span class="p">|</span> <span class="p">|</span> <span class="p">|</span> <span class="s1">'_ \    / _ \ / __| __| |/ _ \| '</span>_ <span class="se">\/</span> __<span class="p">|</span>     <span class="p">|</span>
+<span class="p">|</span>      <span class="p">|</span> <span class="p">|</span>_<span class="p">|</span> <span class="p">|</span> <span class="p">|</span> <span class="p">|</span>_<span class="p">|</span>  _  <span class="p">|</span> <span class="p">|</span>_<span class="p">|</span> <span class="p">|</span> <span class="p">|</span>_<span class="o">)</span> <span class="p">|</span>  / ___ <span class="se">\ </span><span class="o">(</span>__<span class="p">|</span> <span class="p">|</span>_<span class="p">|</span> <span class="p">|</span> <span class="o">(</span>_<span class="o">)</span> <span class="p">|</span> <span class="p">|</span> <span class="p">|</span> <span class="se">\_</span>_ <span class="se">\ </span>    <span class="p">|</span>
+<span class="p">|</span>       <span class="se">\_</span>___<span class="p">|</span>_<span class="p">|</span><span class="se">\_</span>_<span class="p">|</span>_<span class="p">|</span> <span class="p">|</span>_<span class="p">|</span><span class="se">\_</span>_,_<span class="p">|</span>_.__/  /_/   <span class="se">\_\_</span>__<span class="p">|</span><span class="se">\_</span>_<span class="p">|</span>_<span class="p">|</span><span class="se">\_</span>__/<span class="p">|</span>_<span class="p">|</span> <span class="p">|</span>_<span class="p">|</span>___/     <span class="p">|</span>
+<span class="p">|</span>                                                                              <span class="p">|</span>
+<span class="p">|</span>                       Self-hosted runner registration                        <span class="p">|</span>
+<span class="p">|</span>                                                                              <span class="p">|</span>
+--------------------------------------------------------------------------------
+
+<span class="c1"># Authentication</span>
+
+
+√ Connected to GitHub
+
+<span class="c1"># Runner Registration</span>
+
+Enter the name of the runner group to add this runner to: <span class="o">[</span>press Enter <span class="k">for</span> Default<span class="o">]</span>
+Enter the name of runner: <span class="o">[</span>press Enter <span class="k">for</span> 332d0614b5e9<span class="o">]</span>
+This runner will have the following labels: <span class="s1">'self-hosted'</span>, <span class="s1">'Linux'</span>, <span class="s1">'X64'</span>
+Enter any additional labels <span class="o">(</span>ex. label-1,label-2<span class="o">)</span>: <span class="o">[</span>press Enter to skip<span class="o">]</span>
+√ Runner successfully added
+√ Runner connection is good
+
+<span class="c1"># Runner settings</span>
+
+Enter name of work folder: <span class="o">[</span>press Enter <span class="k">for</span> _work<span class="o">]</span>
+√ Settings Saved.
+
+
+√ Connected to GitHub
+
+<span class="m">2021</span>-10-23 <span class="m">22</span>:36:01Z: Listening <span class="k">for</span> Jobs
+</code></pre></div>
+
+<p>然后，在您的GitHub组织名称下，点击“设置”。在左侧栏中，点击“动作”，然后点击“跑步者”。您应该会看到一个注册的跑步者:</p>
+<p><img data-src="/static/images/blog/github-actions-docker/runners1.png" loading="lazy" class="lazyload" alt="GitHub Actions Self-Hosted Runners" src="../Images/b9c92591b7939fd646135c64068cf09c.png" data-original-src="https://testdriven.io/static/images/blog/github-actions-docker/runners1.png"/></p>
+<p>为了进行测试，将<a href="https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#self-hosted-runners">run-on:[自托管] </a>添加到存储库的工作流YAML文件中。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Sample Python</span><span class="w"/>
+
+<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">self-hosted</span><span class="p p-Indicator">]</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="11727974727a7e6465516723">[email protected]</a></span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Install dependencies</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">python3 -m pip install --upgrade pip</span><span class="w"/>
+<span class="w">        </span><span class="no">pip3 install pytest</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Test with pytest</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">python3 -m pytest</span><span class="w"/>
+</code></pre></div>
+
+<p>然后，运行新的构建。回到您的终端，在Docker日志中，您应该看到作业的状态:</p>
+<div class="codehilite"><pre><span/><code><span class="m">2021</span>-10-24 <span class="m">00</span>:46:26Z: Running job: build
+<span class="m">2021</span>-10-24 <span class="m">00</span>:46:34Z: Job build completed with result: Succeeded
+</code></pre></div>
+
+<blockquote>
+<p>如果您尝试运行作业的存储库是公共的，那么您必须更新默认的runner组以允许公共存储库。更多信息，请查看<a href="https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners#self-hosted-runner-security-with-public-repositories">公共存储库的自托管跑步者安全性</a>。</p>
+</blockquote>
+<p>完成后取下容器:</p>
+
+
+<p>再次查看日志。您应该看到:</p>
+<div class="codehilite"><pre><span/><code>Removing runner...
+
+<span class="c1"># Runner removal</span>
+
+
+√ Runner removed successfully
+√ Removed .credentials
+√ Removed .runner
+</code></pre></div>
+
+<p>该跑步者在您的GitHub组织的操作设置中应该不再可用:</p>
+<p><img data-src="/static/images/blog/github-actions-docker/runners2.png" loading="lazy" class="lazyload" alt="GitHub Actions Self-Hosted Runners" src="../Images/3d1238643056fce95851438b57fac69d.png" data-original-src="https://testdriven.io/static/images/blog/github-actions-docker/runners2.png"/></p>
+<p>移除容器:</p>
+
+
+<h2 id="vertical-scaling-with-docker-compose">使用Docker合成进行垂直缩放</h2>
+<p>想在一个液滴上旋转多个转轮吗？</p>
+<p>首先将下面的<em> docker-compose.yml </em>文件添加到框中:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">runner</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ORGANIZATION=&lt;YOUR-GITHUB-ORGANIZATION&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ACCESS_TOKEN=&lt;YOUR-GITHUB-ACCESS-TOKEN&gt;</span><span class="w"/>
+</code></pre></div>
+
+<p>确保分别用您的组织和个人访问令牌替换<code>&lt;YOUR-GITHUB-ORGANIZATION&gt;</code>和<code>&lt;YOUR-GITHUB-ACCESS-TOKEN&gt;</code>。</p>
+<p>按照<a href="https://docs.docker.com/compose/install/">官方安装指南</a>在droplet上下载安装Docker Compose，然后构建镜像:</p>
+
+
+<p>启动两个容器实例:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up --scale <span class="nv">runner</span><span class="o">=</span><span class="m">2</span> -d
+</code></pre></div>
+
+<p>你应该在GitHub上看到两个跑步者:</p>
+<p><img data-src="/static/images/blog/github-actions-docker/runners3.png" loading="lazy" class="lazyload" alt="GitHub Actions Self-Hosted Runners" src="../Images/b0b300896bacfddeb86c92378594fa8e.png" data-original-src="https://testdriven.io/static/images/blog/github-actions-docker/runners3.png"/></p>
+<p>开始两次构建。打开撰写日志:</p>
+
+
+<p>您应该会看到类似这样的内容:</p>
+<div class="codehilite"><pre><span/><code>runner_2  <span class="p">|</span> <span class="m">2021</span>-10-24 <span class="m">00</span>:52:56Z: Running job: build
+runner_1  <span class="p">|</span> <span class="m">2021</span>-10-24 <span class="m">00</span>:52:58Z: Running job: build
+runner_2  <span class="p">|</span> <span class="m">2021</span>-10-24 <span class="m">00</span>:53:04Z: Job build completed with result: Succeeded
+runner_1  <span class="p">|</span> <span class="m">2021</span>-10-24 <span class="m">00</span>:53:11Z: Job build completed with result: Succeeded
+</code></pre></div>
+
+<p>你可以像这样缩小:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up --scale <span class="nv">runner</span><span class="o">=</span><span class="m">1</span> -d
+</code></pre></div>
+
+<p>退出SSH会话并销毁机器/液滴:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine rm runner-node -y
+$ <span class="nb">eval</span> <span class="k">$(</span>docker-machine env -u<span class="k">)</span>
+</code></pre></div>
+
+<h2 id="horizontal-scaling-with-docker-swarm">使用Docker Swarm进行水平缩放</h2>
+<p>想要在多个DigitalOcean微滴之间进行水平缩放？</p>
+<h3 id="configure-droplets">配置水滴</h3>
+<p>将数字海洋访问令牌添加到您的环境中:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="o">=[</span>your_digital_ocean_token<span class="o">]</span>
+</code></pre></div>
+
+<p>旋转三个新的数字海洋液滴:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="k">for</span> i <span class="k">in</span> <span class="m">1</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+    docker-machine create <span class="se">\</span>
+      --driver digitalocean <span class="se">\</span>
+      --digitalocean-access-token <span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span> <span class="se">\</span>
+      --digitalocean-region <span class="s2">"nyc1"</span> <span class="se">\</span>
+      --digitalocean-image <span class="s2">"debian-10-x64"</span> <span class="se">\</span>
+      --digitalocean-size <span class="s2">"s-4vcpu-8gb"</span> <span class="se">\</span>
+      --engine-install-url <span class="s2">"https://releases.rancher.com/install-docker/19.03.9.sh"</span> <span class="se">\</span>
+      runner-node-<span class="nv">$i</span><span class="p">;</span>
+  <span class="k">done</span>
+</code></pre></div>
+
+<p>在第一个节点<code>runner-node-1</code>上初始化<a href="https://docs.docker.com/engine/swarm/">群模式</a>:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine ssh runner-node-1 -- docker swarm init --advertise-addr <span class="k">$(</span>docker-machine ip runner-node-1<span class="k">)</span>
+</code></pre></div>
+
+<p>使用上一个命令输出中的join令牌将剩余的两个节点作为workers添加到群中:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="k">for</span> i <span class="k">in</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+    docker-machine ssh runner-node-<span class="nv">$i</span> -- docker swarm join --token YOUR_JOIN_TOKEN HOST:PORT<span class="p">;</span>
+  <span class="k">done</span>
+</code></pre></div>
+
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="k">for</span> i <span class="k">in</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+    docker-machine ssh runner-node-<span class="nv">$i</span> -- docker swarm join --token SWMTKN-1-4a341wv2n8c2c0cn3f9d0nwxndpohwuyr58vtal63wx90spfoo-09vdgcfarp6oqxnncgfjyrh0i <span class="m">161</span>.35.12.185:2377<span class="p">;</span>
+  <span class="k">done</span>
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>This node joined a swarm as a worker.
+This node joined a swarm as a worker.
+</code></pre></div>
+
+<h3 id="build-docker-image">构建Docker映像</h3>
+<p>这一次，让我们在本地构建映像，并将其推送到<a href="https://hub.docker.com/"> Docker Hub </a>映像注册中心。</p>
+<p>Dockerfile:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># base</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">ubuntu:18.04</span>
+
+<span class="c"># set the github runner version</span>
+<span class="k">ARG</span><span class="w"> </span><span class="nv">RUNNER_VERSION</span><span class="o">=</span><span class="s2">"2.283.3"</span>
+
+<span class="c"># update the base packages and add a non-sudo user</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get update -y <span class="o">&amp;&amp;</span> apt-get upgrade -y <span class="o">&amp;&amp;</span> useradd -m docker
+
+<span class="c"># install python and the packages the your code depends on along with jq so we can parse JSON</span>
+<span class="c"># add additional packages as necessary</span>
+<span class="k">RUN</span><span class="w"> </span><span class="nv">DEBIAN_FRONTEND</span><span class="o">=</span>noninteractive apt-get install -y --no-install-recommends <span class="se">\</span>
+    curl jq build-essential libssl-dev libffi-dev python3 python3-venv python3-dev python3-pip
+
+<span class="c"># cd into the user directory, download and unzip the github actions runner</span>
+<span class="k">RUN</span><span class="w"> </span><span class="nb">cd</span> /home/docker <span class="o">&amp;&amp;</span> mkdir actions-runner <span class="o">&amp;&amp;</span> <span class="nb">cd</span> actions-runner <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> curl -O -L https://github.com/actions/runner/releases/download/v<span class="si">${</span><span class="nv">RUNNER_VERSION</span><span class="si">}</span>/actions-runner-linux-x64-<span class="si">${</span><span class="nv">RUNNER_VERSION</span><span class="si">}</span>.tar.gz <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> tar xzf ./actions-runner-linux-x64-<span class="si">${</span><span class="nv">RUNNER_VERSION</span><span class="si">}</span>.tar.gz
+
+<span class="c"># install some additional dependencies</span>
+<span class="k">RUN</span><span class="w"> </span>chown -R docker ~docker <span class="o">&amp;&amp;</span> /home/docker/actions-runner/bin/installdependencies.sh
+
+<span class="c"># copy over the start.sh script</span>
+<span class="k">COPY</span><span class="w"> </span>start.sh start.sh
+
+<span class="c"># make the script executable</span>
+<span class="k">RUN</span><span class="w"> </span>chmod +x start.sh
+
+<span class="c"># since the config and run script for actions are not allowed to be run by root,</span>
+<span class="c"># set the user to "docker" so all subsequent commands are run as the docker user</span>
+<span class="k">USER</span><span class="w"> </span><span class="s">docker</span>
+
+<span class="c"># set the entrypoint to the start.sh script</span>
+<span class="k">ENTRYPOINT</span><span class="w"> </span><span class="p">[</span><span class="s2">"./start.sh"</span><span class="p">]</span>
+</code></pre></div>
+
+<p><em> start.sh </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/bash</span>
+
+<span class="nv">ORGANIZATION</span><span class="o">=</span><span class="nv">$ORGANIZATION</span>
+<span class="nv">ACCESS_TOKEN</span><span class="o">=</span><span class="nv">$ACCESS_TOKEN</span>
+
+<span class="nv">REG_TOKEN</span><span class="o">=</span><span class="k">$(</span>curl -sX POST -H <span class="s2">"Authorization: token </span><span class="si">${</span><span class="nv">ACCESS_TOKEN</span><span class="si">}</span><span class="s2">"</span> https://api.github.com/orgs/<span class="si">${</span><span class="nv">ORGANIZATION</span><span class="si">}</span>/actions/runners/registration-token <span class="p">|</span> jq .token --raw-output<span class="k">)</span>
+
+<span class="nb">cd</span> /home/docker/actions-runner
+
+./config.sh --url https://github.com/<span class="si">${</span><span class="nv">ORGANIZATION</span><span class="si">}</span> --token <span class="si">${</span><span class="nv">REG_TOKEN</span><span class="si">}</span>
+
+cleanup<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">echo</span> <span class="s2">"Removing runner..."</span>
+    ./config.sh remove --unattended --token <span class="si">${</span><span class="nv">REG_TOKEN</span><span class="si">}</span>
+<span class="o">}</span>
+
+<span class="nb">trap</span> <span class="s1">'cleanup; exit 130'</span> INT
+<span class="nb">trap</span> <span class="s1">'cleanup; exit 143'</span> TERM
+
+./run.sh <span class="p">&amp;</span> <span class="nb">wait</span> <span class="nv">$!</span>
+</code></pre></div>
+
+<p>建立形象:</p>
+<div class="codehilite"><pre><span/><code>$ docker build --tag &lt;your-docker-hub-username&gt;/actions-image:latest .
+</code></pre></div>
+
+<p>确保用您的Docker Hub用户名替换<code>&lt;your-docker-hub-username&gt;</code>。然后，将映像推送到注册表:</p>
+<div class="codehilite"><pre><span/><code>$ docker push &lt;your-docker-hub-username&gt;/actions-image:latest
+</code></pre></div>
+
+<h3 id="deploy">部署</h3>
+<p>要部署堆栈，首先添加一个Docker合成文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">runner</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-docker-hub-username&gt;/actions-image:latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">replicated</span><span class="w"/>
+<span class="w">      </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">      </span><span class="nt">placement</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">constraints</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node.role == worker</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ORGANIZATION=&lt;YOUR-GITHUB-ORGANIZATION&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ACCESS_TOKEN=&lt;YOUR-GITHUB-ACCESS-TOKEN&gt;</span><span class="w"/>
+</code></pre></div>
+
+<p>再次更新<code>&lt;your-docker-hub-username&gt;</code>以及环境变量。</p>
+<p>将Docker守护进程指向<code>runner-node-1</code>并部署堆栈:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">eval</span> <span class="k">$(</span>docker-machine env runner-node-1<span class="k">)</span>
+$ docker stack deploy --compose-file<span class="o">=</span>docker-compose.yml actions
+</code></pre></div>
+
+<p>列出堆栈中的服务:</p>
+<div class="codehilite"><pre><span/><code>$ docker stack ps -f <span class="s2">"desired-state=running"</span> actions
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>ID                  NAME                IMAGE                         NODE                DESIRED STATE
+xhh3r8rfhh46        actions_runner.1    mjhea0/actions-image:latest   runner-node-2       Running
+</code></pre></div>
+
+<p>确保跑步者在GitHub上:</p>
+<p><img data-src="/static/images/blog/github-actions-docker/runners4.png" loading="lazy" class="lazyload" alt="GitHub Actions Self-Hosted Runners" src="../Images/af630416a8e8886553438f0f5e183801.png" data-original-src="https://testdriven.io/static/images/blog/github-actions-docker/runners4.png"/></p>
+<p>让我们再添加两个节点:</p>
+<div class="codehilite"><pre><span/><code>$ docker service scale <span class="nv">actions_runner</span><span class="o">=</span><span class="m">3</span>
+
+actions_runner scaled to <span class="m">3</span>
+overall progress: <span class="m">3</span> out of <span class="m">3</span> tasks
+<span class="m">1</span>/3: running
+<span class="m">2</span>/3: running
+<span class="m">3</span>/3: running
+verify: Service converged
+</code></pre></div>
+
+<p>验证:</p>
+<p><img data-src="/static/images/blog/github-actions-docker/runners5.png" loading="lazy" class="lazyload" alt="GitHub Actions Self-Hosted Runners" src="../Images/33889dd9f12e6280e71fca3b9fde0d99.png" data-original-src="https://testdriven.io/static/images/blog/github-actions-docker/runners5.png"/></p>
+<p>开始几项工作，并确保它们成功完成。</p>
+<p>缩小到单个流道:</p>
+<div class="codehilite"><pre><span/><code>$ docker service scale <span class="nv">actions_runner</span><span class="o">=</span><span class="m">1</span>
+
+actions_runner scaled to <span class="m">1</span>
+overall progress: <span class="m">1</span> out of <span class="m">1</span> tasks
+<span class="m">1</span>/1: running
+verify: Service converged
+</code></pre></div>
+
+<p>验证:</p>
+<p><img data-src="/static/images/blog/github-actions-docker/runners6.png" loading="lazy" class="lazyload" alt="GitHub Actions Self-Hosted Runners" src="../Images/a7cf28ca5845afb70229240a82969a0a.png" data-original-src="https://testdriven.io/static/images/blog/github-actions-docker/runners6.png"/></p>
+<p>完成后，将机器/液滴取下:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine rm runner-node-1 runner-node-2 runner-node-3 -y
+</code></pre></div>
+  </div>
+
+  </div>    
+</body>
+</html>

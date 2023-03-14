@@ -1,0 +1,652 @@
+<html>
+<head>
+<title>Behavior-Driven Development with Django and Aloe </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django和Aloe的行为驱动开发</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/behavior-driven-development-with-django-and-aloe/#0001-01-01">https://testdriven.io/blog/behavior-driven-development-with-django-and-aloe/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>假设你是一名Django开发人员，正在为一家精益创业公司构建一个社交网络。CEO向你的团队施压，要求获得MVP。工程师们已经同意使用<a href="https://en.wikipedia.org/wiki/Behavior-driven_development">行为驱动开发</a> (BDD)来构建产品，以交付快速高效的结果。产品负责人给你第一个特性请求，并遵循所有好的编程方法的实践，你通过编写测试开始BDD过程。接下来，您编写一些功能代码以通过测试，然后考虑您的设计。最后一步要求您分析特征本身。它属于你的应用吗？</p>
+<p>我们不能回答你这个问题，但是我们可以教你什么时候问这个问题。<strong>在下面的教程中，我们通过使用Django和<a href="https://aloe.readthedocs.io/">Aloe</a>T3】编程一个示例特性，带你走过BDD开发周期。继续学习如何使用BDD过程来帮助快速捕捉和修复糟糕的设计，同时编写稳定的应用程序。</strong></p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本教程后，您应该能够:</p>
+<ol>
+<li>描述并实践行为驱动开发(BDD)</li>
+<li>解释如何在新项目中实施BDD</li>
+<li>使用芦荟测试您的Django应用程序</li>
+</ol>
+<h2 id="project-setup">项目设置</h2>
+<p>当你阅读这篇文章时，你想要建立这个项目吗？</p>
+<p>开始于:</p>
+<ol>
+<li>添加项目目录。</li>
+<li>创建和激活虚拟环境。</li>
+</ol>
+<p>然后，安装以下依赖项并启动一个新的Django项目:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install <span class="se">\</span>
+        <span class="nv">django</span><span class="o">==</span><span class="m">3</span>.2.4 <span class="se">\</span>
+        <span class="nv">djangorestframework</span><span class="o">==</span><span class="m">3</span>.12.4 <span class="se">\</span>
+        <span class="nv">aloe_django</span><span class="o">==</span><span class="m">0</span>.2.0
+<span class="o">(</span>venv<span class="o">)</span>$ django-admin startproject example_bdd .
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py startapp example
+</code></pre></div>
+
+<blockquote>
+<p>如果在尝试安装<code>aloe_django</code>时出现此错误，您可能需要手动安装<a href="https://github.com/pypa/setuptools_scm"> setuptools-scm </a> ( <code>pip install setuptools-scm</code>):</p><div class="codehilite"><pre><span/>distutils.errors.DistutilsError:
+Could not find suitable distribution <span class="k">for</span> Requirement.parse<span class="o">(</span><span class="s1">'setuptools_scm'</span><span class="o">)</span>
+</pre></div>
+</blockquote>
+
+<p>更新<em> settings.py </em>中的<code>INSTALLED_APPS</code>列表:</p>
+<div class="codehilite"><pre><span/><code><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+
+    <span class="o">...</span>
+
+    <span class="s1">'aloe_django'</span><span class="p">,</span>
+    <span class="s1">'rest_framework'</span><span class="p">,</span>
+    <span class="s1">'example'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>只是在找代码吗？从<a href="https://github.com/testdrivenio/django-aloe-bdd">回购</a>中抢过来。</p>
+<h2 id="brief-overview-of-bdd">BDD概述</h2>
+<p>行为驱动开发是一种测试代码的方式，它挑战你不断地重新审视你的设计。当你写一个测试时，你要回答这个问题<em>我的代码做了我期望它做的事情吗？</em>通过断言。失败的测试暴露了代码中的错误。使用BDD，你分析一个特性:<em>用户体验是我期望的那样吗？</em>没有什么比失败的测试更能暴露糟糕的特性了，但是带来糟糕体验的后果却是实实在在的。</p>
+<p>将BDD作为测试开发周期的一部分来执行。用测试画出一个特性的功能边界。创建在细节中着色的代码。退一步考虑你的设计。然后再重新做一遍，直到画面完整。</p>
+<blockquote>
+<p>查看下面的<a href="https://behave.readthedocs.io/en/latest/philosophy.html">帖子</a>以获得对BDD更深入的解释。</p>
+</blockquote>
+<h2 id="your-first-feature-request">您的第一个功能请求</h2>
+<p>"用户应该能够登录应用程序，看到他们的朋友名单."</p>
+<p>这就是你的产品经理开始谈论这款应用的第一个功能的方式。虽然不多，但是你可以用它来写一个测试。她实际上要求两项功能:</p>
+<ol>
+<li>用户认证</li>
+<li>在用户之间形成关系的能力。</li>
+</ol>
+<p>这里有一个经验法则:像对待灯塔一样对待一个连词，警告你不要试图一次测试太多东西。如果你在测试语句中看到“and”或“or ”,你应该把测试分成更小的部分。</p>
+<p>记住这一点，利用特性请求的前半部分，编写一个测试场景:<em>用户可以登录应用程序</em>。为了支持用户身份验证，您的应用程序必须存储用户凭据，并为用户提供使用这些凭据访问其数据的方法。以下是你如何将这些标准转化为芦荟<em>。特征</em>文件。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Feature: Friendships
+
+  Scenario: A user can log into the app
+
+    Given I empty the <span class="s2">"User"</span> table
+
+    And I create the following users:
+      <span class="p">|</span> id <span class="p">|</span> email             <span class="p">|</span> username <span class="p">|</span> password  <span class="p">|</span>
+      <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="43222d2d2a2603263b222e332f266d202c2e">[email protected]</a> <span class="p">|</span> Annie    <span class="p">|</span> pAssw0rd! <span class="p">|</span>
+
+    When I log <span class="k">in</span> with username <span class="s2">"Annie"</span> and password <span class="s2">"pAssw0rd!"</span>
+
+    Then I am logged <span class="k">in</span>
+</code></pre></div>
+
+<p>一个芦荟测试用例被称为一个<em>特性</em>。你使用两个文件编程特征:一个<em>特征</em>文件和一个<em>步骤</em>文件。</p>
+<ol>
+<li><em>特性</em>文件由用简单英语编写的语句组成，这些语句描述了如何配置、执行和确认测试结果。使用<code>Feature</code>关键字来标记特性，使用<code>Scenario</code>关键字来定义您计划测试的用户情景。在上面的示例中，该场景定义了一系列步骤，解释如何填充<em>用户</em>数据库表，让用户登录应用程序，并验证登录。所有的步骤语句都必须以四个关键字之一开头:<code>Given</code>、<code>When</code>、<code>Then</code>或<code>And</code>。</li>
+<li><em>步骤</em>文件包含使用正则表达式映射到<em>特征</em>文件步骤的Python函数。</li>
+</ol>
+<blockquote>
+<p>您可能需要添加一个<em> __init__。py </em>文件到“特征”目录，以便解释器正确加载<em>友谊_步骤. py </em>文件。</p>
+</blockquote>
+<p>运行<code>python manage.py harvest</code>并查看以下输出。</p>
+<div class="codehilite"><pre><span/><code>nosetests --verbosity<span class="o">=</span><span class="m">1</span>
+Creating <span class="nb">test</span> database <span class="k">for</span> <span class="nb">alias</span> <span class="s1">'default'</span>...
+<span class="nv">E</span>
+<span class="o">======================================================================</span>
+ERROR: A user can log into the app <span class="o">(</span>example.features.friendships: Friendships<span class="o">)</span>
+----------------------------------------------------------------------
+Traceback <span class="o">(</span>most recent call last<span class="o">)</span>:
+  File <span class="s2">"django-aloe-bdd/venv/lib/python3.9/site-packages/aloe/registry.py"</span>, line <span class="m">151</span>, <span class="k">in</span> wrapped
+    <span class="k">return</span> <span class="k">function</span><span class="o">(</span>*args, **kwargs<span class="o">)</span>
+  File <span class="s2">"django-aloe-bdd/example/features/friendships.feature"</span>, line <span class="m">5</span>, <span class="k">in</span> A user can log into the app
+    Given I empty the <span class="s2">"User"</span> table
+  File <span class="s2">"django-aloe-bdd/venv/lib/python3.9/site-packages/aloe/registry.py"</span>, line <span class="m">151</span>, <span class="k">in</span> wrapped
+    <span class="k">return</span> <span class="k">function</span><span class="o">(</span>*args, **kwargs<span class="o">)</span>
+  File <span class="s2">"django-aloe-bdd/venv/lib/python3.9/site-packages/aloe/exceptions.py"</span>, line <span class="m">44</span>, <span class="k">in</span> undefined_step
+    raise NoDefinitionFound<span class="o">(</span>step<span class="o">)</span>
+aloe.exceptions.NoDefinitionFound: The step r<span class="s2">"Given I empty the "</span>User<span class="s2">" table"</span> is not defined
+-------------------- &gt;&gt; begin captured logging &lt;&lt; --------------------
+asyncio: DEBUG: Using selector: KqueueSelector
+--------------------- &gt;&gt; end captured logging &lt;&lt; ---------------------
+
+----------------------------------------------------------------------
+Ran <span class="m">1</span> <span class="nb">test</span> <span class="k">in</span> <span class="m">0</span>.506s
+
+FAILED <span class="o">(</span><span class="nv">errors</span><span class="o">=</span><span class="m">1</span><span class="o">)</span>
+Destroying <span class="nb">test</span> database <span class="k">for</span> <span class="nb">alias</span> <span class="s1">'default'</span>...
+</code></pre></div>
+
+<p>测试失败是因为您没有将step语句映射到Python函数。在以下文件中执行此操作。</p>
+<p><strong>示例/功能/友谊_步骤. py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">aloe</span> <span class="kn">import</span> <span class="n">before</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">world</span>
+<span class="kn">from</span> <span class="nn">aloe.tools</span> <span class="kn">import</span> <span class="n">guess_types</span>
+<span class="kn">from</span> <span class="nn">aloe_django.steps.models</span> <span class="kn">import</span> <span class="n">get_model</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">rest_framework.test</span> <span class="kn">import</span> <span class="n">APIClient</span>
+
+
+<span class="nd">@before</span><span class="o">.</span><span class="n">each_feature</span>
+<span class="k">def</span> <span class="nf">before_each_feature</span><span class="p">(</span><span class="n">feature</span><span class="p">):</span>
+    <span class="n">world</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">APIClient</span><span class="p">()</span>
+
+
+<span class="nd">@step</span><span class="p">(</span><span class="s1">'I empty the "([^"]+)" table'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_empty_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_name</span><span class="p">):</span>
+    <span class="n">get_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
+
+
+<span class="nd">@step</span><span class="p">(</span><span class="s1">'I create the following users:'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_create_users</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">):</span>
+        <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="o">**</span><span class="n">user</span><span class="p">)</span>
+
+
+<span class="nd">@step</span><span class="p">(</span><span class="s1">'I log in with username "([^"]+)" and password "([^"]+)"'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_log_in</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">,</span> <span class="n">password</span><span class="p">):</span>
+    <span class="n">world</span><span class="o">.</span><span class="n">is_logged_in</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="n">username</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="n">password</span><span class="p">)</span>
+
+
+<span class="nd">@step</span><span class="p">(</span><span class="s1">'I am logged in'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_confirm_log_in</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">world</span><span class="o">.</span><span class="n">is_logged_in</span>
+</code></pre></div>
+
+<p>每个语句都通过一个<code>@step()</code>装饰器映射到一个Python函数。例如，<code>Given I empty the "User" table</code>将触发<code>step_empty_table()</code>功能运行。在这种情况下，字符串<code>"User"</code>将被捕获并作为<code>model_name</code>参数传递给函数。Aloe API包括一个名为<code>world</code>的特殊全局变量，可以用来在测试步骤之间存储和检索数据。注意<code>world.is_logged_in</code>变量是如何在<code>step_log_in()</code>中创建，然后在<code>step_confirm_log_in()</code>中访问的。Aloe还定义了一个特殊的<code>@before</code> decorator来在测试运行之前执行函数。</p>
+<p>最后一件事:考虑以下语句的结构:</p>
+<div class="codehilite"><pre><span/><code>And I create the following users:
+  <span class="p">|</span> id <span class="p">|</span> email             <span class="p">|</span> username <span class="p">|</span> password  <span class="p">|</span>
+  <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d2b3bcbcbbb792b7aab3bfa2beb7fcb1bdbf">[email protected]</a> <span class="p">|</span> Annie    <span class="p">|</span> pAssw0rd! <span class="p">|</span>
+</code></pre></div>
+
+<p>有了Aloe，您可以使用表格结构来表示字典列表。然后，您可以使用<code>self.hashes</code>来访问数据。在<code>guess_types()</code>函数中包装<code>self.hashes</code>会返回一个列表，其中包含正确输入的字典值。在这个例子中，<code>guess_types(self.hashes)</code>返回这个代码。</p>
+<div class="codehilite"><pre><span/><code><span class="p">[{</span><span class="s1">'id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">'email'</span><span class="p">:</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d2b3bcbcbbb792b7aab3bfa2beb7fcb1bdbf">[email protected]</a>'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">:</span> <span class="s1">'Annie'</span><span class="p">,</span> <span class="s1">'password'</span><span class="p">:</span> <span class="s1">'pAssw0rd!'</span><span class="p">}]</span>
+</code></pre></div>
+
+<p>用下面的命令运行Aloe测试套件，看到所有测试都通过了。</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py harvest
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code><span class="c">nosetests </span><span class="nb">--</span><span class="c">verbosity=1</span>
+<span class="c">Creating test database for alias 'default'</span><span class="nt">...</span><span class="c"/>
+<span class="nt">.</span><span class="c"/>
+<span class="nb">----------------------------------------------------------------------</span><span class="c"/>
+<span class="c">Ran 1 test in 0</span><span class="nt">.</span><span class="c">512s</span>
+
+<span class="c">OK</span>
+<span class="c">Destroying test database for alias 'default'</span><span class="nt">...</span><span class="c"/>
+</code></pre></div>
+
+<p>为功能请求的第二部分编写一个测试场景:<em>用户可以看到朋友列表</em>。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Scenario: A user can see a list of friends
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  When I get a list of friends
+
+  Then I see the following response data:
+    <span class="p">|</span> id <span class="p">|</span> email <span class="p">|</span> username <span class="p">|</span>
+</code></pre></div>
+
+<p>在运行Aloe测试套件之前，修改第一个场景，使用关键字<code>Background</code>代替<code>Scenario</code>。背景是一种特殊类型的场景，在由<em>特征</em>文件中的<code>Scenario</code>定义的每个程序块之前运行一次。每个场景都需要从头开始，每次运行时使用<code>Background</code>都会刷新数据。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Feature: Friendships
+
+  Background: Set up common data
+
+    Given I empty the <span class="s2">"User"</span> table
+
+    And I create the following users:
+      <span class="p">|</span> id <span class="p">|</span> email             <span class="p">|</span> username <span class="p">|</span> password  <span class="p">|</span>
+      <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7c1d121215193c19041d110c1019521f1311">[email protected]</a> <span class="p">|</span> Annie    <span class="p">|</span> pAssw0rd! <span class="p">|</span>
+      <span class="p">|</span> <span class="m">2</span>  <span class="p">|</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="20425249414e604558414d504c450e434f4d">[email protected]</a> <span class="p">|</span> Brian    <span class="p">|</span> pAssw0rd! <span class="p">|</span>
+      <span class="p">|</span> <span class="m">3</span>  <span class="p">|</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3a595b495f437a5f425b574a565f14595557">[email protected]</a> <span class="p">|</span> Casey    <span class="p">|</span> pAssw0rd! <span class="p">|</span>
+
+    When I log <span class="k">in</span> with username <span class="s2">"Annie"</span> and password <span class="s2">"pAssw0rd!"</span>
+
+    Then I am logged <span class="k">in</span>
+
+  Scenario: A user can see a list of friends
+
+    Given I empty the <span class="s2">"Friendship"</span> table
+
+    And I create the following friendships:
+      <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span>
+      <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span>
+
+    <span class="c1"># Annie and Brian are now friends.</span>
+
+    When I get a list of friends
+
+    Then I see the following response data:
+      <span class="p">|</span> id <span class="p">|</span> email             <span class="p">|</span> username <span class="p">|</span>
+      <span class="p">|</span> <span class="m">2</span>  <span class="p">|</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8fedfde6eee1cfeaf7eee2ffe3eaa1ece0e2">[email protected]</a> <span class="p">|</span> Brian    <span class="p">|</span>
+</code></pre></div>
+
+<p>现在您正在处理多个用户之间的友谊，开始时向数据库添加几个新的用户记录。新的场景从“Friendship”表中清除所有条目，并创建一条新记录来定义Annie和Brian之间的友谊。然后，它调用一个API来检索Annie的朋友列表，并确认响应数据包括Brian。</p>
+<p>第一步是创建一个<code>Friendship</code>模型。很简单:它只是将两个用户链接在一起。</p>
+<p><strong> example/models.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Friendship</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user1</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+      <span class="n">settings</span><span class="o">.</span><span class="n">AUTH_USER_MODEL</span><span class="p">,</span>
+      <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+      <span class="n">related_name</span><span class="o">=</span><span class="s1">'user1_friendships'</span>
+    <span class="p">)</span>
+    <span class="n">user2</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+      <span class="n">settings</span><span class="o">.</span><span class="n">AUTH_USER_MODEL</span><span class="p">,</span>
+      <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+      <span class="n">related_name</span><span class="o">=</span><span class="s1">'user2_friendships'</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<p>进行迁移并运行它。</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>接下来，为<code>I create the following friendships:</code>语句创建一个新的测试步骤。</p>
+<p><strong>示例/功能/友谊_步骤. py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@step</span><span class="p">(</span><span class="s1">'I create the following friendships:'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_create_friendships</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">Friendship</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">bulk_create</span><span class="p">([</span>
+        <span class="n">Friendship</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'id'</span><span class="p">],</span>
+            <span class="n">user1</span><span class="o">=</span><span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'user1'</span><span class="p">]),</span>
+            <span class="n">user2</span><span class="o">=</span><span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'user2'</span><span class="p">])</span>
+        <span class="p">)</span> <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">)</span>
+    <span class="p">])</span>
+</code></pre></div>
+
+<p>将<code>Friendship</code>模型导入添加到文件中。</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">..models</span> <span class="kn">import</span> <span class="n">Friendship</span>
+</code></pre></div>
+
+<p>创建一个API来获取登录用户的朋友列表。创建一个序列化程序来处理<code>User</code>资源的表示。</p>
+<p><strong>example/serializer . py</strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">serializers</span>
+
+
+<span class="k">class</span> <span class="nc">UserSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">User</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'email'</span><span class="p">,</span> <span class="s1">'username'</span><span class="p">,)</span>
+        <span class="n">read_only_fields</span> <span class="o">=</span> <span class="n">fields</span>
+</code></pre></div>
+
+<p>创建一个管理器来处理您的<code>Friendship</code>模型的表级功能。</p>
+<p><strong> example/models.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="c1"># New import!</span>
+<span class="kn">from</span> <span class="nn">django.db.models</span> <span class="kn">import</span> <span class="n">Q</span>
+
+
+<span class="k">class</span> <span class="nc">FriendshipManager</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Manager</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">friends</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+        <span class="sd">"""Get all users that are friends with the specified user."""</span>
+        <span class="c1"># Get all friendships that involve the specified user.</span>
+        <span class="n">friendships</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_queryset</span><span class="p">()</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span>
+            <span class="s1">'user1'</span><span class="p">,</span> <span class="s1">'user2'</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+            <span class="n">Q</span><span class="p">(</span><span class="n">user1</span><span class="o">=</span><span class="n">user</span><span class="p">)</span> <span class="o">|</span>
+            <span class="n">Q</span><span class="p">(</span><span class="n">user2</span><span class="o">=</span><span class="n">user</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">other_user</span><span class="p">(</span><span class="n">friendship</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user1</span> <span class="o">==</span> <span class="n">user</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user2</span>
+            <span class="k">return</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user1</span>
+
+        <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="n">other_user</span><span class="p">,</span> <span class="n">friendships</span><span class="p">)</span>
+</code></pre></div>
+
+<p><code>friends()</code>函数检索指定用户与其他用户共享的所有友谊。然后它返回其他用户的列表。将<code>objects = FriendshipManager()</code>添加到<code>Friendship</code>模型中。</p>
+<p>创建一个简单的<code>ListAPIView</code>来返回您的<code>User</code>资源的JSON序列化列表。</p>
+<p><strong> example/views.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">ListAPIView</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Friendship</span>
+<span class="kn">from</span> <span class="nn">.serializers</span> <span class="kn">import</span> <span class="n">UserSerializer</span>
+
+
+<span class="k">class</span> <span class="nc">FriendsView</span><span class="p">(</span><span class="n">ListAPIView</span><span class="p">):</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">UserSerializer</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Friendship</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">friends</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</code></pre></div>
+
+<p>最后，添加一个URL路径。</p>
+<p><strong> example_bdd/urls.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">example.views</span> <span class="kn">import</span> <span class="n">FriendsView</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'friends/'</span><span class="p">,</span> <span class="n">FriendsView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'friends'</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>创建剩余的Python步骤函数:一个调用新的API，另一个通用函数确认响应负载数据。(我们可以重用这个函数来检查任何有效载荷。)</p>
+<p><strong>示例/功能/友谊_步骤. py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@step</span><span class="p">(</span><span class="s1">'I get a list of friends'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_get_friends</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">world</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'/friends/'</span><span class="p">)</span>
+
+
+<span class="nd">@step</span><span class="p">(</span><span class="s1">'I see the following response data:'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_confirm_response_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">)</span> <span class="o">==</span> <span class="n">response</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">response</span>
+</code></pre></div>
+
+<p>运行测试并观察它们是否通过。</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py harvest
+</code></pre></div>
+
+<p>想想另一个测试场景。没有朋友的用户在调用API时应该会看到一个空列表。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Scenario: A user with no friends sees an empty list
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  <span class="c1"># Annie has no friends.</span>
+
+  When I get a list of friends
+
+  Then I see the following response data:
+    <span class="p">|</span> id <span class="p">|</span> email <span class="p">|</span> username <span class="p">|</span>
+</code></pre></div>
+
+<p>不需要新的Python函数。您可以重复使用所有步骤！测试无需任何干预即可通过。</p>
+<p>您还需要最后一项功能来实现这一特性。用户可以获得他们的朋友列表，但是他们如何结交新朋友呢？这里有一个新的场景:“一个用户应该能够将另一个用户添加为好友。”用户应该能够调用API来与另一个用户建立友谊。您知道，如果在数据库中创建了记录，API就会工作。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Scenario: A user can add a friend
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  When I add the following friendship:
+    <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span>
+
+  Then I see the following rows <span class="k">in</span> the <span class="s2">"Friendship"</span> table:
+    <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span>
+</code></pre></div>
+
+<p>创建新的阶跃函数。</p>
+<p><strong>示例/功能/友谊_步骤. py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@step</span><span class="p">(</span><span class="s1">'I add the following friendship:'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_add_friendship</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">world</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'/friendships/'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+
+<span class="nd">@step</span><span class="p">(</span><span class="s1">'I see the following rows in the "([^"]+)" table:'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_confirm_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_name</span><span class="p">):</span>
+    <span class="n">model_class</span> <span class="o">=</span> <span class="n">get_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">):</span>
+        <span class="n">has_row</span> <span class="o">=</span> <span class="n">model_class</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="n">has_row</span>
+</code></pre></div>
+
+<p>扩展管理器并做一些重构。</p>
+<p><strong> example/models.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">FriendshipManager</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Manager</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">friendships</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+        <span class="sd">"""Get all friendships that involve the specified user."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_queryset</span><span class="p">()</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span>
+            <span class="s1">'user1'</span><span class="p">,</span> <span class="s1">'user2'</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+            <span class="n">Q</span><span class="p">(</span><span class="n">user1</span><span class="o">=</span><span class="n">user</span><span class="p">)</span> <span class="o">|</span>
+            <span class="n">Q</span><span class="p">(</span><span class="n">user2</span><span class="o">=</span><span class="n">user</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">friends</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+        <span class="sd">"""Get all users that are friends with the specified user."""</span>
+        <span class="n">friendships</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">friendships</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">other_user</span><span class="p">(</span><span class="n">friendship</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user1</span> <span class="o">==</span> <span class="n">user</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user2</span>
+            <span class="k">return</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user1</span>
+
+        <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="n">other_user</span><span class="p">,</span> <span class="n">friendships</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加一个新的序列化程序来呈现<code>Friendship</code>资源。</p>
+<p><strong>example/serializer . py</strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">FriendshipSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Friendship</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'user1'</span><span class="p">,</span> <span class="s1">'user2'</span><span class="p">,)</span>
+        <span class="n">read_only_fields</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'id'</span><span class="p">,)</span>
+</code></pre></div>
+
+<p>添加新视图。</p>
+<p><strong> example/views.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">FriendshipsView</span><span class="p">(</span><span class="n">ModelViewSet</span><span class="p">):</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">FriendshipSerializer</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Friendship</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">friendships</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加新的URL。</p>
+<p><strong> example/urls.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="n">path</span><span class="p">(</span><span class="s1">'friendships/'</span><span class="p">,</span> <span class="n">FriendshipsView</span><span class="o">.</span><span class="n">as_view</span><span class="p">({</span><span class="s1">'post'</span><span class="p">:</span> <span class="s1">'create'</span><span class="p">})),</span>
+</code></pre></div>
+
+<p>您的代码工作，测试通过！</p>
+<h2 id="analyzing-the-feature">分析特征</h2>
+<p>既然您已经成功地对您的特性进行了编程和测试，那么是时候对其进行分析了。当一个用户添加另一个用户时，两个用户成为朋友。这不是理想的行为。也许另一个用户不想成为朋友-他们没有发言权吗？一个用户应该<em>请求</em>与另一个用户建立友谊，而另一个用户应该能够接受或拒绝这个友谊。</p>
+<p>修改用户添加另一个用户为好友的场景:“一个用户应该能够请求与另一个用户成为朋友。”</p>
+<p>用这个替换<code>Scenario: A user can add a friend</code>。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Scenario: A user can request a friendship with another user
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  When I request the following friendship:
+    <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span>
+
+  Then I see the following response data:
+    <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span> status  <span class="p">|</span>
+    <span class="p">|</span> <span class="m">3</span>  <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span> PENDING <span class="p">|</span>
+</code></pre></div>
+
+<p>重构您的测试步骤以使用新的API，<code>/friendship-requests/</code>。</p>
+<p><strong>示例/功能/友谊_步骤. py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@step</span><span class="p">(</span><span class="s1">'I request the following friendship:'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_request_friendship</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">world</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'/friendship-requests/'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+</code></pre></div>
+
+<p>首先向<code>Friendship</code>模型添加一个新的<code>status</code>字段。</p>
+<p><strong> example/models.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Friendship</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">PENDING</span> <span class="o">=</span> <span class="s1">'PENDING'</span>
+    <span class="n">ACCEPTED</span> <span class="o">=</span> <span class="s1">'ACCEPTED'</span>
+    <span class="n">REJECTED</span> <span class="o">=</span> <span class="s1">'REJECTED'</span>
+    <span class="n">STATUSES</span> <span class="o">=</span> <span class="p">(</span>
+      <span class="p">(</span><span class="n">PENDING</span><span class="p">,</span> <span class="n">PENDING</span><span class="p">),</span>
+      <span class="p">(</span><span class="n">ACCEPTED</span><span class="p">,</span> <span class="n">ACCEPTED</span><span class="p">),</span>
+      <span class="p">(</span><span class="n">REJECTED</span><span class="p">,</span> <span class="n">REJECTED</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">FriendshipManager</span><span class="p">()</span>
+    <span class="n">user1</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+      <span class="n">settings</span><span class="o">.</span><span class="n">AUTH_USER_MODEL</span><span class="p">,</span>
+      <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+      <span class="n">related_name</span><span class="o">=</span><span class="s1">'user1_friendships'</span>
+    <span class="p">)</span>
+    <span class="n">user2</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+      <span class="n">settings</span><span class="o">.</span><span class="n">AUTH_USER_MODEL</span><span class="p">,</span>
+      <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+      <span class="n">related_name</span><span class="o">=</span><span class="s1">'user2_friendships'</span>
+    <span class="p">)</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">STATUSES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">PENDING</span><span class="p">)</span>
+</code></pre></div>
+
+<p>友谊可以是<code>ACCEPTED</code>或<code>REJECTED</code>。如果其他用户没有采取行动，那么默认状态是<code>PENDING</code>。</p>
+<p>进行迁移并迁移数据库。</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>将<code>FriendshipsView</code>重命名为<code>FriendshipRequestsView</code>。</p>
+<p><strong> example/views.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">FriendshipRequestsView</span><span class="p">(</span><span class="n">ModelViewSet</span><span class="p">):</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">FriendshipSerializer</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Friendship</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">friendships</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</code></pre></div>
+
+<p>用新的URL路径替换旧的路径。</p>
+<p><strong> example/urls.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="n">path</span><span class="p">(</span><span class="s1">'friendship-requests/'</span><span class="p">,</span> <span class="n">FriendshipRequestsView</span><span class="o">.</span><span class="n">as_view</span><span class="p">({</span><span class="s1">'post'</span><span class="p">:</span> <span class="s1">'create'</span><span class="p">}))</span>
+</code></pre></div>
+
+<p>添加新的测试场景来测试接受和拒绝操作。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Scenario: A user can accept a friendship request
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  And I create the following friendships:
+    <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span> status  <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> PENDING <span class="p">|</span>
+
+  When I accept the friendship request with ID <span class="s2">"1"</span>
+
+  Then I see the following response data:
+    <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span> status   <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> ACCEPTED <span class="p">|</span>
+
+Scenario: A user can reject a friendship request
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  And I create the following friendships:
+    <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span> status  <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> PENDING <span class="p">|</span>
+
+  When I reject the friendship request with ID <span class="s2">"1"</span>
+
+  Then I see the following response data:
+    <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span> status   <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> REJECTED <span class="p">|</span>
+</code></pre></div>
+
+<p>添加新的测试步骤。</p>
+<p><strong>示例/功能/友谊_步骤. py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@step</span><span class="p">(</span><span class="s1">'I accept the friendship request with ID "([^"]+)"'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_accept_friendship_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pk</span><span class="p">):</span>
+    <span class="n">world</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="sa">f</span><span class="s1">'/friendship-requests/</span><span class="si">{</span><span class="n">pk</span><span class="si">}</span><span class="s1">/'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+      <span class="s1">'status'</span><span class="p">:</span> <span class="n">Friendship</span><span class="o">.</span><span class="n">ACCEPTED</span>
+    <span class="p">})</span>
+
+
+<span class="nd">@step</span><span class="p">(</span><span class="s1">'I reject the friendship request with ID "([^"]+)"'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_reject_friendship_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pk</span><span class="p">):</span>
+    <span class="n">world</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="sa">f</span><span class="s1">'/friendship-requests/</span><span class="si">{</span><span class="n">pk</span><span class="si">}</span><span class="s1">/'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+      <span class="s1">'status'</span><span class="p">:</span> <span class="n">Friendship</span><span class="o">.</span><span class="n">REJECTED</span>
+    <span class="p">})</span>
+</code></pre></div>
+
+<p>再添加一个URL路径。用户需要针对他们想要接受或拒绝的特定友谊。</p>
+<p><strong> example/urls.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="n">path</span><span class="p">(</span><span class="s1">'friendship-requests/&lt;int:pk&gt;/'</span><span class="p">,</span> <span class="n">FriendshipRequestsView</span><span class="o">.</span><span class="n">as_view</span><span class="p">({</span><span class="s1">'put'</span><span class="p">:</span> <span class="s1">'partial_update'</span><span class="p">}))</span>
+</code></pre></div>
+
+<p>更新<code>Scenario: A user can see a list of friends</code>以包含新的<code>status</code>字段。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Scenario: A user can see a list of friends
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  And I create the following friendships:
+    <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span> status   <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span> ACCEPTED <span class="p">|</span>
+
+  <span class="c1"># Annie and Brian are now friends.</span>
+
+  When I get a list of friends
+
+  Then I see the following response data:
+    <span class="p">|</span> id <span class="p">|</span> email             <span class="p">|</span> username <span class="p">|</span>
+    <span class="p">|</span> <span class="m">2</span>  <span class="p">|</span> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4624342f272806233e272b362a236825292b">[email protected]</a> <span class="p">|</span> Brian    <span class="p">|</span>
+</code></pre></div>
+
+<p>在<code>Scenario: A user can see a list of friends</code>之后再添加一个场景来测试状态过滤。用户的朋友包括已经接受用户的友谊请求的人。没有采取行动或拒绝请求的人不予考虑。</p>
+<p><strong>例子/特色/友谊.特色</strong></p>
+<div class="codehilite"><pre><span/><code>Scenario: A user with no accepted friendship requests sees an empty list
+
+  Given I empty the <span class="s2">"Friendship"</span> table
+
+  And I create the following friendships:
+    <span class="p">|</span> id <span class="p">|</span> user1 <span class="p">|</span> user2 <span class="p">|</span> status   <span class="p">|</span>
+    <span class="p">|</span> <span class="m">1</span>  <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">2</span>     <span class="p">|</span> PENDING  <span class="p">|</span>
+    <span class="p">|</span> <span class="m">2</span>  <span class="p">|</span> <span class="m">1</span>     <span class="p">|</span> <span class="m">3</span>     <span class="p">|</span> REJECTED <span class="p">|</span>
+
+  When I get a list of friends
+
+  Then I see the following response data:
+    <span class="p">|</span> id <span class="p">|</span> email <span class="p">|</span> username <span class="p">|</span>
+</code></pre></div>
+
+<p>编辑<code>step_create_friendships()</code>函数，在<code>Friendship</code>模型上实现<code>status</code>字段。</p>
+<p><strong>示例/功能/友谊_步骤. py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@step</span><span class="p">(</span><span class="s1">'I create the following friendships:'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">step_create_friendships</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">Friendship</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">bulk_create</span><span class="p">([</span>
+        <span class="n">Friendship</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'id'</span><span class="p">],</span>
+            <span class="n">user1</span><span class="o">=</span><span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'user1'</span><span class="p">]),</span>
+            <span class="n">user2</span><span class="o">=</span><span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'user2'</span><span class="p">]),</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span>
+        <span class="p">)</span> <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">guess_types</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hashes</span><span class="p">)</span>
+    <span class="p">])</span>
+</code></pre></div>
+
+<p>并编辑<code>FriendshipSerializer</code>序列化器来实现<code>Friendship</code>模型上的状态字段。</p>
+<p><strong>example/serializer . py</strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">FriendshipSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Friendship</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'id'</span><span class="p">,</span> <span class="s1">'user1'</span><span class="p">,</span> <span class="s1">'user2'</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">,)</span>
+        <span class="n">read_only_fields</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'id'</span><span class="p">,)</span>
+</code></pre></div>
+
+<p>通过调整管理器上的<code>friends()</code>方法完成过滤。</p>
+<p><strong> example/models.py </strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">friends</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+    <span class="sd">"""Get all users that are friends with the specified user."""</span>
+    <span class="n">friendships</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">friendships</span><span class="p">(</span><span class="n">user</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Friendship</span><span class="o">.</span><span class="n">ACCEPTED</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">other_user</span><span class="p">(</span><span class="n">friendship</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user1</span> <span class="o">==</span> <span class="n">user</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user2</span>
+        <span class="k">return</span> <span class="n">friendship</span><span class="o">.</span><span class="n">user1</span>
+
+    <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="n">other_user</span><span class="p">,</span> <span class="n">friendships</span><span class="p">)</span>
+</code></pre></div>
+
+<p>功能完成！</p>
+<h2 id="conclusion">结论</h2>
+<p>如果你从这篇文章中得到了什么，我希望是这个:行为驱动的开发不仅是关于编写、测试和设计代码，也是关于特性分析。没有这个关键的步骤，你就不是在创造软件，你只是在编程。BDD不是生产软件的唯一方法，但它是一个很好的方法。如果你正在用Django项目实践BDD，试试芦荟吧。</p>
+<p>从<a href="https://github.com/testdrivenio/django-aloe-bdd">回购</a>中抓取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

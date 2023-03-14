@@ -1,0 +1,973 @@
+<html>
+<head>
+<title>Python Dependency Injection </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Python依赖注入</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/python-dependency-injection/#0001-01-01">https://testdriven.io/blog/python-dependency-injection/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>编写干净、可维护的代码是一项具有挑战性的任务。幸运的是，有许多模式、技术和可重用的解决方案可以让我们更容易地完成这项任务。依赖注入是这些技术中的一种，用于编写松散耦合但高度内聚的代码。</p>
+<p>在本文中，我们将向您展示如何在开发绘制历史天气数据的应用程序时实现依赖注入。使用测试驱动开发开发初始应用程序后，您将使用依赖注入来分解应用程序的各个部分，使其更易于测试、扩展和维护。</p>
+<p>到本文结束时，您应该能够解释什么是依赖注入，并使用测试驱动开发(TDD)在Python中实现它。</p>
+
+
+
+<h2 id="what-is-dependency-injection">什么是依赖注入？</h2>
+<p>在软件工程中，<a href="https://en.wikipedia.org/wiki/Dependency_injection">依赖注入</a>是一种一个对象接收它所依赖的其他对象的技术。</p>
+<ol>
+<li>它被引入来管理一个人的代码库的复杂性。</li>
+<li>它有助于简化测试、扩展代码和维护。</li>
+<li>大多数允许将对象和函数作为参数传递的语言都支持它。不过，在Java和C#中，你会听到更多关于依赖注入的内容，因为它很难实现。另一方面，由于Python的动态类型化和它的<a href="https://en.wikipedia.org/wiki/Duck_typing">鸭子类型化</a>系统，它很容易实现，因此不太引人注意。Django、Django REST框架和FastAPI都利用了依赖注入。</li>
+</ol>
+<p>好处:</p>
+<ol>
+<li>方法更容易测试</li>
+<li>依赖性更容易被模仿</li>
+<li>每当我们扩展应用程序时，测试不必改变</li>
+<li>扩展应用程序更容易</li>
+<li>维护应用程序更容易</li>
+</ol>
+<blockquote>
+<p>更多内容，请参考马丁·福勒的T2形式的依赖注入文章。</p>
+</blockquote>
+<p>要了解它的实际应用，让我们看几个真实的例子。</p>
+<h2 id="plotting-historic-weather-data">绘制历史天气数据</h2>
+<p>场景:</p>
+<ol>
+<li>您已经决定构建一个应用程序，用于根据天气历史数据绘制图表。</li>
+<li>你已经下载了伦敦2009年每小时的温度数据。</li>
+<li>你的目标是绘制数据图，看看温度是如何随时间变化的。</li>
+</ol>
+<h3 id="the-basic-idea">基本思想</h3>
+<p>首先，创建(并激活)一个虚拟环境。然后，安装<a href="https://docs.pytest.org/"> pytest </a>和<a href="https://matplotlib.org/"> Matplotlib </a>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install pytest matplotlib
+</code></pre></div>
+
+<p>用两种方法开始一个类似乎是合理的:</p>
+<ol>
+<li><code>read</code> -从CSV读取数据</li>
+<li><code>draw</code> -画一个情节</li>
+</ol>
+<h3 id="reading-data-from-a-csv">从CSV读取数据</h3>
+<p>因为我们需要从CSV文件中读取历史天气数据，所以<code>read</code>方法应该满足以下标准:</p>
+<ul>
+<li>给定一个<code>App</code>类</li>
+<li>当用CSV文件名调用<code>read</code>方法时</li>
+<li>然后来自CSV的数据应该返回到一个字典中，其中<em>键</em>是ISO 8601格式的日期时间字符串(<code>'%Y-%m-%dT%H:%M:%S.%f'</code>)，而<em>值</em>是当时测量的温度</li>
+</ul>
+<p>创建一个名为<em> test_app.py </em>的文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">App</span>
+
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+
+<span class="k">def</span> <span class="nf">test_read</span><span class="p">():</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'london.csv'</span><span class="p">))</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">assert</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">value</span> <span class="o">-</span> <span class="mi">0</span> <span class="o">==</span> <span class="n">value</span>
+</code></pre></div>
+
+<p>因此，该测试检查:</p>
+<ol>
+<li>每个键都是一个ISO 8601格式的日期时间字符串(使用<code>datetime</code>包中的<code>fromisoformat</code>函数)</li>
+<li>每个值都是数字(使用数字的属性<code>x - 0 = x</code>)</li>
+</ol>
+<blockquote>
+<p>Python 3.7中添加了来自<code>datetime</code>包的<code>fromisoformat</code>方法。参考官方Python <a href="https://docs.python.org/3.8/library/datetime.html#datetime.datetime.fromisoformat">文档</a>了解更多信息。</p>
+</blockquote>
+<p>运行测试以确保失败:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>E   ModuleNotFoundError: No module named <span class="s1">'app'</span>
+</code></pre></div>
+
+<p>现在要实现<code>read</code>方法，为了让测试通过，添加名为<em> app.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+
+<span class="k">class</span> <span class="nc">App</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_name</span><span class="p">):</span>
+        <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">file_name</span><span class="p">),</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+            <span class="nb">next</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>  <span class="c1"># Skip header row.</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">reader</span><span class="p">:</span>
+                <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'</span><span class="si">%d</span><span class="s1">/%m/%Y %H:%M'</span><span class="p">)</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+                <span class="n">temperature</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="n">temperatures_by_hour</span><span class="p">[</span><span class="n">hour</span><span class="p">]</span> <span class="o">=</span> <span class="n">temperature</span>
+
+        <span class="k">return</span> <span class="n">temperatures_by_hour</span>
+</code></pre></div>
+
+<p>这里，我们添加了一个带有<code>read</code>方法的<code>App</code>类，该方法将文件名作为参数。在打开和读取CSV的内容之后，适当的键(日期)和值(温度)被添加到最终返回的字典中。</p>
+<p>假设您已经下载了作为<em> london.csv </em>的<a href="https://www.urban-climate.net/content/images/Southwark_Files/Weather_Data_2009.csv">天气数据</a>，测试现在应该通过了:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael.herman/repos/testdriven/dependency-injection-python/app
+collected <span class="m">1</span> item
+
+test_app.py .                                                                 <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">1</span> passed <span class="k">in</span> <span class="m">0</span>.11s <span class="o">=====================================</span>
+</code></pre></div>
+
+<h3 id="drawing-the-plot">绘制情节</h3>
+<p>接下来，<code>draw</code>方法应满足以下标准:</p>
+<ul>
+<li>给定一个<code>App</code>类</li>
+<li>当使用字典调用<code>draw</code>方法时，其中<em>键</em>是ISO 8601格式的日期时间字符串(<code>'%Y-%m-%dT%H:%M:%S.%f'</code>),而<em>值</em>是当时测量的温度</li>
+<li>然后将数据绘制成线图，X轴表示时间，Y轴表示温度</li>
+</ul>
+<p>为此向<em> test_app.py </em>添加一个测试:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_draw</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="n">plot_date_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">show_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'plot_date'</span><span class="p">,</span> <span class="n">plot_date_mock</span><span class="p">)</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'show'</span><span class="p">,</span> <span class="n">show_mock</span><span class="p">)</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">()</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="mf">14.52</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">({</span><span class="n">hour</span><span class="p">:</span> <span class="n">temperature</span><span class="p">})</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">called_temperatures</span> <span class="o">=</span> <span class="n">plot_date_mock</span><span class="o">.</span><span class="n">call_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">called_temperatures</span> <span class="o">==</span> <span class="p">[</span><span class="n">temperature</span><span class="p">]</span>  <span class="c1"># check that plot_date was called with temperatures as second arg</span>
+    <span class="n">show_mock</span><span class="o">.</span><span class="n">assert_called</span><span class="p">()</span>  <span class="c1"># check that show is called</span>
+</code></pre></div>
+
+<p>像这样更新导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">unittest.mock</span> <span class="kn">import</span> <span class="n">MagicMock</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">App</span>
+</code></pre></div>
+
+<p>由于我们不想在测试运行期间显示实际的图表，我们使用了<code>monkeypatch</code>来模拟<code>matplotlib</code>中的<code>plot_date</code>函数。然后，用单一温度调用待测方法。最后，我们检查了<code>plot_date</code>是否被正确调用(X和Y轴)以及<code>show</code>是否被调用。</p>
+<blockquote>
+<p>你可以在这里阅读更多关于用pytest <a href="https://www.patricksoftwareblog.com/monkeypatching-with-pytest/">打猴子补丁的内容，在这里</a>阅读更多关于嘲笑<a href="https://realpython.com/python-mock-library/">的内容。</a></p>
+</blockquote>
+<p>让我们转到方法实现:</p>
+<ol>
+<li>它接受一个参数<code>temperatures_by_hour</code>，该参数应该是与<code>read</code>方法的输出具有相同结构的字典。</li>
+<li>它必须将这个字典转换成可以在绘图中使用的两个向量:日期和温度。</li>
+<li>应该使用<code>matplotlib.dates.date2num</code>将日期转换成数字，以便在绘图中使用。</li>
+</ol>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">draw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">temperatures_by_hour</span><span class="p">):</span>
+    <span class="n">dates</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">temperatures</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">date</span><span class="p">,</span> <span class="n">temperature</span> <span class="ow">in</span> <span class="n">temperatures_by_hour</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">dates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">date</span><span class="p">))</span>
+        <span class="n">temperatures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">temperature</span><span class="p">)</span>
+
+    <span class="n">dates</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">dates</span><span class="o">.</span><span class="n">date2num</span><span class="p">(</span><span class="n">dates</span><span class="p">)</span>
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">plot_date</span><span class="p">(</span><span class="n">dates</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">'-'</span><span class="p">)</span>
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div>
+
+<p>进口:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.dates</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>
+</code></pre></div>
+
+<p>测试现在应该通过了:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/python-dependency-injection
+collected <span class="m">2</span> items
+
+test_app.py ..                                                                <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">2</span> passed <span class="k">in</span> <span class="m">0</span>.37s <span class="o">=====================================</span>
+</code></pre></div>
+
+<p><em> app.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.dates</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>
+
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+
+<span class="k">class</span> <span class="nc">App</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_name</span><span class="p">):</span>
+        <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">file_name</span><span class="p">),</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+            <span class="nb">next</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>  <span class="c1"># Skip header row.</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">reader</span><span class="p">:</span>
+                <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'</span><span class="si">%d</span><span class="s1">/%m/%Y %H:%M'</span><span class="p">)</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+                <span class="n">temperature</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="n">temperatures_by_hour</span><span class="p">[</span><span class="n">hour</span><span class="p">]</span> <span class="o">=</span> <span class="n">temperature</span>
+
+        <span class="k">return</span> <span class="n">temperatures_by_hour</span>
+
+    <span class="k">def</span> <span class="nf">draw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">temperatures_by_hour</span><span class="p">):</span>
+        <span class="n">dates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">temperatures</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">date</span><span class="p">,</span> <span class="n">temperature</span> <span class="ow">in</span> <span class="n">temperatures_by_hour</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">dates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">date</span><span class="p">))</span>
+            <span class="n">temperatures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">temperature</span><span class="p">)</span>
+
+        <span class="n">dates</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">dates</span><span class="o">.</span><span class="n">date2num</span><span class="p">(</span><span class="n">dates</span><span class="p">)</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">plot_date</span><span class="p">(</span><span class="n">dates</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">'-'</span><span class="p">)</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div>
+
+<p><em> test_app.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">unittest.mock</span> <span class="kn">import</span> <span class="n">MagicMock</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">App</span>
+
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+
+<span class="k">def</span> <span class="nf">test_read</span><span class="p">():</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'london.csv'</span><span class="p">))</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">assert</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">value</span> <span class="o">-</span> <span class="mi">0</span> <span class="o">==</span> <span class="n">value</span>
+
+
+<span class="k">def</span> <span class="nf">test_draw</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="n">plot_date_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">show_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'plot_date'</span><span class="p">,</span> <span class="n">plot_date_mock</span><span class="p">)</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'show'</span><span class="p">,</span> <span class="n">show_mock</span><span class="p">)</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">()</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="mf">14.52</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">({</span><span class="n">hour</span><span class="p">:</span> <span class="n">temperature</span><span class="p">})</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">called_temperatures</span> <span class="o">=</span> <span class="n">plot_date_mock</span><span class="o">.</span><span class="n">call_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">called_temperatures</span> <span class="o">==</span> <span class="p">[</span><span class="n">temperature</span><span class="p">]</span>  <span class="c1"># check that plot_date was called with temperatures as second arg</span>
+    <span class="n">show_mock</span><span class="o">.</span><span class="n">assert_called</span><span class="p">()</span>  <span class="c1"># check that show is called</span>
+</code></pre></div>
+
+<h3 id="running-the-app">运行应用程序</h3>
+<p>您已经具备了运行应用程序所需的一切，可以从选定的CSV文件中按小时绘制温度图。</p>
+<p>让我们使我们的应用程序可以运行。</p>
+<p>打开<em> app.py </em>并在底部添加以下代码片段:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">()</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>当<em> app.py </em>运行时，它首先从分配给<code>file_name</code>的命令行参数中读取CSV文件，然后绘制图形。</p>
+<p>运行应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python app.py london.csv
+</code></pre></div>
+
+<p>你应该会看到这样一个情节:</p>
+<p><img data-src="/static/images/blog/dependency-injection-python/temperature_by_hour.png" loading="lazy" class="lazyload" alt="Temperature by hour" src="../Images/a8e0a4afb41128e4b20cc3419e385faf.png" data-original-src="https://testdriven.io/static/images/blog/dependency-injection-python/temperature_by_hour.png"/></p>
+<blockquote>
+<p>如果遇到<code>Matplotlib is currently using agg, which is a non-GUI backend, so cannot show the figure.</code>，查<a href="https://stackoverflow.com/a/60205612/6555866">这个栈溢出答案</a>。</p>
+</blockquote>
+<h2 id="decoupling-the-data-source">解耦数据源</h2>
+<p>好吧。我们完成了应用程序绘制历史天气数据的初始迭代。它像预期的那样工作，我们很高兴使用它。也就是说，它与CSV紧密相关。如果您想使用不同的数据格式呢？比如来自API的JSON负载。这就是依赖注入发挥作用的地方。</p>
+<p>让我们把阅读部分从我们的主app中分离出来。</p>
+<p>首先，创建名为<em>test _ urban _ climate _ CSV . py</em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">App</span>
+<span class="kn">from</span> <span class="nn">urban_climate_csv</span> <span class="kn">import</span> <span class="n">DataSource</span>
+
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+
+<span class="k">def</span> <span class="nf">test_read</span><span class="p">():</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'london.csv'</span><span class="p">))</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">assert</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">value</span> <span class="o">-</span> <span class="mi">0</span> <span class="o">==</span> <span class="n">value</span>
+</code></pre></div>
+
+<p>这里的测试与我们在<em> test_app.py </em>中对<code>test_read</code>的测试相同。</p>
+<p>其次，添加一个名为<em> urban_climate_csv.py </em>的新文件。在该文件中，用一个<code>read</code>方法创建一个名为<code>DataSource</code>的类:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+
+<span class="k">class</span> <span class="nc">DataSource</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">'file_name'</span><span class="p">]),</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+            <span class="nb">next</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>  <span class="c1"># Skip header row.</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">reader</span><span class="p">:</span>
+                <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'</span><span class="si">%d</span><span class="s1">/%m/%Y %H:%M'</span><span class="p">)</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+                <span class="n">temperature</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="n">temperatures_by_hour</span><span class="p">[</span><span class="n">hour</span><span class="p">]</span> <span class="o">=</span> <span class="n">temperature</span>
+
+        <span class="k">return</span> <span class="n">temperatures_by_hour</span>
+</code></pre></div>
+
+<p>这与我们最初的应用程序中的<code>read</code>方法相同，但有一点不同:我们使用<code>kwargs</code>是因为我们希望所有的数据源都有相同的接口。因此，我们可以根据数据源添加新的阅读器。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">open_weather_csv</span> <span class="kn">import</span> <span class="n">DataSource</span>
+<span class="kn">from</span> <span class="nn">open_weather_json</span> <span class="kn">import</span> <span class="n">DataSource</span>
+<span class="kn">from</span> <span class="nn">open_weather_api</span> <span class="kn">import</span> <span class="n">DataSource</span>
+
+
+<span class="n">csv_reader</span> <span class="o">=</span> <span class="n">DataSource</span><span class="p">()</span>
+<span class="n">reader</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">'foo.csv'</span><span class="p">)</span>
+
+<span class="n">json_reader</span> <span class="o">=</span> <span class="n">DataSource</span><span class="p">()</span>
+<span class="n">reader</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">'foo.json'</span><span class="p">)</span>
+
+<span class="n">api_reader</span> <span class="o">=</span> <span class="n">DataSource</span><span class="p">()</span>
+<span class="n">reader</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s1">'https://foo.bar'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>测试现在应该通过了:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/python-dependency-injection
+collected <span class="m">2</span> items
+
+test_app.py ..                                                                <span class="o">[</span> <span class="m">66</span>%<span class="o">]</span>
+test_urban_climate_csv.py .                                                   <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">3</span> passed <span class="k">in</span> <span class="m">0</span>.48s <span class="o">=====================================</span>
+</code></pre></div>
+
+<p>现在，我们需要更新我们的<code>App</code>类。</p>
+<p>首先，更新<em> test_app.py </em>中<code>read</code>的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_read</span><span class="p">():</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="mf">14.52</span>
+    <span class="n">temperature_by_hour</span> <span class="o">=</span> <span class="p">{</span><span class="n">hour</span><span class="p">:</span> <span class="n">temperature</span><span class="p">}</span>
+
+    <span class="n">data_source</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">data_source</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">temperature_by_hour</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span>
+        <span class="n">data_source</span><span class="o">=</span><span class="n">data_source</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">'something.csv'</span><span class="p">)</span> <span class="o">==</span> <span class="n">temperature_by_hour</span>
+</code></pre></div>
+
+<p>那么是什么改变了呢？我们将<code>data_source</code>注入到我们的<code>App</code>中。这简化了测试，因为<code>read</code>方法只有一个任务:从数据源返回结果。这是依赖注入的第一个好处的例子:<strong>测试更容易，因为我们可以注入底层的依赖</strong>。</p>
+<p>也更新对<code>draw</code>的测试。同样，我们需要将数据源注入到<code>App</code>中，它可以是具有预期接口的“任何东西”——所以<em> MagicMock </em>会做:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_draw</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="n">plot_date_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">show_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'plot_date'</span><span class="p">,</span> <span class="n">plot_date_mock</span><span class="p">)</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'show'</span><span class="p">,</span> <span class="n">show_mock</span><span class="p">)</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">MagicMock</span><span class="p">())</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="mf">14.52</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">({</span><span class="n">hour</span><span class="p">:</span> <span class="n">temperature</span><span class="p">})</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">called_temperatures</span> <span class="o">=</span> <span class="n">plot_date_mock</span><span class="o">.</span><span class="n">call_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">called_temperatures</span> <span class="o">==</span> <span class="p">[</span><span class="n">temperature</span><span class="p">]</span>  <span class="c1"># check that plot_date was called with temperatures as second arg</span>
+    <span class="n">show_mock</span><span class="o">.</span><span class="n">assert_called</span><span class="p">()</span>  <span class="c1"># check that show is called</span>
+</code></pre></div>
+
+<p>同样更新<code>App</code>类:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.dates</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>
+
+
+<span class="k">class</span> <span class="nc">App</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data_source</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_source</span> <span class="o">=</span> <span class="n">data_source</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_source</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">draw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">temperatures_by_hour</span><span class="p">):</span>
+        <span class="n">dates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">temperatures</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">date</span><span class="p">,</span> <span class="n">temperature</span> <span class="ow">in</span> <span class="n">temperatures_by_hour</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">dates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">date</span><span class="p">))</span>
+            <span class="n">temperatures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">temperature</span><span class="p">)</span>
+
+        <span class="n">dates</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">dates</span><span class="o">.</span><span class="n">date2num</span><span class="p">(</span><span class="n">dates</span><span class="p">)</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">plot_date</span><span class="p">(</span><span class="n">dates</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">'-'</span><span class="p">)</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">show</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>首先，我们添加了一个<code>__init__</code>方法，以便可以注入数据源。其次，我们更新了<code>read</code>方法以使用<code>self.data_source</code>和<code>**kwargs</code>。看看这个界面简单了多少。<code>App</code>不再伴随着数据的读取了。</p>
+<p>最后，我们需要在实例创建时将我们的数据源注入到<code>App</code>中。</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">urban_climate_csv</span> <span class="kn">import</span> <span class="n">DataSource</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">DataSource</span><span class="p">())</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>再次运行你的应用程序，以确保它仍按预期运行:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python app.py london.csv
+</code></pre></div>
+
+<p>更新<em>test _ urban _ climate _ CSV . py</em>中的<code>test_read</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">from</span> <span class="nn">urban_climate_csv</span> <span class="kn">import</span> <span class="n">DataSource</span>
+
+
+<span class="k">def</span> <span class="nf">test_read</span><span class="p">():</span>
+    <span class="n">reader</span> <span class="o">=</span> <span class="n">DataSource</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">reader</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">'london.csv'</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">assert</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">value</span> <span class="o">-</span> <span class="mi">0</span> <span class="o">==</span> <span class="n">value</span>
+</code></pre></div>
+
+<p>测试通过了吗？</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/python-dependency-injection
+collected <span class="m">2</span> items
+
+test_app.py ..                                                                <span class="o">[</span> <span class="m">66</span>%<span class="o">]</span>
+test_urban_climate_csv.py .                                                   <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">3</span> passed <span class="k">in</span> <span class="m">0</span>.40s <span class="o">=====================================</span>
+</code></pre></div>
+
+<h2 id="adding-a-new-data-source">添加新的数据源</h2>
+<p>既然我们已经将<code>App</code>从数据源中分离出来，我们可以很容易地添加一个新的数据源。</p>
+<p>让我们使用来自<a href="https://openweathermap.org/api/one-call-api"> OpenWeather API </a>的数据。继续从API下载预先下载的响应:<a href="https://gist.githubusercontent.com/mjhea0/3cfc517f0b02dafb78eec9c921a049da/raw/1bcb225a254fefa6d7658225a55bb7071fb24516/moscow.json">这里</a>。另存为<em> moscow.json </em>。</p>
+<blockquote>
+<p>如果你愿意，可以随意注册OpenWeather API并获取不同城市的历史数据。</p>
+</blockquote>
+<p>添加一个名为<em>test _ open _ weather _ JSON . py</em>的新文件，并为一个<code>read</code>方法编写一个测试:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">from</span> <span class="nn">open_weather_json</span> <span class="kn">import</span> <span class="n">DataSource</span>
+
+
+<span class="k">def</span> <span class="nf">test_read</span><span class="p">():</span>
+    <span class="n">reader</span> <span class="o">=</span> <span class="n">DataSource</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">reader</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">'moscow.json'</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">assert</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">value</span> <span class="o">-</span> <span class="mi">0</span> <span class="o">==</span> <span class="n">value</span>
+</code></pre></div>
+
+<p>由于我们使用相同的接口来应用依赖注入，这个测试看起来应该非常类似于<em> test_urban_climate_csv </em>中的<code>test_read</code>。</p>
+<p>在静态类型的语言中，像Java和C#，所有的数据源都应该实现相同的接口——即<code>IDataSource</code>。多亏了Python中的<a href="https://realpython.com/lessons/duck-typing/"> duck typing </a>，我们可以实现同名的方法，这些方法为我们的每个数据源采用相同的参数(<code>**kwargs</code>):</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_source</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，让我们继续实施。</p>
+<p>添加名为<em> open_weather_json.py </em>的新文件。：</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+
+
+<span class="k">class</span> <span class="nc">DataSource</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">'file_name'</span><span class="p">],</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">json_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)[</span><span class="s1">'hourly'</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">json_data</span><span class="p">:</span>
+                <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'dt'</span><span class="p">])</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+                <span class="n">temperature</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'temp'</span><span class="p">])</span>
+                <span class="n">temperatures_by_hour</span><span class="p">[</span><span class="n">hour</span><span class="p">]</span> <span class="o">=</span> <span class="n">temperature</span>
+
+        <span class="k">return</span> <span class="n">temperatures_by_hour</span>
+</code></pre></div>
+
+<p>所以，我们使用了<code>json</code>模块来读取和加载一个JSON文件。然后，我们以与之前类似的方式提取数据。这次我们使用了<code>fromtimestamp</code>函数，因为测量时间是以Unix时间戳格式编写的。</p>
+<p>测试应该会通过。</p>
+<p>接下来，更新<em> app.py </em>来使用这个数据源:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">open_weather_json</span> <span class="kn">import</span> <span class="n">DataSource</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">DataSource</span><span class="p">())</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在这里，我们只是更改了导入。</p>
+<p>使用<em> moscow.json </em>作为参数再次运行您的应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python app.py moscow.json
+</code></pre></div>
+
+<p>您应该会看到一个包含来自所选JSON文件的数据的图。</p>
+<p>这是依赖注入的第二个好处的例子:<strong>扩展代码要简单得多</strong>。</p>
+<p>我们可以看到:</p>
+<ol>
+<li>现有的测试没有改变</li>
+<li>为新数据源编写测试很简单</li>
+<li>为新数据源实现一个接口也相当简单(您只需要知道数据的形状)</li>
+<li>我们不需要对<code>App</code>类做任何修改</li>
+</ol>
+<p>因此，我们现在可以用简单且可预测的步骤来扩展代码库，而不必接触已经编写好的测试或更改主应用程序。那是强大的。现在，您可以让开发人员专注于添加新的数据源，而无需了解主应用程序的上下文。也就是说，如果你需要一个新的开发人员，他需要了解整个项目的背景，由于分离，他们可能需要更长的时间来适应。</p>
+<h2 id="decoupling-the-plotting-library">分离绘图库</h2>
+<p>接下来，让我们将绘图部分从应用程序中分离出来，这样我们可以更容易地添加新的绘图库。因为这将是一个类似于数据源解耦的过程，所以在阅读本节的其余部分之前，请自己考虑一下这些步骤。</p>
+<p>看看<em> test_app.py </em>中的<code>draw</code>方法的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_draw</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="n">plot_date_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">show_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'plot_date'</span><span class="p">,</span> <span class="n">plot_date_mock</span><span class="p">)</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'show'</span><span class="p">,</span> <span class="n">show_mock</span><span class="p">)</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">MagicMock</span><span class="p">())</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="mf">14.52</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">({</span><span class="n">hour</span><span class="p">:</span> <span class="n">temperature</span><span class="p">})</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">called_temperatures</span> <span class="o">=</span> <span class="n">plot_date_mock</span><span class="o">.</span><span class="n">call_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">called_temperatures</span> <span class="o">==</span> <span class="p">[</span><span class="n">temperature</span><span class="p">]</span>  <span class="c1"># check that plot_date was called with temperatures as second arg</span>
+    <span class="n">show_mock</span><span class="o">.</span><span class="n">assert_called</span><span class="p">()</span>  <span class="c1"># check that show is called</span>
+</code></pre></div>
+
+<p>正如我们所见，它与Matplotlib相结合。对绘图库的更改将需要对测试进行更改。这是你真正想要避免的事情。</p>
+<p>那么，我们该如何改善这一点呢？</p>
+<p>让我们将应用程序的绘图部分提取到它自己的类中，就像我们读取数据源一样。</p>
+<p>添加一个名为<em> test_matplotlib_plot.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">unittest.mock</span> <span class="kn">import</span> <span class="n">MagicMock</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>
+
+<span class="kn">from</span> <span class="nn">matplotlib_plot</span> <span class="kn">import</span> <span class="n">Plot</span>
+
+
+<span class="k">def</span> <span class="nf">test_draw</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="n">plot_date_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">show_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'plot_date'</span><span class="p">,</span> <span class="n">plot_date_mock</span><span class="p">)</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="p">,</span> <span class="s1">'show'</span><span class="p">,</span> <span class="n">show_mock</span><span class="p">)</span>
+
+    <span class="n">plot</span> <span class="o">=</span> <span class="n">Plot</span><span class="p">()</span>
+    <span class="n">hours</span> <span class="o">=</span> <span class="p">[</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()]</span>
+    <span class="n">temperatures</span> <span class="o">=</span> <span class="p">[</span><span class="mf">14.52</span><span class="p">]</span>
+    <span class="n">plot</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">hours</span><span class="p">,</span>  <span class="n">temperatures</span><span class="p">)</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">called_temperatures</span> <span class="o">=</span> <span class="n">plot_date_mock</span><span class="o">.</span><span class="n">call_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">called_temperatures</span> <span class="o">==</span> <span class="n">temperatures</span>  <span class="c1"># check that plot_date was called with temperatures as second arg</span>
+    <span class="n">show_mock</span><span class="o">.</span><span class="n">assert_called</span><span class="p">()</span>  <span class="c1"># check that show is called</span>
+</code></pre></div>
+
+<p>为了实现<code>Plot</code>类，添加一个名为<em> matplotlib_plot.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">matplotlib.dates</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>
+
+
+<span class="k">class</span> <span class="nc">Plot</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">draw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hours</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">):</span>
+
+        <span class="n">hours</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">dates</span><span class="o">.</span><span class="n">date2num</span><span class="p">(</span><span class="n">hours</span><span class="p">)</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">plot_date</span><span class="p">(</span><span class="n">hours</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">'-'</span><span class="p">)</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">show</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，<code>draw</code>方法有两个参数:</p>
+<ol>
+<li><code>hours</code> -日期时间对象的列表</li>
+<li><code>temperatures</code> -一列数字</li>
+</ol>
+<p>这是我们未来所有<code>Plot</code>类的界面外观。因此，在这种情况下，只要这个接口和底层的<code>matplotlib</code>方法保持不变，我们的测试就会保持不变。</p>
+<p>运行测试:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/python-dependency-injection
+collected <span class="m">2</span> items
+
+test_app.py ..                                                                <span class="o">[</span> <span class="m">40</span>%<span class="o">]</span>
+test_matplotlib_plot.py .                                                     <span class="o">[</span> <span class="m">60</span>%<span class="o">]</span>
+test_open_weather_json.py .                                                   <span class="o">[</span> <span class="m">80</span>%<span class="o">]</span>
+test_urban_climate_csv.py .                                                   <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">5</span> passed <span class="k">in</span> <span class="m">0</span>.38s <span class="o">=====================================</span>
+</code></pre></div>
+
+<p>接下来，我们来更新一下<code>App</code>类。</p>
+<p>首先，像这样更新<em> test_app.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">unittest.mock</span> <span class="kn">import</span> <span class="n">MagicMock</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">App</span>
+
+
+<span class="k">def</span> <span class="nf">test_read</span><span class="p">():</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="mf">14.52</span>
+    <span class="n">temperature_by_hour</span> <span class="o">=</span> <span class="p">{</span><span class="n">hour</span><span class="p">:</span> <span class="n">temperature</span><span class="p">}</span>
+
+    <span class="n">data_source</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">data_source</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">temperature_by_hour</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span>
+        <span class="n">data_source</span><span class="o">=</span><span class="n">data_source</span><span class="p">,</span>
+        <span class="n">plot</span><span class="o">=</span><span class="n">MagicMock</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">'something.csv'</span><span class="p">)</span> <span class="o">==</span> <span class="n">temperature_by_hour</span>
+
+
+<span class="k">def</span> <span class="nf">test_draw</span><span class="p">():</span>
+    <span class="n">plot_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span>
+        <span class="n">data_source</span><span class="o">=</span><span class="n">MagicMock</span><span class="p">,</span>
+        <span class="n">plot</span><span class="o">=</span><span class="n">plot_mock</span>
+    <span class="p">)</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">iso_hour</span> <span class="o">=</span> <span class="n">hour</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="mf">14.52</span>
+    <span class="n">temperature_by_hour</span> <span class="o">=</span> <span class="p">{</span><span class="n">iso_hour</span><span class="p">:</span> <span class="n">temperature</span><span class="p">}</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperature_by_hour</span><span class="p">)</span>
+    <span class="n">plot_mock</span><span class="o">.</span><span class="n">draw</span><span class="o">.</span><span class="n">assert_called_with</span><span class="p">([</span><span class="n">hour</span><span class="p">],</span> <span class="p">[</span><span class="n">temperature</span><span class="p">])</span>
+</code></pre></div>
+
+<p>由于<code>test_draw</code>不再与Matplotlib耦合，我们在调用<code>draw</code>方法之前将plot注入到<code>App</code>。只要注入的<code>Plot</code>接口符合预期，测试就应该通过。因此，我们可以在测试中使用<code>MagicMock</code>。然后我们检查了是否如预期的那样调用了<code>draw</code>方法。我们还把剧情注入了<code>test_read</code>。仅此而已。</p>
+<p>更新<code>App</code>类:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+
+<span class="k">class</span> <span class="nc">App</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data_source</span><span class="p">,</span> <span class="n">plot</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_source</span> <span class="o">=</span> <span class="n">data_source</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plot</span> <span class="o">=</span> <span class="n">plot</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_source</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">draw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">temperatures_by_hour</span><span class="p">):</span>
+        <span class="n">dates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">temperatures</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">date</span><span class="p">,</span> <span class="n">temperature</span> <span class="ow">in</span> <span class="n">temperatures_by_hour</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">dates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">date</span><span class="p">))</span>
+            <span class="n">temperatures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">temperature</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">dates</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>重构后的<code>draw</code>方法现在简单多了。它只是:</p>
+<ol>
+<li>将字典转换成两个列表</li>
+<li>将ISO日期字符串转换为datetime对象</li>
+<li>调用<code>Plot</code>实例的<code>draw</code>方法</li>
+</ol>
+<p>测试:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/python-dependency-injection
+collected <span class="m">2</span> items
+
+test_app.py ..                                                                <span class="o">[</span> <span class="m">40</span>%<span class="o">]</span>
+test_matplotlib_plot.py .                                                     <span class="o">[</span> <span class="m">60</span>%<span class="o">]</span>
+test_open_weather_json.py .                                                   <span class="o">[</span> <span class="m">80</span>%<span class="o">]</span>
+test_urban_climate_csv.py .                                                   <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">5</span> passed <span class="k">in</span> <span class="m">0</span>.39s <span class="o">=====================================</span>
+</code></pre></div>
+
+<p>更新再次运行应用程序的代码片段:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">open_weather_json</span> <span class="kn">import</span> <span class="n">DataSource</span>
+    <span class="kn">from</span> <span class="nn">matplotlib_plot</span> <span class="kn">import</span> <span class="n">Plot</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">DataSource</span><span class="p">(),</span> <span class="n">Plot</span><span class="p">())</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>我们为<code>Plot</code>添加了一个新的导入，并将其注入到<code>App</code>中。</p>
+<p>再次运行你的应用程序，查看它是否仍在工作:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python app.py moscow.json
+</code></pre></div>
+
+<h2 id="adding-plotly">添加Plotly</h2>
+<p>开始安装<a href="https://github.com/plotly/plotly.py"> Plotly </a>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install plotly
+</code></pre></div>
+
+<p>接下来，向名为<em> test_plotly_plot.py </em>的新字段添加一个新测试:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">unittest.mock</span> <span class="kn">import</span> <span class="n">MagicMock</span>
+
+<span class="kn">import</span> <span class="nn">plotly.graph_objects</span>
+
+<span class="kn">from</span> <span class="nn">plotly_plot</span> <span class="kn">import</span> <span class="n">Plot</span>
+
+
+<span class="k">def</span> <span class="nf">test_draw</span><span class="p">(</span><span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="n">figure_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">plotly</span><span class="o">.</span><span class="n">graph_objects</span><span class="p">,</span> <span class="s1">'Figure'</span><span class="p">,</span> <span class="n">figure_mock</span><span class="p">)</span>
+    <span class="n">scatter_mock</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">monkeypatch</span><span class="o">.</span><span class="n">setattr</span><span class="p">(</span><span class="n">plotly</span><span class="o">.</span><span class="n">graph_objects</span><span class="p">,</span> <span class="s1">'Scatter'</span><span class="p">,</span> <span class="n">scatter_mock</span><span class="p">)</span>
+
+    <span class="n">plot</span> <span class="o">=</span> <span class="n">Plot</span><span class="p">()</span>
+    <span class="n">hours</span> <span class="o">=</span> <span class="p">[</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()]</span>
+    <span class="n">temperatures</span> <span class="o">=</span> <span class="p">[</span><span class="mf">14.52</span><span class="p">]</span>
+    <span class="n">plot</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">hours</span><span class="p">,</span>  <span class="n">temperatures</span><span class="p">)</span>
+
+    <span class="n">call_kwargs</span> <span class="o">=</span> <span class="n">scatter_mock</span><span class="o">.</span><span class="n">call_args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">call_kwargs</span><span class="p">[</span><span class="s1">'y'</span><span class="p">]</span> <span class="o">==</span> <span class="n">temperatures</span>  <span class="c1"># check that plot_date was called with temperatures as second arg</span>
+    <span class="n">figure_mock</span><span class="p">()</span><span class="o">.</span><span class="n">show</span><span class="o">.</span><span class="n">assert_called</span><span class="p">()</span>  <span class="c1"># check that show is called</span>
+</code></pre></div>
+
+<p>和matplotlib <code>Plot</code>测试基本相同。主要的变化是如何模仿Plotly的对象和方法。</p>
+<p>其次，添加名为<em> plotly_plot.py </em>的文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">plotly.graph_objects</span>
+
+
+<span class="k">class</span> <span class="nc">Plot</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">draw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hours</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">):</span>
+
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plotly</span><span class="o">.</span><span class="n">graph_objects</span><span class="o">.</span><span class="n">Figure</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">[</span><span class="n">plotly</span><span class="o">.</span><span class="n">graph_objects</span><span class="o">.</span><span class="n">Scatter</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">hours</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">temperatures</span><span class="p">)]</span>
+        <span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这里，我们用<code>plotly</code>画了一个带日期的图。就是这样。</p>
+<p>测试应该通过:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/python-dependency-injection
+collected <span class="m">6</span> items
+
+test_app.py ..                                                                <span class="o">[</span> <span class="m">33</span>%<span class="o">]</span>
+test_matplotlib_plot.py .                                                     <span class="o">[</span> <span class="m">50</span>%<span class="o">]</span>
+test_open_weather_json.py .                                                   <span class="o">[</span> <span class="m">66</span>%<span class="o">]</span>
+test_plotly_plot.py .                                                         <span class="o">[</span> <span class="m">83</span>%<span class="o">]</span>
+test_urban_climate_csv.py .                                                   <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">6</span> passed <span class="k">in</span> <span class="m">0</span>.46s <span class="o">=====================================</span>
+</code></pre></div>
+
+<p>更新运行片段以使用<code>plotly</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">open_weather_json</span> <span class="kn">import</span> <span class="n">DataSource</span>
+    <span class="kn">from</span> <span class="nn">plotly_plot</span> <span class="kn">import</span> <span class="n">Plot</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">DataSource</span><span class="p">(),</span> <span class="n">Plot</span><span class="p">())</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>使用<em> moscow.json </em>运行您的应用程序，在浏览器中查看新的地块:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python app.py moscow.json
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/dependency-injection-python/temperature_by_hour_moscow.png" loading="lazy" class="lazyload" alt="Temperature by hour" src="../Images/8de5bd80a799b405180aa5bac911bc52.png" data-original-src="https://testdriven.io/static/images/blog/dependency-injection-python/temperature_by_hour_moscow.png"/></p>
+<h2 id="adding-configuration">添加配置</h2>
+<p>此时，我们可以轻松地在应用程序中添加和使用不同的数据源和绘图库。我们的测试不再与实现相结合。也就是说，我们仍然需要对代码进行编辑，以添加新的数据源或绘图库:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">open_weather_json</span> <span class="kn">import</span> <span class="n">DataSource</span>
+    <span class="kn">from</span> <span class="nn">plotly_plot</span> <span class="kn">import</span> <span class="n">Plot</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">DataSource</span><span class="p">(),</span> <span class="n">Plot</span><span class="p">())</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>尽管它只是一小段代码，但我们可以将依赖注入向前推进一步，不再需要修改代码。相反，我们将使用一个配置文件来选择数据源和绘图库。</p>
+<p>我们将使用一个简单的JSON对象来配置应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"data_source"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"urban_climate_csv"</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nt">"plot"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"plotly_plot"</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>将它添加到一个名为<em> config.json </em>的新文件中。</p>
+<p>向<em> test_app.py </em>添加新的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_configure</span><span class="p">():</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span>
+        <span class="s1">'config.json'</span>
+    <span class="p">)</span>
+
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">App</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们检查了从<code>configure</code>方法返回的<code>App</code>的实例。该方法将读取配置文件并加载选中的<code>DataSource</code>和<code>Plot</code>。</p>
+<p>将<code>configure</code>添加到<code>App</code>类:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+
+<span class="k">class</span> <span class="nc">App</span><span class="p">:</span>
+
+    <span class="o">...</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">configure</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+
+        <span class="n">data_source</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">'data_source'</span><span class="p">][</span><span class="s1">'name'</span><span class="p">])</span><span class="o">.</span><span class="n">DataSource</span><span class="p">()</span>
+
+        <span class="n">plot</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">'plot'</span><span class="p">][</span><span class="s1">'name'</span><span class="p">])</span><span class="o">.</span><span class="n">Plot</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">data_source</span><span class="p">,</span> <span class="n">plot</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">open_weather_json</span> <span class="kn">import</span> <span class="n">DataSource</span>
+    <span class="kn">from</span> <span class="nn">plotly_plot</span> <span class="kn">import</span> <span class="n">Plot</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="p">(</span><span class="n">DataSource</span><span class="p">(),</span> <span class="n">Plot</span><span class="p">())</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>因此，在加载JSON文件之后，我们从配置文件中定义的相应模块中导入了<code>DataSource</code>和<code>Plot</code>。</p>
+<p><code>__import__</code>用于动态导入模块。例如，将<code>config['data_source']['name']</code>设置为<code>urban_climate_csv</code>相当于:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">urban_climate_csv</span>
+
+<span class="n">data_source</span> <span class="o">=</span> <span class="n">urban_climate_csv</span><span class="o">.</span><span class="n">DataSource</span><span class="p">()</span>
+</code></pre></div>
+
+<p>运行测试:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python -m pytest .
+
+<span class="o">================================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">====================================</span>
+platform darwin -- Python <span class="m">3</span>.10.0, pytest-6.2.5, py-1.11.0, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/python-dependency-injection
+collected <span class="m">6</span> items
+
+test_app.py ...                                                               <span class="o">[</span> <span class="m">42</span>%<span class="o">]</span>
+test_matplotlib_plot.py .                                                     <span class="o">[</span> <span class="m">57</span>%<span class="o">]</span>
+test_open_weather_json.py .                                                   <span class="o">[</span> <span class="m">71</span>%<span class="o">]</span>
+test_plotly_plot.py .                                                         <span class="o">[</span> <span class="m">85</span>%<span class="o">]</span>
+test_urban_climate_csv.py .                                                   <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">=================================</span> <span class="m">6</span> passed <span class="k">in</span> <span class="m">0</span>.46s <span class="o">=====================================</span>
+</code></pre></div>
+
+<p>最后，更新<em> app.py </em>中的代码片段以使用新添加的方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="n">config_file</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">App</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+    <span class="n">temperatures_by_hour</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">temperatures_by_hour</span><span class="p">)</span>
+</code></pre></div>
+
+<p>消除导入后，您可以快速地将一个数据源或绘图库替换为另一个。</p>
+<p>再次运行您的应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python app.py config.json london.csv
+</code></pre></div>
+
+<p>更新配置以使用<code>open_weather_json</code>作为数据源:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span>
+  <span class="s2">"data_source"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"open_weather_json"</span>
+  <span class="p">},</span>
+  <span class="s2">"plot"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"plotly_plot"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>运行应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python app.py config.json moscow.json
+</code></pre></div>
+
+<h2 id="a-different-view">不同的观点</h2>
+<p>主<code>App</code>类最初是一个无所不知的对象，负责从CSV读取数据并绘制图形。我们使用依赖注入来分离读取和绘制功能。<code>App</code>类现在是一个容器，它有一个简单的接口来连接读取和绘制部分。实际的读取和绘制逻辑在专门的类中处理，这些类只负责一件事。</p>
+<p>好处:</p>
+<ol>
+<li>方法更容易测试</li>
+<li>依赖性更容易被模仿</li>
+<li>每当我们扩展应用程序时，测试不必改变</li>
+<li>扩展应用程序更容易</li>
+<li>维护应用程序更容易</li>
+</ol>
+<p>我们做了什么特别的事吗？不完全是。除了软件工程之外，依赖注入背后的思想在工程界非常普遍。</p>
+<p>例如，建造房屋外墙的木匠通常会为窗户和门留出空槽，以便专门从事窗户和门安装的人可以安装它们。当房子完工，业主搬进来的时候，他们需要拆掉房子的一半，仅仅是为了改变一个现有的窗户吗？不。他们可以修理坏了的窗户。只要窗口具有相同的界面(例如，宽度、高度、深度等)。)，他们可以安装和使用它们。他们能在安装之前打开窗户吗？当然了。他们能在安装之前测试窗户是否被打破吗？是的。这也是依赖注入的一种形式。</p>
+<p>在软件工程中看到和使用依赖注入可能不太自然，但它和其他工程专业一样有效。</p>
+<h2 id="next-steps">后续步骤</h2>
+<p>想要更多吗？</p>
+<ol>
+<li>扩展应用程序以获取名为<code>open_weather_api</code>的新数据源。这个源获取一个城市，进行API调用，然后以正确的形式为<code>draw</code>方法返回数据。</li>
+<li>添加<a href="https://docs.bokeh.org/">散景</a>进行绘图。</li>
+</ol>
+<h2 id="conclusion">结论</h2>
+<p>本文展示了如何在真实的应用程序中实现依赖注入。</p>
+<p>尽管依赖注入是一种强大的技术，但它并不是银弹。再想想房子的类比:房子的外壳和门窗是松散耦合的。帐篷也是如此吗？不。如果帐篷的门损坏得无法修复，你可能会想买一个新帐篷，而不是试图修复损坏的门。因此，你不能将依赖注入分离并应用到所有的事情上。事实上，如果做得太早，它会把你拖入过早优化的地狱。虽然它更容易维护，但是对于项目的新手来说，它有更多的表面区域，解耦的代码可能更难理解。</p>
+<p>所以在你跳进去之前，问问你自己:</p>
+<ol>
+<li>我的代码是“帐篷”还是“房子”？</li>
+<li>在这个特定领域使用依赖注入的好处(和坏处)是什么？</li>
+<li>我该如何向一个项目新人解释？</li>
+</ol>
+<p>如果你能轻松回答这些问题，而且利大于弊，那就去做吧。否则目前可能不适合使用。</p>
+<p>编码快乐！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

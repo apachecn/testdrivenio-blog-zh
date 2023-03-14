@@ -1,0 +1,816 @@
+<html>
+<head>
+<title>Django Stripe Subscriptions </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django条纹订阅</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-stripe-subscriptions/#0001-01-01">https://testdriven.io/blog/django-stripe-subscriptions/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程着眼于如何用Django和<a href="https://stripe.com/"> Stripe </a>处理订阅支付。</p>
+<blockquote>
+<p>需要接受一次性付款？查看<a href="/blog/django-stripe-tutorial/"> Django条纹教程</a>。</p>
+</blockquote>
+
+
+
+<h2 id="stripe-subscription-payment-options">条带订阅支付选项</h2>
+<p>有多种方法可以实现和处理条带订阅，但最常见的两种方法是:</p>
+<ol>
+<li><a href="https://stripe.com/docs/billing/subscriptions/fixed-price">固定价格订阅</a></li>
+<li><a href="https://stripe.com/docs/payments/save-and-reuse#checkout">未来付款</a></li>
+</ol>
+<p>在这两种情况下，您都可以使用<a href="https://stripe.com/payments/checkout"> Stripe Checkout </a>(这是一个Stripe托管的Checkout页面)或<a href="https://stripe.com/payments/elements"> Stripe Elements </a>(这是一组用于构建支付表单的定制UI组件)。如果您不介意将您的用户重定向到Stripe托管的页面，并希望Stripe为您处理大部分支付流程(例如，创建客户和支付意向等)，请使用Stripe Checkout。)，否则使用条纹元素。</p>
+<p>固定价格方法更容易建立，但是你不能完全控制计费周期和支付。通过使用这种方法，Stripe将在成功结账后的每个结算周期自动开始向您的客户收费。</p>
+<p>固定价格步骤:</p>
+<ol>
+<li>将用户重定向至条带检验(使用<code>mode=subscription</code>)</li>
+<li>创建一个监听<code>checkout.session.completed</code>的网络钩子</li>
+<li>调用webhook后，将相关数据保存到数据库中</li>
+</ol>
+<p>未来付款方式更难设置，但这种方式可以让您完全控制订阅。您提前收集客户详细信息和付款信息，并在未来某个日期向客户收费。这种方法还允许您同步计费周期，以便您可以在同一天向所有客户收费。</p>
+<p>未来付款步骤:</p>
+<ol>
+<li>将用户重定向到条带结帐(使用<code>mode=setup</code>)以收集支付信息</li>
+<li>创建一个监听<code>checkout.session.completed</code>的网络钩子</li>
+<li>调用webhook后，将相关数据保存到数据库中</li>
+<li>从那里，您可以在将来使用<a href="https://stripe.com/docs/payments/payment-intents">付款意向API </a>对付款方式收费</li>
+</ol>
+<p>在本教程中，我们将使用带条纹结帐的固定价格方法。</p>
+<h2 id="billing-cycles">计费周期</h2>
+<p>在开始之前，值得注意的是Stripe没有默认的计费频率。每个条带订阅的记账日期由以下两个因素决定:</p>
+<ol>
+<li>计费周期锚点(订阅创建的时间戳)</li>
+<li>重复间隔(每天、每月、每年等。)</li>
+</ol>
+<p>例如，每月订阅设置为在每月2日循环的客户将始终在2日计费。</p>
+<p>如果一个月没有锚定日，订阅将在该月的最后一天计费。例如，从1月31日开始的订阅在2月28日(或闰年的2月29日)计费，然后是3月31日、4月30日等等。</p>
+<blockquote>
+<p>要了解有关计费周期的更多信息，请参考Stripe文档中的<a href="https://stripe.com/docs/billing/subscriptions/billing-cycle">设置订阅计费周期日期</a>页面。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>让我们首先为我们的项目创建一个新目录。在目录中，我们将创建并激活一个新的虚拟环境，安装Django，并使用django-admin创建一个新的Django项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-stripe-subscriptions <span class="o">&amp;&amp;</span> <span class="nb">cd</span> django-stripe-subscriptions
+$ python3.10 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install django
+<span class="o">(</span>env<span class="o">)</span>$ django-admin startproject djangostripe .
+</code></pre></div>
+
+<p>之后，创建一个名为<code>subscriptions</code>的新应用:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py startapp subscriptions
+</code></pre></div>
+
+<p>在<code>INSTALLED_APPS</code>下的<em> djangostripe/settings.py </em>中注册app:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'subscriptions.apps.SubscriptionsConfig'</span><span class="p">,</span> <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>创建一个名为<code>home</code>的新视图，它将作为我们的主索引页面:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>通过向<em> subscriptions/urls.py </em>添加以下内容，为视图分配一个URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'subscriptions-home'</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>现在，让我们告诉Django，<code>subscriptions</code>应用程序在主应用程序中有自己的URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span><span class="p">,</span> <span class="n">include</span> <span class="c1"># new</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'subscriptions.urls'</span><span class="p">)),</span> <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>最后，在名为“模板”的新文件夹中创建一个名为<em>home.html</em>的新模板。将以下HTML添加到模板中:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/home.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Stripe Subscriptions<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://code.jquery.com/jquery-3.5.1.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span> <span class="na">id</span><span class="o">=</span><span class="s">"submitBtn"</span><span class="p">&gt;</span>Subscribe<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>确保更新<em> settings.py </em>文件，以便Django知道要查找“模板”文件夹:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/settings.py</span>
+
+<span class="n">TEMPLATES</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s1">'BACKEND'</span><span class="p">:</span> <span class="s1">'django.template.backends.django.DjangoTemplates'</span><span class="p">,</span>
+        <span class="s1">'DIRS'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'templates'</span><span class="p">],</span> <span class="c1"># new</span>
+        <span class="o">...</span>
+</code></pre></div>
+
+<p>最后运行<code>migrate</code>来同步数据库，运行<code>runserver</code>来启动Django的本地web服务器。</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>在您选择的浏览器中访问<a href="http://localhost:8000/"> http://localhost:8000/ </a>。您应该看到“Subscribe”按钮，我们稍后将使用该按钮将客户重定向到Stripe Checkout页面。</p>
+<h2 id="add-stripe">添加条纹</h2>
+<p>准备好基础项目后，让我们添加Stripe。安装最新版本:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install stripe
+</code></pre></div>
+
+<p>接下来，<a href="https://dashboard.stripe.com/register">注册一个Stipe账户的</a>(如果你还没有注册的话)并导航到<a href="https://dashboard.stripe.com/test/dashboard">仪表板</a>。单击“Developers ”,然后从左侧栏的列表中单击“API keys ”:</p>
+<p><img data-src="/static/images/blog/django/django-stripe/developerskey.png" loading="lazy" class="lazyload" alt="Stripe Developers Key" src="../Images/41cac045dc47f0547301c9f65d7e3b54.png" data-original-src="https://testdriven.io/static/images/blog/django/django-stripe/developerskey.png"/></p>
+<p>每个条带帐户有四个<a href="https://stripe.com/docs/keys"> API密钥</a>:两个用于测试，两个用于生产。每一对都有一个“秘密密钥”和一个“可公开密钥”。不要向任何人透露密钥；可发布的密钥将被嵌入到任何人都可以看到的页面上的JavaScript中。</p>
+<p>目前右上角的“查看测试数据”开关表示我们正在使用测试键。这就是我们想要的。</p>
+<p>在你的<em> settings.py </em>文件的底部，添加下面两行，包括你自己的测试秘密和可发布的密钥。确保在实际的键周围包含<code>''</code>字符。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/settings.py</span>
+
+<span class="n">STRIPE_PUBLISHABLE_KEY</span> <span class="o">=</span> <span class="s1">'&lt;enter your stripe publishable key&gt;'</span>
+<span class="n">STRIPE_SECRET_KEY</span> <span class="o">=</span> <span class="s1">'&lt;enter your stripe secret key&gt;'</span>
+</code></pre></div>
+
+<p>最后，您需要在<a href="https://dashboard.stripe.com/settings/account">https://dashboard.stripe.com/settings/account</a>的“帐户设置”中指定一个“帐户名称”。</p>
+<h2 id="create-a-product">创造产品</h2>
+<p>接下来，让我们创建一个要销售的订阅产品。</p>
+<p>单击“产品”，然后单击“添加产品”。</p>
+<p>添加产品名称和描述，输入价格，然后选择“重复”:</p>
+<p><img data-src="/static/images/blog/django/django-stripe/addproduct3.png" loading="lazy" class="lazyload" alt="Stripe Add Product" src="../Images/12c59562740170467ea1f1a9d8d57845.png" data-original-src="https://testdriven.io/static/images/blog/django/django-stripe/addproduct3.png"/></p>
+<p>点击“保存产品”。</p>
+<p>接下来，获取价格的API ID:</p>
+<p><img data-src="/static/images/blog/django/django-stripe/addproduct4.png" loading="lazy" class="lazyload" alt="Stripe Add Product" src="../Images/c258214cd8b5525be6d6bf5b471dc3ce.png" data-original-src="https://testdriven.io/static/images/blog/django/django-stripe/addproduct4.png"/></p>
+<p>将ID保存在<em> settings.py </em>文件中，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/settings.py</span>
+
+<span class="n">STRIPE_PRICE_ID</span> <span class="o">=</span> <span class="s1">'&lt;enter your stripe price id&gt;'</span>
+</code></pre></div>
+
+<h2 id="authentication">证明</h2>
+<p>为了将Django用户与Stripe客户相关联，并在将来实现订阅管理，我们需要在允许客户订阅服务之前强制执行用户身份验证。我们可以通过向所有需要认证的视图添加一个<code>@login_required</code>装饰器来实现这一点。</p>
+<p>先来保护一下<code>home</code>视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.decorators</span> <span class="kn">import</span> <span class="n">login_required</span>  <span class="c1"># new</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+
+<span class="nd">@login_required</span>  <span class="c1"># new</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在，当未经认证的用户试图访问<code>home</code>视图时，他们将被重定向到<em> settings.py </em>中定义的<code>LOGIN_REDIRECT_URL</code>。</p>
+<p>如果您有首选的身份验证系统，现在就设置并配置<code>LOGIN_REDIRECT_URL</code>，否则跳到下一部分安装<a href="https://github.com/pennersr/django-allauth"> django-allauth </a>。</p>
+<h3 id="django-allauth-optional">django-allauth(可选)</h3>
+<p>django-allauth是最流行的django包之一，用于解决认证、注册、帐户管理和第三方帐户认证。我们将使用它来配置一个简单的注册/登录系统。</p>
+<p>首先，安装软件包:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install django-allauth
+</code></pre></div>
+
+<p>像这样更新<em> djangostripe/settings.py </em>中的<code>INSTALLED_APPS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sites'</span><span class="p">,</span> <span class="c1"># new</span>
+    <span class="s1">'allauth'</span><span class="p">,</span> <span class="c1"># new</span>
+    <span class="s1">'allauth.account'</span><span class="p">,</span> <span class="c1"># new</span>
+    <span class="s1">'allauth.socialaccount'</span><span class="p">,</span> <span class="c1"># new</span>
+    <span class="s1">'subscriptions.apps.SubscriptionsConfig'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>接下来，将以下django-allauth配置添加到<em> djangostripe/settings.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/settings.py</span>
+
+<span class="n">AUTHENTICATION_BACKENDS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># Needed to login by username in Django admin, regardless of `allauth`</span>
+    <span class="s1">'django.contrib.auth.backends.ModelBackend'</span><span class="p">,</span>
+
+    <span class="c1"># `allauth` specific authentication methods, such as login by e-mail</span>
+    <span class="s1">'allauth.account.auth_backends.AuthenticationBackend'</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="c1"># We have to set this variable, because we enabled 'django.contrib.sites'</span>
+<span class="n">SITE_ID</span> <span class="o">=</span> <span class="mi">1</span>
+
+<span class="c1"># User will be redirected to this page after logging in</span>
+<span class="n">LOGIN_REDIRECT_URL</span> <span class="o">=</span> <span class="s1">'/'</span>
+
+<span class="c1"># If you don't have an email server running yet add this line to avoid any possible errors.</span>
+<span class="n">EMAIL_BACKEND</span> <span class="o">=</span> <span class="s1">'django.core.mail.backends.console.EmailBackend'</span>
+</code></pre></div>
+
+<p>注册allauth URLs:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span><span class="p">,</span> <span class="n">include</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'subscriptions.urls'</span><span class="p">)),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'accounts/'</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'allauth.urls'</span><span class="p">)),</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>应用迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>通过运行服务器并导航到<a href="http://localhost.com:8000/">http://localhost.com:8000/</a>来测试auth。您应该会被重定向到注册页面。创建一个帐户，然后登录。</p>
+<h2 id="database-model">数据库模型</h2>
+<p>为了正确处理客户和订阅，我们需要在数据库中存储一些信息。让我们创建一个名为<code>StripeCustomer</code>的新模型，它将存储Stripe的<code>customerId</code>和<code>subscriptionId</code>，并将其关联回Django auth用户。这将允许我们从Stripe获取我们的客户和订阅数据。</p>
+<blockquote>
+<p>理论上，我们可以在每次需要时从Stripe中获取<code>customerId</code>和<code>subscriptionId</code>，但这将极大地增加我们被Stripe限制<a href="https://stripe.com/docs/rate-limits">速率</a>的机会。</p>
+</blockquote>
+<p>让我们在<em> subscriptions/models.py </em>中创建我们的模型:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/models.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">StripeCustomer</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">OneToOneField</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">stripeCustomerId</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">255</span><span class="p">)</span>
+    <span class="n">stripeSubscriptionId</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">255</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span>
+</code></pre></div>
+
+<p>在<em> subscriptions/admin.py </em>中向管理员注册:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/admin.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">subscriptions.models</span> <span class="kn">import</span> <span class="n">StripeCustomer</span>
+
+
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">StripeCustomer</span><span class="p">)</span>
+</code></pre></div>
+
+<p>创建和应用迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations <span class="o">&amp;&amp;</span> python manage.py migrate
+</code></pre></div>
+
+<h2 id="get-publishable-key">获取可发布密钥</h2>
+<h3 id="javascript-static-file">JavaScript静态文件</h3>
+<p>首先创建一个新的静态文件来保存我们所有的JavaScript:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ mkdir static
+<span class="o">(</span>env<span class="o">)</span>$ touch static/main.js
+</code></pre></div>
+
+<p>向新的<em> main.js </em>文件添加快速健全检查:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// static/main.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check!"</span><span class="p">);</span><span class="w"/>
+</code></pre></div>
+
+<p>然后更新<em> settings.py </em>文件，这样Django就知道在哪里可以找到静态文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostripe/settings.py</span>
+
+<span class="n">STATIC_URL</span> <span class="o">=</span> <span class="s1">'static/'</span>
+
+<span class="c1"># for django &gt;= 3.1</span>
+<span class="n">STATICFILES_DIRS</span> <span class="o">=</span> <span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'static'</span><span class="p">)]</span>  <span class="c1"># new</span>
+
+<span class="c1"># for django &lt; 3.1</span>
+<span class="c1"># STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]  # new</span>
+</code></pre></div>
+
+<p>在HTML模板中添加静态模板标签和新的脚本标签:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/home.html --&gt;</span>
+
+{% load static %} <span class="cm">&lt;!-- new --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Stripe Subscriptions<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://js.stripe.com/v3/"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>  <span class="cm">&lt;!-- new --&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"{% static 'main.js' %}"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span> <span class="cm">&lt;!-- new --&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://code.jquery.com/jquery-3.5.1.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span> <span class="na">id</span><span class="o">=</span><span class="s">"submitBtn"</span><span class="p">&gt;</span>Subscribe<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>再次运行开发服务器。导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>，打开JavaScript控制台。您应该会看到控制台内部的健全性检查。</p>
+<h3 id="view">视角</h3>
+<p>接下来，向<em> subscriptions/views.py </em>添加一个新视图来处理AJAX请求:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span> <span class="c1"># new</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.decorators</span> <span class="kn">import</span> <span class="n">login_required</span>
+<span class="kn">from</span> <span class="nn">django.http.response</span> <span class="kn">import</span> <span class="n">JsonResponse</span> <span class="c1"># new</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.csrf</span> <span class="kn">import</span> <span class="n">csrf_exempt</span> <span class="c1"># new</span>
+
+
+<span class="nd">@login_required</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">)</span>
+
+
+<span class="c1"># new</span>
+<span class="nd">@csrf_exempt</span>
+<span class="k">def</span> <span class="nf">stripe_config</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'GET'</span><span class="p">:</span>
+        <span class="n">stripe_config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'publicKey'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_PUBLISHABLE_KEY</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">(</span><span class="n">stripe_config</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+<p>也添加一个新的URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'subscriptions-home'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'config/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">stripe_config</span><span class="p">),</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="ajax-request">AJAX请求</h3>
+<p>接下来，使用<a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API">获取API </a>向<em> static/main.js </em>中的新<code>/config/</code>端点发出AJAX请求:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// static/main.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check!"</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// new</span><span class="w"/>
+<span class="c1">// Get Stripe publishable key</span><span class="w"/>
+<span class="nx">fetch</span><span class="p">(</span><span class="s2">"/config/"</span><span class="p">)</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Initialize Stripe.js</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">stripe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">Stripe</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">publicKey</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>来自<code>fetch</code>请求的响应是一个<a href="https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream">可读流</a>。<code>result.json()</code>返回一个承诺，我们将它解析为一个JavaScript对象——即<code>data</code>。然后我们使用点符号来访问<code>publicKey</code>以获得可发布的密钥。</p>
+<h2 id="create-checkout-session">创建签出会话</h2>
+<p>接下来，我们需要将一个事件处理程序附加到按钮的click事件，该事件将向服务器发送另一个AJAX请求，以生成一个新的结帐会话ID。</p>
+<h3 id="view_1">视角</h3>
+<p>首先，添加新视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="nd">@csrf_exempt</span>
+<span class="k">def</span> <span class="nf">create_checkout_session</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'GET'</span><span class="p">:</span>
+        <span class="n">domain_url</span> <span class="o">=</span> <span class="s1">'http://localhost:8000/'</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">checkout_session</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">checkout</span><span class="o">.</span><span class="n">Session</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">client_reference_id</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span> <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">success_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s1">'success?session_id=</span><span class="si">{CHECKOUT_SESSION_ID}</span><span class="s1">'</span><span class="p">,</span>
+                <span class="n">cancel_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s1">'cancel/'</span><span class="p">,</span>
+                <span class="n">payment_method_types</span><span class="o">=</span><span class="p">[</span><span class="s1">'card'</span><span class="p">],</span>
+                <span class="n">mode</span><span class="o">=</span><span class="s1">'subscription'</span><span class="p">,</span>
+                <span class="n">line_items</span><span class="o">=</span><span class="p">[</span>
+                    <span class="p">{</span>
+                        <span class="s1">'price'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_PRICE_ID</span><span class="p">,</span>
+                        <span class="s1">'quantity'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="p">}</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'sessionId'</span><span class="p">:</span> <span class="n">checkout_session</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]})</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'error'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)})</span>
+</code></pre></div>
+
+<p>这里，如果请求方法是<code>GET</code>，我们定义了一个<code>domain_url</code>，将条带密钥分配给<code>stripe.api_key</code>(因此当我们请求创建一个新的签出会话时，它将被自动发送)，创建了签出会话，并在响应中发回了ID。注意<code>success_url</code>和<code>cancel_url</code>。在成功支付或取消的情况下，用户将分别被重定向回这些URL。我们将很快设置这些视图。</p>
+<p>不要忘记重要的一点:</p>
+
+
+<p>完整的文件现在应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="kn">import</span> <span class="nn">stripe</span>
+<span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.decorators</span> <span class="kn">import</span> <span class="n">login_required</span>
+<span class="kn">from</span> <span class="nn">django.http.response</span> <span class="kn">import</span> <span class="n">JsonResponse</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.csrf</span> <span class="kn">import</span> <span class="n">csrf_exempt</span>
+
+
+<span class="nd">@login_required</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">)</span>
+
+
+<span class="nd">@csrf_exempt</span>
+<span class="k">def</span> <span class="nf">stripe_config</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'GET'</span><span class="p">:</span>
+        <span class="n">stripe_config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'publicKey'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_PUBLISHABLE_KEY</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">(</span><span class="n">stripe_config</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+
+<span class="nd">@csrf_exempt</span>
+<span class="k">def</span> <span class="nf">create_checkout_session</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'GET'</span><span class="p">:</span>
+        <span class="n">domain_url</span> <span class="o">=</span> <span class="s1">'http://localhost:8000/'</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">checkout_session</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">checkout</span><span class="o">.</span><span class="n">Session</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">client_reference_id</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span> <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">success_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s1">'success?session_id=</span><span class="si">{CHECKOUT_SESSION_ID}</span><span class="s1">'</span><span class="p">,</span>
+                <span class="n">cancel_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s1">'cancel/'</span><span class="p">,</span>
+                <span class="n">payment_method_types</span><span class="o">=</span><span class="p">[</span><span class="s1">'card'</span><span class="p">],</span>
+                <span class="n">mode</span><span class="o">=</span><span class="s1">'subscription'</span><span class="p">,</span>
+                <span class="n">line_items</span><span class="o">=</span><span class="p">[</span>
+                    <span class="p">{</span>
+                        <span class="s1">'price'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_PRICE_ID</span><span class="p">,</span>
+                        <span class="s1">'quantity'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="p">}</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'sessionId'</span><span class="p">:</span> <span class="n">checkout_session</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]})</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'error'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)})</span>
+</code></pre></div>
+
+<h3 id="ajax-request_1">AJAX请求</h3>
+<p>注册结帐会话URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'subscriptions-home'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'config/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">stripe_config</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'create-checkout-session/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">create_checkout_session</span><span class="p">),</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>将事件处理程序和后续AJAX请求添加到<em> static/main.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// static/main.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check!"</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// Get Stripe publishable key</span><span class="w"/>
+<span class="nx">fetch</span><span class="p">(</span><span class="s2">"/config/"</span><span class="p">)</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Initialize Stripe.js</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">stripe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">Stripe</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">publicKey</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// new</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Event handler</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">submitBtn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#submitBtn"</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">submitBtn</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">submitBtn</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Get Checkout Session ID</span><span class="w"/>
+<span class="w">    </span><span class="nx">fetch</span><span class="p">(</span><span class="s2">"/create-checkout-session/"</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="c1">// Redirect to Stripe Checkout</span><span class="w"/>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">stripe</span><span class="p">.</span><span class="nx">redirectToCheckout</span><span class="p">({</span><span class="nx">sessionId</span><span class="o">:</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">sessionId</span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">res</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>在这里，在解析了<code>result.json()</code>承诺之后，我们调用了<a href="https://stripe.com/docs/js/checkout/redirect_to_checkout"> redirectToCheckout </a>,其中的结帐会话ID来自解析的承诺。</p>
+<p>导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>。点击按钮后，您将被重定向到一个Stripe Checkout实例(一个Stripe托管页面，用于安全收集支付信息),其中包含订阅信息:</p>
+<p><img data-src="/static/images/blog/django/django-stripe/checkout2.png" loading="lazy" class="lazyload" alt="Stripe Checkout" src="../Images/1f87c441f2c4f3668c302226ba4cf228.png" data-original-src="https://testdriven.io/static/images/blog/django/django-stripe/checkout2.png"/></p>
+<p>我们可以使用Stripe提供的几个<a href="https://stripe.com/docs/testing#cards">测试卡号</a>中的一个来测试表单。还是用<code>4242 4242 4242 4242</code>吧。请确保到期日期在未来。为CVC添加任意3个数字，为邮政编码添加任意5个数字。输入任何电子邮件地址和名称。如果一切顺利，付款应该被处理，您应该订阅，但重定向将失败，因为我们还没有设置<code>/success/</code> URL。</p>
+<h2 id="user-redirect">用户重定向</h2>
+<p>接下来，我们将创建成功和取消视图，并在结帐后将用户重定向到适当的页面。</p>
+<p>视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="nd">@login_required</span>
+<span class="k">def</span> <span class="nf">success</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'success.html'</span><span class="p">)</span>
+
+
+<span class="nd">@login_required</span>
+<span class="k">def</span> <span class="nf">cancel</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'cancel.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>创建<em>success.html</em>和<em>cancel.html</em>模板。</p>
+<p>成功:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/success.html --&gt;</span>
+
+{% load static %}
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Stripe Subscriptions<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://code.jquery.com/jquery-3.5.1.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>You have successfully subscribed!<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"{% url "</span><span class="na">subscriptions-home</span><span class="err">"</span> <span class="err">%}"</span><span class="p">&gt;</span>Return to the dashboard<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>取消:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/cancel.html --&gt;</span>
+
+{% load static %}
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Stripe Subscriptions<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://code.jquery.com/jquery-3.5.1.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>You have cancelled the checkout.<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"{% url "</span><span class="na">subscriptions-home</span><span class="err">"</span> <span class="err">%}"</span><span class="p">&gt;</span>Return to the dashboard<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>在<em> subscriptions/urls.py </em>中注册新视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'subscriptions-home'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'config/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">stripe_config</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'create-checkout-session/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">create_checkout_session</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'success/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">success</span><span class="p">),</span>  <span class="c1"># new</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'cancel/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">cancel</span><span class="p">),</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>如果支付成功，用户将被重定向到<code>/success</code>，如果支付失败，用户将被重定向到<code>cancel/</code>。测试一下。</p>
+<h2 id="stripe-webhooks">条纹网钩</h2>
+<p>我们的应用程序在这一点上运行良好，但我们仍然不能以编程方式确认付款。我们也没有在客户成功订阅时向<code>StripeCustomer</code>模型添加新客户。我们已经在用户结帐后将他们重定向到成功页面，但我们不能只依赖该页面(作为确认)，因为支付确认是异步发生的。</p>
+<blockquote>
+<p>一般来说，在条带和编程中有两种类型的事件。同步事件，具有即时的效果和结果(例如，创建一个客户)，异步事件，没有即时的结果(例如，确认付款)。因为支付确认是异步完成的，用户可能会在他们的支付被确认之前<em>和</em>我们收到他们的资金之前<em>被重定向到成功页面。</em></p>
+</blockquote>
+<p>当付款通过时，最简单的通知方法之一是使用回调或所谓的Stripe webhook。我们需要在应用程序中创建一个简单的端点，每当事件发生时(例如，当用户订阅时)，Stripe将调用这个端点。通过使用webhooks，我们可以绝对肯定支付成功。</p>
+<p>为了使用webhooks，我们需要:</p>
+<ol>
+<li>设置webhook端点</li>
+<li>使用<a href="https://stripe.com/docs/stripe-cli">条带CLI </a>测试端点</li>
+<li>用条带注册端点</li>
+</ol>
+<h3 id="endpoint">端点</h3>
+<p>创建一个名为<code>stripe_webhook</code>的新视图，每次有人订阅我们的服务时都会创建一个新的<code>StripeCustomer</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="nd">@csrf_exempt</span>
+<span class="k">def</span> <span class="nf">stripe_webhook</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+    <span class="n">endpoint_secret</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_ENDPOINT_SECRET</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">body</span>
+    <span class="n">sig_header</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s1">'HTTP_STRIPE_SIGNATURE'</span><span class="p">]</span>
+    <span class="n">event</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Webhook</span><span class="o">.</span><span class="n">construct_event</span><span class="p">(</span>
+            <span class="n">payload</span><span class="p">,</span> <span class="n">sig_header</span><span class="p">,</span> <span class="n">endpoint_secret</span>
+        <span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># Invalid payload</span>
+        <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">stripe</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">SignatureVerificationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># Invalid signature</span>
+        <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+
+    <span class="c1"># Handle the checkout.session.completed event</span>
+    <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s1">'type'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'checkout.session.completed'</span><span class="p">:</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s1">'data'</span><span class="p">][</span><span class="s1">'object'</span><span class="p">]</span>
+
+        <span class="c1"># Fetch all the required data from session</span>
+        <span class="n">client_reference_id</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'client_reference_id'</span><span class="p">)</span>
+        <span class="n">stripe_customer_id</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'customer'</span><span class="p">)</span>
+        <span class="n">stripe_subscription_id</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'subscription'</span><span class="p">)</span>
+
+        <span class="c1"># Get the user and create a new StripeCustomer</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">client_reference_id</span><span class="p">)</span>
+        <span class="n">StripeCustomer</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span>
+            <span class="n">stripeCustomerId</span><span class="o">=</span><span class="n">stripe_customer_id</span><span class="p">,</span>
+            <span class="n">stripeSubscriptionId</span><span class="o">=</span><span class="n">stripe_subscription_id</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">username</span> <span class="o">+</span> <span class="s1">' just subscribed.'</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+</code></pre></div>
+
+<p><code>stripe_webhook</code>现在作为我们的webhook端点。这里，我们只寻找每当结帐成功时调用的<code>checkout.session.completed</code>事件，但是您可以对其他<a href="https://stripe.com/docs/api/events">条带事件</a>使用相同的模式。</p>
+<p>对导入进行以下更改:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="kn">import</span> <span class="nn">stripe</span>
+<span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.decorators</span> <span class="kn">import</span> <span class="n">login_required</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>  <span class="c1"># new</span>
+<span class="kn">from</span> <span class="nn">django.http.response</span> <span class="kn">import</span> <span class="n">JsonResponse</span><span class="p">,</span> <span class="n">HttpResponse</span>  <span class="c1"># updated</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.csrf</span> <span class="kn">import</span> <span class="n">csrf_exempt</span>
+
+<span class="kn">from</span> <span class="nn">subscriptions.models</span> <span class="kn">import</span> <span class="n">StripeCustomer</span>  <span class="c1"># new</span>
+</code></pre></div>
+
+<p>要使端点可访问，剩下唯一要做的事情就是在<em> urls.py </em>中注册它:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'subscriptions-home'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'config/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">stripe_config</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'create-checkout-session/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">create_checkout_session</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'success/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">success</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'cancel/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">cancel</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'webhook/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">stripe_webhook</span><span class="p">),</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="testing-the-webhook">测试webhook</h3>
+<p>我们将使用<a href="https://stripe.com/docs/stripe-cli"> Stripe CLI </a>来测试webhook。</p>
+<p>一旦<a href="https://stripe.com/docs/stripe-cli#install">下载并安装了</a>，在新的终端窗口中运行以下命令，登录到您的Stripe帐户:</p>
+
+
+<p>此命令应生成一个配对代码:</p>
+<div class="codehilite"><pre><span/><code>Your pairing code is: peach-loves-classy-cozy
+This pairing code verifies your authentication with Stripe.
+Press Enter to open the browser <span class="o">(</span>^C to quit<span class="o">)</span>
+</code></pre></div>
+
+<p>通过按Enter，CLI将打开您的默认web浏览器，并请求访问您的帐户信息的权限。请继续并允许访问。回到您的终端，您应该看到类似于以下内容的内容:</p>
+<div class="codehilite"><pre><span/><code>&gt; Done! The Stripe CLI is configured <span class="k">for</span> Django Test with account id acct_&lt;ACCOUNT_ID&gt;
+
+Please note: this key will expire after <span class="m">90</span> days, at which point you<span class="err">'</span>ll need to re-authenticate.
+</code></pre></div>
+
+<p>接下来，我们可以开始侦听条带事件，并使用以下命令将它们转发到我们的端点:</p>
+<div class="codehilite"><pre><span/><code>$ stripe listen --forward-to localhost:8000/webhook/
+</code></pre></div>
+
+<p>这也将生成一个webhook签名密码:</p>
+<div class="codehilite"><pre><span/><code>&gt; Ready! Your webhook signing secret is whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx <span class="o">(</span>^C to quit<span class="o">)</span>
+</code></pre></div>
+
+<p>为了初始化端点，将秘密添加到<em> settings.py </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># djangostribe/settings.py</span>
+
+<span class="n">STRIPE_ENDPOINT_SECRET</span> <span class="o">=</span> <span class="s1">'&lt;your webhook signing secret here&gt;'</span>
+</code></pre></div>
+
+<p>Stripe现在会将事件转发到我们的端点。要测试，通过<code>4242 4242 4242 4242</code>运行另一个测试支付。在您的终端中，您应该会看到<code>&lt;USERNAME&gt; just subscribed.</code>消息。</p>
+<p>一旦完成，停止<code>stripe listen --forward-to localhost:8000/webhook/</code>过程。</p>
+<h3 id="register-the-endpoint">注册端点</h3>
+<p>最后，在部署你的应用程序后，你可以在Stripe仪表板中注册端点，在<a href="https://dashboard.stripe.com/test/webhooks">开发者&gt; Webhooks </a>下。这将生成一个webhook签名密码，用于您的生产应用程序。</p>
+<p>例如:</p>
+<p><img data-src="/static/images/blog/django/django-stripe/webhook.png" loading="lazy" class="lazyload" alt="Django webhook" src="../Images/1318222bbe20a4a04c82f59ff340433f.png" data-original-src="https://testdriven.io/static/images/blog/django/django-stripe/webhook.png"/></p>
+<h2 id="fetch-subscription-data">获取订阅数据</h2>
+<p>我们的应用程序现在允许用户订阅我们的服务，但我们仍然没有办法获取他们的订阅数据并显示出来。</p>
+<p>更新<code>home</code>视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># subscriptions/views.py</span>
+
+<span class="nd">@login_required</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Retrieve the subscription &amp; product</span>
+        <span class="n">stripe_customer</span> <span class="o">=</span> <span class="n">StripeCustomer</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="n">subscription</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Subscription</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">stripe_customer</span><span class="o">.</span><span class="n">stripeSubscriptionId</span><span class="p">)</span>
+        <span class="n">product</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Product</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">subscription</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">product</span><span class="p">)</span>
+
+        <span class="c1"># Feel free to fetch any additional data from 'subscription' or 'product'</span>
+        <span class="c1"># https://stripe.com/docs/api/subscriptions/object</span>
+        <span class="c1"># https://stripe.com/docs/api/products/object</span>
+
+        <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s1">'subscription'</span><span class="p">:</span> <span class="n">subscription</span><span class="p">,</span>
+            <span class="s1">'product'</span><span class="p">:</span> <span class="n">product</span><span class="p">,</span>
+        <span class="p">})</span>
+
+    <span class="k">except</span> <span class="n">StripeCustomer</span><span class="o">.</span><span class="n">DoesNotExist</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，如果存在一个<code>StripeCustomer</code>，我们使用<code>subscriptionId</code>从Stripe API获取客户的订阅和产品信息。</p>
+<p>修改<em>home.html</em>模板，向订阅用户显示当前计划；</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/home.html --&gt;</span>
+
+{% load static %}
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Stripe Subscriptions<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://js.stripe.com/v3/"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://code.jquery.com/jquery-3.5.1.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"</span> <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"{% static 'main.js' %}"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      {% if subscription.status == "active" %}
+        <span class="p">&lt;</span><span class="nt">h4</span><span class="p">&gt;</span>Your subscription:<span class="p">&lt;/</span><span class="nt">h4</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card"</span> <span class="na">style</span><span class="o">=</span><span class="s">"width: 18rem;"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-body"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">h5</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-title"</span><span class="p">&gt;</span>{{ product.name }}<span class="p">&lt;/</span><span class="nt">h5</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">p</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-text"</span><span class="p">&gt;</span>
+              {{ product.description }}
+            <span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+      {% else %}
+        <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span> <span class="na">id</span><span class="o">=</span><span class="s">"submitBtn"</span><span class="p">&gt;</span>Subscribe<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+      {% endif %}
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>我们的订阅客户现在将看到他们当前的订阅计划，而其他人仍将看到订阅按钮:</p>
+<p><img data-src="/static/images/blog/django/django-stripe/subscribed.png" loading="lazy" class="lazyload" alt="Subscribed View" src="../Images/9eb157b3cdf397366b1a0ebe88eab78e.png" data-original-src="https://testdriven.io/static/images/blog/django/django-stripe/subscribed.png"/></p>
+<h3 id="restricting-user-access">限制用户访问</h3>
+<p>如果您想要将对特定视图的访问限制为只有订阅的用户，那么您可以像我们在上一步中所做的那样获取订阅，并检查<code>subscription.status == "active"</code>。通过执行这项检查，您将确保订阅仍然有效，这意味着它已经支付，并没有被取消。</p>
+<blockquote>
+<p>其他可能的<a href="https://stripe.com/docs/billing/subscriptions/overview#subscription-statuses">订阅状态</a>有<code>incomplete</code>、<code>incomplete_expired</code>、<code>trialing</code>、<code>active</code>、<code>past_due</code>、<code>canceled</code>或<code>unpaid</code>。</p>
+</blockquote>
+<h2 id="conclusion">结论</h2>
+<p>我们已经成功地创建了一个Django web应用程序，允许用户订阅我们的服务并查看他们的计划。我们的客户也将每月自动计费。</p>
+<p>这只是最基本的。您仍然需要:</p>
+<ul>
+<li>允许用户管理/取消其当前计划</li>
+<li>处理未来的付款失败</li>
+</ul>
+<p>您还想为<code>domain_url</code>、API密钥和webhook签名密码使用环境变量，而不是硬编码它们。</p>
+<p>从GitHub上的<a href="https://github.com/duplxey/django-stripe-subscriptions">django-stripe-subscriptions</a>repo中获取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

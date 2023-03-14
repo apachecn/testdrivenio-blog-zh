@@ -1,0 +1,1068 @@
+<html>
+<head>
+<title>Deploying Django to Heroku With Docker </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>与Docker一起将Django部署到Heroku</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/deploying-django-to-heroku-with-docker/#0001-01-01">https://testdriven.io/blog/deploying-django-to-heroku-with-docker/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文着眼于如何通过Heroku容器运行时使用Docker将Django应用程序部署到Heroku。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>解释为什么你可能想使用Heroku的容器运行时来运行一个应用程序</li>
+<li>Dockerize一个Django应用</li>
+<li>在Heroku上的Docker容器中部署并运行Django应用程序</li>
+<li>配置GitLab CI以将Docker映像部署到Heroku</li>
+<li>使用WhiteNoise管理静态资产</li>
+<li>配置Postgres在Heroku上运行</li>
+<li>创建使用多级Docker版本的生产Docker文件</li>
+<li>使用Heroku容器注册表并构建清单，以便将Docker部署到Heroku</li>
+</ol>
+<h2 id="heroku-container-runtime">Heroku容器运行时</h2>
+<p>除了传统的<a href="https://devcenter.heroku.com/categories/deploying-with-git"> Git plus slug编译器部署</a> ( <code>git push heroku master</code>)，Heroku还通过Heroku容器运行时支持<a href="https://devcenter.heroku.com/categories/deploying-with-docker">基于Docker的部署</a>。</p>
+<blockquote>
+<p>容器运行时是管理和运行容器的程序。如果您想更深入地了解容器运行时，请查看<a href="https://opensource.com/article/18/1/history-low-level-container-runtimes">低级Linux容器运行时的历史</a>。</p>
+</blockquote>
+<h3 id="docker-based-deployments">基于Docker的部署</h3>
+<p>与传统方法相比，基于Docker的部署有许多优势:</p>
+<ol>
+<li><strong>没有内存块限制</strong> : Heroku允许传统的基于Git的部署使用<a href="https://devcenter.heroku.com/articles/slug-compiler#slug-size">最大500MB </a>的内存块大小。另一方面，基于Docker的部署没有这个限制。</li>
+<li>对操作系统的完全控制:你可以完全控制操作系统，并且可以用Docker安装任何你想安装的软件包，而不是被Heroku <a href="https://devcenter.heroku.com/articles/stack-packages"> buildpacks </a>安装的软件包所限制。</li>
+<li>更强的开发/生产对等性:基于Docker的构建在开发和生产之间具有更强的对等性，因为底层环境是相同的。</li>
+<li><strong>更少的供应商锁定</strong>:最后，Docker让用户更容易切换到不同的云托管提供商，如AWS或GCP。</li>
+</ol>
+<p>一般来说，基于Docker的部署为您提供了更大的灵活性和对部署环境的控制。您可以在所需的环境中部署所需的应用程序。也就是说，你现在负责安全更新。对于传统的基于Git的部署，Heroku负责这一点。他们将相关的安全更新应用到他们的<a href="https://devcenter.heroku.com/articles/stack">堆栈</a>中，并根据需要将您的应用迁移到新的堆栈中。请记住这一点。</p>
+<p>目前有两种方式将Docker的应用部署到Heroku:</p>
+<ol>
+<li><a href="https://devcenter.heroku.com/articles/container-registry-and-runtime">容器注册表</a>:将预构建的Docker映像部署到Heroku</li>
+<li>构建清单:给定一个Docker文件，Heroku构建并部署Docker映像</li>
+</ol>
+<p>这两者之间的主要区别在于，使用后一种方法——例如，通过构建清单——您可以访问<a href="https://devcenter.heroku.com/articles/pipelines">管道</a>、<a href="https://devcenter.heroku.com/articles/github-integration-review-apps">评审</a>和<a href="https://devcenter.heroku.com/articles/release-phase">发布</a>特性。因此，如果你正在将一个应用从基于Git的部署转换到Docker，并且正在使用这些特性，那么你应该使用构建清单的方法。</p>
+<p>请放心，我们将在本文中研究这两种方法。</p>
+<p>在这两种情况下，你仍然可以访问Heroku <a href="https://devcenter.heroku.com/articles/heroku-cli"> CLI </a>，所有强大的<a href="https://elements.heroku.com/addons">插件</a>，以及<a href="https://devcenter.heroku.com/articles/heroku-dashboard">仪表盘</a>。换句话说，所有这些特性都与容器运行时一起工作。</p>
+<table>
+<thead>
+<tr>
+<th>部署类型</th>
+<th>部署机制</th>
+<th>安全更新(谁负责)</th>
+<th>进入管道，审查，放行</th>
+<th>访问CLI、插件和仪表板</th>
+<th>段塞尺寸限制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Git + Slug编译器</td>
+<td>Git Push</td>
+<td>Heroku</td>
+<td>是</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>Docker +容器运行时</td>
+<td>码头推送</td>
+<td>你们</td>
+<td>不</td>
+<td>是</td>
+<td>不</td>
+</tr>
+<tr>
+<td>Docker +构建清单</td>
+<td>Git Push</td>
+<td>你们</td>
+<td>是</td>
+<td>是</td>
+<td>不</td>
+</tr>
+</tbody>
+</table>
+<p>请记住，基于Docker的部署受到与基于Git的部署相同的限制。例如，不支持持久卷，因为文件系统是短暂的，而web进程仅支持HTTP(S)请求。有关这方面的更多信息，请查看<a href="https://devcenter.heroku.com/articles/container-registry-and-runtime#dockerfile-commands-and-runtime"> Dockerfile命令和运行时</a>。</p>
+<h3 id="docker-vs-heroku-concepts">坞站与Heroku概念</h3>
+<table>
+<thead>
+<tr>
+<th>码头工人</th>
+<th>Heroku</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dockerfile</td>
+<td>构建包</td>
+</tr>
+<tr>
+<td>图像</td>
+<td>鼻涕虫</td>
+</tr>
+<tr>
+<td>容器</td>
+<td>绝妙的</td>
+</tr>
+</tbody>
+</table>
+<h2 id="project-setup">项目设置</h2>
+<p>创建一个项目目录，创建并激活一个新的虚拟环境，并安装Django:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-heroku-docker
+$ <span class="nb">cd</span> django-heroku-docker
+
+$ python3.10 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">django</span><span class="o">==</span><span class="m">3</span>.2.9
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>接下来，创建一个新的Django项目，应用迁移，并运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ django-admin startproject hello_django .
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>查看Django欢迎屏幕。完成后，关闭服务器并退出虚拟环境。</p>
+<h2 id="docker">码头工人</h2>
+<p>将Dockerfile文件添加到项目根目录:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># pull official base image</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-alpine</span>
+
+<span class="c"># set work directory</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="c"># set environment variables</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>DEBUG <span class="m">0</span>
+
+<span class="c"># install psycopg2</span>
+<span class="k">RUN</span><span class="w"> </span>apk update <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> apk add --virtual build-essential gcc python3-dev musl-dev <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> apk add postgresql-dev <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> pip install psycopg2
+
+<span class="c"># install dependencies</span>
+<span class="k">COPY</span><span class="w"> </span>./requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="c"># copy project</span>
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="c"># add and run as non-root user</span>
+<span class="k">RUN</span><span class="w"> </span>adduser -D myuser
+<span class="k">USER</span><span class="w"> </span><span class="s">myuser</span>
+
+<span class="c"># run gunicorn</span>
+<span class="k">CMD</span><span class="w"> </span>gunicorn hello_django.wsgi:application --bind <span class="m">0</span>.0.0.0:<span class="nv">$PORT</span>
+</code></pre></div>
+
+<p>这里，我们从Python 3.10的一个基于Alpine的<a href="https://hub.docker.com/_/python/"> Docker镜像</a>开始。然后，我们设置一个工作目录和两个环境变量:</p>
+<ol>
+<li><code>PYTHONDONTWRITEBYTECODE</code>:防止Python将pyc文件写入光盘</li>
+<li><code>PYTHONUNBUFFERED</code>:防止Python缓冲stdout和stderr</li>
+</ol>
+<p>接下来，我们安装了系统级的依赖项和Python包，复制了项目文件，创建并切换到非根用户(这是Heroku 推荐的<a href="https://devcenter.heroku.com/articles/container-registry-and-runtime#run-the-image-as-a-non-root-user">，并使用</a><a href="https://docs.docker.com/engine/reference/builder/#cmd"> CMD </a>在容器运行时加速时运行<a href="https://gunicorn.org/"> Gunicorn </a>。注意<code>$PORT</code>变量。本质上，任何在容器运行时上运行的web服务器都必须在<code>$PORT</code>环境变量中监听HTTP流量，该变量由<a href="https://help.heroku.com/PPBPA231/how-do-i-use-the-port-environment-variable-in-container-based-apps"> Heroku在运行时</a>设置。</p>
+<p>创建一个<em> requirements.txt </em>文件:</p>
+<div class="codehilite"><pre><span/><code>Django==3.2.9
+gunicorn==20.1.0
+</code></pre></div>
+
+<p>然后加一个<em>。dockerignore </em>文件:</p>
+<div class="codehilite"><pre><span/><code>__pycache__
+*.pyc
+env/
+db.sqlite3
+</code></pre></div>
+
+<p>更新<em> settings.py </em>中的<code>SECRET_KEY</code>、<code>DEBUG</code>和<code>ALLOWED_HOSTS</code>变量:</p>
+<div class="codehilite"><pre><span/><code><span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'SECRET_KEY'</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'foo'</span><span class="p">)</span>
+
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DEBUG'</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'localhost'</span><span class="p">,</span> <span class="s1">'127.0.0.1'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+
+
+<p>要进行本地测试，构建映像并运行容器，确保传入适当的环境变量:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -t web:latest .
+$ docker run -d --name django-heroku -e <span class="s2">"PORT=8765"</span> -e <span class="s2">"DEBUG=1"</span> -p <span class="m">8007</span>:8765 web:latest
+</code></pre></div>
+
+<p>确保应用程序正在浏览器中的<a href="http://localhost:8007/"> http://localhost:8007/ </a>上运行。完成后，停止并移除正在运行的容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker stop django-heroku
+$ docker rm django-heroku
+</code></pre></div>
+
+<p>添加a <em>。git ignore〔t1〕:</em></p>
+<div class="codehilite"><pre><span/><code>__pycache__
+*.pyc
+env/
+db.sqlite3
+</code></pre></div>
+
+<p>接下来，让我们创建一个快速Django视图，以便在调试模式关闭时轻松测试应用程序。</p>
+<p>在“hello_django”目录中添加一个<em> views.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">JsonResponse</span>
+
+
+<span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'ping'</span><span class="p">:</span> <span class="s1">'pong!'</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，更新<em> urls.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">.views</span> <span class="kn">import</span> <span class="n">ping</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'ping/'</span><span class="p">,</span> <span class="n">ping</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"ping"</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>在调试模式关闭的情况下再次测试:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -t web:latest .
+$ docker run -d --name django-heroku -e <span class="s2">"PORT=8765"</span> -e <span class="s2">"DEBUG=0"</span> -p <span class="m">8007</span>:8765 web:latest
+</code></pre></div>
+
+<p>验证<a href="http://localhost:8007/ping/">http://localhost:8007/ping/</a>是否按预期工作:</p>
+
+
+<p>完成后，停止并移除正在运行的容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker stop django-heroku
+$ docker rm django-heroku
+</code></pre></div>
+
+<h2 id="whitenoise">白噪声</h2>
+<p>如果您想使用<a href="http://whitenoise.evans.io">whiten noise</a>来管理您的静态资产，首先将该包添加到<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code>Django==3.2.9
+gunicorn==20.1.0
+whitenoise==5.3.0
+</code></pre></div>
+
+<p>像这样更新<em> settings.py </em>中的中间件:</p>
+<div class="codehilite"><pre><span/><code><span class="n">MIDDLEWARE</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.middleware.security.SecurityMiddleware'</span><span class="p">,</span>
+    <span class="s1">'whitenoise.middleware.WhiteNoiseMiddleware'</span><span class="p">,</span>  <span class="c1"># new</span>
+    <span class="s1">'django.contrib.sessions.middleware.SessionMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.common.CommonMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.csrf.CsrfViewMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth.middleware.AuthenticationMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages.middleware.MessageMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.clickjacking.XFrameOptionsMiddleware'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>然后用<code>STATIC_ROOT</code>配置静态文件的处理:</p>
+<div class="codehilite"><pre><span/><code><span class="n">STATIC_ROOT</span> <span class="o">=</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'staticfiles'</span>
+</code></pre></div>
+
+<p>最后，添加压缩和缓存支持:</p>
+<div class="codehilite"><pre><span/><code><span class="n">STATICFILES_STORAGE</span> <span class="o">=</span> <span class="s1">'whitenoise.storage.CompressedManifestStaticFilesStorage'</span>
+</code></pre></div>
+
+<p>将<code>collectstatic</code>命令添加到Dockerfile文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># pull official base image</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-alpine</span>
+
+<span class="c"># set work directory</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="c"># set environment variables</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>DEBUG <span class="m">0</span>
+
+<span class="c"># install psycopg2</span>
+<span class="k">RUN</span><span class="w"> </span>apk update <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> apk add --virtual build-essential gcc python3-dev musl-dev <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> apk add postgresql-dev <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> pip install psycopg2
+
+<span class="c"># install dependencies</span>
+<span class="k">COPY</span><span class="w"> </span>./requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="c"># copy project</span>
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="c"># collect static files</span>
+<span class="k">RUN</span><span class="w"> </span>python manage.py collectstatic --noinput
+
+<span class="c"># add and run as non-root user</span>
+<span class="k">RUN</span><span class="w"> </span>adduser -D myuser
+<span class="k">USER</span><span class="w"> </span><span class="s">myuser</span>
+
+<span class="c"># run gunicorn</span>
+<span class="k">CMD</span><span class="w"> </span>gunicorn hello_django.wsgi:application --bind <span class="m">0</span>.0.0.0:<span class="nv">$PORT</span>
+</code></pre></div>
+
+<p>要进行测试，构建新的映像并旋转新的容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -t web:latest .
+$ docker run -d --name django-heroku -e <span class="s2">"PORT=8765"</span> -e <span class="s2">"DEBUG=1"</span> -p <span class="m">8007</span>:8765 web:latest
+</code></pre></div>
+
+<p>运行以下命令时，您应该能够查看静态文件:</p>
+<div class="codehilite"><pre><span/><code>$ docker <span class="nb">exec</span> django-heroku ls /app/staticfiles
+$ docker <span class="nb">exec</span> django-heroku ls /app/staticfiles/admin
+</code></pre></div>
+
+<p>停止，然后再次移除运行中的容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker stop django-heroku
+$ docker rm django-heroku
+</code></pre></div>
+
+<h2 id="postgres">Postgres</h2>
+<p>为了启动并运行Postgres，我们将使用<a href="https://pypi.org/project/dj-database-url/"> dj_database_url </a>包，根据<code>DATABASE_URL</code>环境变量为Django设置生成适当的数据库配置字典。</p>
+<p>将依赖项添加到需求文件中:</p>
+<div class="codehilite"><pre><span/><code>Django==3.2.9
+dj-database-url==0.5.0
+gunicorn==20.1.0
+whitenoise==5.3.0
+</code></pre></div>
+
+<p>然后，如果<code>DATABASE_URL</code>存在，对设置进行以下更改以更新数据库配置:</p>
+<div class="codehilite"><pre><span/><code><span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'ENGINE'</span><span class="p">:</span> <span class="s1">'django.db.backends.sqlite3'</span><span class="p">,</span>
+        <span class="s1">'NAME'</span><span class="p">:</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'db.sqlite3'</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">DATABASE_URL</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DATABASE_URL'</span><span class="p">)</span>
+<span class="n">db_from_env</span> <span class="o">=</span> <span class="n">dj_database_url</span><span class="o">.</span><span class="n">config</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">DATABASE_URL</span><span class="p">,</span> <span class="n">conn_max_age</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">ssl_require</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">DATABASES</span><span class="p">[</span><span class="s1">'default'</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">db_from_env</span><span class="p">)</span>
+</code></pre></div>
+
+<p>因此，如果<code>DATABASE_URL</code>不存在，仍然会使用SQLite。</p>
+<p>将导入也添加到顶部:</p>
+
+
+<p>我们将在Heroku上建立一个Postgres数据库后对此进行测试。</p>
+<h2 id="heroku-setup">Heroku设置</h2>
+<p>注册Heroku账号(如果你还没有)，然后安装<a href="https://devcenter.heroku.com/articles/heroku-cli"> Heroku CLI </a>(如果你还没有)。</p>
+<p>创建新应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ heroku create
+Creating app... <span class="k">done</span>, ⬢ limitless-atoll-51647
+https://limitless-atoll-51647.herokuapp.com/ <span class="p">|</span> https://git.heroku.com/limitless-atoll-51647.git
+</code></pre></div>
+
+<p>添加<code>SECRET_KEY</code>环境变量:</p>
+<div class="codehilite"><pre><span/><code>$ heroku config:set <span class="nv">SECRET_KEY</span><span class="o">=</span>SOME_SECRET_VALUE -a limitless-atoll-51647
+</code></pre></div>
+
+<blockquote>
+<p>将<code>SOME_SECRET_VALUE</code>改为至少50个字符的随机生成的字符串。</p>
+</blockquote>
+<p>将上述Heroku网址添加到<em> hello_django/settings.py </em>中的<code>ALLOWED_HOSTS</code>列表中，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'localhost'</span><span class="p">,</span> <span class="s1">'127.0.0.1'</span><span class="p">,</span> <span class="s1">'limitless-atoll-51647.herokuapp.com'</span><span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>确保将上述每个命令中的<code>limitless-atoll-51647</code>替换为您的应用程序名称。</p>
+</blockquote>
+<h2 id="heroku-docker-deployment">Heroku Docker部署</h2>
+<p>此时，我们已经准备好开始将Docker映像部署到Heroku。你决定要采取哪种方法了吗？</p>
+<ol>
+<li><a href="https://devcenter.heroku.com/articles/container-registry-and-runtime">容器注册表</a>:将预构建的Docker映像部署到Heroku</li>
+<li>构建清单:给定一个Docker文件，Heroku构建并部署Docker映像</li>
+</ol>
+<p>不确定？两个都试试！</p>
+<h3 id="approach-1-container-registry">方法1:容器注册</h3>
+<blockquote>
+<p>如果您使用构建清单方法，请跳过这一节。</p>
+</blockquote>
+<p>同样，使用这种方法，您可以将预构建的Docker映像部署到Heroku。</p>
+<p>登录到<a href="https://devcenter.heroku.com/articles/container-registry-and-runtime"> Heroku容器注册表</a>，向Heroku表明我们想要使用容器运行时:</p>
+
+
+<p>重新构建Docker映像，并用以下格式对其进行标记:</p>
+<div class="codehilite"><pre><span/><code><span class="n">registry</span><span class="p">.</span><span class="n">heroku</span><span class="p">.</span><span class="n">com</span><span class="o">/&lt;</span><span class="n">app</span><span class="o">&gt;/&lt;</span><span class="n">process</span><span class="o">-</span><span class="k">type</span><span class="o">&gt;</span><span class="w"/>
+</code></pre></div>
+
+<p>确保将<code>&lt;app&gt;</code>替换为您刚刚创建的Heroku应用程序的名称，将<code>&lt;process-type&gt;</code>替换为<code>web</code>，因为这将用于<a href="https://devcenter.heroku.com/articles/procfile#the-web-process-type"> web流程</a>。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -t registry.heroku.com/limitless-atoll-51647/web .
+</code></pre></div>
+
+<p>将图像推送到注册表:</p>
+<div class="codehilite"><pre><span/><code>$ docker push registry.heroku.com/limitless-atoll-51647/web
+</code></pre></div>
+
+<p>发布图像:</p>
+<div class="codehilite"><pre><span/><code>$ heroku container:release -a limitless-atoll-51647 web
+</code></pre></div>
+
+<p>这将运行容器。您应该可以在<a href="https://APP_NAME.herokuapp.com">https://APP _ name . heroku APP . com</a>查看应用程序。它应该会返回404。</p>
+<blockquote>
+<p>尝试运行<code>heroku open -a limitless-atoll-51647</code>在默认浏览器中打开应用程序。</p>
+</blockquote>
+<p>验证<a href="https://APP_NAME.herokuapp.com/ping">https://APP _ name . heroku APP . com/ping</a>是否工作正常:</p>
+
+
+<p>您还应该能够查看静态文件:</p>
+<div class="codehilite"><pre><span/><code>$ heroku run ls /app/staticfiles -a limitless-atoll-51647
+$ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647
+</code></pre></div>
+
+<blockquote>
+<p>确保将上述每个命令中的<code>limitless-atoll-51647</code>替换为您的应用程序名称。</p>
+</blockquote>
+<p>完成后，跳到“Postgres测试”部分。</p>
+<h3 id="approach-2-build-manifest">方法2:构建清单</h3>
+<blockquote>
+<p>如果您正在使用容器注册方法，请跳过这一节。</p>
+</blockquote>
+<p>同样，使用<a href="https://devcenter.heroku.com/articles/build-docker-images-heroku-yml">构建清单</a>方法，您可以让Heroku基于<em> heroku.yml </em>清单文件构建和部署Docker映像。</p>
+<p>将应用程序的<a href="https://devcenter.heroku.com/articles/stack">堆栈</a>设置为容器:</p>
+<div class="codehilite"><pre><span/><code>$ heroku stack:set container -a limitless-atoll-51647
+</code></pre></div>
+
+<p>将一个<em> heroku.yml </em>文件添加到项目根目录:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">docker</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">web</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dockerfile</span><span class="w"/>
+</code></pre></div>
+
+<p>在这里，我们只是告诉Heroku使用哪个Dockerfile来构建图像。</p>
+<p>除了<code>build</code>，您还可以定义以下阶段:</p>
+<ul>
+<li><code>setup</code>用于定义Heroku插件和配置变量，以便在应用供应期间创建。</li>
+<li><code>release</code>用于定义您希望在发布期间执行的任务。</li>
+<li><code>run</code>用于定义为web和worker进程运行哪些命令。</li>
+</ul>
+<p>请务必查看Heroku文档以了解关于这四个阶段的更多信息。</p>
+<blockquote>
+<p>值得注意的是，<code>gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT</code>命令可以从docker文件中删除，并添加到<code>run</code>阶段下的<em> heroku.yml </em>文件中:</p><div class="codehilite"><pre><span/><code><span class="nt">build</span><span class="p">:</span>
+  <span class="nt">docker</span><span class="p">:</span>
+    <span class="nt">web</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">Dockerfile</span>
+<span class="nt">run</span><span class="p">:</span>
+  <span class="nt">web</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT</span>
+</code></pre></div>
+</blockquote>
+
+<blockquote>
+<p>另外，一定要将“collectstatic”命令放在docker文件中。不要移到<code>release</code>阶段。关于这方面的更多信息，请查看<a href="https://stackoverflow.com/questions/59719175/where-to-run-collectstatic-when-deploying-django-app-to-heroku-using-docker">这个堆栈溢出问题</a>。</p>
+</blockquote>
+<p>接下来，从beta CLI通道安装<code>heroku-manifest</code>插件:</p>
+<div class="codehilite"><pre><span/><code>$ heroku update beta
+$ heroku plugins:install @heroku-cli/plugin-manifest
+</code></pre></div>
+
+<p>这样，初始化一个Git repo并创建一个提交。</p>
+<p>然后，添加Heroku遥控器:</p>
+<div class="codehilite"><pre><span/><code>$ heroku git:remote -a limitless-atoll-51647
+</code></pre></div>
+
+<p>将代码推送到Heroku以构建映像并运行容器:</p>
+
+
+<p>您应该可以在<a href="https://APP_NAME.herokuapp.com">https://APP _ name . heroku APP . com</a>查看应用程序。它应该会返回404。</p>
+<blockquote>
+<p>尝试运行<code>heroku open -a limitless-atoll-51647</code>在默认浏览器中打开应用程序。</p>
+</blockquote>
+<p>验证<a href="https://APP_NAME.herokuapp.com/ping">https://APP _ name . heroku APP . com/ping</a>是否工作正常:</p>
+
+
+<p>您还应该能够查看静态文件:</p>
+<div class="codehilite"><pre><span/><code>$ heroku run ls /app/staticfiles -a limitless-atoll-51647
+$ heroku run ls /app/staticfiles/admin -a limitless-atoll-51647
+</code></pre></div>
+
+<blockquote>
+<p>确保将上述每个命令中的<code>limitless-atoll-51647</code>替换为您的应用程序名称。</p>
+</blockquote>
+<h3 id="postgres-test">Postgres测验</h3>
+<p>创建数据库:</p>
+<div class="codehilite"><pre><span/><code>$ heroku addons:create heroku-postgresql:hobby-dev -a limitless-atoll-51647
+</code></pre></div>
+
+<blockquote>
+<p>该命令自动为容器设置<code>DATABASE_URL</code>环境变量。</p>
+</blockquote>
+<p>数据库启动后，运行迁移:</p>
+<div class="codehilite"><pre><span/><code>$ heroku run python manage.py makemigrations -a limitless-atoll-51647
+$ heroku run python manage.py migrate -a limitless-atoll-51647
+</code></pre></div>
+
+<p>然后，跳转到psql来查看新创建的表:</p>
+<div class="codehilite"><pre><span/><code>$ heroku pg:psql -a limitless-atoll-51647
+
+<span class="c1"># \dt</span>
+                      List of relations
+ Schema <span class="p">|</span>            Name            <span class="p">|</span> Type  <span class="p">|</span>     Owner
+--------+----------------------------+-------+----------------
+ public <span class="p">|</span> auth_group                 <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> auth_group_permissions     <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> auth_permission            <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> auth_user                  <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> auth_user_groups           <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> auth_user_user_permissions <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> django_admin_log           <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> django_content_type        <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> django_migrations          <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+ public <span class="p">|</span> django_session             <span class="p">|</span> table <span class="p">|</span> siodzhzzcvnwwp
+<span class="o">(</span><span class="m">10</span> rows<span class="o">)</span>
+
+<span class="c1"># \q</span>
+</code></pre></div>
+
+<blockquote>
+<p>同样，确保将上述每个命令中的<code>limitless-atoll-51647</code>替换为Heroku应用的名称。</p>
+</blockquote>
+<h2 id="gitlab-ci">GitLab CI</h2>
+<p><a href="https://gitlab.com/users/sign_up">注册</a>一个GitLab账号(如果需要的话)，然后<a href="https://docs.gitlab.com/ee/user/project/working_with_projects.html#create-a-project">创建一个新项目</a>(再次，如果需要的话)。</p>
+<p>取回您的<a href="https://devcenter.heroku.com/articles/authentication"> Heroku认证令牌</a>:</p>
+
+
+<p>然后，在项目的CI/CD设置中将令牌保存为一个名为<code>HEROKU_AUTH_TOKEN</code>的新变量:Settings &gt; CI / CD &gt; Variables。</p>
+<p><img data-src="/static/images/blog/django/django-heroku-docker/gitlab-config.png" loading="lazy" class="lazyload" alt="gitlab config" src="../Images/3fee2dd6a829ebee98ad0c4e6ec9cf44.png" data-original-src="https://testdriven.io/static/images/blog/django/django-heroku-docker/gitlab-config.png"/></p>
+<p>接下来，我们需要添加一个名为<em>的GitLab CI/CD配置文件。gitlab-ci.yml </em>到项目根。该文件的内容将根据所使用的方法而有所不同。</p>
+<h3 id="approach-1-container-registry_1">方法1:容器注册</h3>
+<blockquote>
+<p>如果您使用构建清单方法，请跳过这一节。</p>
+</blockquote>
+<p><em>。gitlab-ci.yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">HEROKU_APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;APP_NAME&gt;</span><span class="w"/>
+<span class="w">  </span><span class="nt">HEROKU_REGISTRY_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">registry.heroku.com/${HEROKU_APP_NAME}/web</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build_and_deploy</span><span class="w"/>
+
+<span class="nt">build_and_deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build_and_deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apk add --no-cache curl</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $HEROKU_REGISTRY_IMAGE || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x ./release.sh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./release.sh</span><span class="w"/>
+</code></pre></div>
+
+<p><em> release.sh </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+
+<span class="nv">IMAGE_ID</span><span class="o">=</span><span class="k">$(</span>docker inspect <span class="si">${</span><span class="nv">HEROKU_REGISTRY_IMAGE</span><span class="si">}</span> --format<span class="o">={{</span>.Id<span class="o">}}</span><span class="k">)</span>
+<span class="nv">PAYLOAD</span><span class="o">=</span><span class="s1">'{"updates": [{"type": "web", "docker_image": "'</span><span class="s2">"</span><span class="nv">$IMAGE_ID</span><span class="s2">"</span><span class="s1">'"}]}'</span>
+
+curl -n -X PATCH https://api.heroku.com/apps/<span class="nv">$HEROKU_APP_NAME</span>/formation <span class="se">\</span>
+  -d <span class="s2">"</span><span class="si">${</span><span class="nv">PAYLOAD</span><span class="si">}</span><span class="s2">"</span> <span class="se">\</span>
+  -H <span class="s2">"Content-Type: application/json"</span> <span class="se">\</span>
+  -H <span class="s2">"Accept: application/vnd.heroku+json; version=3.docker-releases"</span> <span class="se">\</span>
+  -H <span class="s2">"Authorization: Bearer </span><span class="si">${</span><span class="nv">HEROKU_AUTH_TOKEN</span><span class="si">}</span><span class="s2">"</span>
+</code></pre></div>
+
+<p>在这里，我们定义了单个<code>build_and_deploy</code> <a href="https://docs.gitlab.com/ee/ci/yaml/#stages">阶段</a>，在这里我们:</p>
+<ol>
+<li>安装卷曲</li>
+<li>登录Heroku容器注册表</li>
+<li>提取之前推送的图像(如果存在)</li>
+<li>构建并标记新图像</li>
+<li>将图像上传到注册表</li>
+<li>使用<em> release.sh </em>脚本中的映像ID，通过<a href="https://devcenter.heroku.com/articles/container-registry-and-runtime#api"> Heroku API </a>创建一个新版本</li>
+</ol>
+<blockquote>
+<p>确保将<code>&lt;APP_NAME&gt;</code>替换为Heroku应用的名称。</p>
+</blockquote>
+<p>这样，初始化Git repo，提交，添加GitLab remote，将您的代码推送到GitLab以触发新的<a href="https://docs.gitlab.com/ee/ci/pipelines/">管道</a>。这将作为单个作业运行<code>build_and_deploy</code>阶段。一旦完成，Heroku上将自动创建一个新版本。</p>
+<h3 id="approach-2-build-manifest_1">方法2:构建清单</h3>
+<blockquote>
+<p>如果您正在使用容器注册方法，请跳过这一节。</p>
+</blockquote>
+<p><em>。gitlab-ci.yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">HEROKU_APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;APP_NAME&gt;</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+
+<span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apt-get update -qy</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apt-get install -y ruby-dev</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gem install dpl</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dpl --provider=heroku --app=$HEROKU_APP_NAME --api-key=$HEROKU_AUTH_TOKEN</span><span class="w"/>
+</code></pre></div>
+
+<p>在这里，我们定义了单个<code>deploy</code> <a href="https://docs.gitlab.com/ee/ci/yaml/#stages">阶段</a>，在这里我们:</p>
+<ol>
+<li>安装Ruby和一个名为<a href="https://github.com/travis-ci/dpl"> dpl </a>的gem</li>
+<li>用dpl将代码部署到Heroku</li>
+</ol>
+<blockquote>
+<p>确保将<code>&lt;APP_NAME&gt;</code>替换为Heroku应用的名称。</p>
+</blockquote>
+<p>提交，添加GitLab remote，并将您的代码推送到GitLab，以触发新的<a href="https://docs.gitlab.com/ee/ci/pipelines/">管道</a>。这将作为单个作业运行<code>deploy</code>阶段。一旦完成，代码应该被部署到Heroku。</p>
+<h2 id="advanced-ci">高级CI</h2>
+<p>除了构建Docker映像和在GitLab CI上创建一个版本，我们还可以运行Django测试、<a href="http://flake8.pycqa.org"> Flake8 </a>、<a href="https://black.readthedocs.io"> Black </a>和<a href="https://github.com/timothycrosley/isort"> isort </a>。</p>
+<p>同样，这将取决于您使用的方法。</p>
+<h3 id="approach-1-container-registry_2">方法1:容器注册</h3>
+<blockquote>
+<p>如果您使用构建清单方法，请跳过这一节。</p>
+</blockquote>
+<p>更新<em>。gitlab-ci.yml </em>像这样:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}</span><span class="w"/>
+
+<span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:latest || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:latest</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:latest</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:latest</span><span class="w"/>
+
+<span class="nt">test</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">$IMAGE:latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="s">""</span><span class="w"/>
+<span class="w">    </span><span class="nt">DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql://<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6f1d1a01010a1d2f1f001c1b081d0a1c">[email protected]</a>:5432/test</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py test</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flake8 hello_django --max-line-length=100</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black hello_django --check</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">isort hello_django --check --profile black</span><span class="w"/>
+
+<span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">    </span><span class="nt">HEROKU_APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;APP_NAME&gt;</span><span class="w"/>
+<span class="w">    </span><span class="nt">HEROKU_REGISTRY_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">registry.heroku.com/${HEROKU_APP_NAME}/web</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apk add --no-cache curl</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $HEROKU_REGISTRY_IMAGE || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x ./release.sh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./release.sh</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保将<code>&lt;APP_NAME&gt;</code>替换为Heroku应用的名称。</p>
+</blockquote>
+<p>所以，我们现在有三个阶段:<code>build</code>、<code>test</code>和<code>deploy</code>。</p>
+<p>在<code>build</code>阶段，我们:</p>
+<ol>
+<li>登录到<a href="https://docs.gitlab.com/ee/user/packages/container_registry/"> GitLab容器注册表</a></li>
+<li>提取之前推送的图像(如果存在)</li>
+<li>构建并标记新图像</li>
+<li>将图像上传到GitLab容器注册表</li>
+</ol>
+<p>然后，在<code>test</code>阶段，我们配置<a href="https://docs.gitlab.com/ee/ci/services/postgres.html"> Postgres </a>，设置<code>DATABASE_URL</code>环境变量，然后使用前一阶段构建的映像运行Django测试、Flake8、Black和isort。</p>
+<p>在<code>deploy</code>阶段，我们:</p>
+<ol>
+<li>安装卷曲</li>
+<li>登录Heroku容器注册表</li>
+<li>提取之前推送的图像(如果存在)</li>
+<li>构建并标记新图像</li>
+<li>将图像上传到注册表</li>
+<li>使用<em> release.sh </em>脚本中的映像ID，通过<a href="https://devcenter.heroku.com/articles/container-registry-and-runtime#api"> Heroku API </a>创建一个新版本</li>
+</ol>
+<p>将新的依赖项添加到需求文件中:</p>
+<div class="codehilite"><pre><span/><code># prod
+Django==3.2.9
+dj-database-url==0.5.0
+gunicorn==20.1.0
+whitenoise==5.3.0
+
+# dev and test
+black==21.11b1
+flake8==4.0.1
+isort==5.10.1
+</code></pre></div>
+
+<p>在推进到GitLab之前，在本地运行Django测试:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">source</span> env/bin/activate
+<span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py <span class="nb">test</span>
+
+System check identified no issues <span class="o">(</span><span class="m">0</span> silenced<span class="o">)</span>.
+
+----------------------------------------------------------------------
+Ran <span class="m">0</span> tests <span class="k">in</span> <span class="m">0</span>.000s
+
+OK
+</code></pre></div>
+
+<p>确保Flake8通过，然后根据Black和isort的建议更新源代码:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ flake8 hello_django --max-line-length<span class="o">=</span><span class="m">100</span>
+<span class="o">(</span>env<span class="o">)</span>$ black hello_django
+<span class="o">(</span>env<span class="o">)</span>$ isort hello_django --profile black
+</code></pre></div>
+
+<p>再次提交和推送代码。确保所有阶段都通过。</p>
+<h3 id="approach-2-build-manifest_2">方法2:构建清单</h3>
+<blockquote>
+<p>如果您正在使用容器注册方法，请跳过这一节。</p>
+</blockquote>
+<p>更新<em>。gitlab-ci.yml </em>像这样:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}</span><span class="w"/>
+
+<span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:latest || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:latest</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:latest</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:latest</span><span class="w"/>
+
+<span class="nt">test</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">$IMAGE:latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="s">""</span><span class="w"/>
+<span class="w">    </span><span class="nt">DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql://<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2f5d5a41414a5d6f5f405c5b485d4a5c">[email protected]</a>:5432/test</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py test</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flake8 hello_django --max-line-length=100</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black hello_django --check</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">isort hello_django --check --profile black</span><span class="w"/>
+
+<span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">HEROKU_APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;APP_NAME&gt;</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apt-get update -qy</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apt-get install -y ruby-dev</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gem install dpl</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dpl --provider=heroku --app=$HEROKU_APP_NAME --api-key=$HEROKU_AUTH_TOKEN</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保将<code>&lt;APP_NAME&gt;</code>替换为Heroku应用的名称。</p>
+</blockquote>
+<p>所以，我们现在有三个阶段:<code>build</code>、<code>test</code>和<code>deploy</code>。</p>
+<p>在<code>build</code>阶段，我们:</p>
+<ol>
+<li>登录到<a href="https://docs.gitlab.com/ee/user/packages/container_registry/"> GitLab容器注册表</a></li>
+<li>提取之前推送的图像(如果存在)</li>
+<li>构建并标记新图像</li>
+<li>将图像上传到GitLab容器注册表</li>
+</ol>
+<p>然后，在<code>test</code>阶段，我们配置<a href="https://docs.gitlab.com/ee/ci/services/postgres.html"> Postgres </a>，设置<code>DATABASE_URL</code>环境变量，然后使用前一阶段构建的映像运行Django测试、Flake8、Black和isort。</p>
+<p>在<code>deploy</code>阶段，我们:</p>
+<ol>
+<li>安装Ruby和一个名为<a href="https://github.com/travis-ci/dpl"> dpl </a>的gem</li>
+<li>用dpl将代码部署到Heroku</li>
+</ol>
+<p>将新的依赖项添加到需求文件中:</p>
+<div class="codehilite"><pre><span/><code># prod
+Django==3.2.9
+dj-database-url==0.5.0
+gunicorn==20.1.0
+whitenoise==5.3.0
+
+# dev and test
+black==21.11b1
+flake8==4.0.1
+isort==5.10.1
+</code></pre></div>
+
+<p>在推进到GitLab之前，在本地运行Django测试:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">source</span> env/bin/activate
+<span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py <span class="nb">test</span>
+
+System check identified no issues <span class="o">(</span><span class="m">0</span> silenced<span class="o">)</span>.
+
+----------------------------------------------------------------------
+Ran <span class="m">0</span> tests <span class="k">in</span> <span class="m">0</span>.000s
+
+OK
+</code></pre></div>
+
+<p>确保Flake8通过，然后根据Black和isort的建议更新源代码:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ flake8 hello_django --max-line-length<span class="o">=</span><span class="m">100</span>
+<span class="o">(</span>env<span class="o">)</span>$ black hello_django
+<span class="o">(</span>env<span class="o">)</span>$ isort hello_django --profile black
+</code></pre></div>
+
+<p>再次提交和推送代码。确保所有阶段都通过。</p>
+<h2 id="multi-stage-docker-build">多级码头建造</h2>
+<p>最后，像这样更新Dockerfile以使用<a href="https://docs.docker.com/develop/develop-images/multistage-build/">多阶段构建</a>来减小最终的图像大小:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-alpine</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="s">build-python</span>
+<span class="k">RUN</span><span class="w"> </span>apk update <span class="o">&amp;&amp;</span> apk add --virtual build-essential gcc python3-dev musl-dev postgresql-dev
+<span class="k">RUN</span><span class="w"> </span>python -m venv /opt/venv
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">"/opt/venv/bin:</span><span class="nv">$PATH</span><span class="s2">"</span>
+<span class="k">COPY</span><span class="w"> </span>./requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-alpine</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>DEBUG <span class="m">0</span>
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">"/opt/venv/bin:</span><span class="nv">$PATH</span><span class="s2">"</span>
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>build-python /opt/venv /opt/venv
+<span class="k">RUN</span><span class="w"> </span>apk update <span class="o">&amp;&amp;</span> apk add --virtual build-deps gcc python3-dev musl-dev postgresql-dev
+<span class="k">RUN</span><span class="w"> </span>pip install psycopg2-binary
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+<span class="k">COPY</span><span class="w"> </span>. .
+<span class="k">RUN</span><span class="w"> </span>python manage.py collectstatic --noinput
+<span class="k">RUN</span><span class="w"> </span>adduser -D myuser
+<span class="k">USER</span><span class="w"> </span><span class="s">myuser</span>
+<span class="k">CMD</span><span class="w"> </span>gunicorn hello_django.wsgi:application --bind <span class="m">0</span>.0.0.0:<span class="nv">$PORT</span>
+</code></pre></div>
+
+<p>接下来，我们需要更新GitLab配置，以利用Docker层缓存。</p>
+<h3 id="approach-1-container-registry_3">方法1:容器注册</h3>
+<blockquote>
+<p>如果您使用构建清单方法，请跳过这一节。</p>
+</blockquote>
+<p><em>。gitlab-ci.yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}</span><span class="w"/>
+<span class="w">  </span><span class="nt">HEROKU_APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;APP_NAME&gt;</span><span class="w"/>
+<span class="w">  </span><span class="nt">HEROKU_REGISTRY_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">registry.heroku.com/${HEROKU_APP_NAME}/web</span><span class="w"/>
+
+<span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:build-python || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:production || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--target build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:production</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:production</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:build-python</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:production</span><span class="w"/>
+
+<span class="nt">test</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">$IMAGE:production</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="s">""</span><span class="w"/>
+<span class="w">    </span><span class="nt">DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql://<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cfbdbaa1a1aabd8fbfa0bcbba8bdaabc">[email protected]</a>:5432/test</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py test</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flake8 hello_django --max-line-length=100</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black hello_django --check</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">isort hello_django --check --profile black</span><span class="w"/>
+
+<span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apk add --no-cache curl</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:build-python || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:production || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--target build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:production</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:production</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:build-python</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:production</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u _ -p $HEROKU_AUTH_TOKEN registry.heroku.com</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $HEROKU_REGISTRY_IMAGE</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x ./release.sh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./release.sh</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保将<code>&lt;APP_NAME&gt;</code>替换为Heroku应用的名称。</p>
+</blockquote>
+<p>自己回顾一下变化。然后，最后一次测试它。</p>
+<blockquote>
+<p>有关这种缓存模式的更多信息，请查看文章<a href="/blog/faster-ci-builds-with-docker-cache">使用Docker缓存加快CI构建速度</a>中的“多阶段”部分。</p>
+</blockquote>
+<h3 id="approach-2-build-manifest_3">方法2:构建清单</h3>
+<blockquote>
+<p>如果您正在使用容器注册方法，请跳过这一节。</p>
+</blockquote>
+<p><em>。gitlab-ci.yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}</span><span class="w"/>
+<span class="w">  </span><span class="nt">HEROKU_APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;APP_NAME&gt;</span><span class="w"/>
+
+<span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:build-python || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:production || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--target build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:build-python</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $IMAGE:production</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--tag $IMAGE:production</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:build-python</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:production</span><span class="w"/>
+
+<span class="nt">test</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">$IMAGE:production</span><span class="w"/>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner</span><span class="w"/>
+<span class="w">    </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="s">""</span><span class="w"/>
+<span class="w">    </span><span class="nt">DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql://<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="46343328282334063629353221342335">[email protected]</a>:5432/test</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py test</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flake8 hello_django --max-line-length=100</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black hello_django --check</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">isort hello_django --check --profile black</span><span class="w"/>
+
+<span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apt-get update -qy</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apt-get install -y ruby-dev</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gem install dpl</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dpl --provider=heroku --app=$HEROKU_APP_NAME --api-key=$HEROKU_AUTH_TOKEN</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保将<code>&lt;APP_NAME&gt;</code>替换为Heroku应用的名称。</p>
+</blockquote>
+<p>自己回顾一下变化。然后，最后一次测试它。</p>
+<blockquote>
+<p>有关这种缓存模式的更多信息，请查看文章<a href="/blog/faster-ci-builds-with-docker-cache">使用Docker缓存加快CI构建速度</a>中的“多阶段”部分。</p>
+</blockquote>
+<h2 id="conclusion">结论</h2>
+<p>在本文中，我们介绍了两种使用Docker将Django应用程序部署到Heroku的方法——容器注册和构建清单。</p>
+<p>那么，什么时候应该考虑使用Heroku容器运行时而不是传统的Git和slug编译器来进行部署呢？</p>
+<p>当您需要对生产部署环境进行更多控制时。</p>
+<p>示例:</p>
+<ol>
+<li>您的应用程序和依赖项超过了500MB的最大slug限制。</li>
+<li>您的应用程序需要常规Heroku构建包没有安装的包。</li>
+<li>您希望更好地保证您的应用程序在开发中的行为与在生产中的行为相同。</li>
+<li>你真的真的很喜欢和Docker一起工作。</li>
+</ol>
+<p>--</p>
+<p>您可以在GitLab的以下存储库中找到代码:</p>
+<ol>
+<li>集装箱登记方法- <a href="https://gitlab.com/testdriven/django-heroku-docker"> django-heroku-docker </a></li>
+<li>构建清单Aproach-<a href="https://gitlab.com/testdriven/django-heroku-docker-build-manifest">django-heroku-docker-build-Manifest</a></li>
+</ol>
+<p>最好！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

@@ -1,0 +1,502 @@
+<html>
+<head>
+<title>Docker for Beginners </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>初学者码头工人</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/docker-for-beginners/#0001-01-01">https://testdriven.io/blog/docker-for-beginners/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>Docker 是开发者用来简化开发和发布应用程序的工具。</p>
+<p>根据Stack Overflow的2021年开发者调查，它是最受欢迎的开发工具之一。</p>
+<p>本文将带您了解Docker的基础知识，重点关注:</p>
+<ol>
+<li>核心Docker概念和组件</li>
+<li>docker文件是什么样子，它最常见的指令是做什么的</li>
+<li>什么是图像和容器，它们是如何创建的，以及如何管理它们</li>
+</ol>
+<blockquote>
+<p>这篇文章可以是只读的。但是，如果您想继续学习，我提供了一个基本的<a href="https://github.com/testdrivenio/docker-for-beginners"> HelloWorld应用程序</a>，您可以使用它自己尝试所有的命令。在阅读本文的过程中，您可以随意将其复制下来并运行命令。</p>
+<p>虽然容器和图像命令独立于应用程序的语言，但docker文件中通常有特定于语言的结构。也就是说，尽管所提供的例子是基于Python的，但是您可以很容易地将新学到的知识应用到其他语言中。</p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本文后，您应该能够:</p>
+<ol>
+<li>解释Docker是什么以及它是如何工作的</li>
+<li>描述并区分以下概念和组件:Docker引擎、Docker桌面、Docker文件、Docker映像和Docker容器</li>
+<li>跟随使用Docker的更复杂的教程</li>
+</ol>
+<h2 id="containers-and-virtual-machines">容器和虚拟机</h2>
+<p>在进入Docker之前，理解容器和虚拟机之间的区别是很重要的。</p>
+<p>容器和虚拟机是相似的，因为它们允许多个应用程序在同一服务器上运行，具有不同的软件需求——例如，不同的Python版本、不同的库等。它们的主要区别在于操作系统。虽然containers使用主机的操作系统，但是每个虚拟机在主机操作系统之上都有自己的客户操作系统。</p>
+<p>在这张现在几乎很出名的图片中，您可以看到Docker与虚拟机的对比:</p>
+<p><img data-src="/static/images/blog/docker-for-beginners/vm_vs_docker.png" loading="lazy" class="lazyload" alt="Containers and Virtual Machines" src="../Images/9b98505156eabd57fac360c927e8eb9a.png" data-original-src="https://testdriven.io/static/images/blog/docker-for-beginners/vm_vs_docker.png"/></p>
+<p>因此，如果您有一个需要在不同操作系统上运行的应用程序，那么虚拟机是一个不错的选择。但是如果这不是一个要求，Docker比虚拟机有多种优势:</p>
+<ol>
+<li>重量较轻</li>
+<li>构建速度更快</li>
+<li>可以很容易地跨不同平台移植</li>
+<li>资源密集度较低</li>
+<li>放大和复制更容易</li>
+</ol>
+<p>所有这些优势都是由于Docker容器不需要自己的操作系统。</p>
+<h2 id="docker">码头工人</h2>
+<h3 id="docker-engine">码头引擎</h3>
+<p>当人们提到Docker时，他们通常指的是<a href="https://docs.docker.com/engine/"> Docker引擎</a>。</p>
+<p>Docker Engine是用于构建、管理和运行容器化应用程序的底层开源容器化技术。它是一个客户端-服务器应用程序，具有以下组件:</p>
+<ol>
+<li><a href="https://docs.docker.com/engine/reference/commandline/dockerd/"> Docker守护进程</a>(称为<em>Docker</em>)是一个在后台运行的服务，它监听Docker引擎API请求并管理Docker对象，如图像和容器。</li>
+<li>Docker引擎API 是一个RESTful API，用于与Docker守护进程交互。</li>
+<li><a href="https://docs.docker.com/get-started/overview/#the-docker-client"> Docker客户端</a>(称为<em> docker </em>)是用于与Docker守护进程交互的命令行接口。因此，当您使用类似于<code>docker build</code>的命令时，您正在使用Docker客户端，它反过来利用Docker引擎API与Docker守护进程进行通信。</li>
+</ol>
+<h3 id="docker-desktop">Docker桌面</h3>
+<p>这些天，当你试图安装Docker时，你会遇到<a href="https://www.docker.com/products/docker-desktop/"> Docker桌面</a>。虽然Docker Engine包含在Docker Desktop中，但重要的是要理解Docker Desktop与Docker Engine是<em>而非</em>相同的。Docker桌面是Docker容器的集成开发环境。它使您的操作系统配置为使用Docker变得更加容易。</p>
+<p>如果您还没有安装Docker Desktop，请继续安装:</p>
+
+<h3 id="docker-concepts">Docker概念</h3>
+<p>Docker的核心有三个核心概念:</p>
+<ol>
+<li>docker file——一个文本文件，作为你的容器的蓝图。在其中，您定义了Docker用来构建映像的指令列表。</li>
+<li><a href="https://docs.docker.com/glossary/#image">Image</a>-docker file的只读实现。它由<a href="https://docs.docker.com/glossary/#layer">层</a>组成——每一层对应docker文件中的一行指令。</li>
+<li>运行Docker映像会产生一个容器，它是应用程序的受控环境。如果我们把它与面向对象编程相提并论，容器就是Docker映像的一个实例。</li>
+</ol>
+<p><img data-src="/static/images/blog/docker-for-beginners/docker_illustration.png" loading="lazy" class="lazyload" alt="Dockerfile vs Docker Image vs Docker Container" src="../Images/dafb57f2688074a3c5f12335adffaa98.png" data-original-src="https://testdriven.io/static/images/blog/docker-for-beginners/docker_illustration.png"/></p>
+<p>Docker文件用于创建Docker图像，然后用于创建(多个)Docker容器。</p>
+<p>在接下来的几节中，我们将详细研究这三个核心概念。</p>
+<blockquote>
+<p>强烈建议在继续之前通读<a href="https://docs.docker.com/get-started/overview/"> Docker概述</a>。</p>
+</blockquote>
+<h2 id="dockerfile">Dockerfile</h2>
+<p>同样，<a href="https://docs.docker.com/glossary/#dockerfile"> Dockerfile </a>是一个文本文件，包含Docker如何构建映像的指令。默认情况下，Dockerfile没有扩展名，但是如果需要多个扩展名，您可以添加一个——例如，<em> Dockerfile.prod </em>。</p>
+<p>下面是一个非常简单的Dockerfile文件的例子:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-slim-buster</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/usr/src/app</span>
+
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+
+<span class="k">RUN</span><span class="w"> </span>pip install --upgrade pip
+<span class="k">COPY</span><span class="w"> </span>./requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="k">CMD</span><span class="w"> </span>uvicorn main:app --reload --host <span class="m">0</span>.0.0.0 --port <span class="m">8000</span>
+</code></pre></div>
+
+<blockquote>
+<p>这个例子非常简单，所以你很容易理解。它并不遵循<a href="/blog/docker-best-practices/">最佳实践</a>，但是你应该在你的does文件中尝试遵循它们。</p>
+</blockquote>
+<p>Dockerfile本质上是一个由以下形式的<a href="https://docs.docker.com/engine/reference/builder">命令</a>组成的列表:<code>INSTRUCTION arguments</code>。大多数最广泛使用的命令可以在上面的Dockerfile文件中看到。让我们详细看一下每一个...</p>
+<h3 id="from">从</h3>
+<p>所有docker文件都包含一个父映像/基础映像，新映像将在此基础上构建。您使用来自指令的<a href="https://docs.docker.com/engine/reference/builder/#from">来定义父图像:</a></p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-slim-buster</span>
+</code></pre></div>
+
+<p>一个有效的Dockerfile总是包含一个<code>FROM</code>指令。</p>
+<blockquote>
+<p>虽然<em>父</em>和<em>基</em>映像术语有时会互换使用，但它们之间还是有区别的。父映像有自己的父映像。同时，基础映像没有父映像；从<code>FROM scratch</code>开始。</p>
+<p><a href="https://github.com/alpinelinux/docker-alpine/blob/adebcfd075c83ef788b5f071678dcfb8ea118bb3/x86_64/Dockerfile"> Alpine image </a>是基本图像，<a href="https://github.com/docker-library/python/blob/9fd031d91ced6ddc1bf1f0f34b893ad82fa0d010/3.11-rc/alpine3.16/Dockerfile"> Python:alpine </a>是父图像(其父(基本)图像实际上是Alpine图像)。</p>
+<p>您可以在自己的上创建一个<a href="https://docs.docker.com/develop/develop-images/baseimages/">基础映像，但是您需要自己的映像的可能性很小。</a></p>
+</blockquote>
+<p>您可以在<a href="https://docs.docker.com/docker-hub/"> Docker Hub </a>上找到父映像，这是Docker的Docker映像库/注册表。你可以把它想象成Docker图片的GitHub。你可能会想要使用<a href="https://docs.docker.com/docker-hub/official_images/">官方图片</a>或来自可靠来源的验证图片，因为它们更可能符合<a href="https://docs.docker.com/develop/develop-images/dockerfile_best-practices/"> Docker最佳实践</a>并包含最新的安全修复。</p>
+<p>在上面的例子中，我们使用了官方的<a href="https://hub.docker.com/_/python"> Python父映像</a>，具体来说就是<code>python:3.10-slim-buster</code>。</p>
+<p>关于<code>python:3.10-slim-buster</code>的说明:</p>
+<ul>
+<li>这个数字告诉你这个映像使用了哪个版本的技术(例如，<code>python:3.11.0a5</code>映像使用Python版本<em> 3.11.0a5 </em>，而<code>node:18.9.0</code>使用节点版本<em> 18.9.0 </em>)。你可能想要避免任何带有<code>rc</code>的版本(例如<code>python:3.11.0rc2</code>，因为rc意味着<em>发布候选</em>。</li>
+<li>像<em>巴斯特</em>、<em>牛眼</em>或<em> alpine </em>这样的名字告诉你这个映像使用了哪些OS映像(<em>巴斯特</em>和<em>牛眼</em>指的是Debian版本，而<em> alpine </em>是一个轻量级Linux发行版)。此外，还有像<code>slim</code>和<code>slim-buster</code>这样的标签，它们使用完整图像的浅色版本。</li>
+</ul>
+<blockquote>
+<p>查看<a href="/blog/docker-best-practices/#use-small-docker-base-images">使用小型Docker基本映像</a>了解使用哪种基本映像的最佳实践。</p>
+</blockquote>
+<h3 id="run">奔跑</h3>
+<p><a href="https://docs.docker.com/engine/reference/builder/#run"> RUN </a>指令在当前图像之上的新层中执行任何命令，并提交结果。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">RUN</span><span class="w"> </span>mkdir /home/app/web
+
+<span class="k">RUN</span><span class="w"> </span>python manage.py collectstatic --noinput
+</code></pre></div>
+
+<h3 id="env">包封/包围（动词envelop的简写）</h3>
+<p>您使用<a href="https://docs.docker.com/engine/reference/builder/#env"> ENV </a>指令来设置一个环境变量。该变量将在所有后续指令中可用。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">ENV</span><span class="w"> </span><span class="nv">TZ</span><span class="o">=</span>UTC
+
+<span class="k">ENV</span><span class="w"> </span><span class="nv">HOME</span><span class="o">=</span>/home/app
+</code></pre></div>
+
+<h3 id="cmd-and-entrypoint">CMD和入口点</h3>
+<p>有些Docker指令非常相似，很难理解为什么需要这两个命令。这些“夫妇”中的一对是<a href="https://docs.docker.com/engine/reference/builder/#cmd"> CMD </a>和<a href="https://docs.docker.com/engine/reference/builder/#entrypoint"> ENTRYPOINT </a>。</p>
+<p>首先，对于相似之处:</p>
+<ul>
+<li><code>CMD</code>和<code>ENTRYPOINT</code>都指定了运行容器时将执行的命令/可执行文件。与立即执行命令的<code>RUN</code>不同(结果用于图像层)，编译中的<code>CMD</code> / <code>ENTRYPOINT</code>命令指定了仅在容器启动时使用的命令。</li>
+<li>一个docker文件中只能有一条<code>CMD</code> / <code>ENTRYPOINT</code>指令，但它可以指向一个更复杂的可执行文件。</li>
+</ul>
+<p>这些指令之间实际上只有一个区别:</p>
+<ul>
+<li>可以从Docker CLI轻松覆盖。</li>
+</ul>
+<p>如果您想在启动容器时根据需要灵活地运行不同的可执行文件，那么您应该使用<code>CMD</code>。如果您想清楚地传达命令不应该被覆盖并防止意外更改它，请使用<code>ENTRYPOINT</code>。</p>
+<p>你可能会用其中的一个。如果你不使用它，容器会立即停止，因为它没有存在的理由(如果你也在使用Docker Compose的话例外)。</p>
+<p>您也可以在同一个docker文件中同时使用<code>CMD</code>和<code>ENTRYPOINT</code>，在这种情况下，<code>CMD</code>将作为<code>ENTRYPOINT</code>的默认参数。</p>
+<p>一个docker文件中只能有一个<code>CMD</code>指令，但是它可以指向一个更复杂的可执行文件。如果有多个<code>CMD</code>，只有最后一个<code>CMD</code>会生效。这同样适用于<code>ENTRYPOINT</code>指令。</p>
+<p><code>CMD</code>指令使用示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">CMD</span><span class="w"> </span>gunicorn core.wsgi:application --bind <span class="m">0</span>.0.0.0:<span class="nv">$PORT</span>
+</code></pre></div>
+
+<p>您很有可能将<code>ENTRYPOINT</code>参数视为可执行文件，因为应该执行的命令通常不止一行。</p>
+<p><code>ENTRYPOINT</code>作为可执行文件使用的例子:</p>
+<div class="codehilite"><pre><span/><code>ENTRYPOINT <span class="o">[</span><span class="s2">"./entrypoint.sh"</span><span class="o">]</span>
+</code></pre></div>
+
+<p>这就是<em> entrypoint.sh </em>文件的样子:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+python manage.py migrate
+python manage.py collectstatic --noinput
+</code></pre></div>
+
+<blockquote>
+<p>理解<code>CMD</code>和<code>ENTRYPOINT</code>的区别很重要。更多信息，请查看<a href="/blog/docker-best-practices/#understand-the-difference-between-entrypoint-and-cmd">了解ENTRYPOINT和CMD </a>的区别以及<a href="https://docs.docker.com/engine/reference/builder/#understand-how-cmd-and-entrypoint-interact">官方文件</a>。</p>
+</blockquote>
+<h3 id="add-and-copy">添加并复制</h3>
+<p>另一对相似的是<a href="https://docs.docker.com/engine/reference/builder/#add">添加</a>和<a href="https://docs.docker.com/engine/reference/builder/#copy">复制</a>。</p>
+<p>这两条指令都将新文件或目录从<src>路径复制到位于<dest>路径的镜像文件系统:</dest> </src></p>
+<div class="codehilite"><pre><span/><code><span class="k">ADD</span><span class="w"> </span>&lt;src&gt; &lt;dest&gt;
+<span class="k">COPY</span><span class="w"> </span>&lt;src&gt; &lt;dest&gt;
+</code></pre></div>
+
+<p>此外，<code>ADD</code>可以从远程文件URL(例如，它允许直接向映像添加git存储库)和直接从压缩的归档文件中复制(<code>ADD</code>会自动将内容解压缩到给定的位置)。</p>
+<p>你应该<a href="/blog/docker-best-practices/#prefer-copy-over-add">更喜欢COPY而不是ADD </a>,除非你特别需要ADD的两个附加特性中的一个——例如，下载示例文件或解压压缩文件</p>
+<p><code>ADD</code>和<code>COPY</code>指令用法示例:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># copy local files on the host to the destination</span>
+<span class="k">COPY</span><span class="w"> </span>/source/path  /destination/path
+<span class="k">COPY</span><span class="w"> </span>./requirements.txt .
+
+<span class="c"># download external file and copy to the destination</span>
+<span class="k">ADD</span><span class="w"> </span>http://external.file/url  /destination/path
+<span class="k">ADD</span><span class="w"> </span>--keep-git-dir<span class="o">=</span><span class="nb">true</span> https://github.com/moby/buildkit.git#v0.10.1 /buildkit
+
+<span class="c"># copy and extract local compresses files</span>
+<span class="k">ADD</span><span class="w"> </span>source.file.tar.gz /destination/path
+</code></pre></div>
+
+<h2 id="image">图像</h2>
+<p>一个<a href="https://docs.docker.com/glossary/#image">图像</a>可能是三个概念中最令人困惑的。您创建了一个Dockerfile，然后使用了一个容器，但是在这两者之间有一个图像。</p>
+<p>因此，图像是Docker文件的只读实现，用于创建Docker容器。它由<a href="https://docs.docker.com/glossary/#layer">层</a>组成——docker文件中的每一行构成一层。你不能直接改变一个图像；你可以通过改变Dockerfile文件来改变它。你也不直接使用图像；您使用从图像创建的容器。</p>
+<p>最重要的图像相关任务有:</p>
+<ol>
+<li><strong>从docker文件构建</strong>图像</li>
+<li><strong>列出</strong>所有构建的图像</li>
+<li><strong>删除</strong>图像</li>
+</ol>
+<blockquote>
+<p><a href="https://github.com/docker/docker.github.io/issues/3031">从2017年</a>开始，Docker从更短的命令(即<code>docker &lt;command&gt;</code>)切换到更具描述性的格式(即<code>docker &lt;top-level command&gt; &lt;command&gt;</code>)。尽管Docker用户被鼓励使用新版本，甚至<a href="https://docs.docker.com/get-started/02_our_app/">官方教程</a>也使用更短的版本。到目前为止，旧版本仍然有效，我还没有找到任何旧命令被弃用的证据。更重要的是，人们(甚至<a href="https://docs.docker.com/engine/reference/commandline/create/#description">文档</a>)开始称它为“速记”。</p>
+<p>使用新版本的优点是，您将更好地理解命令处理的是三个概念中的哪一个。这些命令也更容易在文档中找到。旧版本的优点是它更短，文档更全面。</p>
+<p>在本文中，我将使用命令的描述形式。在本文的结尾，您可以找到所有命令及其简写版本。</p>
+<p>在这里，你可以找到所有处理图像的新命令。</p>
+</blockquote>
+<h3 id="building">建筑物</h3>
+<p>要从docker文件构建映像，您可以使用<a href="https://docs.docker.com/engine/reference/commandline/image_build/"> docker映像构建</a>命令。该命令需要一个参数:上下文的路径或URL。</p>
+<p>此图像将使用当前目录作为上下文:</p>
+
+
+<p>你可以提供许多<a href="https://docs.docker.com/engine/reference/commandline/image_build/#options">选项</a>。例如，<code>-f</code>用于当您有多个Dockerfile(如<code>Dockerfile.prod</code>)或者<code>Dockerfile</code>不在当前目录中(如<code>docker image build . -f docker/Dockerfile.prod</code>)时指定一个具体的docker file。</p>
+<p>可能最重要的是用于命名/标记图像的<code>-t</code>标签。</p>
+<p>当您构建一个映像时，它会被分配一个ID。与您预期的相反，id并不是唯一的。如果你想能够方便地引用你的图片，你应该命名/标记它。使用<code>-t</code>，你可以给它指定一个名字<em>和一个标签</em>。</p>
+<p>这里有一个创建三个图像的例子:一个没有使用<code>-t</code>，一个指定了名称，一个指定了名称和标签。</p>
+<div class="codehilite"><pre><span/><code>$ docker image build .
+$ docker image build . -t hello_world
+$ docker image build . -t hello_world:67d19c27b60bd782c9d3600ae914604a94bddfd4
+
+$ docker image ls
+REPOSITORY           TAG       IMAGE ID       CREATED          SIZE
+REPOSITORY    TAG                                        IMAGE ID       CREATED          SIZE
+hello_world   67d19c27b60bd782c9d3600ae914604a94bddfd4   e03784993f22   <span class="m">25</span> minutes ago   181MB
+hello_world   latest                                     e03784993f22   <span class="m">26</span> minutes ago   181MB
+&lt;none&gt;        &lt;none&gt;                                     7a615d108866   <span class="m">29</span> minutes ago   181MB
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>对于构建时没有名称或标签的图像，您只能通过其图像ID来引用它。不仅很难记住，而且，它可能不是唯一的(如上所述)。你应该避免这种情况。</li>
+<li>对于只有名称(<code>-t hello_world</code>)的图像，标签自动设置为<code>latest</code>。你也应该避免这种情况。更多信息，请查看<a href="/blog/docker-best-practices/#version-docker-images">版本Docker图片</a>。</li>
+</ol>
+<h3 id="listing">列表</h3>
+<p><a href="https://docs.docker.com/engine/reference/commandline/image_ls/"> docker image ls </a>命令列出了所有构建的图像。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code>$ docker image ls
+
+REPOSITORY      TAG       IMAGE ID       CREATED         SIZE
+hello_world     latest    c50405e84d39   <span class="m">9</span> minutes ago   245MB
+&lt;none&gt;          &lt;none&gt;    2700a62cd8f1   <span class="m">42</span> hours ago    245MB
+alpine/git      latest    692618a0d74d   <span class="m">2</span> weeks ago     <span class="m">43</span>.4MB
+todo_app        <span class="nb">test</span>      <span class="m">999740882932</span>   <span class="m">3</span> weeks ago     <span class="m">1</span>.03GB
+</code></pre></div>
+
+<h3 id="removing">消除</h3>
+<p>移除图像有两种使用情形:</p>
+<ol>
+<li>您想要删除一个或多个选定的图像</li>
+<li>您希望删除所有未使用的图像(您不关心具体是哪些图像)</li>
+</ol>
+<p>对于第一种情况，你用<code>docker image rm</code>；对于第二种情况，您使用<code>docker image prune</code>。</p>
+<h4 id="remove">去除</h4>
+<p><a href="https://docs.docker.com/engine/reference/commandline/image_rm/"> docker image rm </a>删除并取消标记所选图像。它需要一个参数:对要删除的图像的引用。您可以通过名称或短/长ID来引用它。</p>
+<p>如果你回想一下图像标记的解释...可以有多个名称不同但ID相同的图像。如果您试图通过图像ID删除图像，并且存在多个具有该ID的图像，您将得到一个<code>image is referenced in multiple repositories</code>错误。在这种情况下，您必须通过名称引用来删除它。如果您希望删除具有相同ID的所有图像，您可以使用<code>-f</code>标志。</p>
+<p>不成功和成功的图像移除示例:</p>
+<div class="codehilite"><pre><span/><code>$ docker image ls
+
+REPOSITORY   TAG       IMAGE ID       CREATED          SIZE
+test1        latest    4659ba97837b   <span class="m">41</span> seconds ago   245MB
+test2        latest    4659ba97837b   <span class="m">41</span> seconds ago   245MB
+<span class="nb">test</span>         latest    4659ba97837b   <span class="m">41</span> seconds ago   245MB
+
+
+$ docker rmi 4659ba97837b
+
+Error response from daemon: conflict: unable to delete 4659ba97837b <span class="o">(</span>must be forced<span class="o">)</span> - image is referenced <span class="k">in</span> multiple repositories
+
+
+$ docker rmi test2
+Untagged: test2:latest
+
+
+$ docker image ls
+
+REPOSITORY   TAG       IMAGE ID       CREATED         SIZE
+test1        latest    4659ba97837b   <span class="m">4</span> minutes ago   245MB
+<span class="nb">test</span>         latest    4659ba97837b   <span class="m">4</span> minutes ago   245MB
+</code></pre></div>
+
+<h4 id="prune">减少</h4>
+<p><a href="https://docs.docker.com/engine/reference/commandline/image_prune/"> docker图像修剪</a>移除悬空图像。因为<code>prune</code>是一个可以用来清理容器、映像、卷和网络的命令，所以这个命令没有更短的版本。如果使用<code>-a</code>标志，所有未使用的图像将被删除(即<code>docker image prune -a</code>)。</p>
+<blockquote>
+<p>悬挂图像是一种未被标记且未被任何容器引用的图像。</p>
+<p>未使用的图像是与至少一个容器没有关联的图像。</p>
+</blockquote>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code>$ docker image prune
+
+WARNING! This will remove all dangling images.
+Are you sure you want to <span class="k">continue</span>? <span class="o">[</span>y/N<span class="o">]</span>
+
+Deleted Images:
+deleted: sha256:c9a6625eb29593463ea43aab4053090427bf29cc59bc97917b3298fda6a94e8a
+deleted: sha256:284f940f39c3ef5be09440e23fdefdb00df0791344db5c340a9d11979a98039e
+deleted: sha256:1934187bf17ccf4e754842a4ceeacf5c14aaa63ba7a04c0c520f53946426c902
+</code></pre></div>
+
+<blockquote>
+<p>还有一些额外的命令，但是您可能不会经常使用它们；在<a href="https://docs.docker.com/engine/reference/commandline/image/">官方文档</a>中可以看到所有与图像相关的命令。</p>
+</blockquote>
+<h2 id="container">容器</h2>
+<p>您需要理解的第三个概念是一个<a href="https://docs.docker.com/glossary/#container">容器</a>，它是您的应用程序的受控环境。当图像在Docker引擎上运行时，它就变成了一个容器。这是最终目标:使用Docker，这样您就可以为您的应用程序提供一个容器。</p>
+<p>您可以对容器执行的主要操作有</p>
+<ol>
+<li><strong>运行</strong>一个容器</li>
+<li><strong>列出</strong>所有的容器</li>
+<li><strong>停止</strong>集装箱</li>
+<li><strong>移除</strong>一个容器</li>
+</ol>
+<blockquote>
+<p>您可以在<a href="https://docs.docker.com/engine/reference/commandline/container/">正式文档</a>中看到与容器相关的所有命令。</p>
+</blockquote>
+<h3 id="running">运转</h3>
+<p>你可以创建一个新的图像容器并运行它，或者你可以T2启动一个已经停止的容器。</p>
+<h4 id="run_1">奔跑</h4>
+<p><a href="https://docs.docker.com/engine/reference/commandline/container_run/"> docker容器运行</a>命令实际上结合了另外两个命令，<a href="https://docs.docker.com/engine/reference/commandline/container_create/"> docker容器创建</a>和<a href="https://docs.docker.com/engine/reference/commandline/container_start/"> docker容器启动</a>。</p>
+<p>因此，下面的内容基本上给出了相同的结果:</p>
+<div class="codehilite"><pre><span/><code>$ docker container run my_image
+
+<span class="c1"># the same as:</span>
+
+$ docker container create my_image
+88ce9c60aeabbb970012b5f8dbae6f34581fa61ec20bd6d87c6831fbb5999263
+$ docker container start 88ce9c60aeabbb970012b5f8dbae6f34581fa61ec20bd6d87c6831fbb5999263
+</code></pre></div>
+
+<p>您需要提供一个参数:您希望用于容器的图像。</p>
+<p>运行run命令时，Docker会在指定的图像上创建一个可写的容器层，然后使用指定的命令(Docker文件中的<code>CMD</code> / <code>ENTRYPOINT</code>)启动它。</p>
+<blockquote>
+<p>除非存储容器，否则在可写层中所做的更改在删除容器后不会持续。Docker有两个<a href="https://docs.docker.com/storage/">选项用于存储数据</a>。</p>
+</blockquote>
+<p>因为您可以覆盖许多默认值，所以有许多选项。你可以在<a href="https://docs.docker.com/engine/reference/commandline/run/#options">官方文件</a>中看到它们。最重要的选项是<code>--publish</code> / <code>-p</code>，用于对外发布端口。尽管在技术上可以运行没有端口的容器，但这并不是很有用，因为在容器内部运行的服务在容器外部是不可访问的。创建和运行命令都可以使用<code>--publish</code> / <code>-p</code>:</p>
+<p>下面是一个例子:</p>
+<div class="codehilite"><pre><span/><code>$ docker container run -p <span class="m">8000</span>:8000 my_image
+</code></pre></div>
+
+<blockquote>
+<p>您可以在<a href="https://docs.docker.com/config/containers/container-networking/#published-ports">官方文档</a>中了解更多关于港口发布的信息。</p>
+</blockquote>
+<p>您可以使用<code>--detach</code> / <code>-d</code>在分离模式下运行您的容器，这允许您继续使用终端。</p>
+<p>如果在分离模式下运行容器，Docker将只返回容器ID:</p>
+<div class="codehilite"><pre><span/><code>$ docker container run -p <span class="m">8000</span>:8000 -d my_image
+
+0eb20b715f42bc5a053dc7878b3312c761058a25fc1efaffb7920b3b4e48df03
+</code></pre></div>
+
+<p>默认情况下，您的容器有一个独特、古怪的名称，但是您可以指定自己的名称:</p>
+<div class="codehilite"><pre><span/><code>$ docker container run -p <span class="m">8000</span>:8000 --name my_great_container my_image
+</code></pre></div>
+
+<h4 id="start">开始</h4>
+<p>要启动一个停止的或刚刚创建的容器，可以使用<a href="https://docs.docker.com/engine/reference/commandline/container_start/"> docker容器启动</a>命令。因为使用这个命令，您将启动一个现有的容器，所以您必须指定<em>容器</em>，而不是<em>图像</em>(与<code>docker container run</code>一样)。</p>
+<p>与<code>docker container run</code>的另一个区别是<code>docker container start</code>默认以分离模式运行容器。你可以用<code>--attach</code> / <code>-a</code>(与<code>docker container run -d</code>相反)来连接它。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code>$ docker container start -a reverent_sammet
+</code></pre></div>
+
+<h3 id="listing_1">列表</h3>
+<p>你可以用<a href="https://docs.docker.com/engine/reference/commandline/container_ls/"> docker容器ls </a>列出所有正在运行的容器。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code>$ docker container ls
+
+CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                    NAMES
+0f21395ec96c   9973e9c65229   <span class="s2">"/bin/sh -c 'gunicor…"</span>   <span class="m">6</span> minutes ago   Up <span class="m">6</span> minutes   <span class="m">0</span>.0.0.0:80-&gt;8000/tcp     shopping
+73bd69d041ae   my_image       <span class="s2">"/bin/sh -c 'uvicorn…"</span>   <span class="m">2</span> hours ago     Up <span class="m">2</span> hours     <span class="m">0</span>.0.0.0:8000-&gt;8000/tcp   my_great_container
+</code></pre></div>
+
+<p>如果您还想查看停止的集装箱，您可以添加<code>-a</code>标志:</p>
+<div class="codehilite"><pre><span/><code>$ docker container ls -a
+
+CONTAINER ID   IMAGE          COMMAND                  CREATED              STATUS                     PORTS                    NAMES
+0f21395ec96c   9973e9c65229   <span class="s2">"/bin/sh -c 'gunicor…"</span>   About a minute ago   Up About a minute          <span class="m">0</span>.0.0.0:80-&gt;8000/tcp     shopping
+73bd69d041ae   my_image       <span class="s2">"/bin/sh -c 'uvicorn…"</span>   <span class="m">2</span> hours ago          Up <span class="m">2</span> hours                 <span class="m">0</span>.0.0.0:8000-&gt;8000/tcp   my_great_container
+0eb20b715f42   my_image       <span class="s2">"/bin/sh -c 'uvicorn…"</span>   <span class="m">2</span> hours ago          Exited <span class="o">(</span><span class="m">137</span><span class="o">)</span> <span class="m">2</span> hours ago                            agitated_gagarin
+489a02b8cfac   my_image       <span class="s2">"/bin/sh -c 'uvicorn…"</span>   <span class="m">2</span> hours ago          Created                                             vigorous_poincare
+</code></pre></div>
+
+<p>让我们来看看以下各项的输出:</p>
+<div class="codehilite"><pre><span/><code>CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                    NAMES
+73bd69d041ae   my_image       <span class="s2">"/bin/sh -c 'uvicorn…"</span>   <span class="m">2</span> hours ago     Up <span class="m">2</span> hours     <span class="m">0</span>.0.0.0:8000-&gt;8000/tcp   my_great_container
+</code></pre></div>
+
+<ol>
+<li><code>CONTAINER ID</code> ( <code>73bd69d041ae</code>)和它的<code>NAMES</code> ( <code>my_great_container</code>)都是唯一的，所以你可以用它们来访问容器。</li>
+<li><code>IMAGE</code> ( <code>my_image</code>)告诉您哪个图像用于运行容器。</li>
+<li><code>CREATED</code>是不言自明的:当容器被创建时(<code>2 hours ago</code>)。</li>
+<li>我们已经讨论了为启动容器指定命令的必要性...<code>COMMAND</code>告诉你使用了哪个命令(<code>"/bin/sh -c 'uvicorn…"</code>)。</li>
+<li>当你不知道为什么你的容器不工作时，<code>STATUS</code>是有用的(<code>Up 2 hours</code>意味着你的容器正在运行，<code>Exited</code>或<code>Created</code>意味着它不工作)</li>
+</ol>
+<blockquote>
+<p>一些信息被截断了。如果想要未截断的版本，添加<code>--no-trunc</code>。</p>
+</blockquote>
+<h3 id="stopping">填料</h3>
+<p>要停止集装箱，使用<a href="https://docs.docker.com/engine/reference/commandline/container_stop/">码头集装箱停止</a>。然后返回停止的容器的名称或ID。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code>$ docker container stop my_great_container
+my_great_container
+
+$ docker container stop 73bd69d041ae
+73bd69d041ae
+</code></pre></div>
+
+<blockquote>
+<p>可以用<code>docker container start</code>再次启动容器。</p>
+</blockquote>
+<h3 id="removing_1">消除</h3>
+<p>与图像类似，要删除容器，您可以:</p>
+<ol>
+<li>通过<a href="https://docs.docker.com/engine/reference/commandline/container_rm/">码头集装箱rm </a>移除一个或多个选定的集装箱。</li>
+<li>通过<a href="https://docs.docker.com/engine/reference/commandline/container_prune/"> docker容器修剪</a>移除所有停止的容器</li>
+</ol>
+<p><code>docker container rm</code>的例子:</p>
+<div class="codehilite"><pre><span/><code>$ docker container rm festive_euclid
+festive_euclid
+</code></pre></div>
+
+<p><code>docker container prune</code>的例子:</p>
+<div class="codehilite"><pre><span/><code>$ docker container prune
+
+WARNING! This will remove all stopped containers.
+Are you sure you want to <span class="k">continue</span>? <span class="o">[</span>y/N<span class="o">]</span> y
+Deleted Containers:
+0f21395ec96c28b443bad8aac40197fe0468d24e0eed49e5f56011de1c81b589
+80c693693f3d99999925eae5f4bbfc03236cde670db509797d83f50e732fcf31
+0eb20b715f42bc5a053dc7878b3312c761058a25fc1efaffb7920b3b4e48df03
+1273cf44c551f8ab9302e6d090e3c4e135ca6f7e1ab3d90a62bcbf5e83ba9342
+</code></pre></div>
+
+<h2 id="commands">命令</h2>
+<p>在本文中，我们讨论了相当多的命令。为了帮助你浏览你读到的内容，我准备了一个表格，列出了我们遇到的所有命令。该表包括描述性命令以及速记别名。</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>别名</th>
+<th>使用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>docker映像构建</td>
+<td>码头工人建造</td>
+<td>从Dockerfile文件构建映像</td>
+</tr>
+<tr>
+<td>ls图像坞站</td>
+<td>docker图像</td>
+<td>列出图像</td>
+</tr>
+<tr>
+<td>docker图像室</td>
+<td>rmi坞站</td>
+<td>移除选定的图像</td>
+</tr>
+<tr>
+<td>docker图像修剪</td>
+<td>不适用的</td>
+<td>移除未使用的图像</td>
+</tr>
+<tr>
+<td>码头集装箱运输</td>
+<td>码头运行</td>
+<td>创建容器并启动它</td>
+</tr>
+<tr>
+<td>码头集装箱开始</td>
+<td>码头开始</td>
+<td>启动现有容器</td>
+</tr>
+<tr>
+<td>ls容器对接器</td>
+<td>docker ps</td>
+<td>列出所有容器</td>
+</tr>
+<tr>
+<td>码头集装箱停靠站</td>
+<td>码头停车</td>
+<td>拦住集装箱</td>
+</tr>
+<tr>
+<td>码头集装箱室</td>
+<td>码头工人室</td>
+<td>移走容器</td>
+</tr>
+<tr>
+<td>码头集装箱修剪</td>
+<td>不适用的</td>
+<td>移除所有停止的容器</td>
+</tr>
+</tbody>
+</table>
+<h2 id="conclusion">结论</h2>
+<p>总而言之，Docker中最基本的概念是Dockerfile、image和container。</p>
+<p>使用Dockerfile文件作为蓝图，构建一个映像。然后，可以使用这些图像构建其他图像，并且可以在Docker Hub上找到这些图像。运行映像会为您的应用程序产生一个受控的环境，称为容器。</p>
+<p>这篇文章的目的是向你解释Docker的基础知识。如果你想阅读更多的实践教程，你可以查看我们与Docker 相关的<a href="/blog/topics/docker/">文章的广泛列表。如果你是一名Python开发者，一定要看看</a><a href="/blog/docker-best-practices/"> Docker针对Python开发者的最佳实践</a>。</p>
+<h3 id="whats-next">下一步是什么？</h3>
+<p>Docker是一个复杂的系统。这篇文章只是触及了皮毛。在使用Docker时，您仍然需要学习大量的概念、特性和工具。这里有一些你可能会很快遇到的:</p>
+<ol>
+<li>和git一样，Docker也有一个名为<a href="https://docs.docker.com/engine/reference/builder/#dockerignore-file">的忽略文件。dockerignore </a>在这里你可以定义哪些文件和文件夹你不想添加到图像(由于安全，大小等原因。).</li>
+<li>正如我在文章中提到的，如果容器被移除，来自容器可写层的数据就不会持久。您可以使用<a href="https://docs.docker.com/storage/volumes/">卷</a>或<a href="https://docs.docker.com/storage/bind-mounts/">绑定挂载</a>在主机上存储文件。</li>
+<li>如果您的应用程序需要多个容器(例如，如果您的Django应用程序使用Postgres)，您可以使用<a href="https://docs.docker.com/compose/"> Docker Compose </a>来简化它们的生命周期。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

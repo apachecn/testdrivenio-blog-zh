@@ -1,0 +1,518 @@
+<html>
+<head>
+<title>Handling Periodic Tasks in Django with Celery and Docker </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用芹菜和码头工人处理Django的定期任务</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-celery-periodic-tasks/#0001-01-01">https://testdriven.io/blog/django-celery-periodic-tasks/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>当您构建和扩展Django应用程序时，您不可避免地需要定期在后台自动运行某些任务。</p>
+<p>一些例子:</p>
+<ul>
+<li>生成定期报告</li>
+<li>清除缓存</li>
+<li>发送批量电子邮件通知</li>
+<li>运行夜间维护作业</li>
+</ul>
+<p>这是构建和扩展不属于Django核心的web应用程序所需的少数功能之一。幸运的是，芹菜提供了一个强大的解决方案，它相当容易实现，叫做<a href="https://docs.celeryq.dev/en/latest/userguide/periodic-tasks.html">芹菜击败</a>。</p>
+<p>在接下来的文章中，我们将向您展示如何使用Docker设置Django、Celery和Redis，以便使用Celery Beat定期运行自定义的Django管理命令。</p>
+<blockquote>
+<p>姜戈+芹菜系列:</p>
+<ol>
+<li>与Django和Celery的异步任务</li>
+<li><a href="/blog/django-celery-periodic-tasks/">在Django用芹菜和Docker处理周期性任务</a>(本文！)</li>
+<li><a href="/blog/retrying-failed-celery-tasks/">自动重试失败的芹菜任务</a></li>
+<li><a href="/blog/celery-database-transactions/">处理芹菜和数据库事务</a></li>
+</ol>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>集装箱化姜戈、Celery，并与码头工重归于好</li>
+<li>将芹菜集成到Django应用程序中并创建任务</li>
+<li>编写一个定制的Django管理命令</li>
+<li>安排一个定制的Django管理命令通过Celery Beat定期运行</li>
+</ol>
+<h2 id="project-setup">项目设置</h2>
+<p>从<a href="https://github.com/testdrivenio/django-celery-beat"> django-celery-beat </a> repo中克隆出基地项目，然后检查<a href="https://github.com/testdrivenio/django-celery-beat/tree/base">基地</a>分支:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/django-celery-beat --branch base --single-branch
+$ <span class="nb">cd</span> django-celery-beat
+</code></pre></div>
+
+<p>由于我们总共需要管理四个进程(Django、Redis、worker和scheduler)，我们将使用Docker来简化我们的工作流，方法是将它们连接起来，以便它们都可以通过一个命令从一个终端窗口运行。</p>
+<p>从项目根目录，创建映像并启动Docker容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>接下来，应用迁移:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py migrate
+</code></pre></div>
+
+<p>一旦构建完成，导航到<a href="http://localhost:1337"> http://localhost:1337 </a>以确保应用程序按预期工作。您应该会看到以下文本:</p>
+
+
+<p>在继续之前，快速浏览一下项目结构:</p>
+<div class="codehilite"><pre><span/><code>├── .gitignore
+├── docker-compose.yml
+└── project
+    ├── Dockerfile
+    ├── core
+    │   ├── __init__.py
+    │   ├── asgi.py
+    │   ├── settings.py
+    │   ├── urls.py
+    │   └── wsgi.py
+    ├── entrypoint.sh
+    ├── manage.py
+    ├── orders
+    │   ├── __init__.py
+    │   ├── admin.py
+    │   ├── apps.py
+    │   ├── migrations
+    │   │   ├── 0001_initial.py
+    │   │   └── __init__.py
+    │   ├── models.py
+    │   ├── tests.py
+    │   ├── urls.py
+    │   └── views.py
+    ├── products.json
+    ├── requirements.txt
+    └── templates
+        └── orders
+            └── order_list.html
+</code></pre></div>
+
+<blockquote>
+<p>想学习如何构建这个项目吗？查看Postgres、Gunicorn和Nginx的博客文章。</p>
+</blockquote>
+<h2 id="celery-and-redis">Celery and Redis(合唱团)</h2>
+<p>现在，我们需要为芹菜、芹菜泥和Redis添加容器。</p>
+<p>我们首先将依赖项添加到<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code>Django==3.2.4
+celery==5.1.2
+redis==3.5.3
+</code></pre></div>
+
+<p>接下来，将以下内容添加到<em> docker-compose.yml </em>文件的末尾:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">redis</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis:alpine</span><span class="w"/>
+<span class="nt">celery</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">celery -A core worker -l info</span><span class="w"/>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project/:/usr/src/app/</span><span class="w"/>
+<span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG=1</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SECRET_KEY=dbaa1_i7%*<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b487c68d9989ce999febd9ce80c69995c5d1d1d0f4">[email protected]</a>(-a_r(<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="deb99eb5e6b4b1e6a7edacece9">[email protected]</a>%m</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]</span><span class="w"/>
+<span class="w">  </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+<span class="nt">celery-beat</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">celery -A core beat -l info</span><span class="w"/>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project/:/usr/src/app/</span><span class="w"/>
+<span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG=1</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SECRET_KEY=dbaa1_i7%*<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e6d594dfcbdb9ccbcdb98b9cd294cbc797838382a6">[email protected]</a>(-a_r(<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7c1b3c1744161344054f0e4e4b">[email protected]</a>%m</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]</span><span class="w"/>
+<span class="w">  </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+</code></pre></div>
+
+<p>我们还需要更新web服务的<code>depends_on</code>部分:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py runserver 0.0.0.0:8000</span><span class="w"/>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project/:/usr/src/app/</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1337:8000</span><span class="w"/>
+<span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG=1</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SECRET_KEY=dbaa1_i7%*<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6350115a4e5e194e483c0e1957114e421206060723">[email protected]</a>(-a_r(<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f394b398cb999ccb8ac081c1c4">[email protected]</a>%m</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]</span><span class="w"/>
+<span class="w">  </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"> </span><span class="c1"># NEW</span><span class="w"/>
+</code></pre></div>
+
+<p>完整的<em> docker-compose.yml </em>文件现在应该是这样的:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py runserver 0.0.0.0:8000</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project/:/usr/src/app/</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1337:8000</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SECRET_KEY=dbaa1_i7%*<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7c4f0e455141065157231106480e515d0d1919183c">[email protected]</a>(-a_r(<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7a1d3a1142101542034908484d">[email protected]</a>%m</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+<span class="w">  </span><span class="nt">redis</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis:alpine</span><span class="w"/>
+<span class="w">  </span><span class="nt">celery</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">celery -A core worker -l info</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project/:/usr/src/app/</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SECRET_KEY=dbaa1_i7%*<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="487b3a7165753265631725327c3a6569392d2d2c08">[email protected]</a>(-a_r(<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f295b299ca989dca8bc180c0c5">[email protected]</a>%m</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+<span class="w">  </span><span class="nt">celery-beat</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">celery -A core beat -l info</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project/:/usr/src/app/</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SECRET_KEY=dbaa1_i7%*<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8dbeffb4a0b0f7a0a6d2e0f7b9ffa0acfce8e8e9cd">[email protected]</a>(-a_r(<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="9cfbdcf7a4f6f3a4e5afeeaeab">[email protected]</a>%m</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+</code></pre></div>
+
+<p>在构建新容器之前，我们需要在Django应用程序中配置Celery。</p>
+<h2 id="celery-configuration">芹菜配置</h2>
+<h3 id="setup">设置</h3>
+<p>在“core”目录中，创建一个<em> celery.py </em>文件，并添加以下代码:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">celery</span> <span class="kn">import</span> <span class="n">Celery</span>
+
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"DJANGO_SETTINGS_MODULE"</span><span class="p">,</span> <span class="s2">"core.settings"</span><span class="p">)</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Celery</span><span class="p">(</span><span class="s2">"core"</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config_from_object</span><span class="p">(</span><span class="s2">"django.conf:settings"</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="s2">"CELERY"</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">autodiscover_tasks</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这里发生了什么事？</p>
+<ol>
+<li>首先，我们为环境变量<code>DJANGO_SETTINGS_MODULE</code>设置一个默认值，以便芹菜知道如何找到Django项目。</li>
+<li>接下来，我们创建了一个名为<code>core</code>的新Celery实例，并将值赋给一个名为<code>app</code>的变量。</li>
+<li>然后我们从<code>django.conf</code>的settings对象中加载celery配置值。我们使用了<code>namespace="CELERY"</code>来防止与其他Django场景的冲突。换句话说，芹菜的所有配置设置都必须以<code>CELERY_</code>为前缀。</li>
+<li>最后，<code>app.autodiscover_tasks()</code>告诉Celery从<code>settings.INSTALLED_APPS</code>中定义的应用程序中寻找Celery任务。</li>
+</ol>
+<p>将以下代码添加到<em> core/__init__。py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">.celery</span> <span class="kn">import</span> <span class="n">app</span> <span class="k">as</span> <span class="n">celery_app</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"celery_app"</span><span class="p">,)</span>
+</code></pre></div>
+
+<p>最后，用以下Celery设置更新<em> core/settings.py </em>文件，以便它可以连接到Redis:</p>
+<div class="codehilite"><pre><span/><code><span class="n">CELERY_BROKER_URL</span> <span class="o">=</span> <span class="s2">"redis://redis:6379"</span>
+<span class="n">CELERY_RESULT_BACKEND</span> <span class="o">=</span> <span class="s2">"redis://redis:6379"</span>
+</code></pre></div>
+
+<p>构建新容器以确保一切正常工作:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>查看每个服务的日志，看它们是否准备好，没有错误:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose logs <span class="s1">'web'</span>
+$ docker-compose logs <span class="s1">'celery'</span>
+$ docker-compose logs <span class="s1">'celery-beat'</span>
+$ docker-compose logs <span class="s1">'redis'</span>
+</code></pre></div>
+
+<p>如果一切顺利，我们现在有四个容器，每个都有不同的服务。</p>
+<p>现在我们准备创建一个示例任务，看看它是否能正常工作。</p>
+<h3 id="create-a-task">创建任务</h3>
+<p>创建一个名为<em> core/tasks.py </em>的新文件，并为一个刚刚登录到控制台的示例任务添加以下代码:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">celery</span> <span class="kn">import</span> <span class="n">shared_task</span>
+<span class="kn">from</span> <span class="nn">celery.utils.log</span> <span class="kn">import</span> <span class="n">get_task_logger</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">get_task_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="nd">@shared_task</span>
+<span class="k">def</span> <span class="nf">sample_task</span><span class="p">():</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"The sample task just ran."</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="schedule-the-task">计划任务</h3>
+<p>在您的<em> settings.py </em>文件的末尾，添加以下代码来调度<code>sample_task</code>每分钟运行一次，使用芹菜节拍:</p>
+<div class="codehilite"><pre><span/><code><span class="n">CELERY_BEAT_SCHEDULE</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"sample_task"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">"task"</span><span class="p">:</span> <span class="s2">"core.tasks.sample_task"</span><span class="p">,</span>
+        <span class="s2">"schedule"</span><span class="p">:</span> <span class="n">crontab</span><span class="p">(</span><span class="n">minute</span><span class="o">=</span><span class="s2">"*/1"</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这里，我们使用<a href="https://docs.celeryq.dev/en/latest/userguide/configuration.html#std:setting-beat_schedule"> CELERY_BEAT_SCHEDULE </a>设置定义了一个周期性任务。我们给这个任务命名为<code>sample_task</code>，然后声明了两个设置:</p>
+<ol>
+<li><code>task</code>声明要运行的任务。</li>
+<li><code>schedule</code>设置任务运行的时间间隔。这可以是整数、时间增量或crontab。我们为我们的任务使用了一个crontab模式，告诉它每分钟运行一次。你可以在这里找到更多关于芹菜的时间安排的信息。</li>
+</ol>
+<p>确保添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">celery.schedules</span> <span class="kn">import</span> <span class="n">crontab</span>
+
+<span class="kn">import</span> <span class="nn">core.tasks</span>
+</code></pre></div>
+
+<p>重新启动容器以获取新设置:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>完成后，看看容器中的芹菜段:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose logs -f <span class="s1">'celery'</span>
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>celery_1  <span class="p">|</span>  -------------- <span class="o">[</span>queues<span class="o">]</span>
+celery_1  <span class="p">|</span>                 .&gt; celery           <span class="nv">exchange</span><span class="o">=</span>celery<span class="o">(</span>direct<span class="o">)</span> <span class="nv">key</span><span class="o">=</span>celery
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span> <span class="o">[</span>tasks<span class="o">]</span>
+celery_1  <span class="p">|</span>   . core.tasks.sample_task
+</code></pre></div>
+
+<p>我们可以看到，芹菜拿起了我们的样本任务，<code>core.tasks.sample_task</code>。</p>
+<p>每分钟您都应该在日志中看到一行，以“sample task刚刚运行”结束：</p>
+<div class="codehilite"><pre><span/><code>celery_1  <span class="p">|</span> <span class="o">[</span><span class="m">2021</span>-07-01 <span class="m">03</span>:06:00,003: INFO/MainProcess<span class="o">]</span>
+              Task core.tasks.sample_task<span class="o">[</span>b8041b6c-bf9b-47ce-ab00-c37c1e837bc7<span class="o">]</span> received
+celery_1  <span class="p">|</span> <span class="o">[</span><span class="m">2021</span>-07-01 <span class="m">03</span>:06:00,004: INFO/ForkPoolWorker-8<span class="o">]</span>
+              core.tasks.sample_task<span class="o">[</span>b8041b6c-bf9b-47ce-ab00-c37c1e837bc7<span class="o">]</span>:
+              The sample task just ran.
+</code></pre></div>
+
+<h2 id="custom-django-admin-command">自定义Django管理命令</h2>
+<p>Django提供了<a href="https://docs.djangoproject.com/en/3.2/ref/django-admin/#available-commands">个</a>的内置<code>django-admin</code>命令，比如:</p>
+<ul>
+<li><code>migrate</code></li>
+<li><code>startproject</code></li>
+<li><code>startapp</code></li>
+<li><code>dumpdata</code></li>
+<li><code>makemigrations</code></li>
+</ul>
+<p>除了内置命令，Django还让我们可以选择创建自己的<a href="https://docs.djangoproject.com/en/3.2/howto/custom-management-commands/">定制命令</a>:</p>
+<blockquote>
+<p>自定义管理命令对于运行独立脚本或从UNIX crontab或Windows计划任务控制面板定期执行的脚本特别有用。</p>
+</blockquote>
+<p>因此，我们将首先配置一个新命令，然后使用Celery Beat自动运行它。</p>
+<p>首先创建一个名为<em>orders/management/commands/my _ custom _ command . py</em>的新文件。然后，添加运行它所需的最少代码:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.core.management.base</span> <span class="kn">import</span> <span class="n">BaseCommand</span><span class="p">,</span> <span class="n">CommandError</span>
+
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+    <span class="n">help</span> <span class="o">=</span> <span class="s2">"A description of the command"</span>
+
+    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+        <span class="k">pass</span>
+</code></pre></div>
+
+<p><code>BaseCommand</code>有一些<a href="https://docs.djangoproject.com/en/3.2/howto/custom-management-commands/#methods">方法</a>可以被覆盖，但是唯一需要的方法是<code>handle</code>。<code>handle</code>是自定义命令的入口点。换句话说，当我们运行命令时，这个方法被调用。</p>
+<p>为了测试，我们通常只添加一个快速打印语句。然而，根据Django文档，建议使用<code>stdout.write</code>:</p>
+<blockquote>
+<p>当您使用管理命令并希望提供控制台输出时，您应该写入self.stdout和self.stderr，而不是直接打印到stdout和stderr。通过使用这些代理，测试您的定制命令变得更加容易。还要注意，您不需要用换行符结束消息，它会自动添加，除非您指定了结束参数。</p>
+</blockquote>
+<p>所以，添加一个<code>self.stdout.write</code>命令:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.core.management.base</span> <span class="kn">import</span> <span class="n">BaseCommand</span><span class="p">,</span> <span class="n">CommandError</span>
+
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+    <span class="n">help</span> <span class="o">=</span> <span class="s2">"A description of the command"</span>
+
+    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"My sample command just ran."</span><span class="p">)</span> <span class="c1"># NEW</span>
+</code></pre></div>
+
+<p>要进行测试，从命令行运行:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py my_custom_command
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>My sample <span class="nb">command</span> just ran.
+</code></pre></div>
+
+<p>有了那个，让我们把一切都绑在一起！</p>
+<h2 id="schedule-a-custom-command-with-celery-beat">使用芹菜节拍安排自定义命令</h2>
+<p>既然我们已经启动了容器，测试了我们可以安排一个任务定期运行，并编写了一个定制的Django Admin示例命令，那么是时候配置Celery Beat定期运行这个定制命令了。</p>
+<h3 id="setup_1">设置</h3>
+<p>在这个项目中，我们有一个非常基本的应用程序，叫做订单。包含<code>Product</code>和<code>Order</code>两个型号。让我们创建一个自定义命令，发送当天已确认订单的电子邮件报告。</p>
+<p>首先，我们将通过这个项目中包含的fixture向数据库添加一些产品和订单:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py loaddata products.json
+</code></pre></div>
+
+<p>接下来，通过Django管理界面添加一些样本订单。为此，首先创建一个超级用户:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py createsuperuser
+</code></pre></div>
+
+<p>出现提示时，填写用户名、电子邮件和密码。然后在网络浏览器中导航至<a href="http://127.0.0.1:1337/admin">http://127 . 0 . 0 . 1:1337/admin</a>。使用您刚刚创建的超级用户登录并创建几个订单。确保至少有一个人有今天的<code>confirmed_date</code>。</p>
+<p>让我们为电子邮件报告创建一个新的自定义命令。</p>
+<p>创建一个名为<em>orders/management/commands/email _ report . py</em>的文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">timedelta</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">datetime</span>
+
+<span class="kn">from</span> <span class="nn">django.core.mail</span> <span class="kn">import</span> <span class="n">mail_admins</span>
+<span class="kn">from</span> <span class="nn">django.core.management</span> <span class="kn">import</span> <span class="n">BaseCommand</span>
+<span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">timezone</span>
+<span class="kn">from</span> <span class="nn">django.utils.timezone</span> <span class="kn">import</span> <span class="n">make_aware</span>
+
+<span class="kn">from</span> <span class="nn">orders.models</span> <span class="kn">import</span> <span class="n">Order</span>
+
+<span class="n">today</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+<span class="n">tomorrow</span> <span class="o">=</span> <span class="n">today</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">today_start</span> <span class="o">=</span> <span class="n">make_aware</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">combine</span><span class="p">(</span><span class="n">today</span><span class="p">,</span> <span class="n">time</span><span class="p">()))</span>
+<span class="n">today_end</span> <span class="o">=</span> <span class="n">make_aware</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">combine</span><span class="p">(</span><span class="n">tomorrow</span><span class="p">,</span> <span class="n">time</span><span class="p">()))</span>
+
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+    <span class="n">help</span> <span class="o">=</span> <span class="s2">"Send Today's Orders Report to Admins"</span>
+
+    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+        <span class="n">orders</span> <span class="o">=</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">confirmed_date__range</span><span class="o">=</span><span class="p">(</span><span class="n">today_start</span><span class="p">,</span> <span class="n">today_end</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">orders</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="s2">""</span>
+
+            <span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>
+                <span class="n">message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">order</span><span class="si">}</span><span class="s2"> </span><span class="se">\n</span><span class="s2">"</span>
+
+            <span class="n">subject</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Order Report for </span><span class="si">{</span><span class="n">today_start</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
+                <span class="sa">f</span><span class="s2">"to </span><span class="si">{</span><span class="n">today_end</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+            <span class="n">mail_admins</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="n">subject</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="n">message</span><span class="p">,</span> <span class="n">html_message</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"E-mail Report was sent."</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"No orders confirmed today."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在代码中，我们在数据库中查询今天的<code>confirmed_date</code>订单，将订单组合成一条消息作为电子邮件正文，并使用Django的内置<code>mail_admins</code>命令将电子邮件发送给管理员。</p>
+<p>添加一个虚拟的管理员电子邮件，并将<code>EMAIL_BACKEND</code>设置为使用<a href="https://docs.djangoproject.com/en/3.2/topics/email/#console-backend">控制台后端</a>，这样电子邮件就被发送到stdout，在设置文件中:</p>
+
+
+<p>现在应该可以从终端运行我们的新命令了。</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py email_report
+</code></pre></div>
+
+<p>输出应该如下所示:</p>
+<div class="codehilite"><pre><span/><code>Content-Type: text/plain<span class="p">;</span> <span class="nv">charset</span><span class="o">=</span><span class="s2">"utf-8"</span>
+MIME-Version: <span class="m">1</span>.0
+Content-Transfer-Encoding: 7bit
+Subject: <span class="o">[</span>Django<span class="o">]</span> Order Report <span class="k">for</span> <span class="m">2021</span>-07-01 to <span class="m">2021</span>-07-02
+From: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="91e3fefee5d1fdfef2f0fdf9fee2e5">[email protected]</a>
+To: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="790d1c0a0d570c0a1c0b391c14181015571a1614">[email protected]</a>
+Date: Thu, <span class="m">01</span> Jul <span class="m">2021</span> <span class="m">12</span>:15:50 -0000
+Message-ID: &lt;<span class="m">162514175053</span><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ddf3e9edf3e8eaede8e5e4efeeeaece8eee5e8e5eeecece89de8ece9ede5e9e9b8bfbfece8">[email protected]</a>&gt;
+
+Order: 3947963f-1860-44d1-9b9a-4648fed04581 - product: Coffee
+Order: ff449e6e-3dfd-48a8-9d5c-79a145d08253 - product: Rice
+
+-------------------------------------------------------------------------------
+E-mail Report was sent.
+</code></pre></div>
+
+<h3 id="celery-beat">芹菜搅打</h3>
+<p>我们现在需要创建一个定期任务来每天运行这个命令。</p>
+<p>向<em> core/tasks.py </em>添加新任务:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">celery</span> <span class="kn">import</span> <span class="n">shared_task</span>
+<span class="kn">from</span> <span class="nn">celery.utils.log</span> <span class="kn">import</span> <span class="n">get_task_logger</span>
+<span class="kn">from</span> <span class="nn">django.core.management</span> <span class="kn">import</span> <span class="n">call_command</span> <span class="c1"># NEW</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">get_task_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="nd">@shared_task</span>
+<span class="k">def</span> <span class="nf">sample_task</span><span class="p">():</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"The sample task just ran."</span><span class="p">)</span>
+
+
+<span class="c1"># NEW</span>
+<span class="nd">@shared_task</span>
+<span class="k">def</span> <span class="nf">send_email_report</span><span class="p">():</span>
+    <span class="n">call_command</span><span class="p">(</span><span class="s2">"email_report"</span><span class="p">,</span> <span class="p">)</span>
+</code></pre></div>
+
+<p>因此，首先我们添加了一个<code>call_command</code>导入，用于以编程方式调用django-admin命令。在新任务中，我们使用带有自定义命令名称的<code>call_command</code>作为参数。</p>
+<p>要调度该任务，请打开<em> core/settings.py </em>文件，并更新<code>CELERY_BEAT_SCHEDULE</code>设置以包含新任务:</p>
+<div class="codehilite"><pre><span/><code><span class="n">CELERY_BEAT_SCHEDULE</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"sample_task"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">"task"</span><span class="p">:</span> <span class="s2">"core.tasks.sample_task"</span><span class="p">,</span>
+        <span class="s2">"schedule"</span><span class="p">:</span> <span class="n">crontab</span><span class="p">(</span><span class="n">minute</span><span class="o">=</span><span class="s2">"*/1"</span><span class="p">),</span>
+    <span class="p">},</span>
+    <span class="s2">"send_email_report"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">"task"</span><span class="p">:</span> <span class="s2">"core.tasks.send_email_report"</span><span class="p">,</span>
+        <span class="s2">"schedule"</span><span class="p">:</span> <span class="n">crontab</span><span class="p">(</span><span class="n">hour</span><span class="o">=</span><span class="s2">"*/1"</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这里我们向<code>CELERY_BEAT_SCHEDULE</code>添加了一个名为<code>send_email_report</code>的新条目。正如我们对上一个任务所做的那样，我们声明了应该运行哪个任务——例如，<code>core.tasks.send_email_report</code>——并使用crontab模式来设置循环。</p>
+<p>重新启动容器以确保新设置生效:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>打开与<code>celery</code>服务相关的日志:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose logs -f <span class="s1">'celery'</span>
+</code></pre></div>
+
+<p>您应该会看到列出的<code>send_email_report</code>:</p>
+<div class="codehilite"><pre><span/><code>celery_1  <span class="p">|</span>  -------------- <span class="o">[</span>queues<span class="o">]</span>
+celery_1  <span class="p">|</span>                 .&gt; celery           <span class="nv">exchange</span><span class="o">=</span>celery<span class="o">(</span>direct<span class="o">)</span> <span class="nv">key</span><span class="o">=</span>celery
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span> <span class="o">[</span>tasks<span class="o">]</span>
+celery_1  <span class="p">|</span>   . core.tasks.sample_task
+celery_1  <span class="p">|</span>   . core.tasks.send_email_report
+</code></pre></div>
+
+<p>大约一分钟后，您应该看到电子邮件报告已发送:</p>
+<div class="codehilite"><pre><span/><code>celery_1  <span class="p">|</span> <span class="o">[</span><span class="m">2021</span>-07-01 <span class="m">12</span>:22:00,071: WARNING/ForkPoolWorker-8<span class="o">]</span> Content-Type: text/plain<span class="p">;</span> <span class="nv">charset</span><span class="o">=</span><span class="s2">"utf-8"</span>
+celery_1  <span class="p">|</span> MIME-Version: <span class="m">1</span>.0
+celery_1  <span class="p">|</span> Content-Transfer-Encoding: 7bit
+celery_1  <span class="p">|</span> Subject: <span class="o">[</span>Django<span class="o">]</span> Order Report <span class="k">for</span> <span class="m">2021</span>-07-01 to <span class="m">2021</span>-07-02
+celery_1  <span class="p">|</span> From: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2755484853674b4844464b4f485453">[email protected]</a>
+celery_1  <span class="p">|</span> To: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b8ccddcbcc96cdcbddcaf8ddd5d9d1d496dbd7d5">[email protected]</a>
+celery_1  <span class="p">|</span> Date: Thu, <span class="m">01</span> Jul <span class="m">2021</span> <span class="m">12</span>:22:00 -0000
+celery_1  <span class="p">|</span> Message-ID: &lt;<span class="m">162514212006</span><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3f110e0811090f070f0b0a060d06060a0a070c0a090708097f0a0a5d0607070c5c0a0b0e0b">[email protected]</a>&gt;
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span> Order: 3947963f-1860-44d1-9b9a-4648fed04581 - product: Coffee
+celery_1  <span class="p">|</span> Order: ff449e6e-3dfd-48a8-9d5c-79a145d08253 - product: Rice
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span> <span class="o">[</span><span class="m">2021</span>-07-01 <span class="m">12</span>:22:00,071: WARNING/ForkPoolWorker-8<span class="o">]</span> -------------------------------------------------------------------------------
+celery_1  <span class="p">|</span> <span class="o">[</span><span class="m">2021</span>-07-01 <span class="m">12</span>:22:00,071: WARNING/ForkPoolWorker-8<span class="o">]</span>
+celery_1  <span class="p">|</span>
+celery_1  <span class="p">|</span> <span class="o">[</span><span class="m">2021</span>-07-01 <span class="m">12</span>:22:00,071: WARNING/ForkPoolWorker-8<span class="o">]</span> E-mail Report was sent.
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>在本文中，我们指导您为芹菜、芹菜段和Redis设置Docker容器。然后，我们展示了如何创建一个定制的Django管理命令和一个使用Celery Beat自动运行该命令的周期性任务。</p>
+<p>想要更多吗？</p>
+<ol>
+<li>设置<a href="/blog/django-and-celery/#flower-dashboard"> Flower </a>来监控和管理芹菜作业和工人</li>
+<li><a href="/blog/django-and-celery/#tests">用单元测试和集成测试来测试芹菜任务</a></li>
+</ol>
+<p>从<a href="https://github.com/testdrivenio/django-celery-beat">回购</a>中抓取代码。</p>
+<blockquote>
+<p>姜戈+芹菜系列:</p>
+<ol>
+<li>与Django和Celery的异步任务</li>
+<li><a href="/blog/django-celery-periodic-tasks/">在Django用芹菜和Docker处理周期性任务</a>(本文！)</li>
+<li><a href="/blog/retrying-failed-celery-tasks/">自动重试失败的芹菜任务</a></li>
+<li><a href="/blog/celery-database-transactions/">处理芹菜和数据库事务</a></li>
+</ol>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

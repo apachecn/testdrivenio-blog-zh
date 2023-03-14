@@ -1,0 +1,1067 @@
+<html>
+<head>
+<title>Introduction to Django Channels </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django频道简介</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-channels/#0001-01-01">https://testdriven.io/blog/django-channels/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将使用<a href="https://channels.readthedocs.io/en/stable/"> Django通道</a>构建一个实时聊天应用程序，重点关注如何将Django与Django通道集成。</p>
+<blockquote>
+<p><strong>为什么是另一款聊天应用？</strong>嗯，聊天app是最容易展现渠道力量的方式。也就是说，本教程通过实现多种请求类型、消息/聊天室持久性和私有(一对一)消息传递超越了基础知识。完成教程后，您将能够构建实时应用程序。</p>
+</blockquote>
+
+
+
+<h2 id="what-is-django-channels">什么是Django频道？</h2>
+<p>Django Channels (或者仅仅是Channels)扩展了<a href="https://www.djangoproject.com/"> Django </a>的内置功能，允许Django项目不仅处理HTTP，还处理需要长时间运行连接的协议，例如WebSockets、MQTT (IoT)、聊天机器人、无线电和其他实时应用程序。除此之外，它还支持Django的许多核心特性，比如身份验证和会话。</p>
+<p>基本的通道设置如下所示:</p>
+<p><img data-src="/static/images/blog/django/django-channels/django_channels_structure.png" loading="lazy" class="lazyload" alt="Django + Channels basic structure" src="../Images/01f5070b0b3d90aa35f4402b2fcf8aa8.png" data-original-src="https://testdriven.io/static/images/blog/django/django-channels/django_channels_structure.png"/></p>
+<blockquote>
+<p>要了解更多关于渠道的信息，请查看来自<a href="https://channels.readthedocs.io/">官方文档</a>的<a href="https://channels.readthedocs.io/en/stable/introduction.html">简介</a>指南。</p>
+</blockquote>
+<h2 id="sync-vs-async">同步与异步</h2>
+<p>由于Channels和Django之间的差异，我们必须频繁地在同步和异步代码执行之间切换。例如，Django数据库需要使用同步代码访问，而Channels通道层需要使用异步代码访问。</p>
+<p>在这两者之间切换最简单的方法是使用内置的Django <a href="https://github.com/django/asgiref"> asgiref </a> ( <code>asgrief.sync</code>)函数:</p>
+<ol>
+<li><code>sync_to_async</code> -获取一个同步函数并返回一个包装它的异步函数</li>
+<li><code>async_to_sync</code> -获取异步函数并返回同步函数</li>
+</ol>
+<blockquote>
+<p>现在还不要担心这个，我们将在教程的后面展示一个实际的例子。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>同样，我们将构建一个聊天应用程序。该应用程序将有多个房间，Django认证的用户可以聊天。每个房间都有一个当前连接用户的列表。我们还将实现私有的一对一消息传递。</p>
+<h3 id="django-project-setup">Django项目设置</h3>
+<p>首先创建一个新目录，并建立一个新的Django项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-channels-example <span class="o">&amp;&amp;</span> <span class="nb">cd</span> django-channels-example
+$ python3.9 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">django</span><span class="o">==</span><span class="m">4</span>.0
+<span class="o">(</span>env<span class="o">)</span>$ django-admin startproject core .
+</code></pre></div>
+
+<p>之后，创建一个名为<code>chat</code>的新Django应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py startapp chat
+</code></pre></div>
+
+<p>在<code>INSTALLED_APPS</code>下的<em> core/settings.py </em>中注册app:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'chat.apps.ChatConfig'</span><span class="p">,</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="create-database-models">创建数据库模型</h3>
+<p>接下来，让我们在<em> chat/models.py </em>中创建两个Django模型<code>Room</code>和<code>Message</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/models.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Room</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+    <span class="n">online</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ManyToManyField</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_online_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">online</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">online</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">leave</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">online</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">get_online_count</span><span class="p">()</span><span class="si">}</span><span class="s1">)'</span>
+
+
+<span class="k">class</span> <span class="nc">Message</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">room</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">Room</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">512</span><span class="p">)</span>
+    <span class="n">timestamp</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">content</span><span class="si">}</span><span class="s1"> [</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span><span class="si">}</span><span class="s1">]'</span>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li><code>Room</code>代表聊天室。它包含一个<code>online</code>字段，用于跟踪用户何时连接和断开聊天室。</li>
+<li><code>Message</code>代表发送到聊天室的消息。我们将使用这个模型来存储聊天中发送的所有消息。</li>
+</ol>
+<p>运行<code>makemigrations</code>和<code>migrate</code>命令来同步数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>在<em> chat/admin.py </em>中注册模型，以便可以从Django管理面板访问它们:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/admin.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+
+<span class="kn">from</span> <span class="nn">chat.models</span> <span class="kn">import</span> <span class="n">Room</span><span class="p">,</span> <span class="n">Message</span>
+
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Room</span><span class="p">)</span>
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Message</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="views-and-urls">视图和URL</h3>
+<p>web应用程序将有以下两个URL:</p>
+<ol>
+<li><code>/chat/</code> -聊天室选择器</li>
+<li><code>/chat/&lt;ROOM_NAME&gt;/</code> -聊天室</li>
+</ol>
+<p>将以下视图添加到<em> chat/views.py </em>中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/views.py</span>
+
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+
+<span class="kn">from</span> <span class="nn">chat.models</span> <span class="kn">import</span> <span class="n">Room</span>
+
+
+<span class="k">def</span> <span class="nf">index_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'index.html'</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'rooms'</span><span class="p">:</span> <span class="n">Room</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span>
+    <span class="p">})</span>
+
+
+<span class="k">def</span> <span class="nf">room_view</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">room_name</span><span class="p">):</span>
+    <span class="n">chat_room</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">Room</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">room_name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'room.html'</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'room'</span><span class="p">:</span> <span class="n">chat_room</span><span class="p">,</span>
+    <span class="p">})</span>
+</code></pre></div>
+
+<p>在<code>chat</code>应用内创建一个<em> urls.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">index_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'chat-index'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'&lt;str:room_name&gt;/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">room_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'chat-room'</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>用<code>chat</code>应用程序更新项目级的<em> urls.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span><span class="p">,</span> <span class="n">include</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'chat/'</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'chat.urls'</span><span class="p">)),</span>  <span class="c1"># new</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="templates-and-static-files">模板和静态文件</h3>
+<p>在“聊天”中名为“模板”的新文件夹中创建一个<em>index.html</em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- chat/templates/index.html --&gt;</span>
+
+{% load static %}
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>django-channels-chat<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0e6c61617a7d7a7c6f7e4e3b203f203d">[email protected]</a>/dist/css/bootstrap.min.css"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1f7d70706b6c6b6d7e6f5f2a312e312c">[email protected]</a>/dist/js/bootstrap.min.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">style</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">            </span><span class="p">#</span><span class="nn">roomSelect</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">300</span><span class="kt">px</span><span class="p">;</span><span class="w"/>
+<span class="w">            </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="p">&lt;/</span><span class="nt">style</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-3 p-5"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">h2</span><span class="p">&gt;</span>django-channels-chat<span class="p">&lt;/</span><span class="nt">h2</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"row"</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-12 col-md-8"</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"mb-2"</span><span class="p">&gt;</span>
+                        <span class="p">&lt;</span><span class="nt">label</span> <span class="na">for</span><span class="o">=</span><span class="s">"roomInput"</span><span class="p">&gt;</span>Enter a room name to connect to it:<span class="p">&lt;/</span><span class="nt">label</span><span class="p">&gt;</span>
+                        <span class="p">&lt;</span><span class="nt">input</span> <span class="na">type</span><span class="o">=</span><span class="s">"text"</span> <span class="na">class</span><span class="o">=</span><span class="s">"form-control"</span> <span class="na">id</span><span class="o">=</span><span class="s">"roomInput"</span> <span class="na">placeholder</span><span class="o">=</span><span class="s">"Room name"</span><span class="p">&gt;</span>
+                        <span class="p">&lt;</span><span class="nt">small</span> <span class="na">id</span><span class="o">=</span><span class="s">"roomInputHelp"</span> <span class="na">class</span><span class="o">=</span><span class="s">"form-text text-muted"</span><span class="p">&gt;</span>If the room doesn't exist yet, it will be created for you.<span class="p">&lt;/</span><span class="nt">small</span><span class="p">&gt;</span>
+                    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">id</span><span class="o">=</span><span class="s">"roomConnect"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-success"</span><span class="p">&gt;</span>Connect<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-12 col-md-4"</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">label</span> <span class="na">for</span><span class="o">=</span><span class="s">"roomSelect"</span><span class="p">&gt;</span>Active rooms<span class="p">&lt;/</span><span class="nt">label</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">select</span> <span class="na">multiple</span> <span class="na">class</span><span class="o">=</span><span class="s">"form-control"</span> <span class="na">id</span><span class="o">=</span><span class="s">"roomSelect"</span><span class="p">&gt;</span>
+                        {% for room in rooms %}
+                            <span class="p">&lt;</span><span class="nt">option</span><span class="p">&gt;</span>{{ room }}<span class="p">&lt;/</span><span class="nt">option</span><span class="p">&gt;</span>
+                        {% endfor %}
+                    <span class="p">&lt;/</span><span class="nt">select</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"{% static 'index.js' %}"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>接下来，在同一个文件夹中添加<em>room.html</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- chat/templates/room.html --&gt;</span>
+
+{% load static %}
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>django-channels-chat<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="593b36362d2a2d2b3829196c7768776a">[email protected]</a>/dist/css/bootstrap.min.css"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="86e4e9e9f2f5f2f4e7f6c6b3a8b7a8b5">[email protected]</a>/dist/js/bootstrap.min.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">style</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">            </span><span class="p">#</span><span class="nn">chatLog</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">300</span><span class="kt">px</span><span class="p">;</span><span class="w"/>
+<span class="w">                </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#FFFFFF</span><span class="p">;</span><span class="w"/>
+<span class="w">                </span><span class="k">resize</span><span class="p">:</span><span class="w"> </span><span class="kc">none</span><span class="p">;</span><span class="w"/>
+<span class="w">            </span><span class="p">}</span><span class="w"/>
+
+<span class="w">            </span><span class="p">#</span><span class="nn">onlineUsersSelector</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">300</span><span class="kt">px</span><span class="p">;</span><span class="w"/>
+<span class="w">            </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="p">&lt;/</span><span class="nt">style</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-3 p-5"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">h2</span><span class="p">&gt;</span>django-channels-chat<span class="p">&lt;/</span><span class="nt">h2</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"row"</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-12 col-md-8"</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"mb-2"</span><span class="p">&gt;</span>
+                        <span class="p">&lt;</span><span class="nt">label</span> <span class="na">for</span><span class="o">=</span><span class="s">"chatLog"</span><span class="p">&gt;</span>Room: #{{ room.name }}<span class="p">&lt;/</span><span class="nt">label</span><span class="p">&gt;</span>
+                        <span class="p">&lt;</span><span class="nt">textarea</span> <span class="na">class</span><span class="o">=</span><span class="s">"form-control"</span> <span class="na">id</span><span class="o">=</span><span class="s">"chatLog"</span> <span class="na">readonly</span><span class="p">&gt;&lt;/</span><span class="nt">textarea</span><span class="p">&gt;</span>
+                    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"input-group"</span><span class="p">&gt;</span>
+                        <span class="p">&lt;</span><span class="nt">input</span> <span class="na">type</span><span class="o">=</span><span class="s">"text"</span> <span class="na">class</span><span class="o">=</span><span class="s">"form-control"</span> <span class="na">id</span><span class="o">=</span><span class="s">"chatMessageInput"</span> <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter your chat message"</span><span class="p">&gt;</span>
+                        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"input-group-append"</span><span class="p">&gt;</span>
+                            <span class="p">&lt;</span><span class="nt">button</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-success"</span> <span class="na">id</span><span class="o">=</span><span class="s">"chatMessageSend"</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span><span class="p">&gt;</span>Send<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+                    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-12 col-md-4"</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">label</span> <span class="na">for</span><span class="o">=</span><span class="s">"onlineUsers"</span><span class="p">&gt;</span>Online users<span class="p">&lt;/</span><span class="nt">label</span><span class="p">&gt;</span>
+                    <span class="p">&lt;</span><span class="nt">select</span> <span class="na">multiple</span> <span class="na">class</span><span class="o">=</span><span class="s">"form-control"</span> <span class="na">id</span><span class="o">=</span><span class="s">"onlineUsersSelector"</span><span class="p">&gt;</span>
+                    <span class="p">&lt;/</span><span class="nt">select</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+            {{ room.name|json_script:"roomName" }}
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"{% static 'room.js' %}"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>为了使我们的代码更具可读性，我们将JavaScript代码包含在单独的文件中——分别是<em> index.js </em>和<em> room.js </em>。因为我们无法在JavaScript中访问Django上下文，所以我们可以使用<a href="https://docs.djangoproject.com/en/4.0/ref/templates/builtins/#json-script"> json_script </a>模板标签来存储<code>room.name</code>，然后在JavaScript文件中获取它。</p>
+<p>在“聊天”里面，创建一个名为“静态”的文件夹。然后，在“静态”内部，创建一个<em> index.js </em>和一个<em> room.js </em>文件。</p>
+<p><em> index.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/index.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check from index.js."</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// focus 'roomInput' when user opens the page</span><span class="w"/>
+<span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#roomInput"</span><span class="p">).</span><span class="nx">focus</span><span class="p">();</span><span class="w"/>
+
+<span class="c1">// submit if the user presses the enter key</span><span class="w"/>
+<span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#roomInput"</span><span class="p">).</span><span class="nx">onkeyup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">keyCode</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">13</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// enter key</span><span class="w"/>
+<span class="w">        </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#roomConnect"</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="c1">// redirect to '/room/&lt;roomInput&gt;/'</span><span class="w"/>
+<span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#roomConnect"</span><span class="p">).</span><span class="nx">onclick</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">roomName</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#roomInput"</span><span class="p">).</span><span class="nx">value</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">pathname</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"chat/"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">roomName</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"/"</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c1">// redirect to '/room/&lt;roomSelect&gt;/'</span><span class="w"/>
+<span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#roomSelect"</span><span class="p">).</span><span class="nx">onchange</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">roomName</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#roomSelect"</span><span class="p">).</span><span class="nx">value</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="s2">" ("</span><span class="p">)[</span><span class="mf">0</span><span class="p">];</span><span class="w"/>
+<span class="w">    </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">pathname</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"chat/"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">roomName</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"/"</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p><em> room.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check from room.js."</span><span class="p">);</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">roomName</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s1">'roomName'</span><span class="p">).</span><span class="nx">textContent</span><span class="p">);</span><span class="w"/>
+
+<span class="kd">let</span><span class="w"> </span><span class="nx">chatLog</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#chatLog"</span><span class="p">);</span><span class="w"/>
+<span class="kd">let</span><span class="w"> </span><span class="nx">chatMessageInput</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#chatMessageInput"</span><span class="p">);</span><span class="w"/>
+<span class="kd">let</span><span class="w"> </span><span class="nx">chatMessageSend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#chatMessageSend"</span><span class="p">);</span><span class="w"/>
+<span class="kd">let</span><span class="w"> </span><span class="nx">onlineUsersSelector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#onlineUsersSelector"</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// adds a new option to 'onlineUsersSelector'</span><span class="w"/>
+<span class="kd">function</span><span class="w"> </span><span class="nx">onlineUsersSelectorAdd</span><span class="p">(</span><span class="nx">value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"option[value='"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"']"</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">newOption</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="s2">"option"</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">newOption</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">value</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">newOption</span><span class="p">.</span><span class="nx">innerHTML</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">value</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">onlineUsersSelector</span><span class="p">.</span><span class="nx">appendChild</span><span class="p">(</span><span class="nx">newOption</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c1">// removes an option from 'onlineUsersSelector'</span><span class="w"/>
+<span class="kd">function</span><span class="w"> </span><span class="nx">onlineUsersSelectorRemove</span><span class="p">(</span><span class="nx">value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">oldOption</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"option[value='"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"']"</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">oldOption</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="nx">oldOption</span><span class="p">.</span><span class="nx">remove</span><span class="p">();</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c1">// focus 'chatMessageInput' when user opens the page</span><span class="w"/>
+<span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">focus</span><span class="p">();</span><span class="w"/>
+
+<span class="c1">// submit if the user presses the enter key</span><span class="w"/>
+<span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">onkeyup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">keyCode</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">13</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// enter key</span><span class="w"/>
+<span class="w">        </span><span class="nx">chatMessageSend</span><span class="p">.</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="c1">// clear the 'chatMessageInput' and forward the message</span><span class="w"/>
+<span class="nx">chatMessageSend</span><span class="p">.</span><span class="nx">onclick</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">value</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="c1">// TODO: forward the message to the WebSocket</span><span class="w"/>
+<span class="w">    </span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">""</span><span class="p">;</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>您最终的“聊天”应用程序目录结构应该如下所示:</p>
+<div class="codehilite"><pre><span/><code>chat
+├── __init__.py
+├── admin.py
+├── apps.py
+├── migrations
+│   ├── 0001_initial.py
+│   ├── __init__.py
+├── models.py
+├── static
+│   ├── index.js
+│   └── room.js
+├── templates
+│   ├── index.html
+│   └── room.html
+├── tests.py
+├── urls.py
+└── views.py
+</code></pre></div>
+
+<h3 id="testing">测试</h3>
+<p>有了基本的项目设置，让我们在浏览器中进行测试。</p>
+<p>启动Django开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8000/chat/">http://localhost:8000/chat/</a>。您将看到房间选择器:</p>
+<p><img data-src="/static/images/blog/django/django-channels/django_channels_roomlist.png" loading="lazy" class="lazyload" alt="Django Channels Room Selector" src="../Images/1bdca51d6b4e8755332a0335a21621f7.png" data-original-src="https://testdriven.io/static/images/blog/django/django-channels/django_channels_roomlist.png"/></p>
+<p>要确保静态文件配置正确，请打开“开发人员控制台”。您应该看到健全性检查:</p>
+<div class="codehilite"><pre><span/><code>Sanity check from index.js.
+</code></pre></div>
+
+<p>接下来，在“房间名称”文本输入中输入一些内容，然后按回车键。您将被重定向到房间:</p>
+<p><img data-src="/static/images/blog/django/django-channels/django_channels_room.png" loading="lazy" class="lazyload" alt="Django Channels Room Selector" src="../Images/dd5348189323a64d2ba9cefbe8aded68.png" data-original-src="https://testdriven.io/static/images/blog/django/django-channels/django_channels_room.png"/></p>
+<blockquote>
+<p>这些只是静态模板。我们稍后将为聊天和在线用户实现该功能。</p>
+</blockquote>
+<h2 id="add-channels">添加频道</h2>
+<p>接下来，让我们连接Django频道。</p>
+<p>首先安装软件包:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">channels</span><span class="o">==</span><span class="m">3</span>.0.4
+</code></pre></div>
+
+<p>然后，将<code>channels</code>添加到<em> core/settings.py </em>内的<code>INSTALLED_APPS</code>中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'chat.apps.ChatConfig'</span><span class="p">,</span>
+    <span class="s1">'channels'</span><span class="p">,</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>因为我们将使用WebSockets而不是HTTP从客户端到服务器进行通信，所以我们需要用<em> core/asgi.py </em>中的<a href="https://channels.readthedocs.io/en/latest/topics/routing.html#protocoltyperouter"> ProtocolTypeRouter </a>包装我们的ASGI配置:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/asgi.py</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">channels.routing</span> <span class="kn">import</span> <span class="n">ProtocolTypeRouter</span>
+<span class="kn">from</span> <span class="nn">django.core.asgi</span> <span class="kn">import</span> <span class="n">get_asgi_application</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'DJANGO_SETTINGS_MODULE'</span><span class="p">,</span> <span class="s1">'core.settings'</span><span class="p">)</span>
+
+<span class="n">application</span> <span class="o">=</span> <span class="n">ProtocolTypeRouter</span><span class="p">({</span>
+  <span class="s1">'http'</span><span class="p">:</span> <span class="n">get_asgi_application</span><span class="p">(),</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<p>该路由器将根据使用的协议将流量路由到web应用程序的不同部分。</p>
+<blockquote>
+<p>Django版本&lt;= 2.2 don't have built-in ASGI support. In order to get  【T0】  running with older Django versions please refer to the <a href="https://channels.readthedocs.io/en/stable/installation.html">官方安装指南</a>。</p>
+</blockquote>
+<p>接下来，我们需要让Django知道我们的ASGI应用程序的位置。将以下内容添加到您的<em> core/settings.py </em>文件中，就在<code>WSGI_APPLICATION</code>设置的下面:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">WSGI_APPLICATION</span> <span class="o">=</span> <span class="s1">'core.wsgi.application'</span>
+<span class="n">ASGI_APPLICATION</span> <span class="o">=</span> <span class="s1">'core.asgi.application'</span>  <span class="c1"># new</span>
+</code></pre></div>
+
+<p>当您现在运行开发服务器时，您将看到Channels正在被使用:</p>
+<div class="codehilite"><pre><span/><code>Starting ASGI/Channels version 3.0.4 development server at http://127.0.0.1:8000/
+</code></pre></div>
+
+<h3 id="add-channel-layer">添加通道层</h3>
+<p>一个<a href="https://channels.readthedocs.io/en/stable/topics/channel_layers.html">通道层</a>是一种通信系统，它允许我们的应用程序的多个部分交换消息，而不需要在数据库中穿梭所有的消息或事件。</p>
+<p>我们需要一个通道层来让消费者(我们将在下一步中实现)能够相互交谈。</p>
+<p>虽然我们可以使用<a href="https://channels.readthedocs.io/en/stable/topics/channel_layers.html#in-memory-channel-layer"> InMemoryChannelLayer </a>层，因为我们处于开发模式，但我们将使用一个生产就绪层，<a href="https://channels.readthedocs.io/en/stable/topics/channel_layers.html#redis-channel-layer"> RedisChannelLayer </a>。</p>
+<p>由于这一层需要<a href="https://redis.io/"> Redis </a>，运行下面的命令让它启动并运行<a href="https://www.docker.com/"> Docker </a>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ docker run -p <span class="m">6379</span>:6379 -d redis:5
+</code></pre></div>
+
+<p>该命令下载映像并在端口<code>6379</code>上启动Redis Docker容器。</p>
+<blockquote>
+<p>如果不想用Docker，可以直接从<a href="https://redis.io/download">官网</a>下载Redis。</p>
+</blockquote>
+<p>要从Django连接到Redis，我们需要安装一个名为<a href="https://github.com/django/channels_redis"> channels_redis </a>的附加包:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">channels_redis</span><span class="o">==</span><span class="m">3</span>.3.1
+</code></pre></div>
+
+<p>之后，在<em> core/settings.py </em>中配置图层如下:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">CHANNEL_LAYERS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'BACKEND'</span><span class="p">:</span> <span class="s1">'channels_redis.core.RedisChannelLayer'</span><span class="p">,</span>
+        <span class="s1">'CONFIG'</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"hosts"</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'127.0.0.1'</span><span class="p">,</span> <span class="mi">6379</span><span class="p">)],</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这里，我们让channels_redis知道redis服务器的位置。</p>
+<p>要测试一切是否按预期运行，请打开Django shell:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py shell
+</code></pre></div>
+
+<p>然后运行:</p>
+<div class="codehilite"><pre><span/><code>&gt;&gt;&gt; import channels.layers
+&gt;&gt;&gt; <span class="nv">channel_layer</span> <span class="o">=</span> channels.layers.get_channel_layer<span class="o">()</span>
+&gt;&gt;&gt;
+&gt;&gt;&gt; from asgiref.sync import async_to_sync
+&gt;&gt;&gt; async_to_sync<span class="o">(</span>channel_layer.send<span class="o">)(</span><span class="s1">'test_channel'</span>, <span class="o">{</span><span class="s1">'type'</span>: <span class="s1">'hello'</span><span class="o">})</span>
+&gt;&gt;&gt; async_to_sync<span class="o">(</span>channel_layer.receive<span class="o">)(</span><span class="s1">'test_channel'</span><span class="o">)</span>
+<span class="o">{</span><span class="s1">'type'</span>: <span class="s1">'hello'</span><span class="o">}</span>
+</code></pre></div>
+
+<p>这里，我们使用<em> core/settings.py </em>中定义的设置连接到通道层。然后，我们使用<code>channel_layer.send</code>向<code>test_channel</code>组发送消息，使用<code>channel_layer.receive</code>读取发送给同一个组的所有消息。</p>
+<blockquote>
+<p>注意，我们在<code>async_to_sync</code>中包装了所有的函数调用，因为通道层是异步的。</p>
+</blockquote>
+<p>输入<code>quit()</code>退出外壳。</p>
+<h3 id="add-channels-consumer">添加频道消费者</h3>
+<p>一个<a href="https://channels.readthedocs.io/en/stable/topics/consumers.html">消费者</a>是渠道代码的基本单位。它们是由事件驱动的小型ASGI应用程序。它们类似于Django的观点。然而，与Django视图不同，消费者在默认情况下是长期运行的。一个Django项目可以有多个消费者，这些消费者使用通道路由进行组合(我们将在下一节中讨论)。</p>
+<p>每个使用者都有自己的作用域，它是关于单个传入连接的一组细节。它们包含协议类型、路径、报头、路由参数、用户代理等数据。</p>
+<p>在“聊天”中创建一个名为<em> consumers.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">from</span> <span class="nn">asgiref.sync</span> <span class="kn">import</span> <span class="n">async_to_sync</span>
+<span class="kn">from</span> <span class="nn">channels.generic.websocket</span> <span class="kn">import</span> <span class="n">WebsocketConsumer</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Room</span>
+
+
+<span class="k">class</span> <span class="nc">ChatConsumer</span><span class="p">(</span><span class="n">WebsocketConsumer</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">[</span><span class="s1">'url_route'</span><span class="p">][</span><span class="s1">'kwargs'</span><span class="p">][</span><span class="s1">'room_name'</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'chat_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">room_name</span><span class="si">}</span><span class="s1">'</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room</span> <span class="o">=</span> <span class="n">Room</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">room_name</span><span class="p">)</span>
+
+        <span class="c1"># connection has to be accepted</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+
+        <span class="c1"># join the room group</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_add</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channel_name</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">close_code</span><span class="p">):</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_discard</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channel_name</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">receive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bytes_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">text_data_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">text_data</span><span class="p">)</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="n">text_data_json</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span>
+
+        <span class="c1"># send chat message event to the room</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_send</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="p">{</span>
+                <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'chat_message'</span><span class="p">,</span>
+                <span class="s1">'message'</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">chat_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">text_data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
+</code></pre></div>
+
+<p>这里，我们创建了一个<code>ChatConsumer</code>，它继承了<a href="https://channels.readthedocs.io/en/latest/topics/consumers.html#websocketconsumer"> WebsocketConsumer </a>。<code>WebsocketConsumer</code>提供了三种方法，<code>connect()</code>、<code>disconnect()</code>、<code>receive()</code>:</p>
+<ol>
+<li>在<code>connect()</code>内部，我们调用了<code>accept()</code>来接受连接。之后，我们将用户添加到通道层组。</li>
+<li>在<code>disconnect()</code>中，我们从频道层组中移除了用户。</li>
+<li>在<code>receive()</code>中，我们将数据解析为JSON并提取出<code>message</code>。然后，我们使用<code>group_send</code>将<code>message</code>转发给<code>chat_message</code>。</li>
+</ol>
+<blockquote>
+<p>当使用通道层的<code>group_send</code>时，您的消费者必须为您使用的每个JSON消息<code>type</code>准备一个方法。在我们的情况下，<code>type</code>等于<code>chat_message</code>。因此，我们添加了一个叫做<code>chat_message</code>的方法。</p>
+<p>如果你在你的消息类型中使用点，当寻找一个方法时，通道会自动将它们转换成下划线——例如，<code>chat.message</code>会变成<code>chat_message</code>。</p>
+</blockquote>
+<p>由于<code>WebsocketConsumer</code>是一个同步消费者，我们在处理通道层时必须调用<code>async_to_sync</code>。我们决定使用同步消费者，因为聊天应用程序与Django紧密相连(默认情况下是同步的)。换句话说，我们不会因为使用异步消费者而获得性能提升。</p>
+<blockquote>
+<p>默认情况下，您应该使用同步消费者。此外，只有在你完全确定你正在做的事情将从异步处理中受益(例如，可以并行完成的长时间运行的任务)并且你只使用异步本地库的情况下，才使用异步消费者。</p>
+</blockquote>
+<h3 id="add-channels-routing">添加通道路由</h3>
+<p>Channels提供了不同的<a href="https://channels.readthedocs.io/en/stable/topics/routing.html">路由</a>类，允许我们组合和堆叠消费者。它们类似于Django的URL。</p>
+<p>向“聊天”添加一个<em> routing.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/routing.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">re_path</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">consumers</span>
+
+<span class="n">websocket_urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">re_path</span><span class="p">(</span><span class="sa">r</span><span class="s1">'ws/chat/(?P&lt;room_name&gt;\w+)/$'</span><span class="p">,</span> <span class="n">consumers</span><span class="o">.</span><span class="n">ChatConsumer</span><span class="o">.</span><span class="n">as_asgi</span><span class="p">()),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>在<em> core/asgi.py </em>中注册<em> routing.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/asgi.py</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">channels.routing</span> <span class="kn">import</span> <span class="n">ProtocolTypeRouter</span><span class="p">,</span> <span class="n">URLRouter</span>
+<span class="kn">from</span> <span class="nn">django.core.asgi</span> <span class="kn">import</span> <span class="n">get_asgi_application</span>
+
+<span class="kn">import</span> <span class="nn">chat.routing</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'DJANGO_SETTINGS_MODULE'</span><span class="p">,</span> <span class="s1">'core.settings'</span><span class="p">)</span>
+
+<span class="n">application</span> <span class="o">=</span> <span class="n">ProtocolTypeRouter</span><span class="p">({</span>
+  <span class="s1">'http'</span><span class="p">:</span> <span class="n">get_asgi_application</span><span class="p">(),</span>
+  <span class="s1">'websocket'</span><span class="p">:</span> <span class="n">URLRouter</span><span class="p">(</span>
+      <span class="n">chat</span><span class="o">.</span><span class="n">routing</span><span class="o">.</span><span class="n">websocket_urlpatterns</span>
+    <span class="p">),</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<h3 id="websockets-frontend">WebSockets(前端)</h3>
+<p>为了从前端与通道通信，我们将使用<a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocket"> WebSocket API </a>。</p>
+<p>WebSockets非常容易使用。首先，您需要通过提供一个<code>url</code>来建立连接，然后您可以监听以下事件:</p>
+<ol>
+<li><code>onopen</code> -当WebSocket连接建立时调用</li>
+<li><code>onclose</code> -当WebSocket连接被破坏时调用</li>
+<li><code>onmessage</code> -当WebSocket收到消息时调用</li>
+<li><code>onerror</code> -当WebSocket遇到错误时调用</li>
+</ol>
+<p>要将WebSockets集成到应用程序中，请将以下内容添加到<em> room.js </em>的底部:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="kd">let</span><span class="w"> </span><span class="nx">chatSocket</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w"/>
+
+<span class="kd">function</span><span class="w"> </span><span class="nx">connect</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">chatSocket</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">WebSocket</span><span class="p">(</span><span class="s2">"ws://"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">host</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"/ws/chat/"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">roomName</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"/"</span><span class="p">);</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">chatSocket</span><span class="p">.</span><span class="nx">onopen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Successfully connected to the WebSocket."</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">chatSocket</span><span class="p">.</span><span class="nx">onclose</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"WebSocket connection closed unexpectedly. Trying to reconnect in 2s..."</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="nx">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">            </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Reconnecting..."</span><span class="p">);</span><span class="w"/>
+<span class="w">            </span><span class="nx">connect</span><span class="p">();</span><span class="w"/>
+<span class="w">        </span><span class="p">},</span><span class="w"> </span><span class="mf">2000</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">chatSocket</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+
+<span class="w">        </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="s2">"chat_message"</span><span class="o">:</span><span class="w"/>
+<span class="w">                </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"\n"</span><span class="p">;</span><span class="w"/>
+<span class="w">                </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">            </span><span class="k">default</span><span class="o">:</span><span class="w"/>
+<span class="w">                </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">"Unknown message type!"</span><span class="p">);</span><span class="w"/>
+<span class="w">                </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+
+<span class="w">        </span><span class="c1">// scroll 'chatLog' to the bottom</span><span class="w"/>
+<span class="w">        </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">scrollTop</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">scrollHeight</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">chatSocket</span><span class="p">.</span><span class="nx">onerror</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"WebSocket encountered an error: "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">err</span><span class="p">.</span><span class="nx">message</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Closing the socket."</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="nx">chatSocket</span><span class="p">.</span><span class="nx">close</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+<span class="nx">connect</span><span class="p">();</span><span class="w"/>
+</code></pre></div>
+
+<p>建立WebSocket连接后，在<code>onmessage</code>事件中，我们根据<code>data.type</code>确定消息类型。请注意我们如何将WebSocket包装在<code>connect()</code>方法中，以便在连接断开时能够重新建立连接。</p>
+<p>最后，将<code>chatMessageSend.onclickForm</code>中的TODO更改为以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="nx">chatSocket</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="s2">"message"</span><span class="o">:</span><span class="w"> </span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="w"/>
+<span class="p">}));</span><span class="w"/>
+</code></pre></div>
+
+<p>完整的处理程序现在应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="nx">chatMessageSend</span><span class="p">.</span><span class="nx">onclick</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">value</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">chatSocket</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"/>
+<span class="w">        </span><span class="s2">"message"</span><span class="o">:</span><span class="w"> </span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">}));</span><span class="w"/>
+<span class="w">    </span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">""</span><span class="p">;</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>聊天的第一个版本完成了。</p>
+<p>要进行测试，请运行开发服务器。然后，打开两个私人/匿名浏览器窗口，并在每个窗口中导航到<a href="http://localhost:8000/chat/default/">http://localhost:8000/chat/default/</a>。您应该能够发送一条消息:</p>
+<p><img data-src="/static/images/blog/django/django-channels/django_channels_testing.png" loading="lazy" class="lazyload" alt="Django Channels testing" src="../Images/4c731970028385c5ff9b7c31b0290268.png" data-original-src="https://testdriven.io/static/images/blog/django/django-channels/django_channels_testing.png"/></p>
+<p>基本功能到此为止。接下来，我们来看看身份认证。</p>
+<h2 id="authentication">证明</h2>
+<h3 id="backend">后端</h3>
+<p>Channels附带了一个用于Django会话和名为<code>AuthMiddlewareStack</code>的<a href="https://channels.readthedocs.io/en/latest/topics/authentication.html">认证</a>管理的内置类。</p>
+<p>要使用它，我们唯一要做的就是把<code>URLRouter</code>包在<em> core/asgi.py </em>里面，就像这样:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/asgi.py</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">channels.auth</span> <span class="kn">import</span> <span class="n">AuthMiddlewareStack</span>  <span class="c1"># new import</span>
+<span class="kn">from</span> <span class="nn">channels.routing</span> <span class="kn">import</span> <span class="n">ProtocolTypeRouter</span><span class="p">,</span> <span class="n">URLRouter</span>
+<span class="kn">from</span> <span class="nn">django.core.asgi</span> <span class="kn">import</span> <span class="n">get_asgi_application</span>
+
+<span class="kn">import</span> <span class="nn">chat.routing</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'DJANGO_SETTINGS_MODULE'</span><span class="p">,</span> <span class="s1">'core.settings'</span><span class="p">)</span>
+
+<span class="n">application</span> <span class="o">=</span> <span class="n">ProtocolTypeRouter</span><span class="p">({</span>
+  <span class="s1">'http'</span><span class="p">:</span> <span class="n">get_asgi_application</span><span class="p">(),</span>
+  <span class="s1">'websocket'</span><span class="p">:</span> <span class="n">AuthMiddlewareStack</span><span class="p">(</span>  <span class="c1"># new</span>
+        <span class="n">URLRouter</span><span class="p">(</span>
+            <span class="n">chat</span><span class="o">.</span><span class="n">routing</span><span class="o">.</span><span class="n">websocket_urlpatterns</span>
+        <span class="p">)</span>
+    <span class="p">),</span>  <span class="c1"># new</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<p>现在，只要经过身份验证的客户端加入，用户对象就会被添加到该范围。可以这样访问它:</p>
+<div class="codehilite"><pre><span/><code><span class="n">user</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">[</span><span class="s1">'user'</span><span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果您想使用前端JavaScript框架(如Angular、React或Vue)运行通道，您必须使用不同的认证系统(例如令牌认证)。如果您想了解如何对通道使用令牌认证，请查看以下课程:</p>
+<ol>
+<li><a href="/courses/real-time-app-with-django-channels-and-angular/">利用Django频道和Angular开发实时打车应用</a></li>
+<li><a href="/courses/taxi-react/">使用Django Channels和React开发实时打车应用</a></li>
+</ol>
+</blockquote>
+<p>让我们修改<code>ChatConsumer</code>来阻止未通过身份验证的用户说话，并在消息中显示用户的用户名。</p>
+<p>将<em> chat/consumers.py </em>更改如下:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">from</span> <span class="nn">asgiref.sync</span> <span class="kn">import</span> <span class="n">async_to_sync</span>
+<span class="kn">from</span> <span class="nn">channels.generic.websocket</span> <span class="kn">import</span> <span class="n">WebsocketConsumer</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Room</span><span class="p">,</span> <span class="n">Message</span>  <span class="c1"># new import</span>
+
+
+<span class="k">class</span> <span class="nc">ChatConsumer</span><span class="p">(</span><span class="n">WebsocketConsumer</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># new</span>
+
+    <span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">[</span><span class="s1">'url_route'</span><span class="p">][</span><span class="s1">'kwargs'</span><span class="p">][</span><span class="s1">'room_name'</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'chat_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">room_name</span><span class="si">}</span><span class="s1">'</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room</span> <span class="o">=</span> <span class="n">Room</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">room_name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">[</span><span class="s1">'user'</span><span class="p">]</span>  <span class="c1"># new</span>
+
+        <span class="c1"># connection has to be accepted</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+
+        <span class="c1"># join the room group</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_add</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channel_name</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">close_code</span><span class="p">):</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_discard</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channel_name</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">receive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bytes_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">text_data_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">text_data</span><span class="p">)</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="n">text_data_json</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>  <span class="c1"># new</span>
+            <span class="k">return</span>                          <span class="c1"># new</span>
+
+        <span class="c1"># send chat message event to the room</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_send</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="p">{</span>
+                <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'chat_message'</span><span class="p">,</span>
+                <span class="s1">'user'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>  <span class="c1"># new</span>
+                <span class="s1">'message'</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="n">Message</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">room</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">room</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="n">message</span><span class="p">)</span>  <span class="c1"># new</span>
+
+    <span class="k">def</span> <span class="nf">chat_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">text_data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
+</code></pre></div>
+
+<h3 id="frontend">前端</h3>
+<p>接下来，让我们修改<em> room.js </em>来显示用户的用户名。在<code>chatSocket.onMessage</code>中，添加以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="nx">chatSocket</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+
+<span class="w">    </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="s2">"chat_message"</span><span class="o">:</span><span class="w"/>
+<span class="w">            </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">user</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">": "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"\n"</span><span class="p">;</span><span class="w">  </span><span class="c1">// new</span><span class="w"/>
+<span class="w">            </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="k">default</span><span class="o">:</span><span class="w"/>
+<span class="w">            </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">"Unknown message type!"</span><span class="p">);</span><span class="w"/>
+<span class="w">            </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// scroll 'chatLog' to the bottom</span><span class="w"/>
+<span class="w">    </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">scrollTop</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">scrollHeight</span><span class="p">;</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="testing_1">测试</h3>
+<p>创建一个超级用户，用于测试:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py createsuperuser
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>打开浏览器，使用Django admin登录到<a href="http://localhost:8000/admin">http://localhost:8000/admin</a>。</p>
+<p>然后导航到<a href="http://localhost:8000/chat/default">http://localhost:8000/chat/default</a>。测试一下！</p>
+<p><img data-src="/static/images/blog/django/django-channels/django_channels_with_user.png" loading="lazy" class="lazyload" alt="Django Channels Chat With Usernames" src="../Images/b46698fb083477751e95718b23816e66.png" data-original-src="https://testdriven.io/static/images/blog/django/django-channels/django_channels_with_user.png"/></p>
+<p>注销Django管理员。导航到<a href="http://localhost:8000/chat/default">http://localhost:8000/chat/default</a>。尝试发布消息时会发生什么？</p>
+<h2 id="user-messages">用户消息</h2>
+<p>接下来，我们将添加以下三种消息类型:</p>
+<ol>
+<li><code>user_list</code> -发送给新加入的用户(<code>data.users</code> =在线用户列表)</li>
+<li><code>user_join</code> -当用户加入聊天室时发送</li>
+<li><code>user_leave</code> -当用户离开聊天室时发送</li>
+</ol>
+<h3 id="backend_1">后端</h3>
+<p>在<code>ChatConsumer</code>中的<code>connect</code>方法的末尾添加:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="c1"># ...</span>
+
+    <span class="c1"># send the user list to the newly joined user</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span>
+        <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'user_list'</span><span class="p">,</span>
+        <span class="s1">'users'</span><span class="p">:</span> <span class="p">[</span><span class="n">user</span><span class="o">.</span><span class="n">username</span> <span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">room</span><span class="o">.</span><span class="n">online</span><span class="o">.</span><span class="n">all</span><span class="p">()],</span>
+    <span class="p">}))</span>
+
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+        <span class="c1"># send the join event to the room</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_send</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="p">{</span>
+                <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'user_join'</span><span class="p">,</span>
+                <span class="s1">'user'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room</span><span class="o">.</span><span class="n">online</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在<code>ChatConsumer</code>中的<code>disconnect</code>方法的末尾添加:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">close_code</span><span class="p">):</span>
+    <span class="c1"># ...</span>
+
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+        <span class="c1"># send the leave event to the room</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_send</span><span class="p">)(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+            <span class="p">{</span>
+                <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'user_leave'</span><span class="p">,</span>
+                <span class="s1">'user'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room</span><span class="o">.</span><span class="n">online</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</code></pre></div>
+
+<p>因为我们添加了新的消息类型，所以我们还需要添加通道层的方法。在<em> chat/consumers.py </em>末尾添加:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="k">def</span> <span class="nf">user_join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">text_data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">user_leave</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">text_data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
+</code></pre></div>
+
+<p>你的<em> consumers.py </em>在这一步之后应该是这样的:<a href="https://gist.github.com/duplxey/095d2abd25cef0b58c4aa724bab6fb70"> consumers.py </a>。</p>
+<h3 id="frontend_1">前端</h3>
+<p>为了处理来自前端的消息，将以下情况添加到<code>chatSocket.onmessage</code>处理程序中的switch语句中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"user_list"</span><span class="o">:</span><span class="w"/>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">users</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">            </span><span class="nx">onlineUsersSelectorAdd</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">users</span><span class="p">[</span><span class="nx">i</span><span class="p">]);</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"user_join"</span><span class="o">:</span><span class="w"/>
+<span class="w">        </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">user</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">" joined the room.\n"</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="nx">onlineUsersSelectorAdd</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">user</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"user_leave"</span><span class="o">:</span><span class="w"/>
+<span class="w">        </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">user</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">" left the room.\n"</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="nx">onlineUsersSelectorRemove</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">user</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+</code></pre></div>
+
+<h4 id="testing_2">测试</h4>
+<p>再次运行服务器，登录，访问<a href="http://localhost:8000/chat/default">http://localhost:8000/chat/default</a>。</p>
+<p><img data-src="/static/images/blog/django/django-channels/django_channels_user_join.png" loading="lazy" class="lazyload" alt="Django Channels Join Message" src="../Images/ef0a67e6a1764ee28a7f63b85e9898f2.png" data-original-src="https://testdriven.io/static/images/blog/django/django-channels/django_channels_user_join.png"/></p>
+<p>您现在应该能够看到加入和离开消息。用户列表也应该被填充。</p>
+<h2 id="private-messaging">私人信息</h2>
+<p>Channels包不允许直接过滤，所以没有从一个客户端向另一个客户端发送消息的内置方法。通过频道，您可以将消息发送给:</p>
+<ol>
+<li>消费者的客户端(<code>self.send</code>)</li>
+<li>一个通道层组(<code>self.channel_layer.group_send</code>)</li>
+</ol>
+<p>因此，为了实现私有消息传递，我们将:</p>
+<ol>
+<li>每当客户端加入时，创建一个名为<code>inbox_%USERNAME%</code>的新组。</li>
+<li>将客户添加到他们自己的收件箱组(<code>inbox_%USERNAME%</code>)。</li>
+<li>当客户端断开连接时，将其从收件箱群组(<code>inbox_%USERNAME%</code>)中移除。</li>
+</ol>
+<p>一旦实现，每个客户将有自己的私人邮件收件箱。然后，其他客户端可以向<code>inbox_%TARGET_USERNAME%</code>发送私人消息。</p>
+<h3 id="backend_2">后端</h3>
+<p>修改<em> chat/consumers.py </em>。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="k">class</span> <span class="nc">ChatConsumer</span><span class="p">(</span><span class="n">WebsocketConsumer</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># ...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_inbox</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># new</span>
+
+    <span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># ...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_inbox</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'inbox_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="si">}</span><span class="s1">'</span>  <span class="c1"># new</span>
+
+        <span class="c1"># accept the incoming connection</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+
+        <span class="c1"># ...</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+            <span class="c1"># -------------------- new --------------------</span>
+            <span class="c1"># create a user inbox for private messages</span>
+            <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_add</span><span class="p">)(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">user_inbox</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">channel_name</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="c1"># ---------------- end of new ----------------</span>
+            <span class="c1"># ...</span>
+
+    <span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">close_code</span><span class="p">):</span>
+        <span class="c1"># ...</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+            <span class="c1"># -------------------- new --------------------</span>
+            <span class="c1"># delete the user inbox for private messages</span>
+            <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_discard</span><span class="p">)(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">user_inbox</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">channel_name</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="c1"># ---------------- end of new ----------------</span>
+            <span class="c1"># ...</span>
+</code></pre></div>
+
+<p>所以，我们:</p>
+<ol>
+<li>将<code>user_inbox</code>添加到<code>ChatConsumer</code>并在<code>connect()</code>上初始化。</li>
+<li>连接时将用户添加到<code>user_inbox</code>组。</li>
+<li>当用户断开连接时，将用户从<code>user_inbox</code>组中移除。</li>
+</ol>
+<p>接下来，修改<code>receive()</code>来处理私有消息:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="k">def</span> <span class="nf">receive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bytes_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">text_data_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">text_data</span><span class="p">)</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">text_data_json</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="c1"># -------------------- new --------------------</span>
+    <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'/pm '</span><span class="p">):</span>
+        <span class="n">split</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">' '</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">split</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">target_msg</span> <span class="o">=</span> <span class="n">split</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="c1"># send private message to the target</span>
+        <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_send</span><span class="p">)(</span>
+            <span class="sa">f</span><span class="s1">'inbox_</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span>
+            <span class="p">{</span>
+                <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'private_message'</span><span class="p">,</span>
+                <span class="s1">'user'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>
+                <span class="s1">'message'</span><span class="p">:</span> <span class="n">target_msg</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="c1"># send private message delivered to the user</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span>
+            <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'private_message_delivered'</span><span class="p">,</span>
+            <span class="s1">'target'</span><span class="p">:</span> <span class="n">target</span><span class="p">,</span>
+            <span class="s1">'message'</span><span class="p">:</span> <span class="n">target_msg</span><span class="p">,</span>
+        <span class="p">}))</span>
+        <span class="k">return</span>
+    <span class="c1"># ---------------- end of new ----------------</span>
+
+    <span class="c1"># send chat message event to the room</span>
+    <span class="n">async_to_sync</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channel_layer</span><span class="o">.</span><span class="n">group_send</span><span class="p">)(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">room_group_name</span><span class="p">,</span>
+        <span class="p">{</span>
+            <span class="s1">'type'</span><span class="p">:</span> <span class="s1">'chat_message'</span><span class="p">,</span>
+            <span class="s1">'user'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>
+            <span class="s1">'message'</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+    <span class="n">Message</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">room</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">room</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="n">message</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在<em> chat/consumers.py </em>的末尾增加以下方法:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># chat/consumers.py</span>
+
+<span class="k">def</span> <span class="nf">private_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">text_data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">private_message_delivered</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">text_data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
+</code></pre></div>
+
+<p>你最终的<em> chat/consumers.py </em>文件应该等于这个:<a href="https://gist.github.com/duplxey/3efe783a9c4b7c12e9211c07063a3492"> consumers.py </a></p>
+<h3 id="frontend_2">前端</h3>
+<p>为了在前端处理私有消息，在<code>switch(data.type)</code>语句中添加<code>private_message</code>和<code>private_message_delivered</code>案例:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"private_message"</span><span class="o">:</span><span class="w"/>
+<span class="w">        </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"PM from "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">user</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">": "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"\n"</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"private_message_delivered"</span><span class="o">:</span><span class="w"/>
+<span class="w">        </span><span class="nx">chatLog</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"PM to "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">target</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">": "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">"\n"</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>为了使聊天更加方便，我们可以在用户点击<code>onlineUsersSelector</code>中的一个在线用户时，将消息输入改为<code>pm %USERNAME%</code>。将以下处理程序添加到底部:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// chat/static/room.js</span><span class="w"/>
+
+<span class="nx">onlineUsersSelector</span><span class="p">.</span><span class="nx">onchange</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/pm "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">onlineUsersSelector</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">" "</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">onlineUsersSelector</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">chatMessageInput</span><span class="p">.</span><span class="nx">focus</span><span class="p">();</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="testing_3">测试</h3>
+<p>就是这样！chap应用程序现已完成。让我们最后一次测试一下。</p>
+<p>创建两个超级用户进行测试，然后运行服务器。</p>
+<p>打开两个不同的私人/匿名浏览器，在<a href="http://localhost:8000/admin">http://localhost:8000/admin</a>同时登录。</p>
+<p>然后在两个浏览器中导航到<a href="http://localhost:8000/chat/default">http://localhost:8000/chat/default</a>。单击其中一个已连接的用户，向他们发送私人消息:</p>
+<p><img data-src="/static/images/blog/django/django-channels/channels_final_app.png" loading="lazy" class="lazyload" alt="Django Channels Chat Final Version" src="../Images/cfd812e4937cb5547873942af3ad877c.png" data-original-src="https://testdriven.io/static/images/blog/django/django-channels/channels_final_app.png"/></p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们学习了如何在Django中使用通道。您了解了同步和异步代码执行之间的差异，以及以下通道的概念:</p>
+<ol>
+<li>顾客</li>
+<li>通道层</li>
+<li>按指定路线发送</li>
+</ol>
+<p>最后，我们用WebSockets将所有东西捆绑在一起，构建了一个聊天应用程序。</p>
+<p>我们的聊天远非完美。如果你想实践你所学的，你可以通过以下方法来提高它:</p>
+<ol>
+<li>添加管理员专用聊天室。</li>
+<li>当用户加入聊天室时，向用户发送最后十条消息。</li>
+<li>允许用户编辑和删除消息。</li>
+<li>添加“{user}”是键入“功能。</li>
+<li>添加消息反应。</li>
+</ol>
+<blockquote>
+<p>这些想法从最容易实现到最难实现进行排序。</p>
+</blockquote>
+<p>您可以从GitHub上的<a href="https://github.com/testdrivenio/django-channels-example"> django-channels-example </a>存储库中获取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

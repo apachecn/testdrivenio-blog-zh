@@ -1,0 +1,216 @@
+<html>
+<head>
+<title>Working with Celery and Django Database Transactions </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Celery和Django数据库事务</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/celery-database-transactions/#0001-01-01">https://testdriven.io/blog/celery-database-transactions/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本文中，我们将研究如何在数据库提交事务之前阻止依赖于Django数据库事务的Celery任务执行。这是一个相当普遍的问题。</p>
+<blockquote>
+<p>姜戈+芹菜系列:</p>
+<ol>
+<li>与Django和Celery的异步任务</li>
+<li><a href="/blog/django-celery-periodic-tasks/">在Django用芹菜和码头工人处理定期任务</a></li>
+<li><a href="/blog/retrying-failed-celery-tasks/">自动重试失败的芹菜任务</a></li>
+<li><a href="/blog/celery-database-transactions/">处理芹菜和数据库事务</a>(本文！)</li>
+</ol>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>阅读后，您应该能够:</p>
+<ol>
+<li>描述什么是数据库事务以及如何在Django中使用它</li>
+<li>解释为什么芹菜工会出现<code>DoesNotExist</code>错误，以及如何解决</li>
+<li>防止任务在数据库提交事务之前执行</li>
+</ol>
+<h2 id="what-is-a-database-transaction">什么是数据库事务？</h2>
+<p>数据库事务是作为一个单元提交(应用于数据库)或回滚(从数据库中撤消)的工作单元。</p>
+<p>大多数数据库使用以下模式:</p>
+<ol>
+<li>开始交易。</li>
+<li>执行一组数据操作和/或查询。</li>
+<li>如果没有错误发生，则提交事务。</li>
+<li>如果出现错误，则回滚事务。</li>
+</ol>
+<p>如您所见，事务是让您的数据远离混乱的一种非常有用的方式。</p>
+<h2 id="how-to-use-database-transactions-in-django">如何在Django中使用数据库事务</h2>
+<blockquote>
+<p>你可以在<a href="https://github.com/testdrivenio/django-celery-project"> Github </a>上找到这篇文章的源代码。如果您在阅读本文时决定使用这段代码，请记住用户名必须是惟一的。你可以使用一个随机的用户名生成器进行测试，比如<a href="https://github.com/joke2k/faker"> Faker </a>。</p>
+</blockquote>
+<p>让我们先来看看Django的观点:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="s1">'john'</span><span class="p">,</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4a262f242425240a3e222f282f2b3e262f3964292527">[email protected]</a>'</span><span class="p">,</span> <span class="s1">'johnpassword'</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'create user </span><span class="si">{</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">'test'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>当你访问这个视图时会发生什么？</p>
+<h3 id="default-behavior">默认行为</h3>
+<p>Django的默认行为是<a href="https://docs.djangoproject.com/en/3.2/topics/db/transactions/#autocommit">自动提交</a>:每个查询都直接提交给数据库，除非事务是活动的。换句话说，通过自动提交，每个查询都会启动一个事务，并提交或回滚该事务。如果您有一个包含三个查询的视图，那么每个查询将一个接一个地运行。如果一个失败了，另外两个就会被提交。</p>
+<p>因此，在上面的视图中，在提交事务后<em>引发异常，创建用户<code>john</code>。</em></p>
+<h3 id="explicit-control">显式控制</h3>
+<p>如果您希望对数据库事务有更多的控制，您可以用<a href="https://docs.djangoproject.com/en/3.2/topics/db/transactions/#controlling-transactions-explicitly"> transaction.atomic </a>覆盖默认行为。在这种模式下，在调用视图函数之前，Django启动一个事务。如果响应没有问题，Django就提交事务。另一方面，如果视图产生异常，Django回滚事务。如果有三个查询，其中一个失败了，那么所有查询都不会提交。</p>
+<p>因此，让我们使用<code>transaction.atomic</code>重写视图:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">transaction_test</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="s1">'john1'</span><span class="p">,</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f29e979c9c9d9cb2869a97909793869e9781dc919d9f">[email protected]</a>'</span><span class="p">,</span> <span class="s1">'johnpassword'</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'create user </span><span class="si">{</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">'force transaction to rollback'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在<code>user create</code>操作会在异常出现时回滚，所以最终不会创建用户。</p>
+<p>是一个非常有用的工具，可以让你的数据有条理，尤其是当你需要在模型中操作数据的时候。</p>
+<p>它也可以像这样用作装饰器:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@transaction</span><span class="o">.</span><span class="n">atomic</span>
+<span class="k">def</span> <span class="nf">transaction_test2</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="s1">'john1'</span><span class="p">,</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6f030a010100012f1b">[email protected]</a>hebeatles.com'</span><span class="p">,</span> <span class="s1">'johnpassword'</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'create user </span><span class="si">{</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">'force transaction to rollback'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>因此，如果视图中出现了一些错误，而我们没有发现它，那么事务将会回滚。</p>
+<p>如果您想将<code>transaction.atomic</code>用于所有视图功能，您可以在Django设置文件中将<code>ATOMIC_REQUESTS</code>设置为<code>True</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="n">ATOMIC_REQUESTS</span><span class="o">=</span><span class="kc">True</span>
+
+<span class="c1"># or</span>
+
+<span class="n">DATABASES</span><span class="p">[</span><span class="s2">"default"</span><span class="p">][</span><span class="s2">"ATOMIC_REQUESTS"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>然后，您可以覆盖该行为，以便视图以自动提交模式运行:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@transaction</span><span class="o">.</span><span class="n">non_atomic_requests</span>
+</code></pre></div>
+
+<h2 id="doesnotexist-exception">不存在异常</h2>
+<p>如果您对Django如何管理数据库事务没有很好的理解，当您在Celery worker中遇到与数据库相关的随机错误时，可能会很困惑。</p>
+<p>让我们看一个例子:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@transaction</span><span class="o">.</span><span class="n">atomic</span>
+<span class="k">def</span> <span class="nf">transaction_celery</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">random_username</span><span class="p">()</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="95f9f0fbfbfafbd5e1fdf0f7f0f4e1f9f0e6bbf6faf8">[email protected]</a>'</span><span class="p">,</span> <span class="s1">'johnpassword'</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'create user </span><span class="si">{</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="n">task_send_welcome_email</span><span class="o">.</span><span class="n">delay</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s1">'test'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>任务代码如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span><span class="p">()</span>
+<span class="k">def</span> <span class="nf">task_send_welcome_email</span><span class="p">(</span><span class="n">user_pk</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">user_pk</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'send email to </span><span class="si">{</span><span class="n">user</span><span class="o">.</span><span class="n">email</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+</code></pre></div>
+
+<ol>
+<li>因为视图使用了<code>transaction.atomic</code>装饰器，所以所有的数据库操作只有在视图中没有出现错误时才会被提交，包括芹菜任务。</li>
+<li>这个任务相当简单:我们创建一个用户，然后将主键传递给发送欢迎电子邮件的任务。</li>
+<li><code>time.sleep(1)</code>用于引入竞争条件。</li>
+</ol>
+<p>运行时，您会看到以下错误:</p>
+<div class="codehilite"><pre><span/><code>django.contrib.auth.models.User.DoesNotExist: User matching query does not exist.
+</code></pre></div>
+
+<p>为什么？</p>
+<ol>
+<li>任务入队后，我们暂停1秒钟。</li>
+<li>由于任务立即执行，<code>user = User.objects.get(pk=user_pk)</code>失败，因为Django中的事务尚未提交，用户不在数据库中。</li>
+</ol>
+<h2 id="solution">解决办法</h2>
+<p>有三种方法可以解决这个问题:</p>
+<ol>
+<li>
+<p>禁用数据库事务，这样Django就可以使用<code>autocommit</code>特性。为此，您可以简单地移除<code>transaction.atomic</code>装饰器。然而，不推荐这样做，因为原子数据库事务是一个强大的工具。</p>
+</li>
+<li>
+<p>强制芹菜任务在一段时间后运行。</p>
+<p>例如，要暂停10秒钟:</p>
+<div class="codehilite"><pre><span/><span class="n">task_send_welcome_email</span><span class="o">.</span><span class="n">apply_async</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="p">[</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="p">],</span> <span class="n">countdown</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div></li>
+<li>
+<p>Django有一个名为<code>transaction.on_commit</code>的回调函数，在事务成功提交后执行。要使用它，请按如下方式更新视图:</p>
+<div class="codehilite"><pre><span/><span class="nd">@transaction</span><span class="o">.</span><span class="n">atomic</span>
+<span class="k">def</span> <span class="nf">transaction_celery2</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">random_username</span><span class="p">()</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e68a8388888988a6928e83848387928a8395c885898b">[email protected]</a>'</span><span class="p">,</span> <span class="s1">'johnpassword'</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'create user </span><span class="si">{user.pk}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="c1"># the task does not get called until after the transaction is committed</span>
+    <span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">task_send_welcome_email</span><span class="o">.</span><span class="n">delay</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="p">))</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s1">'test'</span><span class="p">)</span>
+</pre></div><p>现在，直到数据库事务提交之后才调用该任务。所以，当Celery worker找到用户时，它可以被找到，因为worker中的代码总是在Django数据库事务成功提交后的运行<em>。</em></p>
+<p><strong>这是推荐的方案</strong>。</p>
+</li>
+</ol>
+
+<blockquote>
+<p>值得注意的是，您可能不希望事务立即提交，尤其是在大规模环境中运行时。如果数据库或实例处于高利用率状态，强制提交只会增加现有的使用率。在这种情况下，您可能希望使用第二种解决方案，并等待足够长的时间(也许20秒)，以确保在任务执行之前对数据库进行了更改。</p>
+</blockquote>
+<h2 id="testing">测试</h2>
+<p>Django的<code>TestCase</code>将每个测试包装在一个事务中，然后在每个测试后回滚。因为没有事务被提交，<code>on_commit()</code>也不会运行。因此，如果您需要测试在<code>on_commit</code>回调中触发的代码，您可以在测试代码中使用<a href="https://docs.djangoproject.com/en/3.2/topics/testing/tools/#transactiontestcase"> TransactionTestCase </a>或<a href="https://docs.djangoproject.com/en/3.2/topics/testing/tools/#django.test.TestCase.captureOnCommitCallbacks">test case . captureoncommitcallbacks()</a>。</p>
+<h2 id="database-transaction-in-a-celery-task">芹菜任务中的数据库事务</h2>
+<p>如果您的Celery任务需要更新数据库记录，那么在Celery任务中使用数据库事务是有意义的。</p>
+<p>一个简单的方法是<code>with transaction.atomic()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span><span class="p">()</span>
+<span class="k">def</span> <span class="nf">task_transaction_test</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="kn">from</span> <span class="nn">.views</span> <span class="kn">import</span> <span class="n">random_username</span>
+        <span class="n">username</span> <span class="o">=</span> <span class="n">random_username</span><span class="p">()</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e38f868d8d8c8da3978b86818682978f8690cd808c8e">[email protected]</a>'</span><span class="p">,</span> <span class="s1">'johnpassword'</span><span class="p">)</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'send email to </span><span class="si">{</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">'test'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>更好的方法是编写一个支持<code>transaction</code>的自定义<code>decorator</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">custom_celery_task</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    This is a decorator we can use to add custom logic to our Celery task</span>
+<span class="sd">    such as retry or database transaction</span>
+<span class="sd">    """</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">task_args</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">task_kwargs</span> <span class="o">=</span> <span class="n">kwargs</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper_func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+                    <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="c1"># task_func.request.retries</span>
+                <span class="k">raise</span> <span class="n">task_func</span><span class="o">.</span><span class="n">retry</span><span class="p">(</span><span class="n">exc</span><span class="o">=</span><span class="n">e</span><span class="p">,</span> <span class="n">countdown</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+        <span class="n">task_func</span> <span class="o">=</span> <span class="n">shared_task</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">task_args</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">task_kwargs</span><span class="p">)(</span><span class="n">wrapper_func</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">task_func</span>
+
+<span class="o">...</span>
+
+<span class="nd">@custom_celery_task</span><span class="p">(</span><span class="n">max_retries</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">task_transaction_test</span><span class="p">():</span>
+    <span class="c1"># do something</span>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>本文研究了如何让Celery很好地与Django数据库事务一起工作。</p>
+<p>本文的源代码可以在<a href="https://github.com/testdrivenio/django-celery-project"> GitHub </a>上找到。</p>
+<p>感谢您的阅读。如果您有任何问题，请随时<a href="/authors/yin/">联系我</a>。</p>
+<blockquote>
+<p>姜戈+芹菜系列:</p>
+<ol>
+<li>与Django和Celery的异步任务</li>
+<li><a href="/blog/django-celery-periodic-tasks/">在Django用芹菜和码头工人处理定期任务</a></li>
+<li><a href="/blog/retrying-failed-celery-tasks/">自动重试失败的芹菜任务</a></li>
+<li><a href="/blog/celery-database-transactions/">处理芹菜和数据库事务</a>(本文！)</li>
+</ol>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

@@ -1,0 +1,494 @@
+<html>
+<head>
+<title>Caching in Django </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django的缓存</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-caching/#0001-01-01">https://testdriven.io/blog/django-caching/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>缓存通常是提升应用程序性能的最有效方式。</p>
+<p>对于动态网站，在呈现模板时，您通常需要从各种来源(比如数据库、文件系统和第三方API等)收集数据，处理数据，并在将数据提供给客户端之前对其应用业务逻辑。最终用户将会注意到由于网络延迟造成的任何延迟。</p>
+<p>例如，假设您必须对外部API进行HTTP调用，以获取呈现模板所需的数据。即使在完美的条件下，这也会增加渲染时间，从而增加整体加载时间。如果API下降或者你受到速率限制怎么办？无论哪种方式，如果数据很少更新，最好实现一种缓存机制，以避免对每个客户端请求都进行HTTP调用。</p>
+<p>本文首先从整体上回顾Django的缓存框架，然后一步一步地详细说明如何缓存Django视图，来研究如何做到这一点。</p>
+<p><em>依赖关系:</em></p>
+<ol>
+<li>Django v3.2.5</li>
+<li>django-redis v5.0.0版</li>
+<li>python 3 . 9 . 6版</li>
+<li>pymemcache 3 . 5 . 0版</li>
+<li>请求版本2.26.0</li>
+</ol>
+<p>--</p>
+<p><strong> Django缓存文章:</strong></p>
+<ol>
+<li><a href="/blog/django-caching/">Django中的缓存</a>(本文！)</li>
+<li><a href="/blog/django-low-level-cache/">Django中的低级缓存API</a></li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释为什么您可能想要缓存Django视图</li>
+<li>描述Django可用于缓存的内置选项</li>
+<li>用缰绳遮住决哥的视线</li>
+<li>使用Apache Bench对Django应用程序进行负载测试</li>
+<li>用Memcached缓存Django视图</li>
+</ol>
+<h2 id="django-caching-types">Django缓存类型</h2>
+<p>Django附带了几个内置缓存后端，以及对自定义后端的支持。</p>
+<p>内置选项包括:</p>
+<ol>
+<li>Memcached  : <a href="https://memcached.org/"> Memcached </a>是一个基于内存的键值存储，用于存储小块数据。它支持跨多个服务器的分布式缓存。</li>
+<li><strong>数据库</strong>:这里，缓存碎片存储在一个数据库中。为此，可以用Django的一个管理命令创建一个表。这不是性能最好的缓存类型，但它对于存储复杂的数据库查询很有用。</li>
+<li><strong>文件系统</strong>:缓存保存在文件系统上，每个缓存值保存在单独的文件中。这是所有缓存类型中最慢的，但是在生产环境中最容易设置。</li>
+<li><strong>本地内存</strong>:本地内存缓存，最适合您的本地开发或测试环境。虽然它几乎和Memcached一样快，但它不能扩展到单个服务器之外，所以它不适合用作任何使用多个web服务器的应用程序的数据缓存。</li>
+<li><strong> Dummy </strong>:一个“虚拟”缓存，它实际上不缓存任何东西，但仍然实现缓存接口。当你不想要缓存，但又不想改变你的代码的时候，这意味着在开发或测试中使用它。</li>
+</ol>
+<h2 id="django-caching-levels">Django缓存级别</h2>
+<p>Django中的缓存可以在不同的层次上实现(或者站点的不同部分)。您可以缓存整个站点或不同粒度级别的特定部分(按粒度降序排列):</p>
+
+<h3 id="per-site-cache">每个站点的缓存</h3>
+<p>这是在Django中实现缓存的最简单的方法。要做到这一点，您只需将两个中间件类添加到您的<em> settings.py </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">MIDDLEWARE</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.middleware.cache.UpdateCacheMiddleware'</span><span class="p">,</span>     <span class="c1"># NEW</span>
+    <span class="s1">'django.middleware.common.CommonMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.cache.FetchFromCacheMiddleware'</span><span class="p">,</span>  <span class="c1"># NEW</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>中间件的顺序在这里很重要。<code>UpdateCacheMiddleware</code>必须在<code>FetchFromCacheMiddleware</code>之前。更多信息请看Django文档中中间件的<a href="https://docs.djangoproject.com/en/3.2/topics/cache/#order-of-middleware">订单。</a></p>
+</blockquote>
+<p>然后，您需要添加以下设置:</p>
+<div class="codehilite"><pre><span/><code><span class="n">CACHE_MIDDLEWARE_ALIAS</span> <span class="o">=</span> <span class="s1">'default'</span>  <span class="c1"># which cache alias to use</span>
+<span class="n">CACHE_MIDDLEWARE_SECONDS</span> <span class="o">=</span> <span class="s1">'600'</span>    <span class="c1"># number of seconds to cache a page for (TTL)</span>
+<span class="n">CACHE_MIDDLEWARE_KEY_PREFIX</span> <span class="o">=</span> <span class="s1">''</span>    <span class="c1"># should be used if the cache is shared across multiple sites that use the same Django instance</span>
+</code></pre></div>
+
+<p>虽然如果您的站点只有很少或没有动态内容，缓存整个站点可能是一个不错的选择，但它可能不适合用于具有基于内存的缓存后端的大型站点，因为RAM非常昂贵。</p>
+<h3 id="per-view-cache">每视图缓存</h3>
+<p>您可以缓存特定的视图，而不是将宝贵的内存空间浪费在缓存从快速变化的API获取数据的静态页面或动态页面上。这是我们将在本文中使用的方法。当你打算在Django应用中实现缓存时，这也是你应该开始考虑的缓存级别。</p>
+<p>您可以使用<a href="https://docs.djangoproject.com/en/3.2/topics/cache/#django.views.decorators.cache.cache_page"> cache_page </a>装饰器直接在视图函数上或者在<code>URLConf</code>内的路径中实现这种类型的缓存:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.views.decorators.cache</span> <span class="kn">import</span> <span class="n">cache_page</span>
+
+<span class="nd">@cache_page</span><span class="p">(</span><span class="mi">60</span> <span class="o">*</span> <span class="mi">15</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">your_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="o">...</span>
+
+<span class="c1"># or</span>
+
+<span class="kn">from</span> <span class="nn">django.views.decorators.cache</span> <span class="kn">import</span> <span class="n">cache_page</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'object/&lt;int:object_id&gt;/'</span><span class="p">,</span> <span class="n">cache_page</span><span class="p">(</span><span class="mi">60</span> <span class="o">*</span> <span class="mi">15</span><span class="p">)(</span><span class="n">your_view</span><span class="p">)),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>缓存本身是基于URL的，所以对<code>object/1</code>和<code>object/2</code>的请求将被分别缓存。</p>
+<p>值得注意的是，直接在视图上实现缓存使得在某些情况下禁用缓存更加困难。例如，如果您希望允许某些用户在没有缓存的情况下访问视图，该怎么办？通过<code>URLConf</code>启用缓存提供了将不同的URL关联到不使用缓存的视图的机会:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.views.decorators.cache</span> <span class="kn">import</span> <span class="n">cache_page</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'object/&lt;int:object_id&gt;/'</span><span class="p">,</span> <span class="n">your_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'object/cache/&lt;int:object_id&gt;/'</span><span class="p">,</span> <span class="n">cache_page</span><span class="p">(</span><span class="mi">60</span> <span class="o">*</span> <span class="mi">15</span><span class="p">)(</span><span class="n">your_view</span><span class="p">)),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="template-fragment-cache">模板片段缓存</h3>
+<p>如果您的模板包含根据数据经常变化的部分，您可能希望将它们从缓存中删除。</p>
+<p>例如，您可能在模板的某个区域的导航栏中使用经过身份验证的用户的电子邮件。如果你有成千上万的用户，那么这个片段将在内存中被复制成千上万次，每个用户一个。这就是模板片段缓存发挥作用的地方，它允许您指定要缓存的模板的特定区域。</p>
+<p>要缓存对象列表:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">{%</span> <span class="k">load</span> <span class="nv">cache</span> <span class="cp">%}</span>
+
+<span class="cp">{%</span> <span class="k">cache</span> <span class="m">500</span> <span class="nv">object_list</span> <span class="cp">%}</span>
+  <span class="nt">&lt;ul&gt;</span>
+    <span class="cp">{%</span> <span class="k">for</span> <span class="nv">object</span> <span class="k">in</span> <span class="nv">objects</span> <span class="cp">%}</span>
+      <span class="nt">&lt;li&gt;</span><span class="cp">{{</span> <span class="nv">object.title</span> <span class="cp">}}</span><span class="nt">&lt;/li&gt;</span>
+    <span class="cp">{%</span> <span class="k">endfor</span> <span class="cp">%}</span>
+  <span class="nt">&lt;/ul&gt;</span>
+<span class="cp">{%</span> <span class="k">endcache</span> <span class="cp">%}</span>
+</code></pre></div>
+
+<p>这里，<code>{% load cache %}</code>为我们提供了对<code>cache</code>模板标签的访问，该标签期望以秒为单位的缓存超时(<code>500</code>)以及缓存片段的名称(<code>object_list</code>)。</p>
+<h3 id="low-level-cache-api">低级高速缓存API</h3>
+<p>如果前面的选项不能提供足够的粒度，您可以使用低级API通过缓存键管理缓存中的单个对象。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.core.cache</span> <span class="kn">import</span> <span class="n">cache</span>
+
+
+<span class="k">def</span> <span class="nf">get_context_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">context</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_context_data</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'objects'</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">objects</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">objects</span> <span class="o">=</span> <span class="n">Objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+        <span class="n">cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">'objects'</span><span class="p">,</span> <span class="n">objects</span><span class="p">)</span>
+
+    <span class="n">context</span><span class="p">[</span><span class="s1">'objects'</span><span class="p">]</span> <span class="o">=</span> <span class="n">objects</span>
+
+    <span class="k">return</span> <span class="n">context</span>
+</code></pre></div>
+
+<p>在本例中，当在数据库中添加、更改或删除对象时，您会希望使缓存失效(或删除)。管理这种情况的一种方法是通过数据库信号:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.core.cache</span> <span class="kn">import</span> <span class="n">cache</span>
+<span class="kn">from</span> <span class="nn">django.db.models.signals</span> <span class="kn">import</span> <span class="n">post_delete</span><span class="p">,</span> <span class="n">post_save</span>
+<span class="kn">from</span> <span class="nn">django.dispatch</span> <span class="kn">import</span> <span class="n">receiver</span>
+
+
+<span class="nd">@receiver</span><span class="p">(</span><span class="n">post_delete</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">Object</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">object_post_delete_handler</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+     <span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">'objects'</span><span class="p">)</span>
+
+
+<span class="nd">@receiver</span><span class="p">(</span><span class="n">post_save</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">Object</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">object_post_save_handler</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">'objects'</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>有关使用数据库信号使缓存无效的更多信息，请查看Django 文章中的<a href="/blog/django-low-level-cache/">低级缓存API。</a></p>
+</blockquote>
+<p>至此，让我们来看一些例子。</p>
+<h2 id="project-setup">项目设置</h2>
+<p>从<a href="https://github.com/testdrivenio/cache-django-view"> cache-django-view </a> repo中克隆基础项目，然后检查基础分支:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/cache-django-view.git --branch base --single-branch
+$ <span class="nb">cd</span> cache-django-view
+</code></pre></div>
+
+<p>创建(并激活)虚拟环境，并满足以下要求:</p>
+<div class="codehilite"><pre><span/><code>$ python3.9 -m venv venv
+$ <span class="nb">source</span> venv/bin/activate
+<span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>应用Django迁移，然后启动服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>在您选择的浏览器中导航到<a href="http://127.0.0.1:8000"> http://127.0.0.1:8000 </a>以确保一切按预期运行。</p>
+<p>您应该看到:</p>
+<p><img data-src="/static/images/blog/django/django-caching/webpage.png" loading="lazy" class="lazyload" alt="uncached webpage" src="../Images/3ae03aa3ea06aedccfb9e6e80cc21517.png" data-original-src="https://testdriven.io/static/images/blog/django/django-caching/webpage.png"/></p>
+<p>记下你的终端。您应该看到请求的总执行时间:</p>
+
+
+<p>该指标来自<em> core/middleware.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+
+<span class="k">def</span> <span class="nf">metric_middleware</span><span class="p">(</span><span class="n">get_response</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">middleware</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+        <span class="c1"># Get beginning stats</span>
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+        <span class="c1"># Process the request</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">get_response</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+
+        <span class="c1"># Get ending stats</span>
+        <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+        <span class="c1"># Calculate stats</span>
+        <span class="n">total_time</span> <span class="o">=</span> <span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span>
+
+        <span class="c1"># Log the results</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">'debug'</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Total time: </span><span class="si">{</span><span class="p">(</span><span class="n">total_time</span><span class="p">)</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">s'</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Total time: </span><span class="si">{</span><span class="p">(</span><span class="n">total_time</span><span class="p">)</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">s'</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">response</span>
+
+    <span class="k">return</span> <span class="n">middleware</span>
+</code></pre></div>
+
+<p>快速浏览一下<em> apicalls/views.py </em>中的视图:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">django.views.generic</span> <span class="kn">import</span> <span class="n">TemplateView</span>
+
+
+<span class="n">BASE_URL</span> <span class="o">=</span> <span class="s1">'https://httpbin.org/'</span>
+
+
+<span class="k">class</span> <span class="nc">ApiCalls</span><span class="p">(</span><span class="n">TemplateView</span><span class="p">):</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s1">'apicalls/home.html'</span>
+
+    <span class="k">def</span> <span class="nf">get_context_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_context_data</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">BASE_URL</span><span class="si">}</span><span class="s1">/delay/2'</span><span class="p">)</span>
+        <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+        <span class="n">context</span><span class="p">[</span><span class="s1">'content'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Results received!'</span>
+        <span class="n">context</span><span class="p">[</span><span class="s1">'current_time'</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">context</span>
+</code></pre></div>
+
+<p>这个视图通过<code>requests</code>向<a href="https://httpbin.org">httpbin.org</a>发出一个HTTP调用。为了模拟一个长请求，来自API的响应被延迟了两秒钟。因此，<a href="http://127.0.0.1:8000"> http://127.0.0.1:8000 </a>不仅要花两秒钟来呈现初始请求，还要呈现每个后续请求。虽然在最初的请求中，两秒钟的负载是可以接受的，但是对于后续的请求来说，这是完全不可接受的，因为数据是不变的。让我们通过使用Django的每视图缓存级别缓存整个视图来解决这个问题。</p>
+<p>工作流程:</p>
+<ol>
+<li>在初始请求中对httpbin.org进行完整的HTTP调用</li>
+<li>缓存视图</li>
+<li>随后的请求将从缓存中提取，绕过HTTP调用</li>
+<li>一段时间(TTL)后使缓存失效</li>
+</ol>
+<h2 id="baseline-performance-benchmark">基线性能基准</h2>
+<p>在添加缓存之前，让我们使用<a href="https://httpd.apache.org/docs/2.4/programs/ab.html"> Apache Bench </a>快速运行一个负载测试以获得一个基准基线，从而大致了解我们的应用程序每秒可以处理多少请求。</p>
+<blockquote>
+<p>Apache Bench预装在Mac上。</p>
+<p>如果您使用的是Linux系统，那么很可能它已经安装好并准备好运行了。如果没有，可以通过APT ( <code>apt-get install apache2-utils</code>)或者YUM ( <code>yum install httpd-tools</code>)安装。</p>
+<p>Windows用户需要下载并解压Apache二进制文件。</p>
+</blockquote>
+<p>将<a href="https://gunicorn.org/"> Gunicorn </a>添加到需求文件中:</p>
+
+
+<p>终止Django dev服务器并安装Gunicorn:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>接下来，用Gunicorn(和四个<a href="https://docs.gunicorn.org/en/stable/run.html#commonly-used-arguments">工人</a>)提供Django应用程序，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ gunicorn core.wsgi:application -w <span class="m">4</span>
+</code></pre></div>
+
+<p>在新的终端窗口中，运行Apache Bench:</p>
+<div class="codehilite"><pre><span/><code>$ ab -n <span class="m">100</span> -c <span class="m">10</span> http://127.0.0.1:8000/
+</code></pre></div>
+
+<p>这将模拟10个并发线程上的100个连接。一共有100个请求，每次10个。</p>
+<p>记录每秒的请求数:</p>
+<div class="codehilite"><pre><span/><code>Requests per second:    <span class="m">1</span>.69 <span class="o">[</span><span class="c1">#/sec] (mean)</span>
+</code></pre></div>
+
+<blockquote>
+<p>请记住，Django调试工具栏会增加一些开销。一般来说，标杆管理很难做到完全正确。重要的是一致性。选择一个关注的指标，并在每个测试中使用相同的环境。</p>
+</blockquote>
+<p>关闭Gunicorn服务器，重新启动Django dev服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>至此，让我们看看如何缓存视图。</p>
+<h2 id="caching-a-view">缓存视图</h2>
+<p>首先用<code>@cache_page</code>装饰器装饰<code>ApiCalls</code>视图，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">django.utils.decorators</span> <span class="kn">import</span> <span class="n">method_decorator</span> <span class="c1"># NEW</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.cache</span> <span class="kn">import</span> <span class="n">cache_page</span> <span class="c1"># NEW</span>
+<span class="kn">from</span> <span class="nn">django.views.generic</span> <span class="kn">import</span> <span class="n">TemplateView</span>
+
+
+<span class="n">BASE_URL</span> <span class="o">=</span> <span class="s1">'https://httpbin.org/'</span>
+
+
+<span class="nd">@method_decorator</span><span class="p">(</span><span class="n">cache_page</span><span class="p">(</span><span class="mi">60</span> <span class="o">*</span> <span class="mi">5</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'dispatch'</span><span class="p">)</span> <span class="c1"># NEW</span>
+<span class="k">class</span> <span class="nc">ApiCalls</span><span class="p">(</span><span class="n">TemplateView</span><span class="p">):</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s1">'apicalls/home.html'</span>
+
+    <span class="k">def</span> <span class="nf">get_context_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_context_data</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">BASE_URL</span><span class="si">}</span><span class="s1">/delay/2'</span><span class="p">)</span>
+        <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+        <span class="n">context</span><span class="p">[</span><span class="s1">'content'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Results received!'</span>
+        <span class="n">context</span><span class="p">[</span><span class="s1">'current_time'</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">context</span>
+</code></pre></div>
+
+<p>因为我们使用的是基于类的视图，所以我们不能直接在类上放置装饰器，所以我们使用了一个<code>method_decorator</code>并为name参数指定了<code>dispatch</code>(作为要装饰的方法)。</p>
+<p>本例中的缓存设置了五分钟的超时(或TTL)。</p>
+<p>或者，您可以在设置中这样设置:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Cache time to live is 5 minutes</span>
+<span class="n">CACHE_TTL</span> <span class="o">=</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">5</span>
+</code></pre></div>
+
+<p>然后，回到视图中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">django.core.cache.backends.base</span> <span class="kn">import</span> <span class="n">DEFAULT_TIMEOUT</span>
+<span class="kn">from</span> <span class="nn">django.utils.decorators</span> <span class="kn">import</span> <span class="n">method_decorator</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.cache</span> <span class="kn">import</span> <span class="n">cache_page</span>
+<span class="kn">from</span> <span class="nn">django.views.generic</span> <span class="kn">import</span> <span class="n">TemplateView</span>
+
+<span class="n">BASE_URL</span> <span class="o">=</span> <span class="s1">'https://httpbin.org/'</span>
+<span class="n">CACHE_TTL</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="s1">'CACHE_TTL'</span><span class="p">,</span> <span class="n">DEFAULT_TIMEOUT</span><span class="p">)</span>
+
+
+<span class="nd">@method_decorator</span><span class="p">(</span><span class="n">cache_page</span><span class="p">(</span><span class="n">CACHE_TTL</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'dispatch'</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">ApiCalls</span><span class="p">(</span><span class="n">TemplateView</span><span class="p">):</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s1">'apicalls/home.html'</span>
+
+    <span class="k">def</span> <span class="nf">get_context_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_context_data</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">BASE_URL</span><span class="si">}</span><span class="s1">/delay/2'</span><span class="p">)</span>
+        <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+        <span class="n">context</span><span class="p">[</span><span class="s1">'content'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Results received!'</span>
+        <span class="n">context</span><span class="p">[</span><span class="s1">'current_time'</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">context</span>
+</code></pre></div>
+
+<p>接下来，让我们添加一个缓存后端。</p>
+<h3 id="redis-vs-memcached">里兹vs Memcached</h3>
+<p><a href="https://memcached.org/"> Memcached </a>和<a href="https://redis.io/"> Redis </a>是内存中的键值数据存储。它们易于使用，并针对高性能查找进行了优化。您可能看不出两者在性能或内存使用方面有什么不同。也就是说，Memcached的配置稍微容易一些，因为它是为简单易用而设计的。另一方面，Redis有更丰富的特性集，因此除了缓存之外，它还有更广泛的使用案例。例如，它通常用于存储用户会话或作为发布/订阅系统中的消息代理。由于它的灵活性，除非您已经投资了Memcached，否则Redis是更好的解决方案。</p>
+<blockquote>
+<p>有关这方面的更多信息，请查看<a href="https://stackoverflow.com/a/11257333/1799408">这个</a>堆栈溢出答案。</p>
+</blockquote>
+<p>接下来，选择您的数据存储，让我们看看如何缓存视图。</p>
+<h2 id="option-1-redis-with-django">备选案文1:与Django重新谈判</h2>
+<p><a href="https://redis.io/download">下载</a>并安装Redis。</p>
+<blockquote>
+<p>如果你用的是Mac，我们建议用<a href="https://brew.sh/">家酿</a>安装Redis:</p>
+</blockquote>
+
+<p>安装完成后，在新的终端窗口<a href="https://redis.io/topics/quickstart#starting-redis">中启动Redis服务器</a>并确保它运行在默认端口6379上。当我们告诉Django如何与Redis通信时，端口号将非常重要。</p>
+
+
+<p>对于Django使用Redis作为缓存后端，我们首先需要安装<a href="https://github.com/jazzband/django-redis"> django-redis </a>。</p>
+<p>将其添加到<em> requirements.txt </em>文件中:</p>
+
+
+<p>安装:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>接下来，将自定义后端添加到<em> settings.py </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">CACHES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'BACKEND'</span><span class="p">:</span> <span class="s1">'django_redis.cache.RedisCache'</span><span class="p">,</span>
+        <span class="s1">'LOCATION'</span><span class="p">:</span> <span class="s1">'redis://127.0.0.1:6379/1'</span><span class="p">,</span>
+        <span class="s1">'OPTIONS'</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">'CLIENT_CLASS'</span><span class="p">:</span> <span class="s1">'django_redis.client.DefaultClient'</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>现在，当您再次运行服务器时，Redis将被用作缓存后端:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>服务器启动并运行后，导航到<a href="http://127.0.0.1:8000"> http://127.0.0.1:8000 </a>。</p>
+<p>第一个请求仍然需要大约两秒钟。刷新页面。页面应该几乎瞬间加载。看看你终端的加载时间。它应该接近于零:</p>
+
+
+<p>想知道Redis内部的缓存数据是什么样的吗？</p>
+<p>在新的终端窗口中以交互模式运行Redis CLI:</p>
+
+
+<p>您应该看到:</p>
+
+
+<p>运行<code>ping</code>以确保一切正常工作:</p>
+<div class="codehilite"><pre><span/><code><span class="m">127</span>.0.0.1:6379&gt; ping
+PONG
+</code></pre></div>
+
+<p>返回到设置文件。我们使用Redis数据库1号:<code>'LOCATION': 'redis://127.0.0.1:6379/1',</code>。因此，运行<code>select 1</code>来选择数据库，然后运行<code>keys *</code>来查看所有键:</p>
+<div class="codehilite"><pre><span/><code><span class="m">127</span>.0.0.1:6379&gt; <span class="k">select</span> <span class="m">1</span>
+OK
+
+<span class="m">127</span>.0.0.1:6379<span class="o">[</span><span class="m">1</span><span class="o">]</span>&gt; keys *
+<span class="m">1</span><span class="o">)</span> <span class="s2">":1:views.decorators.cache.cache_header..17abf5259517d604cc9599a00b7385d6.en-us.UTC"</span>
+<span class="m">2</span><span class="o">)</span> <span class="s2">":1:views.decorators.cache.cache_page..GET.17abf5259517d604cc9599a00b7385d6.d41d8cd98f00b204e9800998ecf8427e.en-us.UTC"</span>
+</code></pre></div>
+
+<p>我们可以看到Django放入了一个header键和一个<code>cache_page</code>键。</p>
+<p>要查看实际缓存的数据，运行<code>get</code>命令，将键作为参数:</p>
+<div class="codehilite"><pre><span/><code><span class="m">127</span>.0.0.1:6379<span class="o">[</span><span class="m">1</span><span class="o">]</span>&gt; get <span class="s2">":1:views.decorators.cache.cache_page..GET.17abf5259517d604cc9599a00b7385d6.d41d8cd98f00b204e9800998ecf8427e.en-us.UTC"</span>
+</code></pre></div>
+
+<p>您应该会看到类似以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="s2">"\x80\x05\x95D\x04\x00\x00\x00\x00\x00\x00\x8c\x18django.template.response\x94\x8c\x10TemplateResponse</span>
+<span class="s2">\x94\x93\x94)\x81\x94}\x94(\x8c\x05using\x94N\x8c\b_headers\x94}\x94(\x8c\x0ccontent-type\x94\x8c\</span>
+<span class="s2">x0cContent-Type\x94\x8c\x18text/html; charset=utf-8\x94\x86\x94\x8c\aexpires\x94\x8c\aExpires\x94\x8c\x1d</span>
+<span class="s2">Fri, 01 May 2020 13:36:59 GMT\x94\x86\x94\x8c\rcache-control\x94\x8c\rCache-Control\x94\x8c\x0</span>
+<span class="s2">bmax-age=300\x94\x86\x94u\x8c\x11_resource_closers\x94]\x94\x8c\x0e_handler_class\x94N\x8c\acookies</span>
+<span class="s2">\x94\x8c\x0chttp.cookies\x94\x8c\x0cSimpleCookie\x94\x93\x94)\x81\x94\x8c\x06closed\x94\x89\x8c</span>
+<span class="s2">\x0e_reason_phrase\x94N\x8c\b_charset\x94N\x8c\n_container\x94]\x94B\xaf\x02\x00\x00</span>
+<span class="s2">&lt;!DOCTYPE html&gt;\n&lt;html lang=\"en\"&gt;\n&lt;head&gt;\n    &lt;meta charset=\"UTF-8\"&gt;\n    &lt;title&gt;Home&lt;/title&gt;\n</span>
+<span class="s2">&lt;link rel=\"stylesheet\" href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css\</span>
+<span class="s2">"</span><span class="se">\n</span>          <span class="nv">integrity</span><span class="o">=</span><span class="se">\"</span>sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh<span class="se">\"</span>
+<span class="nv">crossorigin</span><span class="o">=</span><span class="se">\"</span>anonymous<span class="se">\"</span>&gt;<span class="se">\n\n</span>&lt;/head&gt;<span class="se">\n</span>&lt;body&gt;<span class="se">\n</span>&lt;div <span class="nv">class</span><span class="o">=</span><span class="se">\"</span>container<span class="se">\"</span>&gt;<span class="se">\n</span>    &lt;div <span class="nv">class</span><span class="o">=</span><span class="se">\"</span>pt-3<span class="se">\"</span>&gt;<span class="se">\n</span>
+&lt;h1&gt;Below is the result of the APICall&lt;/h1&gt;<span class="se">\n</span>    &lt;/div&gt;<span class="se">\n</span>    &lt;div <span class="nv">class</span><span class="o">=</span><span class="se">\"</span>pt-3 pb-3<span class="se">\"</span>&gt;<span class="se">\n</span>
+&lt;a <span class="nv">href</span><span class="o">=</span><span class="se">\"</span>/<span class="se">\"</span>&gt;<span class="se">\n</span>            &lt;button <span class="nv">type</span><span class="o">=</span><span class="se">\"</span>button<span class="se">\"</span> <span class="nv">class</span><span class="o">=</span><span class="se">\"</span>btn btn-success<span class="se">\"</span>&gt;<span class="se">\n</span>
+Get new data<span class="se">\n</span>            &lt;/button&gt;<span class="se">\n</span>        &lt;/a&gt;<span class="se">\n</span>    &lt;/div&gt;<span class="se">\n</span>    Results received!&lt;br&gt;<span class="se">\n</span>
+<span class="m">13</span>:31:59<span class="se">\n</span>&lt;/div&gt;<span class="se">\n</span>&lt;/body&gt;<span class="se">\n</span>&lt;/html&gt;<span class="se">\x</span>94a<span class="se">\x</span>8c<span class="se">\x</span>0c_is_rendered<span class="se">\x</span><span class="m">94</span><span class="se">\x</span>88ub.<span class="s2">"</span>
+</code></pre></div>
+
+<p>完成后，退出交互式CLI:</p>
+
+
+<p>跳到“性能测试”部分。</p>
+<h2 id="option-2-memcached-with-django">选项2:用Django实现Memcached</h2>
+<p>首先将<a href="https://pymemcache.readthedocs.io/"> pymemcache </a>添加到<em> requirements.txt </em>文件中:</p>
+
+
+<p>安装依赖项:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>接下来，我们需要更新<em> core/settings.py </em>中的设置，以启用Memcached后端:</p>
+<div class="codehilite"><pre><span/><code><span class="n">CACHES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'BACKEND'</span><span class="p">:</span> <span class="s1">'django.core.cache.backends.memcached.PyMemcacheCache'</span><span class="p">,</span>
+        <span class="s1">'LOCATION'</span><span class="p">:</span> <span class="s1">'127.0.0.1:11211'</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>在这里，我们添加了<a href="https://docs.djangoproject.com/en/3.2/topics/cache/#memcached"> PyMemcacheCache </a>后端，并指出Memcached应该在本地机器的localhost (127.0.0.1)端口11211上运行，这是Memcached的默认端口。</p>
+<p>接下来，我们需要安装并运行Memcached守护进程。最简单的安装方法是通过软件包管理器，如APT、YUM、Homebrew或Chocolatey，具体取决于您的操作系统:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># linux</span>
+$ apt-get install memcached
+$ yum install memcached
+
+<span class="c1"># mac</span>
+$ brew install memcached
+
+<span class="c1"># windows</span>
+$ choco install memcached
+</code></pre></div>
+
+<p>然后，在端口11211上的另一个终端中运行它:</p>
+<div class="codehilite"><pre><span/><code>$ memcached -p <span class="m">11211</span>
+
+<span class="c1"># test: telnet localhost 11211</span>
+</code></pre></div>
+
+<blockquote>
+<p>有关Memcached安装和配置的更多信息，请查看官方的<a href="https://github.com/memcached/memcached/wiki"> wiki </a>。</p>
+</blockquote>
+<p>再次在我们的浏览器中导航至<a href="http://127.0.0.1:8000"> http://127.0.0.1:8000 </a>。第一个请求仍然需要整整两秒钟，但是所有后续请求都将利用缓存。因此，如果你刷新或按下“获取新数据按钮”，页面应该几乎立即加载。</p>
+<p>你的终端的执行时间是怎样的？</p>
+
+
+<h2 id="performance-tests">性能测试</h2>
+<p>如果我们在Django Debug Toolbar中查看加载第一个请求和第二个(缓存的)请求所用的时间，它将类似于:</p>
+<p><img data-src="/static/images/blog/django/django-caching/loadtime_unchached.png" loading="lazy" class="lazyload" alt="load time uncached" src="../Images/43c7a731da4784c6b137c839b2e15cfd.png" data-original-src="https://testdriven.io/static/images/blog/django/django-caching/loadtime_unchached.png"/></p>
+<p><img data-src="/static/images/blog/django/django-caching/loadtime_cached.png" loading="lazy" class="lazyload" alt="load time with cache" src="../Images/be48d8f36e22e177a359dde2e54d9832.png" data-original-src="https://testdriven.io/static/images/blog/django/django-caching/loadtime_cached.png"/></p>
+<p>同样在调试工具栏中，您可以看到缓存操作:</p>
+<p><img data-src="/static/images/blog/django/django-caching/cache_operations.png" loading="lazy" class="lazyload" alt="cache operations" src="../Images/90b79d385b7ad5540809118a4cbffe21.png" data-original-src="https://testdriven.io/static/images/blog/django/django-caching/cache_operations.png"/></p>
+<p>再次旋转Gunicorn并重新运行性能测试:</p>
+<div class="codehilite"><pre><span/><code>$ ab -n <span class="m">100</span> -c <span class="m">10</span> http://127.0.0.1:8000/
+</code></pre></div>
+
+<p>每秒有哪些新请求？我机器上大概是36！</p>
+<h2 id="conclusion">结论</h2>
+<p>在本文中，我们研究了Django中不同的内置缓存选项以及不同级别的可用缓存。我们还详细介绍了如何使用Django的每视图缓存和Memcached以及Redis来缓存视图。</p>
+<p>您可以在<a href="https://github.com/testdrivenio/cache-django-view"> cache-django-view </a> repo中找到Memcached和Redis这两个选项的最终代码。</p>
+<p>--</p>
+<p>一般来说，当由于数据库查询或HTTP调用的网络延迟而导致页面呈现缓慢时，您会希望使用缓存。</p>
+<p>从这里开始，强烈推荐使用带有Redis和<code>Per-view</code>类型自定义Django缓存后端。如果您需要更多的粒度和控制，因为不是模板上的所有数据对所有用户都是相同的，或者部分数据频繁更改，那么就跳到模板片段缓存或低级缓存API。</p>
+<p>--</p>
+<p><strong> Django缓存文章:</strong></p>
+<ol>
+<li><a href="/blog/django-caching/">Django中的缓存</a>(本文！)</li>
+<li><a href="/blog/django-low-level-cache/">Django中的低级缓存API</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

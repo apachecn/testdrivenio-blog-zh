@@ -1,0 +1,1374 @@
+<html>
+<head>
+<title>Developing a Single Page App with Flask and Vue.js </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Flask和Vue.js开发单页应用</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/developing-a-single-page-app-with-flask-and-vuejs/#0001-01-01">https://testdriven.io/blog/developing-a-single-page-app-with-flask-and-vuejs/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>以下是如何使用Vue和Flask设置基本CRUD应用程序的分步演练。我们首先用Vue CLI搭建一个新的Vue应用程序，然后通过Python和Flask支持的后端RESTful API执行基本的CRUD操作。</p>
+<p><em>最终应用</em>:</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue/final.gif" loading="lazy" class="lazyload" alt="final app" src="../Images/140bda66d4c96397cf6bf9d8234b0c78.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue/final.gif"/></p>
+<p><em>主要依赖:</em></p>
+<ul>
+<li>视图v2.6.11</li>
+<li>CLI视图v4.5.11</li>
+<li>节点v15.7.0</li>
+<li>国家预防机制7.4.3版</li>
+<li>烧瓶v1.1.2</li>
+<li>python 3 . 9 . 1版</li>
+</ul>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>解释什么是烧瓶</li>
+<li>解释什么是Vue，以及它与其他UI库和前端框架(如React和Angular)相比如何</li>
+<li>使用Vue CLI搭建Vue项目</li>
+<li>在浏览器中创建和渲染Vue组件</li>
+<li>使用Vue组件创建单页面应用程序(SPA)</li>
+<li>将Vue应用程序连接到Flask后端</li>
+<li>用Flask开发RESTful API</li>
+<li>使用引导程序设计Vue组件</li>
+<li>使用Vue路由器创建路线并渲染组件</li>
+</ol>
+<h2 id="flask-and-vue">烧瓶和Vue</h2>
+<p>让我们快速看一下每个框架。</p>
+<h3 id="what-is-flask">烧瓶是什么？</h3>
+<p>Flask是一个简单而强大的Python微型web框架，非常适合构建RESTful APIs。像<a href="http://sinatrarb.com/"> Sinatra </a> (Ruby)和<a href="https://expressjs.com/"> Express </a> (Node)一样，它是最小和灵活的，所以你可以从小处着手，根据需要构建一个更复杂的应用。</p>
+<p>第一次用烧瓶？查看以下两个资源:</p>
+<ol>
+<li><a href="https://github.com/mjhea0/flaskr-tdd">flask TDD</a></li>
+<li><a href="/courses/learn-flask/">用Python和Flask开发Web应用</a></li>
+</ol>
+<h3 id="what-is-vue">Vue是什么？</h3>
+<p>Vue是一个开源的JavaScript框架，用于构建用户界面。它采用了React和Angular的一些最佳实践。也就是说，与React和Angular相比，它要平易近人得多，因此初学者可以快速上手并运行。它也同样强大，因此它提供了创建现代前端应用程序所需的所有功能。</p>
+<p>有关Vue的更多信息，以及使用它与React和Angular相比的优缺点，请查看参考资料:</p>
+<ol>
+<li><a href="https://vuejs.org/v2/guide/comparison.html"> Vue:与其他框架的比较</a></li>
+<li><a href="/courses/learn-vue/">通过构建和部署CRUD应用程序学习Vue</a></li>
+<li><a href="https://medium.com/techmagic/reactjs-vs-angular5-vs-vue-js-what-to-choose-in-2018-b91e028fa91d">反应vs角度vs Vue.js </a></li>
+</ol>
+<p>第一次和Vue在一起？花点时间通读官方Vue指南中的<a href="https://vuejs.org/v2/guide/index.html">介绍</a>。</p>
+<h2 id="flask-setup">烧瓶设置</h2>
+<p>首先创建一个新的项目目录:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir flask-vue-crud
+$ <span class="nb">cd</span> flask-vue-crud
+</code></pre></div>
+
+<p>在“flask-vue-crud”中，创建一个名为“server”的新目录。然后，在“服务器”目录中创建并激活虚拟环境:</p>
+<div class="codehilite"><pre><span/><code>$ python3.9 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+<span class="o">(</span>env<span class="o">)</span>$
+</code></pre></div>
+
+<blockquote>
+<p>根据您的环境，上述命令可能会有所不同。</p>
+</blockquote>
+<p>将烧瓶连同<a href="http://flask-cors.readthedocs.io/">烧瓶-CORS </a>延长件一起安装；</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">Flask</span><span class="o">==</span><span class="m">1</span>.1.2 Flask-Cors<span class="o">==</span><span class="m">3</span>.0.10
+</code></pre></div>
+
+<p>向新创建的“服务器”目录添加一个<em> app.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span>
+<span class="kn">from</span> <span class="nn">flask_cors</span> <span class="kn">import</span> <span class="n">CORS</span>
+
+
+<span class="c1"># configuration</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="c1"># instantiate the app</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">from_object</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># enable CORS</span>
+<span class="n">CORS</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="sa">r</span><span class="s1">'/*'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'origins'</span><span class="p">:</span> <span class="s1">'*'</span><span class="p">}})</span>
+
+
+<span class="c1"># sanity check route</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/ping'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">ping_pong</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="s1">'pong!'</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>我们为什么需要弗拉斯克-CORS？为了进行跨来源请求——例如，来自不同协议、IP地址、域名或端口的请求——您需要启用<a href="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing">跨来源资源共享</a> (CORS)。弗拉斯克-CORS公司为我们处理此事。</p>
+<blockquote>
+<p>值得注意的是，上面的设置允许来自<em>任何</em>域、协议或端口的<em>所有</em>路由上的跨来源请求。在生产环境中，您应该<em>仅</em>允许来自托管前端应用程序的域的跨来源请求。参考<a href="http://flask-cors.readthedocs.io/">烧瓶-CORS文档</a>了解更多信息。</p>
+</blockquote>
+<p>运行应用程序:</p>
+
+
+<p>要进行测试，将您的浏览器指向<a href="http://localhost:5000/ping">http://localhost:5000/ping</a>。您应该看到:</p>
+
+
+<p>回到终端，按Ctrl+C终止服务器，然后导航回项目根目录。现在，让我们把注意力转向前端，设置Vue。</p>
+<h2 id="vue-setup">视图设置</h2>
+<p>我们将使用强大的<a href="https://cli.vuejs.org/"> Vue CLI </a>来生成定制的项目样板文件。</p>
+<p>全局安装:</p>
+
+
+<blockquote>
+<p>第一次用npm？查看关于npm 的官方<a href="https://docs.npmjs.com/about-npm/">指南。</a></p>
+</blockquote>
+<p>然后，在“flask-vue-crud”中，运行以下命令来初始化一个名为<code>client</code>的新vue项目:</p>
+
+
+<p>这需要你回答几个关于这个项目的问题。</p>
+<div class="codehilite"><pre><span/><code>Vue CLI v4.5.11
+? Please pick a preset: <span class="o">(</span>Use arrow keys<span class="o">)</span>
+❯ Default <span class="o">([</span>Vue <span class="m">2</span><span class="o">]</span> babel, eslint<span class="o">)</span>
+  Default <span class="o">(</span>Vue <span class="m">3</span> Preview<span class="o">)</span> <span class="o">([</span>Vue <span class="m">3</span><span class="o">]</span> babel, eslint<span class="o">)</span>
+  Manually <span class="k">select</span> features
+</code></pre></div>
+
+<p>使用向下箭头键选中“手动选择功能”，然后按enter键。接下来，您需要选择想要安装的功能。对于本教程，选择“选择Vue版本”、“Babel”、“Router”和“Linter / Formatter”，如下所示:</p>
+<div class="codehilite"><pre><span/><code>Vue CLI v4.5.11
+? Please pick a preset: Manually <span class="k">select</span> features
+? Check the features needed <span class="k">for</span> your project:
+❯◉ Choose Vue version
+ ◉ Babel
+ ◯ TypeScript
+ ◯ Progressive Web App <span class="o">(</span>PWA<span class="o">)</span> Support
+ ◉ Router
+ ◯ Vuex
+ ◯ CSS Pre-processors
+ ◉ Linter / Formatter
+ ◯ Unit Testing
+ ◯ E2E Testing
+</code></pre></div>
+
+<p>按回车键。</p>
+<p>为Vue版本选择“2.x”。对路由器使用历史模式。为linter选择“ESLint + Airbnb配置”和“保存时Lint”。最后，选择“In package.json”选项，以便将配置放在<em> package.json </em>文件中，而不是单独的配置文件中。</p>
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>Vue CLI v4.5.11
+? Please pick a preset: Manually <span class="k">select</span> features
+? Check the features needed <span class="k">for</span> your project: Choose Vue version, Babel, Router, Linter
+? Choose a version of Vue.js that you want to start the project with <span class="m">2</span>.x
+? Use <span class="nb">history</span> mode <span class="k">for</span> router? <span class="o">(</span>Requires proper server setup <span class="k">for</span> index fallback <span class="k">in</span> production<span class="o">)</span> Yes
+? Pick a linter / formatter config: Airbnb
+? Pick additional lint features: Lint on save
+? Where <span class="k">do</span> you prefer placing config <span class="k">for</span> Babel, ESLint, etc.? In package.json
+? Save this as a preset <span class="k">for</span> future projects? <span class="o">(</span>y/N<span class="o">)</span> No
+</code></pre></div>
+
+<p>再次按enter配置项目结构并安装依赖项。</p>
+<p>快速查看一下生成的项目结构。这看起来似乎很多，但是我们将<em>只</em>处理“src”文件夹中的文件和文件夹，以及在“public”文件夹中找到的<em>index.html</em>文件。</p>
+<p>index.html文件是我们的Vue应用程序的起点。</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">""</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">http-equiv</span><span class="o">=</span><span class="s">"X-UA-Compatible"</span> <span class="na">content</span><span class="o">=</span><span class="s">"IE=edge"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width,initial-scale=1.0"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"icon"</span> <span class="na">href</span><span class="o">=</span><span class="s">"&lt;%= BASE_URL %&gt;favicon.ico"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span><span class="err">&lt;</span>%= htmlWebpackPlugin.options.title %&gt;<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">noscript</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">strong</span><span class="p">&gt;</span>We're sorry but <span class="err">&lt;</span>%= htmlWebpackPlugin.options.title %&gt; doesn't work properly without JavaScript enabled. Please enable it to continue.<span class="p">&lt;/</span><span class="nt">strong</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">noscript</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">id</span><span class="o">=</span><span class="s">"app"</span><span class="p">&gt;&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="cm">&lt;!-- built files will be auto injected --&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>注意带有<code>app</code>的<code>id</code>的<code>&lt;div&gt;</code>元素。这是一个占位符，Vue将使用它来附加生成的HTML和CSS以生成UI。</p>
+<p>请注意“src”文件夹中的文件夹:</p>
+<div class="codehilite"><pre><span/><code>client/src
+├── App.vue
+├── assets
+│   └── logo.png
+├── components
+│   └── HelloWorld.vue
+├── main.js
+├── router
+│   └── index.js
+└── views
+    ├── About.vue
+    └── Home.vue
+</code></pre></div>
+
+<p>情绪完全失控</p>
+<table>
+<thead>
+<tr>
+<th>名字</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em> main.js </em></td>
+<td>app入口点，它加载并初始化Vue以及根组件</td>
+</tr>
+<tr>
+<td><em>app . view</em></td>
+<td>根组件，这是渲染所有其他组件的起点</td>
+</tr>
+<tr>
+<td>"组件"</td>
+<td>存储UI组件的位置</td>
+</tr>
+<tr>
+<td><em>路由器/index.js </em></td>
+<td>其中定义了URL并将其映射到组件</td>
+</tr>
+<tr>
+<td>"观点"</td>
+<td>其中存储了与路由器相关联的UI组件</td>
+</tr>
+<tr>
+<td>"资产"</td>
+<td>存储静态资产(如图像和字体)的地方</td>
+</tr>
+</tbody>
+</table>
+<p>查看<em>client/src/components/hello world . vue</em>文件。这是一个<a href="https://vuejs.org/v2/guide/single-file-components.html">单文件</a>组件，它被分成三个不同的部分:</p>
+<ol>
+<li><em>模板</em>:针对特定于组件的HTML</li>
+<li><em>脚本</em>:组件逻辑通过JavaScript实现</li>
+<li><em>样式</em>:针对CSS样式</li>
+</ol>
+<p>启动开发服务器:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">cd</span> client
+$ npm run serve
+</code></pre></div>
+
+<p>在您选择的浏览器中导航到<a href="http://localhost:8080"> http://localhost:8080 </a>。您应该看到以下内容:</p>
+<p><img data-src="/static/images/blog/flask-vue/default_vue_app.png" loading="lazy" class="lazyload" alt="default vue app" src="../Images/1877d7be9361117f1b6831c0accd3101.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue/default_vue_app.png"/></p>
+<p>为了简单起见，删除“client/src/views”文件夹。然后，在“client/src/components”文件夹中添加一个名为<em> Ping.vue </em>的新组件:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>{{ msg }}<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">msg</span><span class="o">:</span><span class="w"> </span><span class="s1">'Hello!'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>更新<em>client/src/router/index . js</em>，将“/ping”映射到<code>Ping</code>组件，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Vue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Router</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue-router'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Ping</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/Ping.vue'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">Vue</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span><span class="nx">Router</span><span class="p">);</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Router</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">mode</span><span class="o">:</span><span class="w"> </span><span class="s1">'history'</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">base</span><span class="o">:</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">BASE_URL</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">routes</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">Ping</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">],</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>最后，在<em> client/src/App.vue </em>中，移除导航和样式:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">id</span><span class="o">=</span><span class="s">"app"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">router-view</span><span class="p">/&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>你现在应该在浏览器的<a href="http://localhost:8080/ping">中看到<code>Hello!</code>http://localhost:8080/ping</a>。</p>
+<p>为了连接客户端Vue应用程序和后端Flask应用程序，我们可以使用<a href="https://github.com/axios/axios"> axios </a>库来发送AJAX请求。</p>
+<p>从安装开始:</p>
+
+
+<p>在<em> Ping.vue </em>中更新组件的<code>script</code>部分，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">axios</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'axios'</span><span class="p">;</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">msg</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">methods</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">getMessage</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/ping'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="nx">axios</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">path</span><span class="p">)</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">msg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">          </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">created</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">getMessage</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>在新的终端窗口启动Flask应用程序。您应该会在浏览器中看到<code>pong!</code>。本质上，当一个响应从后端返回时，我们将响应对象中的<code>msg</code>设置为<code>data</code>的值。</p>
+<h2 id="bootstrap-setup">自举设置</h2>
+<p>接下来，让我们将Bootstrap(一个流行的CSS框架)添加到应用程序中，这样我们就可以快速添加一些样式。</p>
+<p>安装:</p>
+
+
+<blockquote>
+<p>忽略<code>jquery</code>和<code>popper.js</code>的警告。不要将这两者添加到项目中。稍后将详细介绍。</p>
+</blockquote>
+<p>将引导样式导入到<em> client/src/main.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Vue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./App.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">router</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./router'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="s1">'bootstrap/dist/css/bootstrap.css'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">Vue</span><span class="p">.</span><span class="nx">config</span><span class="p">.</span><span class="nx">productionTip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+
+<span class="ow">new</span><span class="w"> </span><span class="nx">Vue</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">router</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">render</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">h</span><span class="p">(</span><span class="nx">App</span><span class="p">),</span><span class="w"/>
+<span class="p">}).</span><span class="nx">$mount</span><span class="p">(</span><span class="s1">'#app'</span><span class="p">);</span><span class="w"/>
+</code></pre></div>
+
+<p>更新<em> client/src/App.vue </em>中的<code>style</code>部分:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">style</span><span class="p">&gt;</span><span class="w"/>
+<span class="p">#</span><span class="nn">app</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">margin-top</span><span class="p">:</span><span class="w"> </span><span class="mi">60</span><span class="kt">px</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">style</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>使用<code>Ping</code>组件中的<a href="https://getbootstrap.com/docs/4.6/components/buttons/">按钮</a>和<a href="https://getbootstrap.com/docs/4.6/layout/overview/#containers">容器</a>确保自举正确连接；</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span><span class="p">&gt;</span>{{ msg }}<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>运行开发服务器:</p>
+
+
+<p>您应该看到:</p>
+<p><img data-src="/static/images/blog/flask-vue/bootstrap.png" loading="lazy" class="lazyload" alt="vue with bootstrap" src="../Images/f630919efa0cb2bbcc7f13606050d4ec.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue/bootstrap.png"/></p>
+<p>接下来，在名为<em> Books.vue </em>的新文件中添加一个名为<code>Books</code>的新组件:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>books<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>更新路由器:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Vue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Router</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue-router'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Books</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/Books.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Ping</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/Ping.vue'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">Vue</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span><span class="nx">Router</span><span class="p">);</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Router</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">mode</span><span class="o">:</span><span class="w"> </span><span class="s1">'history'</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">base</span><span class="o">:</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">BASE_URL</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">routes</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Books'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">Books</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">Ping</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">],</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>测试:</p>
+<ol>
+<li><a href="http://localhost:8080"> http://localhost:8080 </a></li>
+<li><a href="http://localhost:8080/ping">http://localhost:8080/ping</a></li>
+</ol>
+<p>最后，让我们向<code>Books</code>组件添加一个快速的、引导样式的表格:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"row"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-sm-10"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Books<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">hr</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-success btn-sm"</span><span class="p">&gt;</span>Add Book<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">table</span> <span class="na">class</span><span class="o">=</span><span class="s">"table table-hover"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">thead</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Title<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Author<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">thead</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">tbody</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>foo<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>bar<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>foobar<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn-group"</span> <span class="na">role</span><span class="o">=</span><span class="s">"group"</span><span class="p">&gt;</span>
+                  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-warning btn-sm"</span><span class="p">&gt;</span>Update<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-danger btn-sm"</span><span class="p">&gt;</span>Delete<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+              <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">tbody</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">table</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>您现在应该看到:</p>
+<p><img data-src="/static/images/blog/flask-vue/books_component_1.png" loading="lazy" class="lazyload" alt="books component" src="../Images/3d4a18040b1dd72e2ed8b4a4c1e7ed5a.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue/books_component_1.png"/></p>
+<p>现在我们可以开始构建CRUD应用程序的功能了。</p>
+<h2 id="what-are-we-building">我们在建造什么？</h2>
+<p>我们的目标是为一个单一的资源书籍设计一个后端RESTful API，由Python和Flask提供支持。API本身应该遵循RESTful设计原则，使用基本的HTTP动词:GET、POST、PUT和DELETE。</p>
+<p>我们还将设置一个使用Vue的前端应用程序，它使用后端API:</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue/final.gif" loading="lazy" class="lazyload" alt="final app" src="../Images/140bda66d4c96397cf6bf9d8234b0c78.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue/final.gif"/></p>
+<blockquote>
+<p>本教程只讨论快乐之路。处理错误是一个单独的练习。检查您的理解，并在前端和后端添加适当的错误处理。</p>
+</blockquote>
+<h2 id="get-route">获取路线</h2>
+<h3 id="server">计算机网络服务器</h3>
+<p>将图书列表添加到<em> server/app.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="n">BOOKS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'On the Road'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'Jack Kerouac'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Harry Potter and the Philosopher</span><span class="se">\'</span><span class="s1">s Stone'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'J. K. Rowling'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">False</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Green Eggs and Ham'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'Dr. Seuss'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="p">}</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>添加路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/books'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">all_books</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span>
+        <span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">,</span>
+        <span class="s1">'books'</span><span class="p">:</span> <span class="n">BOOKS</span>
+    <span class="p">})</span>
+</code></pre></div>
+
+<p>运行Flask应用程序，如果它还没有运行的话，然后在<a href="http://localhost:5000/books">http://localhost:5000/books</a>上手动测试路线。</p>
+<blockquote>
+<p>寻找额外的挑战？为此编写一个自动化测试。查看<a href="https://github.com/mjhea0/flaskr-tdd">这个</a>资源，了解更多关于测试Flask应用的信息。</p>
+</blockquote>
+<h3 id="client">客户</h3>
+<p>更新组件:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"row"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-sm-10"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Books<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">hr</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-success btn-sm"</span><span class="p">&gt;</span>Add Book<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">table</span> <span class="na">class</span><span class="o">=</span><span class="s">"table table-hover"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">thead</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Title<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Author<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">thead</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">tbody</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span> <span class="na">v-for</span><span class="o">=</span><span class="s">"(book, index) in books"</span> <span class="na">:key</span><span class="o">=</span><span class="s">"index"</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ book.title }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ book.author }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-if</span><span class="o">=</span><span class="s">"book.read"</span><span class="p">&gt;</span>Yes<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-else</span><span class="p">&gt;</span>No<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+              <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn-group"</span> <span class="na">role</span><span class="o">=</span><span class="s">"group"</span><span class="p">&gt;</span>
+                  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-warning btn-sm"</span><span class="p">&gt;</span>Update<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-danger btn-sm"</span><span class="p">&gt;</span>Delete<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+              <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">tbody</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">table</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">axios</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'axios'</span><span class="p">;</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">books</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">methods</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">getBooks</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/books'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="nx">axios</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">path</span><span class="p">)</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">books</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">books</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">          </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">created</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>组件初始化后，通过<a href="https://vuejs.org/v2/api/#created">创建的</a>生命周期钩子调用<code>getBooks()</code>方法，从我们刚刚设置的后端端点获取书籍。</p>
+<blockquote>
+<p>查看<a href="https://vuejs.org/v2/guide/instance.html#Instance-Lifecycle-Hooks">实例生命周期挂钩</a>以获得更多关于组件生命周期和可用方法的信息。</p>
+</blockquote>
+<p>在模板中，我们通过<a href="https://vuejs.org/v2/guide/list.html"> v-for </a>指令遍历图书列表，在每次迭代中创建一个新的表行。索引值被用作<a href="https://vuejs.org/v2/guide/list.html#key">键</a>。最后，<a href="https://vuejs.org/v2/guide/conditional.html#v-if"> v-if </a>用于渲染<code>Yes</code>或<code>No</code>，表示用户是否读过这本书。</p>
+<p><img data-src="/static/images/blog/flask-vue/books_component_2.png" loading="lazy" class="lazyload" alt="books component" src="../Images/47d8b5286b0db86cd7a88800f11fe60b.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue/books_component_2.png"/></p>
+<h2 id="bootstrap-vue">引导程序视图</h2>
+<p>在下一节中，我们将使用一个模态来添加一本新书。我们将为此添加<a href="https://bootstrap-vue.js.org/"> Bootstrap Vue </a>库，它提供了一组Vue组件，使用基于Bootstrap的HTML和CSS。</p>
+<blockquote>
+<p>为什么选择Bootstrap Vue？Bootstrap的<a href="https://getbootstrap.com/docs/4.1/components/modal/">模态</a>组件使用<a href="https://jquery.com/"> jQuery </a>，你应该避免在同一个项目中与Vue一起使用，因为Vue使用<a href="https://vuejs.org/v2/guide/render-function.html#Nodes-Trees-and-the-Virtual-DOM">虚拟Dom </a>来更新Dom。换句话说，如果您确实使用jQuery来操作DOM，Vue不会知道。至少，如果你绝对需要使用jQuery，不要在同一个DOM元素上同时使用Vue和jQuery。</p>
+</blockquote>
+<p>安装:</p>
+
+
+<p>启用<em> client/src/main.js </em>中的Bootstrap Vue库:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">BootstrapVue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'bootstrap-vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Vue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./App.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">router</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./router'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="s1">'bootstrap/dist/css/bootstrap.css'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">Vue</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span><span class="nx">BootstrapVue</span><span class="p">);</span><span class="w"/>
+
+<span class="nx">Vue</span><span class="p">.</span><span class="nx">config</span><span class="p">.</span><span class="nx">productionTip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+
+<span class="ow">new</span><span class="w"> </span><span class="nx">Vue</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">router</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">render</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">h</span><span class="p">(</span><span class="nx">App</span><span class="p">),</span><span class="w"/>
+<span class="p">}).</span><span class="nx">$mount</span><span class="p">(</span><span class="s1">'#app'</span><span class="p">);</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="post-route">邮寄路线</h2>
+<h3 id="server_1">计算机网络服务器</h3>
+<p>更新现有的路由处理程序，以处理添加新书的POST请求:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/books'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">all_books</span><span class="p">():</span>
+    <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+        <span class="n">post_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
+        <span class="n">BOOKS</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s1">'title'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'title'</span><span class="p">),</span>
+            <span class="s1">'author'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'author'</span><span class="p">),</span>
+            <span class="s1">'read'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'read'</span><span class="p">)</span>
+        <span class="p">})</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Book added!'</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'books'</span><span class="p">]</span> <span class="o">=</span> <span class="n">BOOKS</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">response_object</span><span class="p">)</span>
+</code></pre></div>
+
+<p>更新导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">request</span>
+</code></pre></div>
+
+<p>当Flask服务器运行时，您可以在新的终端选项卡中测试POST路由:</p>
+<div class="codehilite"><pre><span/><code>$ curl -X POST http://localhost:5000/books -d <span class="se">\</span>
+  <span class="s1">'{"title": "1Q84", "author": "Haruki Murakami", "read": "true"}'</span> <span class="se">\</span>
+  -H <span class="s1">'Content-Type: application/json'</span>
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"message"</span>: <span class="s2">"Book added!"</span>,
+  <span class="s2">"status"</span>: <span class="s2">"success"</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>您还应该在来自<a href="http://localhost:5000/books">http://localhost:5000/books</a>端点的响应中看到这本新书。</p>
+<blockquote>
+<p>标题已经存在怎么办？或者一个书名有多个作者怎么办？通过处理这些案例来检查你的理解。此外，当<code>title</code>、<code>author</code>和/或<code>read</code>丢失时，如何处理无效的有效载荷？</p>
+</blockquote>
+<h3 id="client_1">客户</h3>
+<p>在客户端，现在让我们添加一个用于向<code>Books</code>组件添加新书的模型，从HTML:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">b-modal</span> <span class="na">ref</span><span class="o">=</span><span class="s">"addBookModal"</span>
+         <span class="na">id</span><span class="o">=</span><span class="s">"book-modal"</span>
+         <span class="na">title</span><span class="o">=</span><span class="s">"Add a new book"</span>
+         <span class="na">hide-footer</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">b-form</span> <span class="err">@</span><span class="na">submit</span><span class="o">=</span><span class="s">"onSubmit"</span> <span class="err">@</span><span class="na">reset</span><span class="o">=</span><span class="s">"onReset"</span> <span class="na">class</span><span class="o">=</span><span class="s">"w-100"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-group"</span>
+                <span class="na">label</span><span class="o">=</span><span class="s">"Title:"</span>
+                <span class="na">label-for</span><span class="o">=</span><span class="s">"form-title-input"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-input"</span>
+                    <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                    <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.title"</span>
+                    <span class="na">required</span>
+                    <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter title"</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-group"</span>
+                  <span class="na">label</span><span class="o">=</span><span class="s">"Author:"</span>
+                  <span class="na">label-for</span><span class="o">=</span><span class="s">"form-author-input"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-input"</span>
+                      <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                      <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.author"</span>
+                      <span class="na">required</span>
+                      <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter author"</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-read-group"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form-checkbox-group</span> <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.read"</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-checks"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-checkbox</span> <span class="na">value</span><span class="o">=</span><span class="s">"true"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">b-form-checkbox</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-checkbox-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"primary"</span><span class="p">&gt;</span>Submit<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"reset"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"danger"</span><span class="p">&gt;</span>Reset<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">b-form</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">b-modal</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>在结束的<code>div</code>标签前添加这个。快速浏览一下代码。<code>v-model</code>是用于<a href="https://vuejs.org/v2/guide/forms.html">将</a>输入值绑定回状态的指令。您将很快看到这一点。</p>
+<blockquote>
+<p><code>hide-footer</code>是做什么的？在Bootstrap Vue <a href="https://bootstrap-vue.org/docs/components/modal/"> docs </a>中自己回顾一下。</p>
+</blockquote>
+<p>更新<code>script</code>部分:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">axios</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'axios'</span><span class="p">;</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">books</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="nx">addBookForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">methods</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">getBooks</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/books'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="nx">axios</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">path</span><span class="p">)</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">books</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">books</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">          </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">addBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/books'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="nx">axios</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">payload</span><span class="p">)</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">        </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">          </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">        </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">initForm</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">onSubmit</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">evt</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">$refs</span><span class="p">.</span><span class="nx">addBookModal</span><span class="p">.</span><span class="nx">hide</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="kd">let</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">read</span><span class="p">[</span><span class="mf">0</span><span class="p">])</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">author</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">read</span><span class="p">,</span><span class="w"> </span><span class="c1">// property shorthand</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">initForm</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">onReset</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">evt</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">$refs</span><span class="p">.</span><span class="nx">addBookModal</span><span class="p">.</span><span class="nx">hide</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">initForm</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">created</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>这里发生了什么事？</p>
+<ol>
+<li><code>addBookForm</code>是否通过<code>v-model</code>将<a href="https://vuejs.org/v2/guide/forms.html#Basic-Usage">绑定到</a>表单输入。换句话说，当一个被更新时，另一个也会被更新。这叫做双向绑定。请花点时间阅读一下<a href="https://stackoverflow.com/questions/13504906/what-is-two-way-binding">这里</a>。想想这件事的后果。你认为这使国家管理更容易还是更难？React和Angular如何处理这个问题？在我看来，双向绑定(以及可变性)使得Vue比React更容易接近。</li>
+<li>当用户成功提交表单时，触发<code>onSubmit</code>。在提交时，我们阻止正常的浏览器行为(<code>evt.preventDefault()</code>)，关闭模态(<code>this.$refs.addBookModal.hide()</code>)，触发<code>addBook</code>方法，并清除表单(<code>initForm()</code>)。</li>
+<li><code>addBook</code>向<code>/books</code>发送POST请求以添加新书。</li>
+</ol>
+<p>根据需要参考Vue <a href="https://vuejs.org/v2/guide/">文档</a>，自行检查其余的变更。</p>
+<blockquote>
+<p>您能想到客户端或服务器上的任何潜在错误吗？自己处理这些以改善用户体验。</p>
+</blockquote>
+<p>最后，更新模板中的“Add Book”按钮，以便在单击按钮时显示模式:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-success btn-sm"</span> <span class="na">v-b-modal</span><span class="err">.</span><span class="na">book-modal</span><span class="p">&gt;</span>Add Book<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>该组件现在应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"row"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-sm-10"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Books<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">hr</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-success btn-sm"</span> <span class="na">v-b-modal</span><span class="err">.</span><span class="na">book-modal</span><span class="p">&gt;</span>Add Book<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">table</span> <span class="na">class</span><span class="o">=</span><span class="s">"table table-hover"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">thead</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Title<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Author<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">thead</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">tbody</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span> <span class="na">v-for</span><span class="o">=</span><span class="s">"(book, index) in books"</span> <span class="na">:key</span><span class="o">=</span><span class="s">"index"</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ book.title }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ book.author }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-if</span><span class="o">=</span><span class="s">"book.read"</span><span class="p">&gt;</span>Yes<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-else</span><span class="p">&gt;</span>No<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+              <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn-group"</span> <span class="na">role</span><span class="o">=</span><span class="s">"group"</span><span class="p">&gt;</span>
+                  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-warning btn-sm"</span><span class="p">&gt;</span>Update<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-danger btn-sm"</span><span class="p">&gt;</span>Delete<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+                <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+              <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">tbody</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">table</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-modal</span> <span class="na">ref</span><span class="o">=</span><span class="s">"addBookModal"</span>
+            <span class="na">id</span><span class="o">=</span><span class="s">"book-modal"</span>
+            <span class="na">title</span><span class="o">=</span><span class="s">"Add a new book"</span>
+            <span class="na">hide-footer</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form</span> <span class="err">@</span><span class="na">submit</span><span class="o">=</span><span class="s">"onSubmit"</span> <span class="err">@</span><span class="na">reset</span><span class="o">=</span><span class="s">"onReset"</span> <span class="na">class</span><span class="o">=</span><span class="s">"w-100"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-group"</span>
+                    <span class="na">label</span><span class="o">=</span><span class="s">"Title:"</span>
+                    <span class="na">label-for</span><span class="o">=</span><span class="s">"form-title-input"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-input"</span>
+                        <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                        <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.title"</span>
+                        <span class="na">required</span>
+                        <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter title"</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-group"</span>
+                      <span class="na">label</span><span class="o">=</span><span class="s">"Author:"</span>
+                      <span class="na">label-for</span><span class="o">=</span><span class="s">"form-author-input"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-input"</span>
+                          <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                          <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.author"</span>
+                          <span class="na">required</span>
+                          <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter author"</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-read-group"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">b-form-checkbox-group</span> <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.read"</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-checks"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">b-form-checkbox</span> <span class="na">value</span><span class="o">=</span><span class="s">"true"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">b-form-checkbox</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">b-form-checkbox-group</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-button-group</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"primary"</span><span class="p">&gt;</span>Submit<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"reset"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"danger"</span><span class="p">&gt;</span>Reset<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">b-button-group</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-modal</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">axios</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'axios'</span><span class="p">;</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">books</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="nx">addBookForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">methods</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">getBooks</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/books'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="nx">axios</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">path</span><span class="p">)</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">books</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">books</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">          </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">addBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/books'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="nx">axios</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">payload</span><span class="p">)</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">        </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">          </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">          </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">        </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">initForm</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">onSubmit</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">evt</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">$refs</span><span class="p">.</span><span class="nx">addBookModal</span><span class="p">.</span><span class="nx">hide</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="kd">let</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">read</span><span class="p">[</span><span class="mf">0</span><span class="p">])</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">author</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">read</span><span class="p">,</span><span class="w"> </span><span class="c1">// property shorthand</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">addBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">initForm</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">onReset</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">evt</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">$refs</span><span class="p">.</span><span class="nx">addBookModal</span><span class="p">.</span><span class="nx">hide</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">initForm</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">created</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>测试一下！尝试添加一本书:</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue/add_new_book.gif" loading="lazy" class="lazyload" alt="add new book" src="../Images/b7d2ceb09757b6f42e75542b321054eb.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue/add_new_book.gif"/></p>
+<h2 id="alert-component">警报组件</h2>
+<p>接下来，让我们添加一个<a href="https://bootstrap-vue.org/docs/components/alert/"> Alert </a>组件，在添加新书后向最终用户显示一条消息。我们将为此创建一个新组件，因为您可能会在许多组件中使用该功能。</p>
+<p>将名为<em> Alert.vue </em>的新文件添加到“客户端/src/组件”中:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>It works!<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>然后，将其导入到<code>Books</code>组件的<code>script</code>部分，并注册该组件:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">axios</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'axios'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Alert</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./Alert.vue'</span><span class="p">;</span><span class="w"/>
+
+<span class="p">...</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">books</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="nx">addBookForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nx">components</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">alert</span><span class="o">:</span><span class="w"> </span><span class="nx">Alert</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+
+<span class="w">  </span><span class="p">...</span><span class="w"/>
+
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>现在，我们可以在<code>template</code>部分引用新组件:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">b-container</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-row</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-col</span> <span class="na">col</span> <span class="na">sm</span><span class="o">=</span><span class="s">"10"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Books<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">hr</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">alert</span><span class="p">&gt;&lt;/</span><span class="nt">alert</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-success btn-sm"</span> <span class="na">v-b-modal</span><span class="err">.</span><span class="na">book-modal</span><span class="p">&gt;</span>Add Book<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+
+        ...
+
+      <span class="p">&lt;/</span><span class="nt">b-col</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-row</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">b-container</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>刷新浏览器。您现在应该看到:</p>
+<p><img data-src="/static/images/blog/flask-vue/alert.png" loading="lazy" class="lazyload" alt="bootstrap alert" src="../Images/0419f1953304639da44876f0dd8b6869.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue/alert.png"/></p>
+<blockquote>
+<p>查看官方Vue文档中的<a href="https://vuejs.org/v2/guide/index.html#Composing-with-Components"> Composing with Components </a>以获得更多关于在其他组件中使用组件的信息。</p>
+</blockquote>
+<p>接下来，让我们添加实际的<a href="https://bootstrap-vue.org/docs/components/alert/"> b-alert </a>组件<em>client/src/components/alert . vue</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-alert</span> <span class="na">variant</span><span class="o">=</span><span class="s">"success"</span> <span class="na">show</span><span class="p">&gt;</span>{{ message }}<span class="p">&lt;/</span><span class="nt">b-alert</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">props</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">'message'</span><span class="p">],</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>注意<code>script</code>部分的<a href="https://vuejs.org/v2/guide/components-props.html">道具</a>选项。我们可以像这样从父组件(<code>Books</code>)向下传递消息:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">alert</span> <span class="na">message</span><span class="o">=</span><span class="s">"hi"</span><span class="p">&gt;&lt;/</span><span class="nt">alert</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>试试这个:</p>
+<p><img data-src="/static/images/blog/flask-vue/alert_2.png" loading="lazy" class="lazyload" alt="bootstrap alert" src="../Images/59084b05d89945e9107cd153f51ddd2f.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue/alert_2.png"/></p>
+<blockquote>
+<p>查看<a href="https://vuejs.org/v2/guide/components.html#Passing-Data-to-Child-Components-with-Props">文档</a>了解更多关于道具的信息。</p>
+</blockquote>
+<p>为了使其动态，以便传递自定义消息，在<em> Books.vue </em>中使用一个<a href="https://vuejs.org/v2/guide/syntax.html#v-bind-Shorthand">绑定表达式</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">alert</span> <span class="na">:message</span><span class="o">=</span><span class="s">"message"</span><span class="p">&gt;&lt;/</span><span class="nt">alert</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>将<code>message</code>添加到<code>data</code>选项中，同样在<em>书籍中。vue </em>中:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">books</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">    </span><span class="nx">addBookForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>然后，在<code>addBook</code>内，更新消息:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">addBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/books'</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">axios</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">payload</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Book added!'</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>最后，添加一个<code>v-if</code>，这样只有当<code>showMessage</code>为真时才会显示警告:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">alert</span> <span class="na">:message</span><span class="o">=</span><span class="s">message</span> <span class="na">v-if</span><span class="o">=</span><span class="s">"showMessage"</span><span class="p">&gt;&lt;/</span><span class="nt">alert</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>将<code>showMessage</code>添加到<code>data</code>中:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">books</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">    </span><span class="nx">addBookForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">showMessage</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>再次更新<code>addBook</code>，将<code>showMessage</code>设置为<code>true</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">addBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'http://localhost:5000/books'</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">axios</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">payload</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Book added!'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">showMessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>测试一下！</p>
+<p><img data-src="/static/images/blog/flask-vue/add_book.png" loading="lazy" class="lazyload" alt="add new book" src="../Images/4bf0cb979f76aadbdc128d333e4e9018.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue/add_book.png"/></p>
+<blockquote>
+<p>挑战:</p>
+<ol>
+<li>想想<code>showMessage</code>应该设置在哪里<code>false</code>。更新您的代码。</li>
+<li>尝试使用警报组件来显示错误。</li>
+<li>将警报重构为<a href="https://bootstrap-vue.org/docs/components/alert/#dismissible-alerts">可解除</a>。</li>
+</ol>
+</blockquote>
+<h2 id="put-route">放置路线</h2>
+<h3 id="server_2">计算机网络服务器</h3>
+<p>对于更新，我们将需要使用一个唯一的标识符，因为我们不能依赖标题是唯一的。我们可以使用来自Python <a href="https://docs.python.org/3/library/uuid.html">标准库</a>的<code>uuid</code>。</p>
+<p>更新<em> server/app.py </em>中的<code>BOOKS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="n">BOOKS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'On the Road'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'Jack Kerouac'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Harry Potter and the Philosopher</span><span class="se">\'</span><span class="s1">s Stone'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'J. K. Rowling'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">False</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Green Eggs and Ham'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'Dr. Seuss'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="p">}</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+
+
+<p>添加新书时，重构<code>all_books</code>以考虑唯一id:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/books'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">all_books</span><span class="p">():</span>
+    <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+        <span class="n">post_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
+        <span class="n">BOOKS</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+            <span class="s1">'title'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'title'</span><span class="p">),</span>
+            <span class="s1">'author'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'author'</span><span class="p">),</span>
+            <span class="s1">'read'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'read'</span><span class="p">)</span>
+        <span class="p">})</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Book added!'</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'books'</span><span class="p">]</span> <span class="o">=</span> <span class="n">BOOKS</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">response_object</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加新的路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/books/&lt;book_id&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'PUT'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">single_book</span><span class="p">(</span><span class="n">book_id</span><span class="p">):</span>
+    <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'PUT'</span><span class="p">:</span>
+        <span class="n">post_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
+        <span class="n">remove_book</span><span class="p">(</span><span class="n">book_id</span><span class="p">)</span>
+        <span class="n">BOOKS</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+            <span class="s1">'title'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'title'</span><span class="p">),</span>
+            <span class="s1">'author'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'author'</span><span class="p">),</span>
+            <span class="s1">'read'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'read'</span><span class="p">)</span>
+        <span class="p">})</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Book updated!'</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">response_object</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加助手:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">remove_book</span><span class="p">(</span><span class="n">book_id</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">book</span> <span class="ow">in</span> <span class="n">BOOKS</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]</span> <span class="o">==</span> <span class="n">book_id</span><span class="p">:</span>
+            <span class="n">BOOKS</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">book</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<blockquote>
+<p>花点时间想想你会如何处理一个不存在的<code>id</code>的情况。有效载荷不正确怎么办？在helper中重构for循环，使它更Pythonic化。</p>
+</blockquote>
+<h3 id="client_2">客户</h3>
+<p>步骤:</p>
+<ol>
+<li>添加模态和形式</li>
+<li>处理更新按钮单击</li>
+<li>连接AJAX请求</li>
+<li>警告用户</li>
+<li>处理取消按钮单击</li>
+</ol>
+<h4 id="1-add-modal-and-form">(1)添加情态和形式</h4>
+<p>首先，在模板中添加一个新的模态，就在第一个模态的下面:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">b-modal</span> <span class="na">ref</span><span class="o">=</span><span class="s">"editBookModal"</span>
+         <span class="na">id</span><span class="o">=</span><span class="s">"book-update-modal"</span>
+         <span class="na">title</span><span class="o">=</span><span class="s">"Update"</span>
+         <span class="na">hide-footer</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">b-form</span> <span class="err">@</span><span class="na">submit</span><span class="o">=</span><span class="s">"onSubmitUpdate"</span> <span class="err">@</span><span class="na">reset</span><span class="o">=</span><span class="s">"onResetUpdate"</span> <span class="na">class</span><span class="o">=</span><span class="s">"w-100"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-edit-group"</span>
+                <span class="na">label</span><span class="o">=</span><span class="s">"Title:"</span>
+                <span class="na">label-for</span><span class="o">=</span><span class="s">"form-title-edit-input"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-edit-input"</span>
+                    <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                    <span class="na">v-model</span><span class="o">=</span><span class="s">"editForm.title"</span>
+                    <span class="na">required</span>
+                    <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter title"</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-edit-group"</span>
+                  <span class="na">label</span><span class="o">=</span><span class="s">"Author:"</span>
+                  <span class="na">label-for</span><span class="o">=</span><span class="s">"form-author-edit-input"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-edit-input"</span>
+                      <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                      <span class="na">v-model</span><span class="o">=</span><span class="s">"editForm.author"</span>
+                      <span class="na">required</span>
+                      <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter author"</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-read-edit-group"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form-checkbox-group</span> <span class="na">v-model</span><span class="o">=</span><span class="s">"editForm.read"</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-checks"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-checkbox</span> <span class="na">value</span><span class="o">=</span><span class="s">"true"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">b-form-checkbox</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-checkbox-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-button-group</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"primary"</span><span class="p">&gt;</span>Update<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"reset"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"danger"</span><span class="p">&gt;</span>Cancel<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-button-group</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">b-form</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">b-modal</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>将表单状态添加到<code>script</code>部分的<code>data</code>部分:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">editForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>挑战:不要使用新的模式，尝试使用相同的模式来处理POST和PUT请求。</p>
+</blockquote>
+<h4 id="2-handle-update-button-click">(2)点击处理更新按钮</h4>
+<p>更新表格中的“更新”按钮:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">button</span>
+        <span class="na">type</span><span class="o">=</span><span class="s">"button"</span>
+        <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-warning btn-sm"</span>
+        <span class="na">v-b-modal</span><span class="err">.</span><span class="na">book-update-modal</span>
+        <span class="err">@</span><span class="na">click</span><span class="o">=</span><span class="s">"editBook(book)"</span><span class="p">&gt;</span>
+    Update
+<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>添加一个新方法来更新<code>editForm</code>中的值:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">editBook</span><span class="p">(</span><span class="nx">book</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">book</span><span class="p">;</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>然后，添加一个方法来处理表单提交:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">onSubmitUpdate</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">evt</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">$refs</span><span class="p">.</span><span class="nx">editBookModal</span><span class="p">.</span><span class="nx">hide</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">read</span><span class="p">[</span><span class="mf">0</span><span class="p">])</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">author</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">read</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">updateBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">,</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">id</span><span class="p">);</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<h4 id="3-wire-up-ajax-request">(3)连接AJAX请求</h4>
+<div class="codehilite"><pre><span/><code><span class="nx">updateBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">,</span><span class="w"> </span><span class="nx">bookID</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`http://localhost:5000/books/</span><span class="si">${</span><span class="nx">bookID</span><span class="si">}</span><span class="sb">`</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">axios</span><span class="p">.</span><span class="nx">put</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">payload</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<h4 id="4-alert-user">(4)提醒用户</h4>
+<p>更新<code>updateBook</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">updateBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">,</span><span class="w"> </span><span class="nx">bookID</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`http://localhost:5000/books/</span><span class="si">${</span><span class="nx">bookID</span><span class="si">}</span><span class="sb">`</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">axios</span><span class="p">.</span><span class="nx">put</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">payload</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Book updated!'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">showMessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<h4 id="5-handle-cancel-button-click">(5)点击手柄取消按钮</h4>
+<p>添加方法:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">onResetUpdate</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">evt</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">$refs</span><span class="p">.</span><span class="nx">editBookModal</span><span class="p">.</span><span class="nx">hide</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">initForm</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"> </span><span class="c1">// why?</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>更新<code>initForm</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">initForm</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>请确保在继续之前检查代码。完成后，测试应用程序。确保单击按钮时显示模式，并且正确填充输入值。</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue/update_book.gif" loading="lazy" class="lazyload" alt="update book" src="../Images/144358ed9eac85b3c714458230e961f4.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue/update_book.gif"/></p>
+<h2 id="delete-route">删除路线</h2>
+<h3 id="server_3">计算机网络服务器</h3>
+<p>更新路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/books/&lt;book_id&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'PUT'</span><span class="p">,</span> <span class="s1">'DELETE'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">single_book</span><span class="p">(</span><span class="n">book_id</span><span class="p">):</span>
+    <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'PUT'</span><span class="p">:</span>
+        <span class="n">post_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
+        <span class="n">remove_book</span><span class="p">(</span><span class="n">book_id</span><span class="p">)</span>
+        <span class="n">BOOKS</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+            <span class="s1">'title'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'title'</span><span class="p">),</span>
+            <span class="s1">'author'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'author'</span><span class="p">),</span>
+            <span class="s1">'read'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'read'</span><span class="p">)</span>
+        <span class="p">})</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Book updated!'</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'DELETE'</span><span class="p">:</span>
+        <span class="n">remove_book</span><span class="p">(</span><span class="n">book_id</span><span class="p">)</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Book removed!'</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">response_object</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="client_3">客户</h3>
+<p>像这样更新“删除”按钮:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">button</span>
+        <span class="na">type</span><span class="o">=</span><span class="s">"button"</span>
+        <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-danger btn-sm"</span>
+        <span class="err">@</span><span class="na">click</span><span class="o">=</span><span class="s">"onDeleteBook(book)"</span><span class="p">&gt;</span>
+    Delete
+<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>添加方法来处理按钮点击，然后删除书:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">removeBook</span><span class="p">(</span><span class="nx">bookID</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`http://localhost:5000/books/</span><span class="si">${</span><span class="nx">bookID</span><span class="si">}</span><span class="sb">`</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">axios</span><span class="p">.</span><span class="ow">delete</span><span class="p">(</span><span class="nx">path</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Book removed!'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">showMessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// eslint-disable-next-line</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+<span class="nx">onDeleteBook</span><span class="p">(</span><span class="nx">book</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">removeBook</span><span class="p">(</span><span class="nx">book</span><span class="p">.</span><span class="nx">id</span><span class="p">);</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，当用户单击删除按钮时，<code>onDeleteBook</code>方法被触发，这又触发了<code>removeBook</code>方法。该方法将删除请求发送到后端。当响应返回时，显示警告信息并运行<code>getBooks</code>。</p>
+<blockquote>
+<p>挑战:</p>
+<ol>
+<li>添加一个确认警告，而不是单击按钮删除。</li>
+<li>显示一条信息，比如“没有书！请加一个。”，没有书的时候。</li>
+</ol>
+</blockquote>
+<p><img data-src="/static/images/gifs/blog/flask-vue/delete_book.gif" loading="lazy" class="lazyload" alt="delete book" src="../Images/dd730697a3c47b432eb0c4412f459c9c.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue/delete_book.gif"/></p>
+<h2 id="conclusion">结论</h2>
+<p>这篇文章讲述了用Vue和Flask设置CRUD应用程序的基础知识。</p>
+<p>通过回顾这篇文章开头的目标和经历每个挑战来检查你的理解。</p>
+<p>你可以在<a href="https://github.com/testdrivenio/flask-vue-crud"> flask-vue-crud </a> repo中找到源代码。感谢阅读。</p>
+<blockquote>
+<p><strong>寻找更多？</strong></p>
+<ol>
+<li>查看<a href="https://testdriven.io/blog/accepting-payments-with-stripe-vuejs-and-flask">用Stripe、Vue.js和Flask </a>接受付款的博文，该博文从本文停止的地方开始。</li>
+<li>想了解如何将此应用部署到Heroku？查看<a href="https://testdriven.io/blog/deploying-flask-to-heroku-with-docker-and-gitlab">使用Docker和Gitlab CI </a>将Flask和Vue应用程序部署到Heroku。</li>
+</ol>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

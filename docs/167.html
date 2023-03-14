@@ -1,0 +1,596 @@
+<html>
+<head>
+<title>Setting up Stripe Connect with Django </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Django设置条带连接</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/setting-up-stripe-connect-with-django/#0001-01-01">https://testdriven.io/blog/setting-up-stripe-connect-with-django/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p><a href="https://stripe.com/connect"> Stripe Connect </a>是一项旨在代表他人处理和管理支付的服务。它被需要向多方支付的市场和<a href="https://en.wikipedia.org/wiki/Platform_economy">平台</a>(如优步、Shopify、Kickstarter和Airbnb)使用。我们在<a href="https://testdriven.io/"> TestDriven.io </a>使用它来驱动我们的支付平台，这样我们就可以轻松地向内容创作者和分支机构支付费用。</p>
+<p>本教程着眼于如何将Stripe Connect集成到Django应用程序中。</p>
+<blockquote>
+<p>这是一个中级教程。它假设你熟悉<a href="https://stripe.com/">条纹</a>和<a href="https://www.djangoproject.com/">姜戈</a>。查看<a href="https://testdriven.io/blog/django-stripe-tutorial/">姜戈条纹教程</a>帖子了解更多信息。</p>
+</blockquote>
+
+
+
+<h2 id="learning-objectives">学习目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释什么是条带连接，以及为什么您可能需要使用它</li>
+<li>描述条带连接帐户类型之间的相似性和差异</li>
+<li>将Stripe Connect集成到现有的Django应用程序中</li>
+<li>使用类似Oauth的流程将Stripe帐户链接到Django应用程序</li>
+<li>解释直接费用和目的地费用的区别</li>
+</ol>
+<h2 id="stripe-connect-accounts">条带连接帐户</h2>
+<p>使用Stripe Connect，您首先需要决定您希望在您的平台上使用的用户帐户的类型:</p>
+<ol>
+<li><a href="https://stripe.com/docs/connect/standard-accounts">标准</a></li>
+<li><a href="https://stripe.com/docs/connect/express-accounts">快递</a></li>
+<li><a href="https://stripe.com/docs/connect/custom-accounts">自定义</a></li>
+</ol>
+<blockquote>
+<p>“平台”是指你的市场网络应用，而“用户”是指通过你的平台销售商品或服务而获得报酬的人。</p>
+</blockquote>
+<p>对于标准帐户和快速帐户，您平台上的用户将经历一个类似OAuth的流程，他们将被发送到Stripe，创建或链接他们的Stripe帐户，然后被重定向回您的平台。这可能具有相当大的破坏性。用户还需要维护两个帐户——一个用于您的平台，一个用于Stripe——这并不理想。如果你希望每个月都有大量的用户，这可能是行不通的。另一方面，如果你刚刚开始并想快速上手，坚持使用标准账户。从那里开始。如果您发现您需要对入职体验进行更多的控制，以使其更加无缝，那么您可能需要切换到与Express或Custom帐户集成。</p>
+<p>除了UX，对于快递和定制账户，你(平台)最终要对欺诈负责，并且必须处理有争议的交易。</p>
+<blockquote>
+<p>作为参考，<a href="https://testdriven.io/"> TestDriven.io </a>平台使用标准账户和快捷账户，具体取决于交易类型和参与方数量。</p>
+</blockquote>
+<p>在选择要合作的客户类型时，问问自己:</p>
+<ol>
+<li>入职体验需要多无缝？</li>
+<li>谁应该处理欺诈和支付纠纷？</li>
+</ol>
+<p>在本教程中，我们将坚持使用标准帐户。更多信息，请查看Stripe的<a href="https://stripe.com/docs/connect/accounts#choosing-an-approach">选择方法</a>和<a href="https://stripe.com/docs/connect/best-practices">最佳实践</a>指南。</p>
+<h2 id="workflow">工作流程</h2>
+<p>同样，对于标准(和快速)账户，用户通过类似于OAuth的流程来连接他们的Stripe账户:</p>
+<ol>
+<li>平台上经过身份验证的用户单击一个链接，将他们带到条带化</li>
+<li>然后，他们通过登录现有帐户或创建新帐户来连接条带帐户</li>
+<li>连接后，用户会通过授权码被重定向回您的平台</li>
+<li>然后，您请求使用该代码进行条带化，以便获得处理支付所需的信息</li>
+</ol>
+<p><img data-src="/static/images/blog/django-stripe-connect/stripe_connect_flow.png" loading="lazy" class="lazyload" alt="stripe connect flow" src="../Images/759c02c5d0412a19bc9b0cc141398070.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/stripe_connect_flow.png"/></p>
+<h2 id="initial-setup">初始设置</h2>
+<p>首先，克隆出<a href="https://github.com/testdrivenio/django-stripe-connect">django-stripe-connect</a>repo，然后检查主分支的<a href="https://github.com/testdrivenio/django-stripe-connect/releases/tag/v1"> v1 </a>标记:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/django-stripe-connect --branch v1 --single-branch
+$ <span class="nb">cd</span> django-stripe-connect
+$ git checkout tags/v1 -b master
+</code></pre></div>
+
+<p>创建虚拟环境并安装依赖项:</p>
+<div class="codehilite"><pre><span/><code>$ pipenv shell
+$ pipenv install
+</code></pre></div>
+
+<p>应用迁移，创建超级用户，并将设备添加到数据库:</p>
+<div class="codehilite"><pre><span/><code>$ python manage.py migrate
+$ python manage.py createsuperuser
+$ python manage.py loaddata fixtures/users.json
+$ python manage.py loaddata fixtures/courses.json
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code>$ python manage.py runserver
+</code></pre></div>
+
+<p>在<a href="http://localhost:8000/"> http://localhost:8000/ </a>您应该看到:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/example_app_home_1.png" loading="lazy" class="lazyload" alt="example app" src="../Images/4af8c490e55d7dbd275346fe8c98870e.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/example_app_home_1.png"/></p>
+<p>确保您能够以超级用户身份登录:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/example_app_home_2.png" loading="lazy" class="lazyload" alt="example app" src="../Images/5f539fbffe7c70c01e85b6a315795b25.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/example_app_home_2.png"/></p>
+<p><img data-src="/static/images/blog/django-stripe-connect/example_app_courses.png" loading="lazy" class="lazyload" alt="example app" src="../Images/a15b45086de38597dc5524fb1618b16f.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/example_app_courses.png"/></p>
+<p>尝试以买家和卖家的双重身份登录。</p>
+<p>买家:</p>
+
+<p>卖家:</p>
+
+<p>本质上，这个示例应用程序类似于<a href="https://testdriven.io/"> TestDriven.io </a>平台——用户可以创建和销售课程。<a href="https://docs.djangoproject.com/en/2.0/topics/auth/customizing/"> CustomUser模型</a>扩展了内置的<a href="https://docs.djangoproject.com/en/2.1/ref/contrib/auth/#django.contrib.auth.models.User">用户</a>模型，创建了卖家和买家。卖家可以买卖课程，而买家只能购买课程。添加新用户时，默认情况下他们是买家。超级用户可以更改用户的状态。</p>
+<p>在继续之前，快速浏览一下项目结构:</p>
+<div class="codehilite"><pre><span/><code>├── Pipfile
+├── Pipfile.lock
+├── apps
+│   ├── courses
+│   │   ├── __init__.py
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── tests.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   └── users
+│       ├── __init__.py
+│       ├── admin.py
+│       ├── apps.py
+│       ├── forms.py
+│       ├── managers.py
+│       ├── migrations
+│       ├── models.py
+│       ├── signals.py
+│       ├── tests.py
+│       └── views.py
+├── fixtures
+│   ├── courses.json
+│   └── users.json
+├── manage.py
+├── my_project
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── static
+│   └── bulma.min.css
+└── templates
+    ├── _base.html
+    ├── courses
+    │   ├── course_detail.html
+    │   └── course_list.html
+    ├── home.html
+    ├── login.html
+    └── nav.html
+</code></pre></div>
+
+<h2 id="configure-stripe">配置条带</h2>
+<p><a href="https://stripe.com/payments/checkout"> Stripe Checkout </a>已经预配置好，还有<a href="https://github.com/stripe/stripe-python"> Stripe Python库</a>。为了处理支付，创建一个Stripe帐户(如果您还没有)，并将您的测试机密和测试可发布密钥添加到<em> settings.py </em>文件的底部:</p>
+<div class="codehilite"><pre><span/><code><span class="n">STRIPE_PUBLISHABLE_KEY</span> <span class="o">=</span> <span class="s1">'&lt;your test publishable key here&gt;'</span>
+<span class="n">STRIPE_SECRET_KEY</span> <span class="o">=</span> <span class="s1">'&lt;your test secret key here&gt;'</span>
+</code></pre></div>
+
+<p>确保您可以处理费用。首先，使用买家帐户登录:</p>
+
+<p>然后，购买课程:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/example_app_purchase_1.png" loading="lazy" class="lazyload" alt="example app" src="../Images/0108fa872ae4d1cd187db0ad369d7754.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/example_app_purchase_1.png"/></p>
+<p>您应该会在“支付”下的Stripe仪表盘上看到费用:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/example_app_purchase_2.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/944d49f49747b0acce48e711def72d95.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/example_app_purchase_2.png"/></p>
+<blockquote>
+<p>需要帮助吗？参考<a href="https://testdriven.io/blog/django-stripe-tutorial"> Django条纹教程</a>博文中的<a href="https://testdriven.io/blog/django-stripe-tutorial/#add-stripe">添加条纹</a>部分。</p>
+</blockquote>
+<p>要<a href="https://stripe.com/docs/connect/quickstart#register-platform">使用Stripe Connect注册您的平台</a>，请点击Stripe仪表盘左侧栏中的“Connect ”:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/connect_dashboard_1.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/675b909ae22e4d03d8d2f8ab74dacf34.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/connect_dashboard_1.png"/></p>
+<p>然后，单击“开始”按钮。注册后，点击“设置”链接，获取您的测试客户端ID:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/connect_dashboard_2.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/2d6f956281bedc3c546e56e2d5aa6884.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/connect_dashboard_2.png"/></p>
+<p>将此添加到<em> settings.py </em>的底部:</p>
+<div class="codehilite"><pre><span/><code><span class="n">STRIPE_CONNECT_CLIENT_ID</span> <span class="o">=</span> <span class="s1">'&lt;your test connect client id here&gt;'</span>
+</code></pre></div>
+
+<p>回到仪表板，使用<code>http://localhost:8000/users/oauth/callback</code>作为重定向URI。也可以随时更新“品牌”部分:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/connect_dashboard_3.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/f6b5f4d9f983be5115b0f4176eb0bb57.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/connect_dashboard_3.png"/></p>
+<h2 id="connect-account">连接帐户</h2>
+<p>接下来，让我们在主页上添加一个“连接Stripe帐户”按钮的链接，该链接将用户发送到Stripe，以便他们可以链接他们的帐户。</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/example_app_home_3.png" loading="lazy" class="lazyload" alt="example app" src="../Images/ad99f76d8cd0e54fe4eaf3aaa9fc30e0.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/example_app_home_3.png"/></p>
+<h3 id="redirect-to-stripe">重定向至条带</h3>
+<p>将视图添加到<em> apps/users/views.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">urllib</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">reverse</span>
+<span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">HttpResponseRedirect</span>
+<span class="kn">from</span> <span class="nn">django.views</span> <span class="kn">import</span> <span class="n">View</span>
+<span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">redirect</span>
+
+
+<span class="k">class</span> <span class="nc">StripeAuthorizeView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">HttpResponseRedirect</span><span class="p">(</span><span class="n">reverse</span><span class="p">(</span><span class="s1">'login'</span><span class="p">))</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">'https://connect.stripe.com/oauth/authorize'</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">'response_type'</span><span class="p">:</span> <span class="s1">'code'</span><span class="p">,</span>
+            <span class="s1">'scope'</span><span class="p">:</span> <span class="s1">'read_write'</span><span class="p">,</span>
+            <span class="s1">'client_id'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_CONNECT_CLIENT_ID</span><span class="p">,</span>
+            <span class="s1">'redirect_uri'</span><span class="p">:</span> <span class="sa">f</span><span class="s1">'http://localhost:8000/users/oauth/callback'</span>
+        <span class="p">}</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s1">?</span><span class="si">{</span><span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlencode</span><span class="p">(</span><span class="n">params</span><span class="p">)</span><span class="si">}</span><span class="s1">'</span>
+        <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+</code></pre></div>
+
+<p>如果用户通过了身份验证，我们<a href="https://stripe.com/docs/connect/standard-accounts#integrating-oauth">从<code>response_type</code>、<code>scope</code>、<code>client_id</code>和<code>redirect_uri</code>创建OAuth链接</a>，然后通过<a href="https://stripe.com/docs/connect/oauth-reference#get-authorize">授权URL </a>将它们重定向到Stripe。</p>
+<blockquote>
+<p><code>scope</code>可以是<code>read_only</code>或者<code>read_write</code>:</p>
+<ol>
+<li>当平台只需要<em>视图</em>访问时，使用<code>read_only</code>。</li>
+<li>当平台需要<em>查看</em>、<em>创建</em>、<em>修改</em>权限时，使用<code>read_write</code>来代表关联账户进行收费。</li>
+</ol>
+<p>如需了解更多信息，请查看<a href="https://support.stripe.com/questions/what-permissions-do-platforms-get-when-i-connect-my-stripe-account">平台在连接条纹账户时会获得哪些权限？</a></p>
+</blockquote>
+<p>更新<em> my_project/urls.py </em>中的项目级URL:</p>
+<div class="codehilite"><pre><span/><code><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">TemplateView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(</span><span class="n">template_name</span><span class="o">=</span><span class="s1">'home.html'</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'home'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'login/'</span><span class="p">,</span> <span class="n">LoginView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(</span><span class="n">template_name</span><span class="o">=</span><span class="s1">'login.html'</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'login'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'logout/'</span><span class="p">,</span> <span class="n">LogoutView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="p">{</span><span class="s1">'next_page'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">LOGOUT_REDIRECT_URL</span><span class="p">},</span> <span class="n">name</span><span class="o">=</span><span class="s1">'logout'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'courses/'</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'apps.courses.urls'</span><span class="p">)),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'users/'</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'apps.users.urls'</span><span class="p">)),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>然后，通过向“应用/用户”添加一个<em> urls.py </em>文件来添加应用级URL:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">.views</span> <span class="kn">import</span> <span class="n">StripeAuthorizeView</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+  <span class="n">path</span><span class="p">(</span><span class="s1">'authorize/'</span><span class="p">,</span> <span class="n">StripeAuthorizeView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'authorize'</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>将<code>href</code>添加到<em>home.html</em>模板中的“连接条纹账户”按钮:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&lt;</span><span class="n">a</span> <span class="n">href</span><span class="o">=</span><span class="s2">"{</span><span class="si">% u</span><span class="s2">rl 'authorize' %}"</span> <span class="n">class</span><span class="o">=</span><span class="s2">"button is-info"</span><span class="o">&gt;</span><span class="n">Connect</span> <span class="n">Stripe</span> <span class="n">Account</span><span class="o">&lt;/</span><span class="n">a</span><span class="o">&gt;</span>
+</code></pre></div>
+
+<p>要进行测试，运行Django服务器，然后使用卖家帐户登录:</p>
+
+<p>当您点按“连接条带帐户”时，请确保您被重定向到条带:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/connect_dashboard_4.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/9361712887ae1736966b735710615498.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/connect_dashboard_4.png"/></p>
+<p>暂时不要做任何事情，因为我们仍然需要设置重定向视图。</p>
+<h3 id="redirect-back">重定向回来</h3>
+<p>向<em> apps/users/views.py </em>添加新视图</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">StripeAuthorizeCallbackView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'code'</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">code</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">'client_secret'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span><span class="p">,</span>
+                <span class="s1">'grant_type'</span><span class="p">:</span> <span class="s1">'authorization_code'</span><span class="p">,</span>
+                <span class="s1">'client_id'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_CONNECT_CLIENT_ID</span><span class="p">,</span>
+                <span class="s1">'code'</span><span class="p">:</span> <span class="n">code</span>
+            <span class="p">}</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="s1">'https://connect.stripe.com/oauth/token'</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">())</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="n">reverse</span><span class="p">(</span><span class="s1">'home'</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<p>连接Stripe账户后，用户被<a href="https://stripe.com/docs/connect/standard-accounts#redirected">重定向回</a>平台，在那里我们将使用提供的授权码<a href="https://stripe.com/docs/connect/standard-accounts#token-request">调用</a>访问<a href="https://stripe.com/docs/connect/oauth-reference#post-token">令牌URL </a>来获得用户的Stripe凭证。</p>
+<p>安装请求库:</p>
+<div class="codehilite"><pre><span/><code>$ pipenv install <span class="nv">requests</span><span class="o">==</span><span class="m">2</span>.21.0
+</code></pre></div>
+
+<p>将导入添加到<em> apps/users/views.py </em>:</p>
+
+
+<p>将回调URL添加到<em> apps/users/urls.py </em></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">.views</span> <span class="kn">import</span> <span class="n">StripeAuthorizeView</span><span class="p">,</span> <span class="n">StripeAuthorizeCallbackView</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+  <span class="n">path</span><span class="p">(</span><span class="s1">'authorize/'</span><span class="p">,</span> <span class="n">StripeAuthorizeView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'authorize'</span><span class="p">),</span>
+  <span class="n">path</span><span class="p">(</span><span class="s1">'oauth/callback/'</span><span class="p">,</span> <span class="n">StripeAuthorizeCallbackView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'authorize_callback'</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>接下来，创建一个用于测试目的的新Stripe帐户，您将使用它来<a href="https://stripe.com/docs/connect/standard-accounts#connect-users">连接到平台帐户</a>。完成后，您可以测试完整的OAuth过程:</p>
+<ol>
+<li>在匿名或私人浏览器窗口中导航至<a href="http://localhost:8000/"> http://localhost:8000/ </a></li>
+<li>用<code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c3b7a6b0b783b0a6afafa6b1eda0acae">[email protected]</a></code> / <code>justatest</code>登录平台</li>
+<li>单击“连接条带帐户”</li>
+<li>使用新的条带帐户登录</li>
+<li>点击“连接我的Stripe账户”按钮，这将把你重新定向到Django应用程序</li>
+</ol>
+<p>在您的终端中，您应该会看到来自<code>print(resp.json())</code>的输出:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s1">'access_token'</span>: <span class="s1">'sk_test_nKM42TMNPm6M3c98U07abQss'</span>,
+  <span class="s1">'livemode'</span>: False,
+  <span class="s1">'refresh_token'</span>: <span class="s1">'rt_5QhvTKUgPuFF1EIRsHV4b4DtTxDZgMQiQRvOoMewQptbyfRc'</span>,
+  <span class="s1">'token_type'</span>: <span class="s1">'bearer'</span>,
+  <span class="s1">'stripe_publishable_key'</span>: <span class="s1">'pk_test_8iD6CpftCZLTp40k1pAl22hp'</span>,
+  <span class="s1">'stripe_user_id'</span>: <span class="s1">'acct_i3qMgnSiH35BL8aU'</span>,
+  <span class="s1">'scope'</span>: <span class="s1">'read_write'</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>我们现在可以将<code>access_token</code>和<code>stripe_user_id</code>添加到<code>Seller</code>模型中:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">StripeAuthorizeCallbackView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'code'</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">code</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">'client_secret'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span><span class="p">,</span>
+                <span class="s1">'grant_type'</span><span class="p">:</span> <span class="s1">'authorization_code'</span><span class="p">,</span>
+                <span class="s1">'client_id'</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_CONNECT_CLIENT_ID</span><span class="p">,</span>
+                <span class="s1">'code'</span><span class="p">:</span> <span class="n">code</span>
+            <span class="p">}</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="s1">'https://connect.stripe.com/oauth/token'</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+            <span class="c1"># add stripe info to the seller</span>
+            <span class="n">stripe_user_id</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">'stripe_user_id'</span><span class="p">]</span>
+            <span class="n">stripe_access_token</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">'access_token'</span><span class="p">]</span>
+            <span class="n">seller</span> <span class="o">=</span> <span class="n">Seller</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">user_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+            <span class="n">seller</span><span class="o">.</span><span class="n">stripe_access_token</span> <span class="o">=</span> <span class="n">stripe_access_token</span>
+            <span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span> <span class="o">=</span> <span class="n">stripe_user_id</span>
+            <span class="n">seller</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="n">reverse</span><span class="p">(</span><span class="s1">'home'</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<p>将导入添加到顶部:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Seller</span>
+</code></pre></div>
+
+<blockquote>
+<p>您可能还想保存<code>refresh_token</code>，以便请求新的<code>access_token</code>。</p>
+</blockquote>
+<p>概括地说，在用户连接Stripe帐户后，您会获得一个临时授权码，用于请求用户的访问令牌和id，然后分别用于连接到Stripe和代表用户处理支付。</p>
+<p>再测试一次。完成后，注销，以超级用户身份重新登录，并验证Django admin中的卖家是否已更新:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/django_admin.png" loading="lazy" class="lazyload" alt="django admin" src="../Images/19ece0064c2dda38e441fb64ea82b67b.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/django_admin.png"/></p>
+<p>最后，如果用户已经连接了他们的条带帐户，则隐藏主页模板中的“连接条带帐户”按钮:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="o">%</span> <span class="k">if</span> <span class="n">user</span><span class="o">.</span><span class="n">is_seller</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">user</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span> <span class="o">%</span><span class="p">}</span>
+  <span class="o">&lt;</span><span class="n">a</span> <span class="n">href</span><span class="o">=</span><span class="s2">"{</span><span class="si">% u</span><span class="s2">rl 'authorize' %}"</span> <span class="n">class</span><span class="o">=</span><span class="s2">"button is-info"</span><span class="o">&gt;</span><span class="n">Connect</span> <span class="n">Stripe</span> <span class="n">Account</span><span class="o">&lt;/</span><span class="n">a</span><span class="o">&gt;</span>
+<span class="p">{</span><span class="o">%</span> <span class="n">endif</span> <span class="o">%</span><span class="p">}</span>
+</code></pre></div>
+
+<p>这样，我们就可以把注意力转向采购方面了。</p>
+<h2 id="buy-a-course">购买课程</h2>
+<p>首先，你需要决定如何处理这笔费用:</p>
+<ol>
+<li><a href="https://stripe.com/docs/connect/direct-charges">直接充电</a></li>
+<li><a href="https://stripe.com/docs/connect/destination-charges">目的地费用</a></li>
+<li><a href="https://stripe.com/docs/connect/charges-transfers">分开充电和转移</a></li>
+</ol>
+<p>在本教程中，我们将研究前两种方法。请记住，账户类型和支付方式决定了负债:</p>
+<table>
+<thead>
+<tr>
+<th>账户类型</th>
+<th>支付方式</th>
+<th>责任</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>标准</td>
+<td>直接的</td>
+<td>用户</td>
+</tr>
+<tr>
+<td>标准</td>
+<td>目的地</td>
+<td>平台</td>
+</tr>
+<tr>
+<td>表达</td>
+<td>直接的</td>
+<td>用户</td>
+</tr>
+<tr>
+<td>表达</td>
+<td>目的地</td>
+<td>平台</td>
+</tr>
+<tr>
+<td>表达</td>
+<td>分开收费和转账</td>
+<td>平台</td>
+</tr>
+<tr>
+<td>习俗</td>
+<td>直接的</td>
+<td>用户</td>
+</tr>
+<tr>
+<td>习俗</td>
+<td>目的地</td>
+<td>平台</td>
+</tr>
+<tr>
+<td>习俗</td>
+<td>分开收费和转账</td>
+<td>平台</td>
+</tr>
+</tbody>
+</table>
+<p>这也有例外，所以请务必阅读<a href="https://stripe.com/docs/connect/charges#choosing-approach">选择方法</a>指南，了解这三种方法之间差异的更多信息。</p>
+<blockquote>
+<p><a href="https://testdriven.io/"> TestDriven.io </a>使用目的地收费，因为所有收费和客户都是平台“拥有”的，而不是关联账户。</p>
+</blockquote>
+<h3 id="direct">直接的</h3>
+<p>如果您希望由连接的Stripe帐户而不是平台帐户处理付款，请使用直接收费。</p>
+<p>在<em> apps/courses/views.py </em>中更新<code>CourseChargeView</code>如下:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">CourseChargeView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="n">json_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">course</span> <span class="o">=</span> <span class="n">Course</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'course_id'</span><span class="p">])</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">charge</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Charge</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">amount</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">],</span>
+                <span class="n">currency</span><span class="o">=</span><span class="s1">'usd'</span><span class="p">,</span>
+                <span class="n">source</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'token'</span><span class="p">],</span>
+                <span class="n">description</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'description'</span><span class="p">],</span>
+                <span class="n">stripe_account</span><span class="o">=</span><span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">charge</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">stripe</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">StripeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'error'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+</code></pre></div>
+
+<p>试试这个。</p>
+<p>您是否注意到该费用仅显示在关联帐户的仪表板上？通过直接收费，客户在技术上是从与关联账户相关的企业购买，而不是从平台购买。关联账户负责支付Stripe费用以及任何潜在的退款或退款。如果您需要检查费用，您可以从API中检索它。</p>
+<p>也可以对一个<a href="https://stripe.com/docs/sources/customers">客户对象</a>收费。想想你想让客户住在哪里——平台账户、关联账户，还是两者兼而有之？</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">CourseChargeView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="n">json_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">course</span> <span class="o">=</span> <span class="n">Course</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'course_id'</span><span class="p">])</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">customer</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Customer</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">email</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="n">source</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'token'</span><span class="p">],</span>
+                <span class="n">stripe_account</span><span class="o">=</span><span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">charge</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Charge</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">amount</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">],</span>
+                <span class="n">currency</span><span class="o">=</span><span class="s1">'usd'</span><span class="p">,</span>
+                <span class="n">customer</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'description'</span><span class="p">],</span>
+                <span class="n">stripe_account</span><span class="o">=</span><span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">charge</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">stripe</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">StripeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'error'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在本例中，在关联帐户上创建客户，然后使用该客户id来处理费用。</p>
+<p>如果该客户已经存在于关联账户中，该怎么办？</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">CourseChargeView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="n">json_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">course</span> <span class="o">=</span> <span class="n">Course</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'course_id'</span><span class="p">])</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">customer</span> <span class="o">=</span> <span class="n">get_or_create_customer</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="n">json_data</span><span class="p">[</span><span class="s1">'token'</span><span class="p">],</span>
+                <span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_access_token</span><span class="p">,</span>
+                <span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">charge</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Charge</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">amount</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">],</span>
+                <span class="n">currency</span><span class="o">=</span><span class="s1">'usd'</span><span class="p">,</span>
+                <span class="n">customer</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'description'</span><span class="p">],</span>
+                <span class="n">stripe_account</span><span class="o">=</span><span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">charge</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">stripe</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">StripeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'error'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+
+
+<span class="c1"># helpers</span>
+
+<span class="k">def</span> <span class="nf">get_or_create_customer</span><span class="p">(</span><span class="n">email</span><span class="p">,</span> <span class="n">token</span><span class="p">,</span> <span class="n">stripe_access_token</span><span class="p">,</span> <span class="n">stripe_account</span><span class="p">):</span>
+    <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">stripe_access_token</span>
+    <span class="n">connected_customers</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Customer</span><span class="o">.</span><span class="n">list</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">customer</span> <span class="ow">in</span> <span class="n">connected_customers</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">customer</span><span class="o">.</span><span class="n">email</span> <span class="o">==</span> <span class="n">email</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">email</span><span class="si">}</span><span class="s1"> found'</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">customer</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">email</span><span class="si">}</span><span class="s1"> created'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Customer</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">token</span><span class="p">,</span>
+        <span class="n">stripe_account</span><span class="o">=</span><span class="n">stripe_account</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<p>测试一下，确保只有在客户对象不存在的情况下才创建它。</p>
+<p>如果您想在两个帐户之间“共享”客户，该怎么办？在这种情况下，您可能希望将客户信息存储在平台帐户上，以便在不涉及关联帐户时可以直接向该客户收费，然后在涉及关联帐户时使用相同的客户对象来处理收费。如果没有必要，没有必要创建客户两次。在您的上实现此功能。更多信息请参考<a href="https://stripe.com/docs/connect/shared-customers">共享客户</a>指南。</p>
+<p>在进入下一个方法之前，让我们快速看一下平台如何在每笔交易中<a href="https://stripe.com/docs/connect/direct-charges#collecting-fees">收取便利费</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">CourseChargeView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="n">json_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">course</span> <span class="o">=</span> <span class="n">Course</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'course_id'</span><span class="p">])</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="n">fee_percentage</span> <span class="o">=</span> <span class="mf">.01</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">course</span><span class="o">.</span><span class="n">fee</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">customer</span> <span class="o">=</span> <span class="n">get_or_create_customer</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="n">json_data</span><span class="p">[</span><span class="s1">'token'</span><span class="p">],</span>
+                <span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_access_token</span><span class="p">,</span>
+                <span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">charge</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Charge</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">amount</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">],</span>
+                <span class="n">currency</span><span class="o">=</span><span class="s1">'usd'</span><span class="p">,</span>
+                <span class="n">customer</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'description'</span><span class="p">],</span>
+                <span class="n">application_fee</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">]</span> <span class="o">*</span> <span class="n">fee_percentage</span><span class="p">),</span>
+                <span class="n">stripe_account</span><span class="o">=</span><span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">charge</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">stripe</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">StripeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'error'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在，在费用处理后，您应该会在平台帐户上看到收取的费用:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/connect_dashboard_5.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/f7781245862097c0d964bb2bc265036b.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/connect_dashboard_5.png"/></p>
+<h3 id="destination">目的地</h3>
+<p><a href="https://stripe.com/docs/connect/destination-charges">目的地收费</a>当你(平台)想要维持对客户的所有权时效果最好。通过这种方法，平台帐户向客户收费，并负责支付Stripe费用以及任何潜在的退款或退款。</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">CourseChargeView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+        <span class="n">json_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">course</span> <span class="o">=</span> <span class="n">Course</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'course_id'</span><span class="p">])</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="n">fee_percentage</span> <span class="o">=</span> <span class="mf">.01</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">course</span><span class="o">.</span><span class="n">fee</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">customer</span> <span class="o">=</span> <span class="n">get_or_create_customer</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="n">json_data</span><span class="p">[</span><span class="s1">'token'</span><span class="p">],</span>
+            <span class="p">)</span>
+            <span class="n">charge</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Charge</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">amount</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">],</span>
+                <span class="n">currency</span><span class="o">=</span><span class="s1">'usd'</span><span class="p">,</span>
+                <span class="n">customer</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'description'</span><span class="p">],</span>
+                <span class="n">destination</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s1">'amount'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'amount'</span><span class="p">]</span> <span class="o">*</span> <span class="n">fee_percentage</span><span class="p">)),</span>
+                    <span class="s1">'account'</span><span class="p">:</span> <span class="n">course</span><span class="o">.</span><span class="n">seller</span><span class="o">.</span><span class="n">stripe_user_id</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">charge</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">stripe</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">StripeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'error'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+
+<span class="c1"># helpers</span>
+
+<span class="k">def</span> <span class="nf">get_or_create_customer</span><span class="p">(</span><span class="n">email</span><span class="p">,</span> <span class="n">token</span><span class="p">):</span>
+    <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">STRIPE_SECRET_KEY</span>
+    <span class="n">connected_customers</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Customer</span><span class="o">.</span><span class="n">list</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">customer</span> <span class="ow">in</span> <span class="n">connected_customers</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">customer</span><span class="o">.</span><span class="n">email</span> <span class="o">==</span> <span class="n">email</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">email</span><span class="si">}</span><span class="s1"> found'</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">customer</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">email</span><span class="si">}</span><span class="s1"> created'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Customer</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">token</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<p>测试一下。这应该会在平台上创建一个客户和费用。您还应该看到向关联帐户的转账:</p>
+<p><img data-src="/static/images/blog/django-stripe-connect/connect_dashboard_6.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/939231ee6186b9a8daa30ce81c92e1c2.png" data-original-src="https://testdriven.io/static/images/blog/django-stripe-connect/connect_dashboard_6.png"/></p>
+<h2 id="conclusion">结论</h2>
+<p>本教程将带您完成设置Stripe Connect以代表他人安全管理支付的过程。</p>
+<p>您现在应该能够:</p>
+<ol>
+<li>解释什么是条带连接，以及为什么您可能需要使用它</li>
+<li>描述条带连接帐户类型之间的相似性和差异</li>
+<li>将Stripe Connect集成到现有的Django应用程序中</li>
+<li>使用类似Oauth的流程将Stripe帐户链接到Django应用程序</li>
+<li>解释直接费用和目的地费用的区别</li>
+</ol>
+<p>寻找一些挑战？</p>
+<ol>
+<li>添加注册表单和用户帐户页面</li>
+<li>销售完成后，异步向买方和卖方发送电子邮件</li>
+<li>尝试自定义帐户，以便为最终用户提供无缝的条带连接集成</li>
+<li>处理订阅</li>
+<li>为买方添加销售仪表板页面</li>
+</ol>
+<p>你可以在GitHub上的<a href="https://github.com/testdrivenio/django-stripe-connect">django-stripe-connect</a>repo中找到最终代码。干杯！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

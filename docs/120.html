@@ -1,0 +1,559 @@
+<html>
+<head>
+<title>Supporting Multiple Languages in Django </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>支持Django的多种语言</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/multiple-languages-in-django/#0001-01-01">https://testdriven.io/blog/multiple-languages-in-django/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>Django提供了现成的多语言支持。事实上，《姜戈》被翻译成100多种语言。本教程着眼于如何在Django项目中添加多语言支持。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释国际化和本地化的区别</li>
+<li>向URL添加语言前缀</li>
+<li>翻译模板</li>
+<li>允许用户在语言之间切换</li>
+<li>翻译模型</li>
+<li>添加区域设置支持</li>
+</ol>
+<h2 id="project-setup">项目设置</h2>
+<p>下面是对您将要构建的应用程序的快速浏览:</p>
+<p><img data-src="/static/images/blog/django/multiple-languages-in-django/example.png" loading="lazy" class="lazyload" alt="Example App" src="../Images/4a05f905d573b45088e9a2cf9c013319.png" data-original-src="https://testdriven.io/static/images/blog/django/multiple-languages-in-django/example.png"/></p>
+<p>这看起来可能很简单，但是它会让你适应向Django添加国际化。</p>
+<p>首先，从<a href="https://github.com/Samuel-2626/django-lang"> django-lang </a> repo中克隆出<a href="https://github.com/Samuel-2626/django-lang/tree/base"> base </a>分支:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/Samuel-2626/django-lang --branch base --single-branch
+$ <span class="nb">cd</span> django-lang
+</code></pre></div>
+
+<p>接下来，创建并激活虚拟环境，安装项目的依赖项，应用迁移，并创建超级用户:</p>
+<div class="codehilite"><pre><span/><code>$ python3.9 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py createsuperuser
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>注意<em> course/models.py </em>中的<code>Course</code>型号:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+<span class="k">class</span> <span class="nc">Course</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+    <span class="n">date</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateField</span><span class="p">()</span>
+    <span class="n">price</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span>
+</code></pre></div>
+
+<p>运行以下管理命令，向数据库添加一些数据:</p>
+<div class="codehilite"><pre><span/><code>$ python manage.py add_courses
+</code></pre></div>
+
+<p>在下一节中，我们将简要地看一下国际化和本地化。</p>
+<h2 id="internationalization-vs-localization">国际化与本地化</h2>
+<p>国际化和本地化是一个硬币的两面。总之，它们允许您将web应用程序的内容交付给不同的地区。</p>
+<ul>
+<li><strong>国际化</strong>，用i18n (18是I和n之间的字母数)表示，是开发应用程序以供不同地区使用的过程。这个过程通常由开发人员处理。</li>
+<li><strong>本地化</strong>，用l10n表示(10是l和n之间的字母数)，另一方面是将你的应用程序翻译成特定语言和地区的过程。这一般由翻译来处理。</li>
+</ul>
+<blockquote>
+<p>更多信息，请查看W3C的<a href="https://www.w3.org/International/questions/qa-i18n">本地化与国际化</a>。</p>
+</blockquote>
+<p>回想一下，Django通过其国际化框架已经被翻译成超过<a href="https://docs.djangoproject.com/en/3.2/internals/contributing/"> 100 </a>种语言:</p>
+<p>通过国际化框架，我们可以在Python代码和模板中轻松标记要翻译的字符串。它利用GNU <a href="https://www.gnu.org/software/gettext/"> gettext </a>工具包来生成和管理一个纯文本文件，该文件代表一种被称为<a href="https://docs.djangoproject.com/en/3.2/topics/i18n/#term-message-file">消息文件</a>的语言。消息文件以<em>结尾。po </em>作为其延伸。翻译完成后，会为每种语言生成另一个文件，以<em>结束。mo </em>扩展。这就是所谓的编译翻译。</p>
+<p>让我们从安装<a href="https://www.gnu.org/software/gettext/"> gettext </a>工具包开始。</p>
+<p>在macOS上，建议使用<a href="https://brew.sh/">自制</a>:</p>
+<div class="codehilite"><pre><span/><code>$ brew install gettext
+$ brew link --force gettext
+</code></pre></div>
+
+<p>对于大多数Linux发行版，它是预安装的。最后，对于Windows，安装步骤可以在<a href="https://docs.djangoproject.com/en/3.2/topics/i18n/translation/#gettext-on-windows">这里</a>找到。</p>
+<p>在下一节中，我们将为国际化和本地化准备Django项目。</p>
+<h2 id="djangos-internationalization-framework">Django的国际化框架</h2>
+<p>Django在<em> settings.py </em>文件中提供了一些默认的国际化设置:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Internationalization</span>
+<span class="c1"># https://docs.djangoproject.com/en/3.1/topics/i18n/</span>
+
+<span class="n">LANGUAGE_CODE</span> <span class="o">=</span> <span class="s1">'en-us'</span>
+
+<span class="n">TIME_ZONE</span> <span class="o">=</span> <span class="s1">'UTC'</span>
+
+<span class="n">USE_I18N</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="n">USE_L10N</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="n">USE_TZ</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>第一个设置是<code>LANGUAGE_CODE</code>。默认情况下，它设置为美国英语(en-us)。这是一个特定于语言环境的名称。让我们将其更新为一个通用名称，英语(en)。</p>
+
+
+<blockquote>
+<p>更多信息见<a href="http://www.i18nguy.com/unicode/language-identifiers.html">语言标识符列表</a>。</p>
+</blockquote>
+<p>为了使<a href="https://docs.djangoproject.com/en/3.2/ref/settings/#std:setting-LANGUAGE_CODE"> LANGUAGE_CODE </a>生效，<a href="https://docs.djangoproject.com/en/3.2/ref/settings/#std:setting-USE_I18N"> USE_I18N </a>必须为<code>True</code>，这将启用Django的翻译系统。</p>
+<p>记下其余的设置:</p>
+<div class="codehilite"><pre><span/><code><span class="n">TIME_ZONE</span> <span class="o">=</span> <span class="s1">'UTC'</span>
+
+<span class="n">USE_L10N</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="n">USE_TZ</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>' UTC '是默认的<a href="https://docs.djangoproject.com/en/3.2/ref/settings/#std:setting-TIME_ZONE">时区</a>。</li>
+<li>由于<a href="https://docs.djangoproject.com/en/3.2/ref/settings/#std:setting-USE_L10N"> USE_L10N </a>被设置为<code>True</code>，Django将使用当前地区的格式显示数字和日期。</li>
+<li>最后，当<a href="https://docs.djangoproject.com/en/3.2/ref/settings/#std:setting-USE_TZ">使用_TZ </a>为<code>True</code>时，日期时间将是时区敏感的。</li>
+</ol>
+<p>让我们添加一些附加设置来补充现有设置:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.utils.translation</span> <span class="kn">import</span> <span class="n">gettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+<span class="n">LANGUAGES</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span><span class="s1">'en'</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s1">'English'</span><span class="p">)),</span>
+    <span class="p">(</span><span class="s1">'fr'</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s1">'French'</span><span class="p">)),</span>
+    <span class="p">(</span><span class="s1">'es'</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s1">'Spanish'</span><span class="p">)),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>这里发生了什么事？</p>
+<ol>
+<li>我们指定了希望项目可用的语言。如果没有指定，Django会认为我们的项目应该可以使用所有支持的语言。</li>
+<li>该<a href="https://docs.djangoproject.com/en/3.2/ref/settings/#languages">语言</a>设置由语言代码和语言名称组成。回想一下，语言代码可以是特定于地区的，如“en-gb”，也可以是通用的，如“en”。</li>
+<li>此外，<code>gettext_lazy</code>用于翻译语言名称，而不是<code>gettext</code>以防止循环导入。当你在全局范围内时，你应该<em>几乎</em>总是使用<a href="https://docs.djangoproject.com/en/3.2/topics/i18n/translation/#lazy-translations"> gettext_lazy </a>。</li>
+</ol>
+<p>将<code>django.middleware.locale.LocaleMiddleware</code>添加到<code>MIDDLEWARE</code>设置列表中。这个中间件应该在<code>SessionMiddleware</code>之后，因为<code>LocaleMiddleware</code>需要使用会话数据。它也应该放在<code>CommonMiddleware</code>之前，因为<code>CommonMiddleware</code>需要活动语言来解析被请求的URL。因此，顺序非常重要。</p>
+<div class="codehilite"><pre><span/><code><span class="n">MIDDLEWARE</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.middleware.security.SecurityMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions.middleware.SessionMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.locale.LocaleMiddleware'</span><span class="p">,</span> <span class="c1"># new</span>
+    <span class="s1">'django.middleware.common.CommonMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.csrf.CsrfViewMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth.middleware.AuthenticationMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages.middleware.MessageMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.clickjacking.XFrameOptionsMiddleware'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>该中间件用于根据请求数据确定当前语言。</p>
+<p>为您的应用程序添加消息文件将驻留的区域设置路径目录:</p>
+<div class="codehilite"><pre><span/><code><span class="n">LOCALE_PATHS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'locale/'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>Django查看翻译文件的<a href="https://docs.djangoproject.com/en/3.2/ref/settings/#std:setting-LOCALE_PATHS"> LOCALE_PATHS </a>设置。请记住，最先出现的区域设置路径具有最高的优先级。</p>
+<p>您需要在根项目中创建“locale”目录，并为每种语言添加一个新文件夹:</p>
+<div class="codehilite"><pre><span/><code>locale
+├── en
+├── es
+└── fr
+</code></pre></div>
+
+<p>打开shell并从项目目录运行以下命令来创建一个<em>。每种语言的po </em>消息文件:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ django-admin makemessages --all --ignore<span class="o">=</span>env
+</code></pre></div>
+
+<p>您现在应该已经:</p>
+<div class="codehilite"><pre><span/><code>locale
+├── en
+│   └── LC_MESSAGES
+│       └── django.po
+├── es
+│   └── LC_MESSAGES
+│       └── django.po
+└── fr
+    └── LC_MESSAGES
+        └── django.po
+</code></pre></div>
+
+<p>记下其中一个<em>。po </em>消息文件:</p>
+<ol>
+<li><code>msgid</code>:表示源代码中出现的翻译字符串。</li>
+<li><code>msgstr</code>:表示语言翻译，默认为空。您必须为任何给定的字符串提供实际的翻译。</li>
+</ol>
+<p>目前，只有我们的<em> settings.py </em>文件中的<code>LANGUAGES</code>被标记为待翻译。因此，对于“fr”和“es”目录下的每个<code>msgstr</code>,分别手动输入该单词的法语或西班牙语等价物。你可以编辑<em>。来自常规代码编辑器的po </em>文件；但是，建议使用专门为<em>设计的编辑器。po </em>喜欢<a href="https://poedit.net/"> Poedit </a>。</p>
+<p>对于本教程，请进行以下更改:</p>
+<div class="codehilite"><pre><span/><code># locale/fr/LC_MESSAGES/django.po
+
+msgid "English"
+msgstr "Anglais"
+
+msgid "French"
+msgstr "Français"
+
+msgid "Spanish"
+msgstr "Espagnol"
+
+
+# locale/es/LC_MESSAGES/django.po
+
+msgid "English"
+msgstr "Inglés"
+
+msgid "French"
+msgstr "Francés"
+
+msgid "Spanish"
+msgstr "Español"
+</code></pre></div>
+
+<p>Poedit示例:</p>
+<p><img data-src="/static/images/blog/django/multiple-languages-in-django/poedit_example.png" loading="lazy" class="lazyload" alt="Poedit Example" src="../Images/cc1b6171e7fcfb971f0025a9eab95a00.png" data-original-src="https://testdriven.io/static/images/blog/django/multiple-languages-in-django/poedit_example.png"/></p>
+<p>接下来，让我们通过运行以下命令来编译消息:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ django-admin compilemessages --ignore<span class="o">=</span>env
+</code></pre></div>
+
+<p>一个<em>。已经为每种语言生成了mo </em>编译消息文件；</p>
+<div class="codehilite"><pre><span/><code>locale
+├── en
+│   └── LC_MESSAGES
+│       ├── django.mo
+│       └── django.po
+├── es
+│   └── LC_MESSAGES
+│       ├── django.mo
+│       └── django.po
+└── fr
+    └── LC_MESSAGES
+        ├── django.mo
+        └── django.po
+</code></pre></div>
+
+<p>--</p>
+<p>这一节到此为止！</p>
+<p>到目前为止，您已经介绍了很多，在继续介绍其他概念之前，让我们回顾一下。回想一下，本教程的目标是教您如何在Django项目中添加多语言支持。在第一部分中，您设置了项目并查看了您将要构建的内容。然后，您学习了国际化和本地化之间的区别，以及Django国际化框架是如何工作的。最后，我们将项目配置为允许多语言支持，并看到了它的实际应用:</p>
+<ol>
+<li>为我们的Django项目增加了国际化</li>
+<li>设置我们希望项目可用的语言</li>
+<li>通过<code>gettext_lazy</code>生成消息文件</li>
+<li>手动添加翻译</li>
+<li>编译了翻译</li>
+</ol>
+<h2 id="translating-templates-models-and-forms">翻译模板、模型和表单</h2>
+<p>您可以通过使用<code>gettext</code>或<code>gettext_lazy</code>函数将模型字段名称和表单标记为翻译来翻译它们:</p>
+<p>像这样编辑<em> course/models.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+<span class="kn">from</span> <span class="nn">django.utils.translation</span> <span class="kn">import</span> <span class="n">gettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+<span class="k">class</span> <span class="nc">Course</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s1">'title'</span><span class="p">),</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s1">'description'</span><span class="p">))</span>
+    <span class="n">date</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateField</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s1">'date'</span><span class="p">))</span>
+    <span class="n">price</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s1">'price'</span><span class="p">),</span> <span class="n">max_digits</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ django-admin makemessages --all --ignore<span class="o">=</span>env
+</code></pre></div>
+
+<p>随意手动或使用Poedit界面更新法语和西班牙语的<code>msgstr</code>翻译，然后编译消息</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ django-admin compilemessages --ignore<span class="o">=</span>env
+</code></pre></div>
+
+<p>我们也可以通过添加标签来为表单做这件事。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django</span> <span class="kn">import</span> <span class="n">forms</span>
+<span class="kn">from</span> <span class="nn">django.utils.translation</span> <span class="kn">import</span> <span class="n">gettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+<span class="k">class</span> <span class="nc">ExampleForm</span><span class="p">(</span><span class="n">forms</span><span class="o">.</span><span class="n">Form</span><span class="p">):</span>
+    <span class="n">first_name</span> <span class="o">=</span> <span class="n">forms</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="n">_</span><span class="p">(</span><span class="s1">'first name'</span><span class="p">))</span>
+</code></pre></div>
+
+<p>为了翻译我们的模板，Django提供了<code>{% trans %}</code>和<code>{% blocktrans %}</code>模板标签来翻译字符串。你必须在HTML文件的顶部添加<code>{% load i18n %}</code>来使用翻译模板标签。</p>
+<p><code>{% trans %}</code>模板标签允许你标记一个要翻译的文字。Django只是在内部对给定的文本执行<code>gettext</code>函数。</p>
+<p><code>{% trans %}</code>标签对于简单的翻译字符串很有用，但是它不能处理包含变量的翻译内容。</p>
+<p>另一方面，<code>{% blocktrans %}</code>模板标签允许您标记包含文字和变量的内容。</p>
+<p>更新<em>course/templates/index . html</em>文件中的以下元素以查看其运行情况:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>{% trans "TestDriven.io Courses" %}<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>不要忘记在文件的顶部添加<code>{% load i18n %}</code>。</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ django-admin makemessages --all --ignore<span class="o">=</span>env
+</code></pre></div>
+
+<p>更新以下<code>msgstr</code>翻译:</p>
+<div class="codehilite"><pre><span/><code># locale/fr/LC_MESSAGES/django.po
+
+msgid "TestDriven.io Courses"
+msgstr "Cours TestDriven.io"
+
+
+# locale/es/LC_MESSAGES/django.po
+
+msgid "TestDriven.io Courses"
+msgstr "Cursos de TestDriven.io"
+</code></pre></div>
+
+<p>编译消息:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ django-admin compilemessages --ignore<span class="o">=</span>env
+</code></pre></div>
+
+<h2 id="using-rosetta-translation-interface">使用Rosetta翻译接口</h2>
+<p>我们将使用名为<a href="https://github.com/mbi/django-rosetta"> Rosetta </a>的第三方库，使用与Django管理站点相同的界面来编辑翻译。编辑<em>很容易。po </em>文件，它会自动为您更新编译好的翻译文件。</p>
+<p>Rosetta已经作为依赖项的一部分安装；因此，您只需将它添加到您已安装的应用程序中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'course.apps.CourseConfig'</span><span class="p">,</span>
+    <span class="s1">'rosetta'</span><span class="p">,</span>  <span class="c1"># NEW</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>您还需要将Rosetta的URL添加到主URL配置中的<em> django_lang/urls.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'rosetta/'</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'rosetta.urls'</span><span class="p">)),</span>  <span class="c1"># NEW</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'course.urls'</span><span class="p">)),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>创建并应用迁移，然后运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>确保您以管理员身份登录，然后在浏览器中导航至<a href="http://127.0.0.1:8000/rosetta/">http://127 . 0 . 0 . 1:8000/Rosetta/</a>:</p>
+<p><img data-src="/static/images/blog/django/multiple-languages-in-django/rosetta_homepage.png" loading="lazy" class="lazyload" alt="Rosetta Homepage" src="../Images/b9430e922902f8add214a3a5e46ea4f7.png" data-original-src="https://testdriven.io/static/images/blog/django/multiple-languages-in-django/rosetta_homepage.png"/></p>
+<p>在项目下，单击每个应用程序以编辑翻译。</p>
+<p><img data-src="/static/images/blog/django/multiple-languages-in-django/rosetta_french.png" loading="lazy" class="lazyload" alt="Rosetta French" src="../Images/281c2852041dd593730b66dde3d2fb3e.png" data-original-src="https://testdriven.io/static/images/blog/django/multiple-languages-in-django/rosetta_french.png"/></p>
+<p>编辑完翻译后，点击“保存并翻译下一个模块”按钮，将翻译保存到各自的<em>中。po </em>文件。Rosetta然后会编译消息文件，所以不需要手动运行<code>django-admin compilemessages --ignore=env</code>命令。</p>
+<blockquote>
+<p>请注意，在生产环境中添加新的翻译后，您必须在运行<code>django-admin compilemessages --ignore=env</code>命令或使用Rosetta保存翻译后重新加载您的服务器，以使更改生效。</p>
+</blockquote>
+<h2 id="add-language-prefix-to-urls">向URL添加语言前缀</h2>
+<p>使用Django的国际化框架，您可以在不同的URL扩展下提供每种语言版本。例如，你网站的英文版可以放在<code>/en/</code>下，法文版放在<code>/fr/</code>下，等等。这种方法使网站针对搜索引擎进行了优化，因为每个URL都将针对每种语言进行索引，这反过来将对每种语言进行更好的排名。为此，Django国际化框架需要从请求的URL中识别当前语言；因此，<code>LocalMiddleware</code>需要添加到您项目的<code>MIDDLEWARE</code>设置中，我们已经完成了。</p>
+<p>接下来，将<code>i18n_patterns</code>函数添加到<em> django_lang/urls.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.conf.urls.i18n</span> <span class="kn">import</span> <span class="n">i18n_patterns</span>
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span><span class="p">,</span> <span class="n">include</span>
+<span class="kn">from</span> <span class="nn">django.utils.translation</span> <span class="kn">import</span> <span class="n">gettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="n">i18n_patterns</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">),</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'rosetta/'</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'rosetta.urls'</span><span class="p">)),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'course.urls'</span><span class="p">)),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>再次运行开发服务器，并在浏览器中导航到<a href="http://127.0.0.1:8000/"> http://127.0.0.1:8000/ </a>。您将被重定向到所请求的URL，并带有相应的语言前缀。看看你浏览器里的网址；它现在应该看起来像<a href="http://127.0.0.1:8000/en/">http://127 . 0 . 0 . 1:8000/en/</a>。</p>
+<blockquote>
+<p>将请求的URL从<code>en</code>更改为<code>fr</code>或<code>es</code>。标题应该改变。</p>
+</blockquote>
+<h2 id="translating-models-with-django-parler">用django-parler翻译模型</h2>
+<p>Django的国际化框架不支持开箱即用的模型翻译，所以我们将使用名为<a href="https://github.com/django-parler/django-parler"> django-parler </a>的第三方库。有许多<a href="https://djangopackages.org/grids/g/model-translation/">插件</a>执行这个功能；不过，这是比较受欢迎的一种。</p>
+<p>它是如何工作的？</p>
+<p>django-parler将为每个包含翻译的模型创建一个单独的数据库表。此表包括所有已翻译的字段。它还有一个外键来链接到原始对象。</p>
+<p>django-parler已经作为依赖项的一部分安装，所以只需将其添加到您已安装的应用程序中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'course.apps.CourseConfig'</span><span class="p">,</span>
+    <span class="s1">'rosetta'</span><span class="p">,</span>
+    <span class="s1">'parler'</span><span class="p">,</span>  <span class="c1"># NEW</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>另外，将以下代码添加到您的设置中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">PARLER_LANGUAGES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="kc">None</span><span class="p">:</span> <span class="p">(</span>
+        <span class="p">{</span><span class="s1">'code'</span><span class="p">:</span> <span class="s1">'en'</span><span class="p">,},</span> <span class="c1"># English</span>
+        <span class="p">{</span><span class="s1">'code'</span><span class="p">:</span> <span class="s1">'fr'</span><span class="p">,},</span> <span class="c1"># French</span>
+        <span class="p">{</span><span class="s1">'code'</span><span class="p">:</span> <span class="s1">'es'</span><span class="p">,},</span> <span class="c1"># Spanish</span>
+    <span class="p">),</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'fallbacks'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'en'</span><span class="p">],</span>
+        <span class="s1">'hide_untranslated'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>在这里，您为django-parler定义了可用的语言(英语、法语、西班牙语)。您还指定英语为默认语言，并指出django-parler不应该<a href="https://django-parler.readthedocs.io/en/stable/configuration.html#parler-languages">隐藏未翻译的内容</a>。</p>
+<p><strong>知道什么？</strong></p>
+<ol>
+<li>django-parler提供了一个<code>TranslatableModel</code>模型类和一个<code>TranslatedFields</code>包装器来翻译模型字段。</li>
+<li>django-parler通过为每个可翻译模型生成另一个模型来管理翻译。</li>
+</ol>
+<blockquote>
+<p>注意，因为Django使用单独的表进行翻译，所以有些Django特性是不能使用的。此外，该迁移将删除数据库中以前的记录。</p>
+</blockquote>
+<p>再次更新<em> course/models.py </em>如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+<span class="kn">from</span> <span class="nn">parler.models</span> <span class="kn">import</span> <span class="n">TranslatableModel</span><span class="p">,</span> <span class="n">TranslatedFields</span>
+
+
+<span class="k">class</span> <span class="nc">Course</span><span class="p">(</span><span class="n">TranslatableModel</span><span class="p">):</span>
+    <span class="n">translations</span> <span class="o">=</span> <span class="n">TranslatedFields</span><span class="p">(</span>
+        <span class="n">title</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">90</span><span class="p">),</span>
+        <span class="n">description</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(),</span>
+        <span class="n">date</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">DateField</span><span class="p">(),</span>
+        <span class="n">price</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span>
+</code></pre></div>
+
+<p>接下来，创建迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations
+</code></pre></div>
+
+<p>继续之前，替换新创建的迁移文件中的以下行:</p>
+<div class="codehilite"><pre><span/><code><span class="n">bases</span><span class="o">=</span><span class="p">(</span><span class="n">parler</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">TranslatedFieldsModelMixin</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">),</span>
+</code></pre></div>
+
+<p>用下面的一个:</p>
+<div class="codehilite"><pre><span/><code><span class="n">bases</span> <span class="o">=</span> <span class="p">(</span><span class="n">parler</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">TranslatableModel</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>在django-parler中发现了一个我们刚刚解决的小问题。不这样做将会阻止迁移的应用。</p>
+</blockquote>
+<p>接下来，应用迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>django_parler的一个令人惊叹的特性是它可以与django管理站点顺利集成。它包含一个<code>TranslatableAdmin</code>类，覆盖了Django提供的用于管理翻译的<code>ModelAdmin</code>类。</p>
+<p>编辑<em> course/admin.py </em>如下:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">parler.admin</span> <span class="kn">import</span> <span class="n">TranslatableAdmin</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Course</span>
+
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Course</span><span class="p">,</span> <span class="n">TranslatableAdmin</span><span class="p">)</span>
+</code></pre></div>
+
+<p>运行以下管理命令，再次向数据库添加一些数据:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py add_courses
+</code></pre></div>
+
+<p>运行服务器，然后在浏览器中导航到<a href="http://127.0.0.1:8000/admin/">http://127 . 0 . 0 . 1:8000/admin/</a>。选择其中一门课程。对于每门课程，每种语言都有一个单独的字段。</p>
+<p><img data-src="/static/images/blog/django/multiple-languages-in-django/djago_parler.png" loading="lazy" class="lazyload" alt="Django Parler Example" src="../Images/d2c50484a38e071d0d4f766ad4dc33f7.png" data-original-src="https://testdriven.io/static/images/blog/django/multiple-languages-in-django/djago_parler.png"/></p>
+<blockquote>
+<p>请注意，对于django-parler可以为我们实现的功能，我们仅仅触及了皮毛。请参考<a href="https://django-parler.readthedocs.io/en/stable/index.html">文档</a>了解更多信息。</p>
+</blockquote>
+<h2 id="allowing-users-to-switch-languages">允许用户切换语言</h2>
+<p>在这一节中，我们将展示如何允许用户在我们的主页上切换语言。</p>
+<p>更新<em>index.html</em>文件是这样的:</p>
+<div class="codehilite"><pre><span/><code>{% load i18n %}
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"UTF-8"</span> <span class="p">/&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">http-equiv</span><span class="o">=</span><span class="s">"X-UA-Compatible"</span> <span class="na">content</span><span class="o">=</span><span class="s">"IE=edge"</span> <span class="p">/&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1.0"</span> <span class="p">/&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span>
+      <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ea8885859e999e988b9aaadfc4dac4d8">[email protected]</a>/dist/css/bootstrap.min.css"</span>
+      <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span>
+      <span class="na">integrity</span><span class="o">=</span><span class="s">"sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"</span>
+      <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span>
+    <span class="p">/&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>TestDriven.io<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">style</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="nt">h1</span><span class="o">,</span><span class="w"> </span><span class="nt">h3</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">color</span><span class="p">:</span><span class="w"> </span><span class="mh">#266150</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="nt">li</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">display</span><span class="p">:</span><span class="w"> </span><span class="kc">inline</span><span class="p">;</span><span class="w"/>
+<span class="w">          </span><span class="k">text-decoration</span><span class="p">:</span><span class="w"> </span><span class="kc">none</span><span class="p">;</span><span class="w"/>
+<span class="w">          </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="kt">px</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="nt">a</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">text-decoration</span><span class="p">:</span><span class="w"> </span><span class="kc">none</span><span class="p">;</span><span class="w"/>
+<span class="w">          </span><span class="k">color</span><span class="p">:</span><span class="w"> </span><span class="mh">#DDAF94</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="nt">a</span><span class="p">:</span><span class="nd">hover</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">color</span><span class="p">:</span><span class="w"> </span><span class="mh">#4F4846</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="p">.</span><span class="nc">active</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#266150</span><span class="p">;</span><span class="w"/>
+<span class="w">          </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="kt">px</span><span class="p">;</span><span class="w"/>
+<span class="w">          </span><span class="k">text-align</span><span class="p">:</span><span class="w"> </span><span class="kc">right</span><span class="p">;</span><span class="w"/>
+<span class="w">          </span><span class="k">border-radius</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="kt">px</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">      </span><span class="p">&lt;/</span><span class="nt">style</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>{% trans "TestDriven.io Courses" %}<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+
+      {% get_current_language as CURRENT_LANGUAGE %}
+      {% get_available_languages as AVAILABLE_LANGUAGES %}
+      {% get_language_info_list for AVAILABLE_LANGUAGES as languages %}
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"languages"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>{% trans "Language" %}:<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">ul</span> <span class="na">class</span><span class="o">=</span><span class="s">"languages"</span><span class="p">&gt;</span>
+          {% for language in languages %}
+            <span class="p">&lt;</span><span class="nt">li</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"/{{ language.code }}/"</span>
+                <span class="err">{%</span> <span class="na">if</span> <span class="na">language</span><span class="err">.</span><span class="na">code </span><span class="o">=</span><span class="s">=</span> <span class="na">CURRENT_LANGUAGE</span> <span class="err">%}</span> <span class="na">class</span><span class="o">=</span><span class="s">"active"</span><span class="err">{%</span> <span class="na">endif</span> <span class="err">%}</span><span class="p">&gt;</span>
+                {{ language.name_local }}
+              <span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">li</span><span class="p">&gt;</span>
+          {% endfor %}
+        <span class="p">&lt;/</span><span class="nt">ul</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+
+      {% for course in courses %}
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card p-4"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">h3</span><span class="p">&gt;</span>
+            {{ course.title }}
+            <span class="p">&lt;</span><span class="nt">em</span> <span class="na">style</span><span class="o">=</span><span class="s">"font-size: small"</span><span class="p">&gt;</span>{{ course.date }}<span class="p">&lt;/</span><span class="nt">em</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">h3</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>{{ course.description }}<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">strong</span><span class="p">&gt;</span>Price: $ {{ course.price }}<span class="p">&lt;/</span><span class="nt">strong</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">hr</span> <span class="p">/&gt;</span>
+      {% empty %}
+        <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Database is empty<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+      {% endfor %}
+
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>这里发生了什么事？</p>
+<p>我们:</p>
+<ol>
+<li>使用<code>{% load i18n %}</code>加载国际化标签。</li>
+<li>使用<code>{% get_current_language %}</code>标签检索当前语言。</li>
+<li>还通过<code>{% get_available_languages %}</code>模板标签获得了在<code>LANGUAGES</code>设置中定义的可用语言。</li>
+<li>然后使用<code>{% get_language_info_list %}</code>标签来启用语言属性。</li>
+<li>构建了一个HTML列表来显示所有可用的语言，并向当前活动的语言添加了一个active class属性来突出显示活动的语言。</li>
+</ol>
+<p>在您的浏览器中导航到<a href="http://127.0.0.1:8000/"> http://127.0.0.1:8000/ </a>以查看更改。在多种语言之间切换，并注意每种语言的URL前缀是如何变化的。</p>
+<h2 id="add-locale-support">添加区域设置支持</h2>
+<p>还记得我们如何将<code>USE_L10N</code>设置为<code>True</code>吗？这样，每当Django在模板中输出一个值时，它都会尝试使用特定于地区的格式。因此，根据用户的区域设置，日期、时间和数字将采用不同的格式。</p>
+<p>在浏览器中导航回<a href="http://127.0.0.1:8000/"> http://127.0.0.1:8000/ </a>以查看更改，您会注意到日期格式发生了变化。十进制数字在英文版的网站上显示，小数点位置用点分隔，而在西班牙文和法文版的网站上，则用逗号分隔。这是由于每种语言的地区格式不同。</p>
+<p><img data-src="/static/images/blog/django/multiple-languages-in-django/example_2.png" loading="lazy" class="lazyload" alt="Example App" src="../Images/46d94e4e6a1cebb727159da8fe406210.png" data-original-src="https://testdriven.io/static/images/blog/django/multiple-languages-in-django/example_2.png"/></p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，您了解了国际化和本地化，以及如何通过Django的国际化框架为国际化配置Django项目。我们还使用Rosetta来简化消息文件的更新和编译，使用django-parler来翻译我们的模型。</p>
+<p>从GitHub上的django-lang repo获取完整的代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

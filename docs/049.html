@@ -1,0 +1,467 @@
+<html>
+<head>
+<title>Building a Single Page Application with Python and Pyodide - Part 2 </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Python和Pyodide构建单页面应用程序——第2部分</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/build-spa-with-python-part-2/#0001-01-01">https://testdriven.io/blog/build-spa-with-python-part-2/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本系列的第一篇教程中，我们使用Python和Pyodide构建了一个单页面应用程序来加载Pandas，获取网飞数据集，并对数据执行基本计算。我们还研究了如何使用Pyodide通过Python直接操作DOM。在我们构建的应用程序中，我们将经过处理的网飞数据传递给一个JavaScript组件，并直接从Python代码中呈现出来。</p>
+<p>正如在第一部分的结论中提到的，应用程序缺少一些特性，我们需要解决一些问题。在第二部分中，我们将:</p>
+<ol>
+<li>用熊猫更好地分析和处理数据</li>
+<li>使用web worker来加速应用程序</li>
+</ol>
+<p>--</p>
+<p><strong> Python单页面应用系列:</strong></p>
+<ol>
+<li><em> <a href="/blog/build-spa-with-python-part-1">第1部分</a> </em>:学习Pyodide的基础知识，创建基础应用</li>
+<li><em>第二部分</em>(本教程！):使用Pandas分析和操作数据，并使用web worker来加速应用程序</li>
+<li><em> <a href="/blog/build-spa-with-python-part-3">第三部分</a> </em>:创建Python包，添加附加特性，添加持久化数据层</li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>使用Pandas的更多高级功能来分析和处理数据</li>
+<li>使用web workers改善用户体验和性能</li>
+</ol>
+<h2 id="what-were-building">我们正在建造的东西</h2>
+<p>首先，我们将通过使用一个<a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers"> web worker </a>来改善用户体验和应用程序性能。我们还将深入熊猫图书馆，分析和处理网飞数据，以便根据给定的标题创建推荐，并添加随机的电影和表演事实。</p>
+<p><img data-src="/static/images/blog/build-spa-with-python/sample_app_part_2.png" loading="lazy" class="lazyload" alt="Sample App" src="../Images/656ad8c4421f870305e03f669d5fa5a6.png" data-original-src="https://testdriven.io/static/images/blog/build-spa-with-python/sample_app_part_2.png"/></p>
+<p>你可以在这里找到该应用<a href="https://netflix-analysis-spa-part-2.onrender.com">的现场演示。</a></p>
+<h2 id="analyzing-netflix-dataset-with-pandas">用熊猫分析网飞数据集</h2>
+<p>在第一部分中，加载网飞CSV文件后，我们删除了一些不必要的列，并将结果作为JSON返回。如您所见，我们还没有对数据进行太多的分析或处理。我们现在就来看看。</p>
+<p>如果你需要第一部分的代码，你可以在这里找到它。</p>
+<h3 id="create-recommendation-list">创建推荐列表</h3>
+<p><a href="https://github.com/amirtds/netflix-analysis-spa/blob/part-1/index.html#L105">净化的数据帧</a>有以下几列:</p>
+<ul>
+<li>身份证明（identification）</li>
+<li>标题</li>
+<li>发布年份</li>
+<li>体裁</li>
+<li>生产_国家</li>
+<li>imdb_score</li>
+<li>imdb _投票</li>
+<li>tmdb_score</li>
+<li>tmdb _人气</li>
+</ul>
+<p>让我们为使用熊猫的电影和节目创建一个推荐列表。为此，我们将向DataFrame添加一个名为<code>recommendation_score</code>的新列，其值是<code>imdb_votes</code>、<code>imdb_score</code>、<code>tmdb_score</code>和<code>tmdb_popularity</code>的加权和:</p>
+<div class="codehilite"><pre><span/><code><span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"recommendation_score"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_votes"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_popularity"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>在您选择的代码编辑器中打开<em>index.html</em>文件，并在<code>titles_list = sanitized_titles.head(10).to_json(orient="records")</code>后添加以下代码</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># 4. Create recommendation list for Shows and Movies</span>
+<span class="c1"># 4.1 Copy the sanitized_titles to add new column to it</span>
+<span class="n">recommended_titles</span> <span class="o">=</span> <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+<span class="c1"># 4.2 Add new column to the sanitized_titles</span>
+<span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"recommendation_score"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_votes"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_popularity"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">recommended_titles</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+</code></pre></div>
+
+<p>在浏览器中打开文件。然后，在你浏览器的<a href="https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_are_browser_developer_tools">开发者工具</a>的控制台中，你应该会看到前五个标题。注意<code>recommendation_score</code>栏:</p>
+<div class="codehilite"><pre><span/><code>      id                            title  ... tmdb_score recommendation_score
+ tm84618                      Taxi Driver  ...        8.2          238576.2524
+tm127384  Monty Python and the Holy Grail  ...        7.8          159270.7632
+ tm70993                    Life of Brian  ...        7.8          117733.1610
+tm190788                     The Exorcist  ...        7.7          117605.6374
+ ts22164     Monty Python's Flying Circus  ...        8.3           21875.3838
+</code></pre></div>
+
+<p>这样，让我们创建两个新的数据帧，一个用于电影，另一个用于节目，然后按<code>recommendation_score</code>降序排序:</p>
+<div class="codehilite"><pre><span/><code><span class="n">recommended_movies</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">recommended_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"MOVIE"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s2">"recommendation_score"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">recommended_shows</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">recommended_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SHOW"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s2">"recommendation_score"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们使用了<a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.loc.html"> loc </a>和<a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.sort_values.html"> sort_values </a>方法，分别按照<code>type</code>列过滤标题和按照<code>recommendation_score</code>降序排序。</p>
+<p>用这些新列表替换<code>print(recommended_titles.head(5))</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># 4. Create recommendation list for Shows and Movies</span>
+<span class="c1"># 4.1 Copy the sanitized_titles to add new column to it</span>
+<span class="n">recommended_titles</span> <span class="o">=</span> <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+<span class="c1"># 4.2 Add new column to the sanitized_titles</span>
+<span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"recommendation_score"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_votes"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span> <span class="o">+</span>
+    <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_popularity"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span>
+<span class="p">)</span>
+<span class="n">recommended_movies</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">recommended_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"MOVIE"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s2">"recommendation_score"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">recommended_shows</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">recommended_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SHOW"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s2">"recommendation_score"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>要在我们的应用程序中使用这些列表，首先我们需要向<code>App</code>的状态添加新的键，以便能够保存和操作数据:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">titles</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">recommendedMovies</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">recommendedShows</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，为了更新状态，在<code>js.window.appComponent.state.titles = titles_list</code>之后添加以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">recommendedMovies</span> <span class="o">=</span> <span class="n">recommended_movies</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">recommendedShows</span> <span class="o">=</span> <span class="n">recommended_shows</span>
+</code></pre></div>
+
+<p>最后，为了向最终用户显示建议，将以下内容添加到<code>view()</code>，就在<code>&lt;!-- End of Titles --!&gt;</code>行的下面:</p>
+<div class="codehilite"><pre><span/><code><span class="c">&lt;!--</span><span class="w"> </span><span class="nx">Start</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">title</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+<span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"flex"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="c">&lt;!--</span><span class="w"> </span><span class="nx">Start</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">title</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"px-4 sm:px-6 lg:px-8 my-8 w-1/2"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">p</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"text-4xl font-semibold text-slate-100"</span><span class="o">&gt;</span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">Movies</span><span class="o">&lt;</span><span class="err">/p&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">ul</span><span class="w"> </span><span class="nx">role</span><span class="o">=</span><span class="s2">"list"</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"divide-y divide-gray-200"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="p">).</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">movie</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">return</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">            &lt;li class="relative bg-white py-5 px-4 hover:bg-gray-50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600 rounded-md my-2"&gt;</span>
+<span class="sb">              &lt;div class="flex justify-between space-x-3"&gt;</span>
+<span class="sb">                &lt;div class="min-w-0 flex-1"&gt;</span>
+<span class="sb">                  &lt;p class="text-sm font-semibold text-gray-900 truncate"&gt;</span><span class="si">${</span><span class="nx">movie</span><span class="p">.</span><span class="nx">title</span><span class="si">}</span><span class="sb">&lt;/p&gt;</span>
+<span class="sb">                  &lt;p class="text-sm text-gray-500 truncate"&gt;</span><span class="si">${</span><span class="nx">movie</span><span class="p">.</span><span class="nx">description</span><span class="si">}</span><span class="sb">&lt;/p&gt;</span>
+<span class="sb">                &lt;/div&gt;</span>
+<span class="sb">                &lt;time datetime="" class="flex-shrink-0 whitespace-nowrap text-sm text-gray-500"&gt;</span><span class="si">${</span><span class="nx">movie</span><span class="p">.</span><span class="nx">release_year</span><span class="si">}</span><span class="sb">&lt;/time&gt;</span>
+<span class="sb">              &lt;/div&gt;</span>
+<span class="sb">            &lt;/li&gt;</span>
+<span class="sb">            `</span><span class="w"/>
+<span class="w">        </span><span class="p">}).</span><span class="nx">join</span><span class="p">(</span><span class="s1">''</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">          &lt;li class="relative bg-white py-5 px-4 hover:bg-gray-50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600"&gt;</span>
+<span class="sb">            &lt;div class="flex justify-between space-x-3"&gt;</span>
+<span class="sb">              &lt;div class="min-w-0 flex-1"&gt;</span>
+<span class="sb">                &lt;p class="text-sm font-medium text-gray-900 truncate"&gt;Loading...&lt;/p&gt;</span>
+<span class="sb">              &lt;/div&gt;</span>
+<span class="sb">            &lt;/div&gt;</span>
+<span class="sb">          &lt;/li&gt;</span>
+<span class="sb">        &lt;/ul&gt;</span>
+<span class="sb">        `</span><span class="w"/>
+<span class="w">      </span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">    </span><span class="c">&lt;!--</span><span class="w"> </span><span class="nx">End</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">titles</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+
+<span class="w">    </span><span class="c">&lt;!--</span><span class="w"> </span><span class="nx">Start</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">Shows</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"px-4 sm:px-6 lg:px-8 my-8 w-1/2"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">p</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"text-4xl font-semibold text-slate-100"</span><span class="o">&gt;</span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">Shows</span><span class="o">&lt;</span><span class="err">/p&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">ul</span><span class="w"> </span><span class="nx">role</span><span class="o">=</span><span class="s2">"list"</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"divide-y divide-gray-200"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="p">).</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">show</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="k">return</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">            &lt;li class="relative bg-white py-5 px-4 hover:bg-gray-50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600 rounded-md my-2"&gt;</span>
+<span class="sb">              &lt;div class="flex justify-between space-x-3"&gt;</span>
+<span class="sb">                &lt;div class="min-w-0 flex-1"&gt;</span>
+<span class="sb">                  &lt;p class="text-sm font-semibold text-gray-900 truncate"&gt;</span><span class="si">${</span><span class="nx">show</span><span class="p">.</span><span class="nx">title</span><span class="si">}</span><span class="sb">&lt;/p&gt;</span>
+<span class="sb">                  &lt;p class="text-sm text-gray-500 truncate"&gt;</span><span class="si">${</span><span class="nx">show</span><span class="p">.</span><span class="nx">description</span><span class="si">}</span><span class="sb">&lt;/p&gt;</span>
+<span class="sb">                &lt;/div&gt;</span>
+<span class="sb">                &lt;time datetime="" class="flex-shrink-0 whitespace-nowrap text-sm text-gray-500"&gt;</span><span class="si">${</span><span class="nx">show</span><span class="p">.</span><span class="nx">release_year</span><span class="si">}</span><span class="sb">&lt;/time&gt;</span>
+<span class="sb">                &lt;/div&gt;</span>
+<span class="sb">              &lt;/li&gt;</span>
+<span class="sb">              `</span><span class="w"/>
+<span class="w">        </span><span class="p">}).</span><span class="nx">join</span><span class="p">(</span><span class="s1">''</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">          &lt;li class="relative bg-white py-5 px-4 hover:bg-gray-50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600"&gt;</span>
+<span class="sb">            &lt;div class="flex justify-between space-x-3"&gt;</span>
+<span class="sb">              &lt;div class="min-w-0 flex-1"&gt;</span>
+<span class="sb">                &lt;p class="text-sm font-medium text-gray-900 truncate"&gt;Loading...&lt;/p&gt;</span>
+<span class="sb">              &lt;/div&gt;</span>
+<span class="sb">            &lt;/div&gt;</span>
+<span class="sb">          &lt;/li&gt;</span>
+<span class="sb">        &lt;/ul&gt;</span>
+<span class="sb">      `</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">    </span><span class="c">&lt;!--</span><span class="w"> </span><span class="nx">Start</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">shows</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+<span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="c">&lt;!--</span><span class="w"> </span><span class="nx">End</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Recommended</span><span class="w"> </span><span class="nx">titles</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+</code></pre></div>
+
+<p>回到您的浏览器，您现在应该可以看到推荐的电影和节目。</p>
+<h3 id="movie-and-show-facts">电影和表演事实</h3>
+<p>在本节中，我们将从Python代码开始查找制作最多电影和节目的年份:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># 5. Movie and Show Facts</span>
+
+<span class="n">facts_movies</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"MOVIE"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"release_year"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">count</span><span class="p">()[</span><span class="s2">"id"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"table"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">facts_shows</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SHOW"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"release_year"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">count</span><span class="p">()[</span><span class="s2">"id"</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"table"</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们使用了:</p>
+<ol>
+<li><a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.groupby.html"> groupby </a>方法将标题按<code>release_year</code>分组。</li>
+<li><a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.count.html"> count </a>统计每年的冠军数量。</li>
+<li><a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.sort_values.html"> sort_values </a>按每年的书目数量降序排列书目。</li>
+</ol>
+<p>将上面的代码添加到<em>index.html</em>文件中，就在推荐部分的下面。</p>
+<p>再次更新<code>App</code>的状态:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">titles</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">recommendedMovies</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">recommendedShows</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">factsMovies</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">factsShows</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>更新状态:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># 6. set titles to first 10 titles to the state, update remaining state, and render</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">titles</span> <span class="o">=</span> <span class="n">titles_list</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">recommendedMovies</span> <span class="o">=</span> <span class="n">recommended_movies</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">recommendedShows</span> <span class="o">=</span> <span class="n">recommended_shows</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">factsMovies</span> <span class="o">=</span> <span class="n">facts_movies</span>   <span class="c1"># NEW</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">factsShows</span> <span class="o">=</span> <span class="n">facts_shows</span>     <span class="c1"># NEW</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+</code></pre></div>
+
+<p>通过在<code>&lt;!-- End of Recommended Shows --!&gt;</code>之后添加以下内容再次更新<code>view()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c">&lt;!--</span><span class="w"> </span><span class="nx">Start</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Facts</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+<span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"px-4 sm:px-6 lg:px-8 my-8"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">div</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">h3</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"text-4xl font-semibold text-slate-100"</span><span class="o">&gt;</span><span class="nx">Interesting</span><span class="w"> </span><span class="nx">Facts</span><span class="o">&lt;</span><span class="err">/h3&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">dl</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"px-4 py-5 bg-white shadow rounded-lg overflow-hidden sm:p-6"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"/>
+<span class="w">          </span><span class="sb">`</span>
+<span class="sb">            &lt;dt class="text-sm font-medium text-gray-500 truncate"&gt;Movies produced in </span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="p">).</span><span class="nx">data</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">release_year</span><span class="si">}</span><span class="sb">&lt;/dt&gt;</span>
+<span class="sb">            &lt;dd class="mt-1 text-3xl font-semibold text-gray-900"&gt;</span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="p">).</span><span class="nx">data</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">id</span><span class="si">}</span><span class="sb">&lt;/dd&gt;</span>
+<span class="sb">          `</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">            Loading...</span>
+<span class="sb">          `</span><span class="p">}</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"px-4 py-5 bg-white shadow rounded-lg overflow-hidden sm:p-6"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"/>
+<span class="w">          </span><span class="sb">`</span>
+<span class="sb">            &lt;dt class="text-sm font-medium text-gray-500 truncate"&gt;Shows produced in </span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="p">).</span><span class="nx">data</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">release_year</span><span class="si">}</span><span class="sb">&lt;/dt&gt;</span>
+<span class="sb">            &lt;dd class="mt-1 text-3xl font-semibold text-gray-900"&gt;</span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="p">).</span><span class="nx">data</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">id</span><span class="si">}</span><span class="sb">&lt;/dd&gt;</span>
+<span class="sb">          `</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">            Loading...</span>
+<span class="sb">          `</span><span class="p">}</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/dl&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="c">&lt;!--</span><span class="w"> </span><span class="nx">End</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">Facts</span><span class="w"> </span><span class="o">--!&gt;</span><span class="w"/>
+</code></pre></div>
+
+<p>在浏览器中重新加载<em>index.html</em>页面。您应该看到有趣的事实部分，其中显示了制作最多电影和节目的年份中制作的电影和节目的数量。</p>
+<h2 id="improve-performance">提高性能</h2>
+<p>当前实现的一个问题是，我们将昂贵的操作放在浏览器的主线程中。这样做的后果是，在Pyodide完成加载和执行代码之前，其他操作将被阻塞。这可能会对应用程序的性能和用户体验产生负面影响。</p>
+<h3 id="web-workers">网络工作者</h3>
+<p>为了解决这个问题，我们可以使用<a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers"> web workers </a>将繁重的操作——在本例中是Pyodide和Python脚本——卸载到后台的一个独立线程，让浏览器的主线程继续运行其他操作，而不会变慢或被锁定。</p>
+<p>网络工作者的主要组成部分是:</p>
+<ol>
+<li>Worker() 构造函数:创建一个web worker的新实例，我们可以将一个脚本传递给它，它将在一个单独的线程中运行</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Worker/message_event"> onmessage() </a>事件:当worker收到另一个线程的消息时触发</li>
+<li>方法:向工作人员发送一条消息</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Worker/terminate"> terminate() </a>方法:终止工人</li>
+</ol>
+<p>让我们看一个简单的例子。</p>
+<p>在项目的根目录下创建一个名为<em> worker.js </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">self</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">message</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>这个文件包含了工人将要运行的代码。</p>
+<p>在index.html的<em>中创建一个新的<code>script</code>标记，就在结束<code>body</code>标记之前:</em></p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">worker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Worker</span><span class="p">(</span><span class="s2">"./worker.js"</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">worker</span><span class="p">.</span><span class="nx">postMessage</span><span class="p">(</span><span class="s2">"Hello from the main thread!"</span><span class="p">);</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>由于安全原因，web worker文件不能使用<code>file://</code>协议从您的本地文件系统导入。我们需要运行一个本地web服务器来运行这个项目。在终端中，导航到项目的根目录。然后，运行Python的<a href="https://docs.python.org/3/library/http.server.html"> http服务器</a>:</p>
+
+
+<p>在服务器运行的情况下，在浏览器中导航至<a href="http://localhost:8000/"> http://localhost:8000/ </a>。您应该在开发人员控制台中看到<code>Hello from the main thread!</code>。</p>
+<h3 id="move-pyodide-to-a-web-worker">将Pyodide移至网络工作者</h3>
+<p>我们在这一部分的目标是:</p>
+<ol>
+<li>在web worker中加载并初始化Pyodide及其包</li>
+<li>在web worker中运行我们的Python脚本，并将结果发送到主线程，以便进行渲染</li>
+</ol>
+<p>首先，删除函数定义并调用<em>index.html</em>中的<code>main()</code>。然后，将<em> worker.js </em>中的所有代码替换为:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// load pyodide.js</span><span class="w"/>
+<span class="nx">importScripts</span><span class="p">(</span><span class="s2">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// Initialize pyodide and load Pandas</span><span class="w"/>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">initialize</span><span class="p">(){</span><span class="w"/>
+<span class="w">  </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">loadPackage</span><span class="p">(</span><span class="s2">"pandas"</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">let</span><span class="w"> </span><span class="nx">initialized</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">initialize</span><span class="p">();</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，将以下代码添加到<em> worker.js </em>文件中，以便在worker初始化时运行我们的脚本:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">self</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">initialized</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">fetch</span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="s2">"https://raw.githubusercontent.com/amirtds/kaggle-netflix-tv-shows-and-movies/main/titles.csv"</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">response</span><span class="p">.</span><span class="nx">ok</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">200</span><span class="w"/>
+<span class="w">    </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">text</span><span class="p">())</span><span class="w"/>
+<span class="w">    </span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">""</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="c1">// define global variable called titles to make it accessible by Python</span><span class="w"/>
+<span class="w">  </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">globals</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span><span class="s2">"titlesCSV"</span><span class="p">,</span><span class="w"> </span><span class="nx">titles</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">titlesList</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPythonAsync</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">    import pandas as pd</span>
+<span class="sb">    import io</span>
+
+<span class="sb">    # 1. create csv buffer to make it readable by pandas</span>
+<span class="sb">    csv_buffer = io.StringIO(titlesCSV)</span>
+<span class="sb">    # 2. load the csv file</span>
+<span class="sb">    all_titles = pd.read_csv(csv_buffer)</span>
+
+<span class="sb">    # 3. sanitize the data</span>
+<span class="sb">    # drop unnecessary columns</span>
+<span class="sb">    all_titles = all_titles.drop(</span>
+<span class="sb">        columns=[</span>
+<span class="sb">            "age_certification",</span>
+<span class="sb">            "seasons",</span>
+<span class="sb">            "imdb_id",</span>
+<span class="sb">        ]</span>
+<span class="sb">    )</span>
+<span class="sb">    # drop rows with null values for important columns</span>
+<span class="sb">    sanitized_titles = all_titles.dropna(</span>
+<span class="sb">        subset=[</span>
+<span class="sb">            "id",</span>
+<span class="sb">            "title",</span>
+<span class="sb">            "release_year",</span>
+<span class="sb">            "genres",</span>
+<span class="sb">            "production_countries",</span>
+<span class="sb">            "imdb_score",</span>
+<span class="sb">            "imdb_votes",</span>
+<span class="sb">            "tmdb_score",</span>
+<span class="sb">            "tmdb_popularity",</span>
+<span class="sb">        ]</span>
+<span class="sb">    )</span>
+<span class="sb">    # Convert the DataFrame to a JSON object. ('orient="records"' returns a list of objects)</span>
+<span class="sb">    titles_list = sanitized_titles.head(10).to_json(orient="records")</span>
+<span class="sb">    titles_list</span>
+<span class="sb">  `</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">recommendations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPythonAsync</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">    # Create recommendation list for Shows and Movies</span>
+<span class="sb">    # 1. Copy the sanitized_titles to add new column to it</span>
+<span class="sb">    recommended_titles = sanitized_titles.copy()</span>
+
+<span class="sb">    # 2. Add new column to the sanitized_titles</span>
+<span class="sb">    recommended_titles["recommendation_score"] = (</span>
+<span class="sb">        sanitized_titles["imdb_votes"] * 0.3 +</span>
+<span class="sb">        sanitized_titles["imdb_score"] * 0.3 +</span>
+<span class="sb">        sanitized_titles["tmdb_score"] * 0.2 +</span>
+<span class="sb">        sanitized_titles["tmdb_popularity"] * 0.2</span>
+<span class="sb">    )</span>
+<span class="sb">    # 3. Create Recommended movies list</span>
+<span class="sb">    recommended_movies = recommended_titles.loc[recommended_titles["type"] == "MOVIE"].sort_values(</span>
+<span class="sb">        by="recommendation_score", ascending=False</span>
+<span class="sb">    ).head(5).to_json(orient="records")</span>
+<span class="sb">    # 4. Create Recommended shows list</span>
+<span class="sb">    recommended_shows = recommended_titles.loc[recommended_titles["type"] == "SHOW"].sort_values(</span>
+<span class="sb">        by="recommendation_score", ascending=False</span>
+<span class="sb">    ).head(5).to_json(orient="records")</span>
+<span class="sb">    recommendations = {</span>
+<span class="sb">        "movies": recommended_movies,</span>
+<span class="sb">        "shows": recommended_shows</span>
+<span class="sb">    }</span>
+<span class="sb">    recommendations</span>
+<span class="sb">  `</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">facts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPythonAsync</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">    # Create facts list for Movies and Shows</span>
+<span class="sb">    facts_movies = sanitized_titles.loc[sanitized_titles["type"] == "MOVIE"].groupby("release_year").count()["id"].sort_values(ascending=False).head(1).to_json(orient="table")</span>
+<span class="sb">    facts_shows = sanitized_titles.loc[sanitized_titles["type"] == "SHOW"].groupby("release_year").count()["id"].sort_values(ascending=False).head(1).to_json(orient="table")</span>
+<span class="sb">    facts = {</span>
+<span class="sb">        "movies": facts_movies,</span>
+<span class="sb">        "shows": facts_shows</span>
+<span class="sb">    }</span>
+<span class="sb">    facts</span>
+<span class="sb">  `</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">self</span><span class="p">.</span><span class="nx">postMessage</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">titles</span><span class="o">:</span><span class="w"> </span><span class="nx">titlesList</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">recommendedMovies</span><span class="o">:</span><span class="w"> </span><span class="nx">recommendations</span><span class="p">.</span><span class="nx">toJs</span><span class="p">({</span><span class="w"/>
+<span class="w">      </span><span class="nx">dict_converter</span><span class="o">:</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">}).</span><span class="nx">movies</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">recommendedShows</span><span class="o">:</span><span class="w"> </span><span class="nx">recommendations</span><span class="p">.</span><span class="nx">toJs</span><span class="p">({</span><span class="w"/>
+<span class="w">      </span><span class="nx">dict_converter</span><span class="o">:</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">}).</span><span class="nx">shows</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">factsMovies</span><span class="o">:</span><span class="w"> </span><span class="nx">facts</span><span class="p">.</span><span class="nx">toJs</span><span class="p">({</span><span class="w"> </span><span class="nx">dict_converter</span><span class="o">:</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="w"> </span><span class="p">}).</span><span class="nx">movies</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">factsShows</span><span class="o">:</span><span class="w"> </span><span class="nx">facts</span><span class="p">.</span><span class="nx">toJs</span><span class="p">({</span><span class="w"> </span><span class="nx">dict_converter</span><span class="o">:</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="w"> </span><span class="p">}).</span><span class="nx">shows</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，在分析了网飞数据之后，我们使用<code>postMessage</code>将结果提交给主线程。</p>
+<p>接下来，在<em>index.html</em>文件的<code>const worker = new Worker("./worker.js");</code>之后，添加以下代码:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">worker</span><span class="p">.</span><span class="nx">postMessage</span><span class="p">(</span><span class="s2">"Running Pyodide"</span><span class="p">);</span><span class="w"/>
+<span class="nx">worker</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>停止并重启Python HTTP服务器。刷新浏览器。</p>
+<p>您应该会看到与之前相同的结果，但是Pyodide的执行和Python代码被卸载到一个单独的线程。</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们讲述了如何使用Pandas对我们的网飞标题CSV数据进行数据操作，以创建电影和节目的推荐分数和列表。我们还做了一些数据分析，以找出大多数电影和节目是在哪一年制作的。</p>
+<p>我们还通过将Pyodide和Python代码的执行转移到一个web worker来提高我们的应用程序性能。</p>
+<p>你可以在这里找到这个教程<a href="https://github.com/amirtds/netflix-analysis-spa/tree/part-2">的源代码。</a></p>
+<p>在下一个教程中，我们将为我们的应用程序添加更多的SPA特性，比如删除和编辑电影和节目。我们还将添加一个持久性数据层，这样远程数据只需被提取一次。</p>
+<p>--</p>
+<p><strong> Python单页面应用系列:</strong></p>
+<ol>
+<li><em> <a href="/blog/build-spa-with-python-part-1">第1部分</a> </em>:学习Pyodide的基础知识，创建基础应用</li>
+<li><em>第二部分</em>(本教程！):使用Pandas分析和操作数据，并使用web worker来加速应用程序</li>
+<li><em> <a href="/blog/build-spa-with-python-part-3">第三部分</a> </em>:创建Python包，添加附加特性，添加持久化数据层</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

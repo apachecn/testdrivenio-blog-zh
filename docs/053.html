@@ -1,0 +1,734 @@
+<html>
+<head>
+<title>Developing a Single Page App with FastAPI and React </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用FastAPI和React开发单页面应用程序</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/fastapi-react/#0001-01-01">https://testdriven.io/blog/fastapi-react/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，你将使用<a href="https://fastapi.tiangolo.com/"> FastAPI </a>和<a href="https://reactjs.org/"> React </a>构建一个CRUD应用。在用FastAPI构建后端RESTful API之前，我们将首先用<a href="https://create-react-app.dev/"> Create React app </a> CLI搭建一个新的React App。最后，我们将开发后端CRUD路径以及前端React组件。</p>
+<p><em>最终应用</em>:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/final_app.gif" loading="lazy" class="lazyload" alt="Final Todo App" src="../Images/1ae80c5506a762e0936e3d04e7e3592a.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/final_app.gif"/></p>
+<p><em>依赖关系:</em></p>
+<ul>
+<li>React v18.1.0</li>
+<li>创建React应用版本5.0.1</li>
+<li>节点v18.2.0</li>
+<li>npm版本8.9.0</li>
+<li>npx v8.9.0</li>
+<li>FastAPI v0.78.0</li>
+<li>Python v3.10版</li>
+</ul>
+<blockquote>
+<p>在开始本教程之前，您应该熟悉React是如何工作的。要快速复习React，请查看<a href="https://reactjs.org/docs/hello-world.html">主要概念</a>指南或<a href="https://reactjs.org/tutorial/tutorial.html">React简介</a>教程。</p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>用Python和FastAPI开发RESTful API</li>
+<li>使用创建React应用程序搭建React项目</li>
+<li>用React上下文API和钩子管理状态操作</li>
+<li>在浏览器中创建并渲染React组件</li>
+<li>将React应用程序连接到FastAPI后端</li>
+</ol>
+<h2 id="what-is-fastapi">什么是FastAPI？</h2>
+<p>FastAPI是一个Python web框架，旨在构建快速高效的后端API。它处理同步和异步操作，并内置了对数据验证、认证和由OpenAPI驱动的交互式API文档的支持。</p>
+<p>有关FastAPI的更多信息，请查看以下资源:</p>
+<ol>
+<li><a href="https://fastapi.tiangolo.com/">正式文件</a></li>
+<li><a href="/blog/topics/fastapi/"> FastAPI教程</a></li>
+</ol>
+<h2 id="what-is-react">什么是反应？</h2>
+<p>React是一个开源的、基于组件的JavaScript UI库，用于构建前端应用程序。</p>
+<p>更多信息，请查看官方文档中的<a href="https://reactjs.org/docs/getting-started.html">入门指南</a>。</p>
+<h2 id="setting-up-fastapi">设置FastAPI</h2>
+<p>首先创建一个新文件夹来保存名为“fastapi-react”的项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir fastapi-react
+$ <span class="nb">cd</span> fastapi-react
+</code></pre></div>
+
+<p>在“fastapi-react”文件夹中，创建一个新文件夹来存放后端:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir backend
+$ <span class="nb">cd</span> backend
+</code></pre></div>
+
+<p>接下来，创建并激活虚拟环境:</p>
+<div class="codehilite"><pre><span/><code>$ python3.10 -m venv venv
+$ <span class="nb">source</span> venv/bin/activate
+$ <span class="nb">export</span> <span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把venv和Pip换成<a href="https://python-poetry.org">诗歌</a>或<a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>Install FastAPI:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install <span class="nv">fastapi</span><span class="o">==</span><span class="m">0</span>.78.0 <span class="nv">uvicorn</span><span class="o">==</span><span class="m">0</span>.17.6
+</code></pre></div>
+
+<p><a href="http://www.uvicorn.org/">uvicon</a>是一个<a href="https://asgi.readthedocs.io/en/latest/"> ASGI </a>(异步服务器网关接口)兼容服务器，将用于支持后端API。</p>
+<p>接下来，在“后端”文件夹中创建以下文件和文件夹:</p>
+<div class="codehilite"><pre><span/><code>└── backend
+    ├── main.py
+    └── app
+        ├── __init__.py
+        └── api.py
+</code></pre></div>
+
+<p>在<em> main.py </em>文件中，定义运行应用程序的入口点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">uvicorn</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"app.api:app"</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s2">"0.0.0.0"</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">8000</span><span class="p">,</span> <span class="n">reload</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在这里，我们指示该文件在端口8000上运行一个Uvicorn服务器，并在每次文件更改时重新加载。</p>
+<p>在通过入口点文件启动服务器之前，在<em> backend/app/api.py </em>中创建一个基本路由:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span> <span class="nn">fastapi.middleware.cors</span> <span class="kn">import</span> <span class="n">CORSMiddleware</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="n">origins</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"http://localhost:3000"</span><span class="p">,</span>
+    <span class="s2">"localhost:3000"</span>
+<span class="p">]</span>
+
+
+<span class="n">app</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span>
+    <span class="n">CORSMiddleware</span><span class="p">,</span>
+    <span class="n">allow_origins</span><span class="o">=</span><span class="n">origins</span><span class="p">,</span>
+    <span class="n">allow_credentials</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">allow_methods</span><span class="o">=</span><span class="p">[</span><span class="s2">"*"</span><span class="p">],</span>
+    <span class="n">allow_headers</span><span class="o">=</span><span class="p">[</span><span class="s2">"*"</span><span class="p">]</span>
+<span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"root"</span><span class="p">])</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">read_root</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"Welcome to your todo list."</span><span class="p">}</span>
+</code></pre></div>
+
+<p>为什么我们需要<a href="https://fastapi.tiangolo.com/tutorial/cors/#use-corsmiddleware">中间件</a>？为了进行跨来源请求——即来自不同协议、IP地址、域名或端口的请求——您需要启用<a href="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing">跨来源资源共享</a> (CORS)。FastAPI的内置<code>CORSMiddleware</code>为我们处理这个问题。</p>
+<p>上述配置将允许来自我们前端域和端口的跨来源请求，这些请求将在<code>localhost:3000</code>运行。</p>
+<blockquote>
+<p>关于FastAPI中CORS处理的更多信息，请查看官方<a href="https://fastapi.tiangolo.com/tutorial/cors/">文档</a>。</p>
+</blockquote>
+<p>从控制台运行入口点文件:</p>
+
+
+<p>在浏览器中导航至<a href="http://localhost:8000"> http://localhost:8000 </a>。您应该看到:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Welcome to your todo list."</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="setting-up-react">设置React</h2>
+<p>同样，我们将使用<a href="https://create-react-app.dev/"> Create React App </a> CLI工具通过<a href="https://docs.npmjs.com/cli/v9/commands/npx"> npx </a>搭建一个新的React应用。</p>
+<p>在新的终端窗口中，导航到项目目录，然后生成新的React应用程序:</p>
+
+
+<blockquote>
+<p>如果这是您第一次使用Create React App工具搭建React应用程序，请查看<a href="https://create-react-app.dev/docs/getting-started">文档</a>。</p>
+</blockquote>
+<p>为了简单起见，删除“src”文件夹中除了<em> index.js </em>文件之外的所有文件。<em> index.js </em>是我们的基础组件。</p>
+<p>接下来，安装一个名为<a href="http://chakra-ui.com/"> Chakra UI </a>的UI组件库:</p>
+
+
+<p>安装完成后，在“src”文件夹中创建一个名为“components”的新文件夹，用于存放应用程序的组件，以及两个组件，<em> Header.jsx </em>和<em> Todos.jsx </em>:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">cd</span> src
+$ mkdir components
+$ <span class="nb">cd</span> components
+$ touch <span class="o">{</span>Header,Todos<span class="o">}</span>.jsx
+</code></pre></div>
+
+<p>我们将从<em> Header.jsx </em>文件中的<code>Header</code>组件开始:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s2">"react"</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">Heading</span><span class="p">,</span> <span class="n">Flex</span><span class="p">,</span> <span class="n">Divider</span> <span class="p">}</span> <span class="kn">from</span> <span class="s2">"@chakra-ui/react"</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">Header</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">Flex</span>
+      <span class="k">as</span><span class="o">=</span><span class="s2">"nav"</span>
+      <span class="n">align</span><span class="o">=</span><span class="s2">"center"</span>
+      <span class="n">justify</span><span class="o">=</span><span class="s2">"space-between"</span>
+      <span class="n">wrap</span><span class="o">=</span><span class="s2">"wrap"</span>
+      <span class="n">padding</span><span class="o">=</span><span class="s2">"0.5rem"</span>
+      <span class="n">bg</span><span class="o">=</span><span class="s2">"gray.400"</span>
+    <span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">Flex</span> <span class="n">align</span><span class="o">=</span><span class="s2">"center"</span> <span class="n">mr</span><span class="o">=</span><span class="p">{</span><span class="mi">5</span><span class="p">}</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">Heading</span> <span class="k">as</span><span class="o">=</span><span class="s2">"h1"</span> <span class="n">size</span><span class="o">=</span><span class="s2">"sm"</span><span class="o">&gt;</span><span class="n">Todos</span><span class="o">&lt;/</span><span class="n">Heading</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">Divider</span> <span class="o">/&gt;</span>
+      <span class="o">&lt;/</span><span class="n">Flex</span><span class="o">&gt;</span>
+    <span class="o">&lt;/</span><span class="n">Flex</span><span class="o">&gt;</span>
+  <span class="p">);</span>
+<span class="p">};</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">Header</span><span class="p">;</span>
+</code></pre></div>
+
+<p>从Chakra UI导入React和<a href="https://chakra-ui.com/heading"> Heading </a>、<a href="https://chakra-ui.com/flex"> Flex </a>和<a href="https://chakra-ui.com/divider"> Divider </a>组件后，我们定义了一个组件来呈现一个基本的header。然后，该元件被导出以用于基础元件。</p>
+<p>接下来，让我们重写<em> index.js </em>中的基本组件。将前面的代码替换为:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s2">"react"</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">render</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'react-dom'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">ChakraProvider</span> <span class="p">}</span> <span class="kn">from</span> <span class="s2">"@chakra-ui/react"</span><span class="p">;</span>
+
+<span class="kn">import</span> <span class="nn">Header</span> <span class="kn">from</span> <span class="s2">"./components/Header"</span><span class="p">;</span>
+
+<span class="n">function</span> <span class="n">App</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">ChakraProvider</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">Header</span> <span class="o">/&gt;</span>
+    <span class="o">&lt;/</span><span class="n">ChakraProvider</span><span class="o">&gt;</span>
+  <span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">const</span> <span class="n">rootElement</span> <span class="o">=</span> <span class="n">document</span><span class="o">.</span><span class="n">getElementById</span><span class="p">(</span><span class="s2">"root"</span><span class="p">)</span>
+<span class="n">render</span><span class="p">(</span><span class="o">&lt;</span><span class="n">App</span> <span class="o">/&gt;</span><span class="p">,</span> <span class="n">rootElement</span><span class="p">)</span>
+</code></pre></div>
+
+<p><a href="https://chakra-ui.com/theme"> ChakraProvider </a>，从Chakra UI库中导入，作为使用Chakra UI的其他组件的父组件。它通过React的<a href="https://reactjs.org/docs/context.html">上下文API </a>为所有子组件(本例中为<code>Header</code>)提供一个主题。</p>
+<p>从终端启动React应用程序:</p>
+
+
+<p>这将在您的默认浏览器中打开React应用程序，位于<a href="http://localhost:3000"> http://localhost:3000 </a>。您应该看到:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/react_app_1.png" loading="lazy" class="lazyload" alt="Todo App" src="../Images/613bc4d463a67ab3a8b5ad24f8105b96.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/react_app_1.png"/></p>
+<h2 id="what-are-we-building">我们在建造什么？</h2>
+<p>在本教程的剩余部分，您将构建一个todo CRUD应用程序来创建、读取、更新和删除todo。最终，您的应用程序将如下所示:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/final_app.gif" loading="lazy" class="lazyload" alt="Final Todo App" src="../Images/1ae80c5506a762e0936e3d04e7e3592a.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/final_app.gif"/></p>
+<h2 id="get-route">获取路线</h2>
+<h3 id="backend">后端</h3>
+<p>首先将待办事项列表添加到<em> backend/app/api.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="n">todos</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"1"</span><span class="p">,</span>
+        <span class="s2">"item"</span><span class="p">:</span> <span class="s2">"Read a book."</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"2"</span><span class="p">,</span>
+        <span class="s2">"item"</span><span class="p">:</span> <span class="s2">"Cycle around town."</span>
+    <span class="p">}</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>上面的列表只是本教程使用的虚拟数据。这些数据只是简单地表示了各个todos的结构。请随意连接数据库并在那里存储todos。</p>
+</blockquote>
+<p>然后，添加路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/todo"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"todos"</span><span class="p">])</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">get_todos</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span> <span class="s2">"data"</span><span class="p">:</span> <span class="n">todos</span> <span class="p">}</span>
+</code></pre></div>
+
+<p>在<a href="http://localhost:8000/todo">http://localhost:8000/todo</a>手动测试新路由。也可以在<a href="http://localhost:8000/docs">http://localhost:8000/docs</a>查看交互文档:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/docs_1.png" loading="lazy" class="lazyload" alt="App Docs" src="../Images/7088f89aa80544642c3c0c3f9f818d3b.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/docs_1.png"/></p>
+<h3 id="frontend">前端</h3>
+<p>在<em> Todos.jsx </em>组件中，首先导入React、<code>useState()</code>和<code>useEffect()</code>钩子，以及一些Chakra UI组件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useEffect</span><span class="p">,</span><span class="w"> </span><span class="nx">useState</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"react"</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">Box</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">Button</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">Flex</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">Input</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">InputGroup</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">Modal</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">ModalBody</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">ModalCloseButton</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">ModalContent</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">ModalFooter</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">ModalHeader</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">ModalOverlay</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">Stack</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">Text</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">useDisclosure</span><span class="w"/>
+<span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"@chakra-ui/react"</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p><code>useState</code>钩子负责管理我们的应用程序的本地状态，而<code>useEffect</code>钩子允许我们执行数据获取等操作。</p>
+<blockquote>
+<p>关于React钩子的更多信息，请查阅React钩子的入门教程和官方文档中的介绍钩子的T2教程。</p>
+</blockquote>
+<p>接下来，创建一个跨所有组件管理全局状态活动的上下文:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">TodosContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">React</span><span class="p">.</span><span class="nx">createContext</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">todos</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"> </span><span class="nx">fetchTodos</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>在上面的代码块中，我们通过<a href="https://reactjs.org/docs/context.html#reactcreatecontext"> createContext </a>定义了一个上下文对象，它接受两个提供者值:<code>todos</code>和<code>fetchTodos</code>。<code>fetchTodos</code>函数将在下一个代码块中定义。</p>
+<blockquote>
+<p>想了解更多关于使用React上下文API管理状态的信息吗？查看<a href="https://auth0.com/blog/react-context-api-managing-state-with-ease/"> React上下文API:轻松管理状态</a>文章。</p>
+</blockquote>
+<p>接下来，添加<code>Todos</code>组件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">Todos</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">todos</span><span class="p">,</span><span class="w"> </span><span class="nx">setTodos</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">([])</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">fetchTodos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">fetch</span><span class="p">(</span><span class="s2">"http://localhost:8000/todo"</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">todos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="nx">setTodos</span><span class="p">(</span><span class="nx">todos</span><span class="p">.</span><span class="nx">data</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，我们创建了一个空的状态变量数组<code>todos</code>和一个状态方法<code>setTodos</code>，因此我们可以更新状态变量。接下来，我们定义了一个名为<code>fetchTodos</code>的函数，从后端异步检索todos，并在函数结束时更新<code>todo</code>状态变量。</p>
+<p>接下来，在<code>Todos</code>组件中，使用<code>fetchTodos</code>函数检索todos，并通过迭代todos状态变量来呈现数据:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">fetchTodos</span><span class="p">()</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="p">[])</span><span class="w"/>
+
+<span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">TodosContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{{</span><span class="nx">todos</span><span class="p">,</span><span class="w"> </span><span class="nx">fetchTodos</span><span class="p">}}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">Stack</span><span class="w"> </span><span class="nx">spacing</span><span class="o">=</span><span class="p">{</span><span class="mf">5</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">{</span><span class="nx">todos</span><span class="p">.</span><span class="nx">map</span><span class="p">((</span><span class="nx">todo</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">b</span><span class="o">&gt;</span><span class="p">{</span><span class="nx">todo</span><span class="p">.</span><span class="nx">item</span><span class="p">}</span><span class="o">&lt;</span><span class="err">/b&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">))}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/Stack&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/TodosContext.Provider&gt;</span><span class="w"/>
+<span class="p">)</span><span class="w"/>
+</code></pre></div>
+
+<p><em> Todos.jsx </em>现在应该是这样的:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span><span class="o">,</span> <span class="p">{</span> <span class="n">useEffect</span><span class="p">,</span> <span class="n">useState</span> <span class="p">}</span> <span class="kn">from</span> <span class="s2">"react"</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span>
+    <span class="n">Box</span><span class="p">,</span>
+    <span class="n">Button</span><span class="p">,</span>
+    <span class="n">Flex</span><span class="p">,</span>
+    <span class="n">Input</span><span class="p">,</span>
+    <span class="n">InputGroup</span><span class="p">,</span>
+    <span class="n">Modal</span><span class="p">,</span>
+    <span class="n">ModalBody</span><span class="p">,</span>
+    <span class="n">ModalCloseButton</span><span class="p">,</span>
+    <span class="n">ModalContent</span><span class="p">,</span>
+    <span class="n">ModalFooter</span><span class="p">,</span>
+    <span class="n">ModalHeader</span><span class="p">,</span>
+    <span class="n">ModalOverlay</span><span class="p">,</span>
+    <span class="n">Stack</span><span class="p">,</span>
+    <span class="n">Text</span><span class="p">,</span>
+    <span class="n">useDisclosure</span>
+<span class="p">}</span> <span class="kn">from</span> <span class="s2">"@chakra-ui/react"</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">TodosContext</span> <span class="o">=</span> <span class="n">React</span><span class="o">.</span><span class="n">createContext</span><span class="p">({</span>
+  <span class="n">todos</span><span class="p">:</span> <span class="p">[],</span> <span class="n">fetchTodos</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{}</span>
+<span class="p">})</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">function</span> <span class="n">Todos</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">todos</span><span class="p">,</span> <span class="n">setTodos</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">([])</span>
+  <span class="n">const</span> <span class="n">fetchTodos</span> <span class="o">=</span> <span class="k">async</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">const</span> <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">fetch</span><span class="p">(</span><span class="s2">"http://localhost:8000/todo"</span><span class="p">)</span>
+    <span class="n">const</span> <span class="n">todos</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="n">setTodos</span><span class="p">(</span><span class="n">todos</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+  <span class="p">}</span>
+  <span class="n">useEffect</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">fetchTodos</span><span class="p">()</span>
+  <span class="p">},</span> <span class="p">[])</span>
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">TodosContext</span><span class="o">.</span><span class="n">Provider</span> <span class="n">value</span><span class="o">=</span><span class="p">{{</span><span class="n">todos</span><span class="p">,</span> <span class="n">fetchTodos</span><span class="p">}}</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">Stack</span> <span class="n">spacing</span><span class="o">=</span><span class="p">{</span><span class="mi">5</span><span class="p">}</span><span class="o">&gt;</span>
+        <span class="p">{</span><span class="n">todos</span><span class="o">.</span><span class="n">map</span><span class="p">((</span><span class="n">todo</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">(</span>
+          <span class="o">&lt;</span><span class="n">b</span><span class="o">&gt;</span><span class="p">{</span><span class="n">todo</span><span class="o">.</span><span class="n">item</span><span class="p">}</span><span class="o">&lt;/</span><span class="n">b</span><span class="o">&gt;</span>
+        <span class="p">))}</span>
+      <span class="o">&lt;/</span><span class="n">Stack</span><span class="o">&gt;</span>
+    <span class="o">&lt;/</span><span class="n">TodosContext</span><span class="o">.</span><span class="n">Provider</span><span class="o">&gt;</span>
+  <span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>导入<em> index.js </em>文件中的<code>Todos</code>组件并渲染:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s2">"react"</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">render</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'react-dom'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">ChakraProvider</span> <span class="p">}</span> <span class="kn">from</span> <span class="s2">"@chakra-ui/react"</span><span class="p">;</span>
+
+<span class="kn">import</span> <span class="nn">Header</span> <span class="kn">from</span> <span class="s2">"./components/Header"</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">Todos</span> <span class="kn">from</span> <span class="s2">"./components/Todos"</span><span class="p">;</span>  <span class="o">//</span> <span class="n">new</span>
+
+<span class="n">function</span> <span class="n">App</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">ChakraProvider</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">Header</span> <span class="o">/&gt;</span>
+      <span class="o">&lt;</span><span class="n">Todos</span> <span class="o">/&gt;</span>  <span class="p">{</span><span class="o">/*</span> <span class="n">new</span> <span class="o">*/</span><span class="p">}</span>
+    <span class="o">&lt;/</span><span class="n">ChakraProvider</span><span class="o">&gt;</span>
+  <span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">const</span> <span class="n">rootElement</span> <span class="o">=</span> <span class="n">document</span><span class="o">.</span><span class="n">getElementById</span><span class="p">(</span><span class="s2">"root"</span><span class="p">)</span>
+<span class="n">render</span><span class="p">(</span><span class="o">&lt;</span><span class="n">App</span> <span class="o">/&gt;</span><span class="p">,</span> <span class="n">rootElement</span><span class="p">)</span>
+</code></pre></div>
+
+<p>您在<a href="http://localhost:3000"> http://localhost:3000 </a>的应用程序现在应该是这样的:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/react_app_2.png" loading="lazy" class="lazyload" alt="Todo App" src="../Images/be0f6132eb0f8e99ef91ba81278b4385.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/react_app_2.png"/></p>
+<p>尝试在<em> backend/app/api.py </em>中的<code>todos</code>列表中添加一个新的todo。刷新浏览器。您应该会看到新的todo。这样，我们就完成了检索所有todos的GET请求。</p>
+<h2 id="post-route">邮寄路线</h2>
+<h3 id="backend_1">后端</h3>
+<p>首先添加一个新的路由处理程序来处理向<em> backend/app/api.py </em>添加新todo的POST请求:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/todo"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"todos"</span><span class="p">])</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">add_todo</span><span class="p">(</span><span class="n">todo</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">todos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">todo</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"data"</span><span class="p">:</span> <span class="p">{</span> <span class="s2">"Todo added."</span> <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div>
+
+<p>随着后端的运行，您可以使用<code>curl</code>在新的终端选项卡中测试POST路由:</p>
+<div class="codehilite"><pre><span/><code>$ curl -X POST http://localhost:8000/todo -d <span class="se">\</span>
+    <span class="s1">'{"id": "3", "item": "Buy some testdriven courses."}'</span> <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span>
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="s2">"data: [</span>
+<span class="s2">        "</span><span class="err">Todo</span><span class="w"> </span><span class="err">added.</span><span class="s2">"</span>
+<span class="s2">    ]"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>您还应该在来自<a href="http://localhost:8000/todo">http://localhost:8000/todo</a>端点以及<a href="http://localhost:3000"> http://localhost:3000 </a>的响应中看到新的todo。</p>
+<blockquote>
+<p>作为练习，实现一个检查来防止添加重复的todo项。</p>
+</blockquote>
+<h3 id="frontend_1">前端</h3>
+<p>首先添加用于向<em>frontend/src/components/todos . jsx</em>添加新todo的shell:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">function</span><span class="w"> </span><span class="nx">AddTodo</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">item</span><span class="p">,</span><span class="w"> </span><span class="nx">setItem</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">React</span><span class="p">.</span><span class="nx">useState</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="nx">todos</span><span class="p">,</span><span class="w"> </span><span class="nx">fetchTodos</span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">React</span><span class="p">.</span><span class="nx">useContext</span><span class="p">(</span><span class="nx">TodosContext</span><span class="p">)</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，我们创建了一个新的状态变量来保存表单中的值。我们还检索了上下文值，<code>todos</code>和<code>fetchTodos</code>。</p>
+<p>接下来，向<code>AddTodo</code>添加从表单获取输入和处理表单提交的函数:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">handleInput</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="w">  </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">setItem</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">handleSubmit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">newTodo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="s2">"id"</span><span class="o">:</span><span class="w"> </span><span class="nx">todos</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"item"</span><span class="o">:</span><span class="w"> </span><span class="nx">item</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">fetch</span><span class="p">(</span><span class="s2">"http://localhost:8000/todo"</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s2">"POST"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s2">"Content-Type"</span><span class="o">:</span><span class="w"> </span><span class="s2">"application/json"</span><span class="w"> </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">newTodo</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="p">}).</span><span class="nx">then</span><span class="p">(</span><span class="nx">fetchTodos</span><span class="p">)</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>在<code>handleSubmit</code>函数中，我们添加了一个POST请求，并用todo信息将数据发送到服务器。然后我们调用<code>fetchTodos</code>来更新<code>todos</code>。</p>
+<p>就在<code>handleSubmit</code>函数之后，返回要呈现的表单:</p>
+<div class="codehilite"><pre><span/><code>return (
+  <span class="nt">&lt;form</span> <span class="na">onSubmit=</span><span class="s">{handleSubmit}</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;InputGroup</span> <span class="na">size=</span><span class="s">"md"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;Input</span>
+        <span class="na">pr=</span><span class="s">"4.5rem"</span>
+        <span class="na">type=</span><span class="s">"text"</span>
+        <span class="na">placeholder=</span><span class="s">"Add a todo item"</span>
+        <span class="na">aria-label=</span><span class="s">"Add a todo item"</span>
+        <span class="na">onChange=</span><span class="s">{handleInput}</span>
+      <span class="nt">/&gt;</span>
+    <span class="nt">&lt;/InputGroup&gt;</span>
+  <span class="nt">&lt;/form&gt;</span>
+)
+</code></pre></div>
+
+<p>在上面的代码块中，我们将表单<code>onSubmit</code>事件监听器设置为我们之前创建的<code>handleSubmit</code>函数。通过<code>onChange</code>监听器，当输入值改变时，todo项值也会更新。</p>
+<p>完整的<code>AddTodo</code>组件现在应该看起来像这样:</p>
+<div class="codehilite"><pre><span/><code>function AddTodo() {
+  const [item, setItem] = React.useState("")
+  const {todos, fetchTodos} = React.useContext(TodosContext)
+
+  const handleInput = event  =&gt; {
+    setItem(event.target.value)
+  }
+
+  const handleSubmit = (event) =&gt; {
+    const newTodo = {
+      "id": todos.length + 1,
+      "item": item
+    }
+
+    fetch("http://localhost:8000/todo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newTodo)
+    }).then(fetchTodos)
+  }
+
+  return (
+    <span class="nt">&lt;form</span> <span class="na">onSubmit=</span><span class="s">{handleSubmit}</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;InputGroup</span> <span class="na">size=</span><span class="s">"md"</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;Input</span>
+          <span class="na">pr=</span><span class="s">"4.5rem"</span>
+          <span class="na">type=</span><span class="s">"text"</span>
+          <span class="na">placeholder=</span><span class="s">"Add a todo item"</span>
+          <span class="na">aria-label=</span><span class="s">"Add a todo item"</span>
+          <span class="na">onChange=</span><span class="s">{handleInput}</span>
+        <span class="nt">/&gt;</span>
+      <span class="nt">&lt;/InputGroup&gt;</span>
+    <span class="nt">&lt;/form&gt;</span>
+  )
+}
+</code></pre></div>
+
+<p>接下来，将<code>AddTodo</code>组件添加到<code>Todos</code>组件，如下所示:</p>
+<div class="codehilite"><pre><span/><code>export default function Todos() {
+  const [todos, setTodos] = useState([])
+  const fetchTodos = async () =&gt; {
+    const response = await fetch("http://localhost:8000/todo")
+    const todos = await response.json()
+    setTodos(todos.data)
+  }
+  useEffect(() =&gt; {
+    fetchTodos()
+  }, [])
+  return (
+    <span class="nt">&lt;TodosContext.Provider</span> <span class="na">value=</span><span class="cp">{{</span><span class="nv">todos</span><span class="o">,</span> <span class="nv">fetchTodos</span><span class="cp">}}</span><span class="err">&gt;</span>
+      <span class="s">&lt;AddTodo</span> <span class="nt">/&gt;</span>  {/* new */}
+      <span class="nt">&lt;Stack</span> <span class="na">spacing=</span><span class="s">{5}</span><span class="nt">&gt;</span>
+        {todos.map((todo) =&gt; (
+          <span class="nt">&lt;b&gt;</span>{todo.item}<span class="nt">&lt;/b&gt;</span>
+        ))}
+      <span class="nt">&lt;/Stack&gt;</span>
+    <span class="nt">&lt;/TodosContext.Provider&gt;</span>
+  )
+}
+</code></pre></div>
+
+<p>前端应用程序应该如下所示:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/react_app_3.png" loading="lazy" class="lazyload" alt="Todo App" src="../Images/fd3d20092f316eeb9277bbc591fc92b3.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/react_app_3.png"/></p>
+<p>通过添加todo来测试表单:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/add_new_todo.gif" loading="lazy" class="lazyload" alt="Add new todo" src="../Images/93dd86cbb500ae93004b6b117bcf8c7b.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/add_new_todo.gif"/></p>
+<h2 id="put-route">放置路线</h2>
+<h3 id="backend_2">后端</h3>
+<p>添加更新路由:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"/todo/</span><span class="si">{id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"todos"</span><span class="p">])</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">update_todo</span><span class="p">(</span><span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">todo</span> <span class="ow">in</span> <span class="n">todos</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">todo</span><span class="p">[</span><span class="s2">"id"</span><span class="p">])</span> <span class="o">==</span> <span class="nb">id</span><span class="p">:</span>
+            <span class="n">todo</span><span class="p">[</span><span class="s2">"item"</span><span class="p">]</span> <span class="o">=</span> <span class="n">body</span><span class="p">[</span><span class="s2">"item"</span><span class="p">]</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Todo with id </span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s2"> has been updated."</span>
+            <span class="p">}</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Todo with id </span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s2"> not found."</span>
+    <span class="p">}</span>
+</code></pre></div>
+
+<p>因此，我们检查ID与所提供的ID相匹配的todo，如果找到，就用来自请求体的值更新todo的项目。</p>
+<h3 id="frontend_2">前端</h3>
+<p>首先在<em>frontend/src/components/todos . jsx</em>中定义组件<code>UpdateTodo</code>，并向其传递两个属性值<code>item</code>和<code>id</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">function</span><span class="w"> </span><span class="nx">UpdateTodo</span><span class="p">({</span><span class="nx">item</span><span class="p">,</span><span class="w"> </span><span class="nx">id</span><span class="p">})</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="nx">isOpen</span><span class="p">,</span><span class="w"> </span><span class="nx">onOpen</span><span class="p">,</span><span class="w"> </span><span class="nx">onClose</span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useDisclosure</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">todo</span><span class="p">,</span><span class="w"> </span><span class="nx">setTodo</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">item</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="nx">fetchTodos</span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">React</span><span class="p">.</span><span class="nx">useContext</span><span class="p">(</span><span class="nx">TodosContext</span><span class="p">)</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>上面的状态变量是用于模态的，我们将很快创建它，并保存要更新的todo值。还导入了<code>fetchTodos</code>上下文值，用于在做出更改后更新<code>todos</code>。</p>
+<p>现在，让我们编写负责发送PUT请求的函数。在<code>UpdateTodo</code>组件主体中，在状态和上下文变量之后，添加以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">updateTodo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">fetch</span><span class="p">(</span><span class="sb">`http://localhost:8000/todo/</span><span class="si">${</span><span class="nx">id</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s2">"PUT"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s2">"Content-Type"</span><span class="o">:</span><span class="w"> </span><span class="s2">"application/json"</span><span class="w"> </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">item</span><span class="o">:</span><span class="w"> </span><span class="nx">todo</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">onClose</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">fetchTodos</span><span class="p">()</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>在上面的异步函数中，一个PUT请求被发送到后端，然后调用<code>onClose()</code>方法来关闭模态。然后调用<code>fetchTodos()</code>。</p>
+<p>接下来，渲染模态:</p>
+<div class="codehilite"><pre><span/><code>return (
+  <span class="err">&lt;</span>&gt;
+    <span class="nt">&lt;Button</span> <span class="na">h=</span><span class="s">"1.5rem"</span> <span class="na">size=</span><span class="s">"sm"</span> <span class="na">onClick=</span><span class="s">{onOpen}</span><span class="nt">&gt;</span>Update Todo<span class="nt">&lt;/Button&gt;</span>
+    <span class="nt">&lt;Modal</span> <span class="na">isOpen=</span><span class="s">{isOpen}</span> <span class="na">onClose=</span><span class="s">{onClose}</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;ModalOverlay/&gt;</span>
+      <span class="nt">&lt;ModalContent&gt;</span>
+        <span class="nt">&lt;ModalHeader&gt;</span>Update Todo<span class="nt">&lt;/ModalHeader&gt;</span>
+        <span class="nt">&lt;ModalCloseButton/&gt;</span>
+        <span class="nt">&lt;ModalBody&gt;</span>
+          <span class="nt">&lt;InputGroup</span> <span class="na">size=</span><span class="s">"md"</span><span class="nt">&gt;</span>
+            <span class="nt">&lt;Input</span>
+              <span class="na">pr=</span><span class="s">"4.5rem"</span>
+              <span class="na">type=</span><span class="s">"text"</span>
+              <span class="na">placeholder=</span><span class="s">"Add a todo item"</span>
+              <span class="na">aria-label=</span><span class="s">"Add a todo item"</span>
+              <span class="na">value=</span><span class="s">{todo}</span>
+              <span class="na">onChange=</span><span class="s">{event</span> <span class="err">=</span><span class="nt">&gt;</span> setTodo(event.target.value)}
+            /&gt;
+          <span class="nt">&lt;/InputGroup&gt;</span>
+        <span class="nt">&lt;/ModalBody&gt;</span>
+
+        <span class="nt">&lt;ModalFooter&gt;</span>
+          <span class="nt">&lt;Button</span> <span class="na">h=</span><span class="s">"1.5rem"</span> <span class="na">size=</span><span class="s">"sm"</span> <span class="na">onClick=</span><span class="s">{updateTodo}</span><span class="nt">&gt;</span>Update Todo<span class="nt">&lt;/Button&gt;</span>
+        <span class="nt">&lt;/ModalFooter&gt;</span>
+      <span class="nt">&lt;/ModalContent&gt;</span>
+    <span class="nt">&lt;/Modal&gt;</span>
+  <span class="err">&lt;</span>/&gt;
+)
+</code></pre></div>
+
+<p>在上面的代码中，我们使用Chakra UI的<a href="https://chakra-ui.com/modal">模态</a>组件创建了一个模态。在模态体中，我们监听对文本框的更改，并更新了状态对象<code>todo</code>。最后，当点击按钮“Update Todo”时，函数<code>updateTodo()</code>被调用，我们的Todo被更新。</p>
+<p>完整的组件现在应该看起来像这样:</p>
+<div class="codehilite"><pre><span/><code>function UpdateTodo({item, id}) {
+  const {isOpen, onOpen, onClose} = useDisclosure()
+  const [todo, setTodo] = useState(item)
+  const {fetchTodos} = React.useContext(TodosContext)
+
+  const updateTodo = async () =&gt; {
+    await fetch(`http://localhost:8000/todo/<span class="cp">${</span><span class="nb">id</span><span class="cp">}</span>`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item: todo })
+    })
+    onClose()
+    await fetchTodos()
+  }
+
+  return (
+    <span class="err">&lt;</span>&gt;
+      <span class="nt">&lt;Button</span> <span class="na">h=</span><span class="s">"1.5rem"</span> <span class="na">size=</span><span class="s">"sm"</span> <span class="na">onClick=</span><span class="s">{onOpen}</span><span class="nt">&gt;</span>Update Todo<span class="nt">&lt;/Button&gt;</span>
+      <span class="nt">&lt;Modal</span> <span class="na">isOpen=</span><span class="s">{isOpen}</span> <span class="na">onClose=</span><span class="s">{onClose}</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;ModalOverlay/&gt;</span>
+        <span class="nt">&lt;ModalContent&gt;</span>
+          <span class="nt">&lt;ModalHeader&gt;</span>Update Todo<span class="nt">&lt;/ModalHeader&gt;</span>
+          <span class="nt">&lt;ModalCloseButton/&gt;</span>
+          <span class="nt">&lt;ModalBody&gt;</span>
+            <span class="nt">&lt;InputGroup</span> <span class="na">size=</span><span class="s">"md"</span><span class="nt">&gt;</span>
+              <span class="nt">&lt;Input</span>
+                <span class="na">pr=</span><span class="s">"4.5rem"</span>
+                <span class="na">type=</span><span class="s">"text"</span>
+                <span class="na">placeholder=</span><span class="s">"Add a todo item"</span>
+                <span class="na">aria-label=</span><span class="s">"Add a todo item"</span>
+                <span class="na">value=</span><span class="s">{todo}</span>
+                <span class="na">onChange=</span><span class="s">{e</span> <span class="err">=</span><span class="nt">&gt;</span> setTodo(e.target.value)}
+              /&gt;
+            <span class="nt">&lt;/InputGroup&gt;</span>
+          <span class="nt">&lt;/ModalBody&gt;</span>
+
+          <span class="nt">&lt;ModalFooter&gt;</span>
+            <span class="nt">&lt;Button</span> <span class="na">h=</span><span class="s">"1.5rem"</span> <span class="na">size=</span><span class="s">"sm"</span> <span class="na">onClick=</span><span class="s">{updateTodo}</span><span class="nt">&gt;</span>Update Todo<span class="nt">&lt;/Button&gt;</span>
+          <span class="nt">&lt;/ModalFooter&gt;</span>
+        <span class="nt">&lt;/ModalContent&gt;</span>
+      <span class="nt">&lt;/Modal&gt;</span>
+    <span class="err">&lt;</span>/&gt;
+  )
+}
+</code></pre></div>
+
+<p>在将组件添加到<code>Todos</code>组件之前，让我们添加一个用于渲染todos的助手组件来稍微清理一下:</p>
+<div class="codehilite"><pre><span/><code>function TodoHelper({item, id, fetchTodos}) {
+  return (
+    <span class="nt">&lt;Box</span> <span class="na">p=</span><span class="s">{1}</span> <span class="na">shadow=</span><span class="s">"sm"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;Flex</span> <span class="na">justify=</span><span class="s">"space-between"</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;Text</span> <span class="na">mt=</span><span class="s">{4}</span> <span class="na">as=</span><span class="s">"div"</span><span class="nt">&gt;</span>
+          {item}
+          <span class="nt">&lt;Flex</span> <span class="na">align=</span><span class="s">"end"</span><span class="nt">&gt;</span>
+            <span class="nt">&lt;UpdateTodo</span> <span class="na">item=</span><span class="s">{item}</span> <span class="na">id=</span><span class="s">{id}</span> <span class="na">fetchTodos=</span><span class="s">{fetchTodos}/</span><span class="nt">&gt;</span>
+          <span class="nt">&lt;/Flex&gt;</span>
+        <span class="nt">&lt;/Text&gt;</span>
+      <span class="nt">&lt;/Flex&gt;</span>
+    <span class="nt">&lt;/Box&gt;</span>
+  )
+}
+</code></pre></div>
+
+<p>在上面的组件中，我们呈现了传递给组件的todo，并为其附加了一个update按钮。</p>
+<p>替换<code>Todos</code>组件内<code>return</code>块中的代码:</p>
+<div class="codehilite"><pre><span/><code>return (
+  <span class="nt">&lt;TodosContext.Provider</span> <span class="na">value=</span><span class="cp">{{</span><span class="nv">todos</span><span class="o">,</span> <span class="nv">fetchTodos</span><span class="cp">}}</span><span class="err">&gt;</span>
+    <span class="s">&lt;AddTodo</span> <span class="nt">/&gt;</span>
+    <span class="nt">&lt;Stack</span> <span class="na">spacing=</span><span class="s">{5}</span><span class="nt">&gt;</span>
+      {
+        todos.map((todo) =&gt; (
+          <span class="nt">&lt;TodoHelper</span> <span class="na">item=</span><span class="s">{todo.item}</span> <span class="na">id=</span><span class="s">{todo.id}</span> <span class="na">fetchTodos=</span><span class="s">{fetchTodos}</span> <span class="nt">/&gt;</span>
+        ))
+      }
+    <span class="nt">&lt;/Stack&gt;</span>
+  <span class="nt">&lt;/TodosContext.Provider&gt;</span>
+)
+</code></pre></div>
+
+<p>浏览器应该有一个刷新的外观:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/react_app_4.png" loading="lazy" class="lazyload" alt="Todo App" src="../Images/4a492bd12758bfb57482d11851d6830b.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/react_app_4.png"/></p>
+<p>验证它是否工作:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/update_todo.gif" loading="lazy" class="lazyload" alt="Update todo" src="../Images/6f1b6cbafa2b863432a4b1ddad659d4d.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/update_todo.gif"/></p>
+<h2 id="delete-route">删除路线</h2>
+<h3 id="backend_3">后端</h3>
+<p>最后，添加删除路径:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/todo/</span><span class="si">{id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"todos"</span><span class="p">])</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">delete_todo</span><span class="p">(</span><span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">todo</span> <span class="ow">in</span> <span class="n">todos</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">todo</span><span class="p">[</span><span class="s2">"id"</span><span class="p">])</span> <span class="o">==</span> <span class="nb">id</span><span class="p">:</span>
+            <span class="n">todos</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">todo</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Todo with id </span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s2"> has been removed."</span>
+            <span class="p">}</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Todo with id </span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s2"> not found."</span>
+    <span class="p">}</span>
+</code></pre></div>
+
+<h3 id="frontend_3">前端</h3>
+<p>让我们编写一个用于删除todo的组件，它将在<code>TodoHelper</code>组件中使用:</p>
+<div class="codehilite"><pre><span/><code>function DeleteTodo({id}) {
+  const {fetchTodos} = React.useContext(TodosContext)
+
+  const deleteTodo = async () =&gt; {
+    await fetch(`http://localhost:8000/todo/<span class="cp">${</span><span class="nb">id</span><span class="cp">}</span>`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: { "id": id }
+    })
+    await fetchTodos()
+  }
+
+  return (
+    <span class="nt">&lt;Button</span> <span class="na">h=</span><span class="s">"1.5rem"</span> <span class="na">size=</span><span class="s">"sm"</span> <span class="na">onClick=</span><span class="s">{deleteTodo}</span><span class="nt">&gt;</span>Delete Todo<span class="nt">&lt;/Button&gt;</span>
+  )
+}
+</code></pre></div>
+
+<p>这里，我们从调用全局状态对象的<code>fetchTodos</code>函数开始。接下来，我们创建了一个异步函数，它向服务器发送一个删除请求，然后通过再次调用<code>fetchTodos</code>来更新todos列表。最后，我们渲染了一个按钮，当点击时，触发<code>deleteTodo()</code>。</p>
+<p>接下来，将<code>DeleteTodo</code>组件添加到<code>TodoHelper</code>中:</p>
+<div class="codehilite"><pre><span/><code>function TodoHelper({item, id, fetchTodos}) {
+  return (
+    <span class="nt">&lt;Box</span> <span class="na">p=</span><span class="s">{1}</span> <span class="na">shadow=</span><span class="s">"sm"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;Flex</span> <span class="na">justify=</span><span class="s">"space-between"</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;Text</span> <span class="na">mt=</span><span class="s">{4}</span> <span class="na">as=</span><span class="s">"div"</span><span class="nt">&gt;</span>
+          {item}
+          <span class="nt">&lt;Flex</span> <span class="na">align=</span><span class="s">"end"</span><span class="nt">&gt;</span>
+            <span class="nt">&lt;UpdateTodo</span> <span class="na">item=</span><span class="s">{item}</span> <span class="na">id=</span><span class="s">{id}</span> <span class="na">fetchTodos=</span><span class="s">{fetchTodos}/</span><span class="nt">&gt;</span>
+            <span class="nt">&lt;DeleteTodo</span> <span class="na">id=</span><span class="s">{id}</span> <span class="na">fetchTodos=</span><span class="s">{fetchTodos}/</span><span class="nt">&gt;</span>  {/* new */}
+          <span class="nt">&lt;/Flex&gt;</span>
+        <span class="nt">&lt;/Text&gt;</span>
+      <span class="nt">&lt;/Flex&gt;</span>
+    <span class="nt">&lt;/Box&gt;</span>
+  )
+}
+</code></pre></div>
+
+<p>客户端应用程序应该自动更新:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/react_app_5.png" loading="lazy" class="lazyload" alt="Todo App" src="../Images/80a9bb382e079765bbf85771f12dbc5a.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/react_app_5.png"/></p>
+<p>现在，测试删除按钮:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-react/delete_todo.gif" loading="lazy" class="lazyload" alt="Remove todo" src="../Images/474f4bbc5fefec23fc810654b33213aa.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-react/delete_todo.gif"/></p>
+<h2 id="conclusion">结论</h2>
+<p>本教程讲述了使用FastAPI和React设置CRUD应用程序的基础知识。</p>
+<p>通过回顾本教程开头的目标来检查您的理解。您可以在<a href="https://github.com/testdrivenio/fastapi-react"> fastapi-react </a> repo中找到源代码。感谢阅读。</p>
+<p>寻找一些挑战？</p>
+<ol>
+<li>使用本<a href="https://www.netlify.com/blog/2016/07/22/deploy-react-apps-in-less-than-30-seconds/">指南</a>将React应用程序部署到Netlify，并在后端更新CORS对象，以便使用环境变量对其进行动态配置。</li>
+<li>将后端API服务器部署到Heroku，并替换前端的连接URL。同样，为此使用一个<a href="https://create-react-app.dev/docs/adding-custom-environment-variables/">环境变量</a>。你可以从<a href="/blog/fastapi-machine-learning/">用FastAPI和Heroku部署和托管机器学习模型</a>教程中学习将FastAPI部署到Heroku的基础知识。如果想了解更多的基础知识，可以去看看<a href="/courses/tdd-fastapi/">的测试驱动开发与FastAPI和Docker </a>课程。</li>
+<li>用pytest为后端设置单元和集成测试，用React测试库为前端设置测试。使用FastAPI和Docker的<a href="/courses/tdd-fastapi/">测试驱动开发</a>课程涵盖了如何使用pytest测试FastAPI，而使用Flask、React和Docker的<a href="/courses/auth-flask-react/">认证</a>详细介绍了如何使用Jest和React测试库测试React应用。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

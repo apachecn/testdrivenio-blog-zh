@@ -1,0 +1,411 @@
+<html>
+<head>
+<title>Creating a Custom User Model in Django </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>在Django中创建定制用户模型</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-custom-user-model/#0001-01-01">https://testdriven.io/blog/django-custom-user-model/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>对于Django认证，我如何将用户名字段完全替换为电子邮件字段？</p>
+<p>本文一步一步地解释了如何在Django中创建一个定制的<a href="https://docs.djangoproject.com/en/4.1/ref/contrib/auth/#user-model">用户模型</a>，这样就可以使用电子邮件地址作为主要的用户标识符，而不是用户名来进行身份验证。</p>
+<blockquote>
+<p>请记住，本文中概述的过程需要对数据库模式进行重大更改。正因为如此，它只推荐给新项目。如果您正在处理一个现有的遗留项目，您将需要遵循一组不同的步骤。有关这方面的更多信息，请查看Django 文章中的<a href="/blog/django-custom-user-model-migration/">迁移到定制用户模型中期项目。</a></p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本文后，您应该能够:</p>
+<ol>
+<li>描述<code>AbstractUser</code>和<code>AbstractBaseUser</code>的区别</li>
+<li>解释为什么在开始一个新的Django项目时应该建立一个定制的用户模型</li>
+<li>使用定制用户模型开始一个新的Django项目</li>
+<li>使用电子邮件地址作为主要用户标识符，而不是用户名进行身份验证</li>
+<li>在实现定制用户模型时，实践测试优先开发</li>
+</ol>
+<h2 id="abstractuser-vs-abstractbaseuser">AbstractUser vs AbstractBaseUser</h2>
+<p>Django中的默认用户模型使用用户名在身份验证期间惟一地标识用户。如果您更愿意使用电子邮件地址，那么您需要通过子类化<code>AbstractUser</code>或<code>AbstractBaseUser</code>来创建一个定制的用户模型。</p>
+<p>选项:</p>
+<ol>
+<li><code>AbstractUser</code>:如果您对用户模型上的现有字段满意，并且只想删除用户名字段，请使用此选项。</li>
+<li>如果你想从头开始创建你自己的，全新的用户模型，使用这个选项。</li>
+</ol>
+<blockquote>
+<p>在本文中，我们将研究这两个选项，<code>AbstractUser</code>和<code>AbstractBaseUser</code>。</p>
+</blockquote>
+<p>每个的步骤都相同:</p>
+<ol>
+<li>创建自定义用户模型和管理器</li>
+<li>更新<em> settings.py </em></li>
+<li>自定义<code>UserCreationForm</code>和<code>UserChangeForm</code>表单</li>
+<li>更新管理员</li>
+</ol>
+<blockquote>
+<p>在开始一个新的Django项目时，<a href="https://docs.djangoproject.com/en/4.1/topics/auth/customizing/#using-a-custom-user-model-when-starting-a-project">强烈建议</a>建立一个自定义用户模型。如果没有它，您将需要创建另一个模型(如<code>UserProfile</code>)并使用<code>OneToOneField</code>将其链接到Django用户模型，如果您想要向用户模型添加新的字段的话。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>首先创建一个新的Django项目和一个用户应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-custom-user-model <span class="o">&amp;&amp;</span> <span class="nb">cd</span> django-custom-user-model
+$ python3 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">Django</span><span class="o">==</span><span class="m">4</span>.1.5
+<span class="o">(</span>env<span class="o">)</span>$ django-admin startproject hello_django .
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py startapp users
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>不要应用迁移。记住:您必须在应用第一次迁移之前创建定制用户模型。</p>
+<p>将新应用添加到<em> settings.py </em>中的<code>INSTALLED_APPS</code>列表:</p>
+<div class="codehilite"><pre><span/><code><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"django.contrib.admin"</span><span class="p">,</span>
+    <span class="s2">"django.contrib.auth"</span><span class="p">,</span>
+    <span class="s2">"django.contrib.contenttypes"</span><span class="p">,</span>
+    <span class="s2">"django.contrib.sessions"</span><span class="p">,</span>
+    <span class="s2">"django.contrib.messages"</span><span class="p">,</span>
+    <span class="s2">"django.contrib.staticfiles"</span><span class="p">,</span>
+
+    <span class="s2">"users"</span><span class="p">,</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h2 id="tests">试验</h2>
+<p>让我们采用测试优先的方法:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth</span> <span class="kn">import</span> <span class="n">get_user_model</span>
+<span class="kn">from</span> <span class="nn">django.test</span> <span class="kn">import</span> <span class="n">TestCase</span>
+
+
+<span class="k">class</span> <span class="nc">UsersManagersTests</span><span class="p">(</span><span class="n">TestCase</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">test_create_user</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">User</span> <span class="o">=</span> <span class="n">get_user_model</span><span class="p">()</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="650b0a1708040925101600174b060a08">[email protected]</a>"</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s2">"foo"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3f51504d525e537f4a4c5a4d115c5052">[email protected]</a>"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">is_active</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertFalse</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">is_staff</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertFalse</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">is_superuser</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># username is None for the AbstractUser option</span>
+            <span class="c1"># username does not exist for the AbstractBaseUser option</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertIsNone</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+            <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+            <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="s2">""</span><span class="p">)</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+            <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s2">"foo"</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">test_create_superuser</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">User</span> <span class="o">=</span> <span class="n">get_user_model</span><span class="p">()</span>
+        <span class="n">admin_user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_superuser</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="87f4f2f7e2f5c7f2f4e2f5a9e4e8ea">[email protected]</a>"</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s2">"foo"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">admin_user</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8bf8fefbeef9cbfef8eef9a5e8e4e6">[email protected]</a>"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">admin_user</span><span class="o">.</span><span class="n">is_active</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">admin_user</span><span class="o">.</span><span class="n">is_staff</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">admin_user</span><span class="o">.</span><span class="n">is_superuser</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># username is None for the AbstractUser option</span>
+            <span class="c1"># username does not exist for the AbstractBaseUser option</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertIsNone</span><span class="p">(</span><span class="n">admin_user</span><span class="o">.</span><span class="n">username</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+            <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_superuser</span><span class="p">(</span>
+                <span class="n">email</span><span class="o">=</span><span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="82f1f7f2e7f0c2f7f1e7f0ace1edef">[email protected]</a>"</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s2">"foo"</span><span class="p">,</span> <span class="n">is_superuser</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+<p>将规格添加到<em> users/tests.py </em>中，然后确保测试失败。</p>
+<h2 id="model-manager">模型经理</h2>
+<p>首先，我们需要通过子类化<code>BaseUserManager</code>来添加一个定制的<a href="https://docs.djangoproject.com/en/4.1/topics/db/managers/">管理器</a>，它使用电子邮件作为唯一标识符，而不是用户名。</p>
+<p>在“用户”目录下创建一个<em> managers.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.base_user</span> <span class="kn">import</span> <span class="n">BaseUserManager</span>
+<span class="kn">from</span> <span class="nn">django.utils.translation</span> <span class="kn">import</span> <span class="n">gettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+
+<span class="k">class</span> <span class="nc">CustomUserManager</span><span class="p">(</span><span class="n">BaseUserManager</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Custom user model manager where email is the unique identifiers</span>
+<span class="sd">    for authentication instead of usernames.</span>
+<span class="sd">    """</span>
+    <span class="k">def</span> <span class="nf">create_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="o">**</span><span class="n">extra_fields</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Create and save a user with the given email and password.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">email</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s2">"The Email must be set"</span><span class="p">))</span>
+        <span class="n">email</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">normalize_email</span><span class="p">(</span><span class="n">email</span><span class="p">)</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span> <span class="o">**</span><span class="n">extra_fields</span><span class="p">)</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">set_password</span><span class="p">(</span><span class="n">password</span><span class="p">)</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">user</span>
+
+    <span class="k">def</span> <span class="nf">create_superuser</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="o">**</span><span class="n">extra_fields</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Create and save a SuperUser with the given email and password.</span>
+<span class="sd">        """</span>
+        <span class="n">extra_fields</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"is_staff"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">extra_fields</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"is_superuser"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">extra_fields</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"is_active"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">extra_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_staff"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s2">"Superuser must have is_staff=True."</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">extra_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_superuser"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s2">"Superuser must have is_superuser=True."</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="o">**</span><span class="n">extra_fields</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="user-model">用户模型</h2>
+<p>决定你想使用哪个选项:子类化<code>AbstractUser</code>或<code>AbstractBaseUser</code>。</p>
+<h3 id="abstractuser">抽象用户</h3>
+<p>更新<em> users/models.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">AbstractUser</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+<span class="kn">from</span> <span class="nn">django.utils.translation</span> <span class="kn">import</span> <span class="n">gettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+<span class="kn">from</span> <span class="nn">.managers</span> <span class="kn">import</span> <span class="n">CustomUserManager</span>
+
+
+<span class="k">class</span> <span class="nc">CustomUser</span><span class="p">(</span><span class="n">AbstractUser</span><span class="p">):</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">EmailField</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s2">"email address"</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">USERNAME_FIELD</span> <span class="o">=</span> <span class="s2">"email"</span>
+    <span class="n">REQUIRED_FIELDS</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">CustomUserManager</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span>
+</code></pre></div>
+
+<p>在此，我们:</p>
+<ol>
+<li>创建了一个名为<code>CustomUser</code>的新类，它是<code>AbstractUser</code>的子类</li>
+<li>删除了<code>username</code>字段</li>
+<li>使<code>email</code>字段成为必填且唯一的</li>
+<li>将定义<code>User</code>型号唯一标识符的<code>USERNAME_FIELD</code>设置为<code>email</code></li>
+<li>指定该类的所有对象都来自<code>CustomUserManager</code></li>
+</ol>
+<h3 id="abstractbaseuser">AbstractBaseUser</h3>
+<p>更新<em> users/models.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">AbstractBaseUser</span><span class="p">,</span> <span class="n">PermissionsMixin</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+<span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">timezone</span>
+<span class="kn">from</span> <span class="nn">django.utils.translation</span> <span class="kn">import</span> <span class="n">gettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+<span class="kn">from</span> <span class="nn">.managers</span> <span class="kn">import</span> <span class="n">CustomUserManager</span>
+
+
+<span class="k">class</span> <span class="nc">CustomUser</span><span class="p">(</span><span class="n">AbstractBaseUser</span><span class="p">,</span> <span class="n">PermissionsMixin</span><span class="p">):</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">EmailField</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s2">"email address"</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">is_staff</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">is_active</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">date_joined</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">)</span>
+
+    <span class="n">USERNAME_FIELD</span> <span class="o">=</span> <span class="s2">"email"</span>
+    <span class="n">REQUIRED_FIELDS</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">CustomUserManager</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span>
+</code></pre></div>
+
+<p>在此，我们:</p>
+<ol>
+<li>创建了一个名为<code>CustomUser</code>的新类，它是<code>AbstractBaseUser</code>的子类</li>
+<li>增加了<code>email</code>、<code>is_staff</code>、<code>is_active</code>和<code>date_joined</code>的字段</li>
+<li>将定义<code>User</code>型号唯一标识符的<code>USERNAME_FIELD</code>设置为<code>email</code></li>
+<li>指定该类的所有对象都来自<code>CustomUserManager</code></li>
+</ol>
+<h2 id="settings">设置</h2>
+<p>将下面一行添加到<em> settings.py </em>文件中，以便Django知道使用新的定制用户类:</p>
+<div class="codehilite"><pre><span/><code><span class="n">AUTH_USER_MODEL</span> <span class="o">=</span> <span class="s2">"users.CustomUser"</span>
+</code></pre></div>
+
+<p>现在，您可以创建并应用迁移，这将创建一个使用定制用户模型的新数据库。在我们这样做之前，让我们看看在没有创建迁移文件的情况下<em>的实际迁移情况，以及<a href="https://docs.djangoproject.com/en/4.1/ref/django-admin/#cmdoption-makemigrations-dry-run"> -预演</a>标志:</em></p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations --dry-run --verbosity <span class="m">3</span>
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Generated by Django 4.1.5 on 2023-01-21 20:36</span>
+
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">migrations</span><span class="p">,</span> <span class="n">models</span>
+<span class="kn">import</span> <span class="nn">django.utils.timezone</span>
+
+
+<span class="k">class</span> <span class="nc">Migration</span><span class="p">(</span><span class="n">migrations</span><span class="o">.</span><span class="n">Migration</span><span class="p">):</span>
+
+    <span class="n">initial</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s1">'auth'</span><span class="p">,</span> <span class="s1">'0012_alter_user_first_name_max_length'</span><span class="p">),</span>
+    <span class="p">]</span>
+
+    <span class="n">operations</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">migrations</span><span class="o">.</span><span class="n">CreateModel</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s1">'CustomUser'</span><span class="p">,</span>
+            <span class="n">fields</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">(</span><span class="s1">'id'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">BigAutoField</span><span class="p">(</span><span class="n">auto_created</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">serialize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'ID'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'password'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'password'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'last_login'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'last login'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'is_superuser'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">help_text</span><span class="o">=</span><span class="s1">'Designates that this user has all permissions without explicitly assigning them.'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'superuser status'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'first_name'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">150</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'first name'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'last_name'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">150</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'last name'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'is_staff'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">help_text</span><span class="o">=</span><span class="s1">'Designates whether the user can log into this admin site.'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'staff status'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'is_active'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help_text</span><span class="o">=</span><span class="s1">'Designates whether this user should be treated as active. Unselect this instead of deleting accounts.'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'active'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'date_joined'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">django</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'date joined'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'email'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">EmailField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">254</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'email address'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'groups'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">ManyToManyField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help_text</span><span class="o">=</span><span class="s1">'The groups this user belongs to. A user will get all permissions granted to each of their groups.'</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s1">'user_set'</span><span class="p">,</span> <span class="n">related_query_name</span><span class="o">=</span><span class="s1">'user'</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s1">'auth.group'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'groups'</span><span class="p">)),</span>
+                <span class="p">(</span><span class="s1">'user_permissions'</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">ManyToManyField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help_text</span><span class="o">=</span><span class="s1">'Specific permissions for this user.'</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s1">'user_set'</span><span class="p">,</span> <span class="n">related_query_name</span><span class="o">=</span><span class="s1">'user'</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s1">'auth.permission'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s1">'user permissions'</span><span class="p">)),</span>
+            <span class="p">],</span>
+            <span class="n">options</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">'verbose_name'</span><span class="p">:</span> <span class="s1">'user'</span><span class="p">,</span>
+                <span class="s1">'verbose_name_plural'</span><span class="p">:</span> <span class="s1">'users'</span><span class="p">,</span>
+                <span class="s1">'abstract'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果您走的是<code>AbstractBaseUser</code>路线，您将没有<code>first_name</code>或<code>last_name</code>字段。为什么？</p>
+</blockquote>
+<p>确保迁移不包括<code>username</code>字段。然后，创建并应用迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>查看模式:</p>
+<div class="codehilite"><pre><span/><code>$ sqlite3 db.sqlite3
+
+SQLite version <span class="m">3</span>.28.0 <span class="m">2019</span>-04-15 <span class="m">14</span>:49:49
+Enter <span class="s2">".help"</span> <span class="k">for</span> usage hints.
+
+sqlite&gt; .tables
+
+auth_group                         django_migrations
+auth_group_permissions             django_session
+auth_permission                    users_customuser
+django_admin_log                   users_customuser_groups
+django_content_type                users_customuser_user_permissions
+
+sqlite&gt; .schema users_customuser
+
+CREATE TABLE IF NOT EXISTS <span class="s2">"users_customuser"</span> <span class="o">(</span>
+  <span class="s2">"id"</span> integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  <span class="s2">"password"</span> varchar<span class="o">(</span><span class="m">128</span><span class="o">)</span> NOT NULL,
+  <span class="s2">"last_login"</span> datetime NULL,
+  <span class="s2">"is_superuser"</span> bool NOT NULL,
+  <span class="s2">"first_name"</span> varchar<span class="o">(</span><span class="m">150</span><span class="o">)</span> NOT NULL,
+  <span class="s2">"last_name"</span> varchar<span class="o">(</span><span class="m">150</span><span class="o">)</span> NOT NULL,
+  <span class="s2">"is_staff"</span> bool NOT NULL,
+  <span class="s2">"is_active"</span> bool NOT NULL,
+  <span class="s2">"date_joined"</span> datetime NOT NULL,
+  <span class="s2">"email"</span> varchar<span class="o">(</span><span class="m">254</span><span class="o">)</span> NOT NULL UNIQUE
+<span class="o">)</span><span class="p">;</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果你走的是<code>AbstractBaseUser</code>路线，为什么<code>last_login</code>是模型的一部分？</p>
+</blockquote>
+<p>现在，您可以使用<code>get_user_model()</code>或<code>settings.AUTH_USER_MODEL</code>来引用用户模型。更多信息请参考<a href="https://docs.djangoproject.com/en/4.1/topics/auth/customizing/#referencing-the-user-model">参考官方文件中的用户模型</a>。</p>
+<p>此外，当您创建超级用户时，应该提示您输入电子邮件而不是用户名:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py createsuperuser
+
+Email address: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="9ce8f9efe8dce8f9efe8b2fff3f1">[email protected]</a>
+Password:
+Password <span class="o">(</span>again<span class="o">)</span>:
+Superuser created successfully.
+</code></pre></div>
+
+<p>确保测试通过:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py <span class="nb">test</span>
+
+Creating <span class="nb">test</span> database <span class="k">for</span> <span class="nb">alias</span> <span class="s1">'default'</span>...
+System check identified no issues <span class="o">(</span><span class="m">0</span> silenced<span class="o">)</span>.
+..
+----------------------------------------------------------------------
+Ran <span class="m">2</span> tests <span class="k">in</span> <span class="m">0</span>.282s
+
+OK
+Destroying <span class="nb">test</span> database <span class="k">for</span> <span class="nb">alias</span> <span class="s1">'default'</span>...
+</code></pre></div>
+
+<h2 id="forms">形式</h2>
+<p>接下来，让我们子类化<code>UserCreationForm</code>和<code>UserChangeForm</code>表单，以便它们使用新的<code>CustomUser</code>模型。</p>
+<p>在“用户”中创建一个名为<em> forms.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.forms</span> <span class="kn">import</span> <span class="n">UserCreationForm</span><span class="p">,</span> <span class="n">UserChangeForm</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">CustomUser</span>
+
+
+<span class="k">class</span> <span class="nc">CustomUserCreationForm</span><span class="p">(</span><span class="n">UserCreationForm</span><span class="p">):</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">CustomUser</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"email"</span><span class="p">,)</span>
+
+
+<span class="k">class</span> <span class="nc">CustomUserChangeForm</span><span class="p">(</span><span class="n">UserChangeForm</span><span class="p">):</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">CustomUser</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"email"</span><span class="p">,)</span>
+</code></pre></div>
+
+<h2 id="admin">管理</h2>
+<p>通过在<em> users/admin.py </em>中子类化<code>UserAdmin</code>来告诉管理员使用这些表单:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.admin</span> <span class="kn">import</span> <span class="n">UserAdmin</span>
+
+<span class="kn">from</span> <span class="nn">.forms</span> <span class="kn">import</span> <span class="n">CustomUserCreationForm</span><span class="p">,</span> <span class="n">CustomUserChangeForm</span>
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">CustomUser</span>
+
+
+<span class="k">class</span> <span class="nc">CustomUserAdmin</span><span class="p">(</span><span class="n">UserAdmin</span><span class="p">):</span>
+    <span class="n">add_form</span> <span class="o">=</span> <span class="n">CustomUserCreationForm</span>
+    <span class="n">form</span> <span class="o">=</span> <span class="n">CustomUserChangeForm</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">CustomUser</span>
+    <span class="n">list_display</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"email"</span><span class="p">,</span> <span class="s2">"is_staff"</span><span class="p">,</span> <span class="s2">"is_active"</span><span class="p">,)</span>
+    <span class="n">list_filter</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"email"</span><span class="p">,</span> <span class="s2">"is_staff"</span><span class="p">,</span> <span class="s2">"is_active"</span><span class="p">,)</span>
+    <span class="n">fieldsets</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="p">{</span><span class="s2">"fields"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"email"</span><span class="p">,</span> <span class="s2">"password"</span><span class="p">)}),</span>
+        <span class="p">(</span><span class="s2">"Permissions"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"fields"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"is_staff"</span><span class="p">,</span> <span class="s2">"is_active"</span><span class="p">,</span> <span class="s2">"groups"</span><span class="p">,</span> <span class="s2">"user_permissions"</span><span class="p">)}),</span>
+    <span class="p">)</span>
+    <span class="n">add_fieldsets</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s2">"classes"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"wide"</span><span class="p">,),</span>
+            <span class="s2">"fields"</span><span class="p">:</span> <span class="p">(</span>
+                <span class="s2">"email"</span><span class="p">,</span> <span class="s2">"password1"</span><span class="p">,</span> <span class="s2">"password2"</span><span class="p">,</span> <span class="s2">"is_staff"</span><span class="p">,</span>
+                <span class="s2">"is_active"</span><span class="p">,</span> <span class="s2">"groups"</span><span class="p">,</span> <span class="s2">"user_permissions"</span>
+            <span class="p">)}</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">search_fields</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"email"</span><span class="p">,)</span>
+    <span class="n">ordering</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"email"</span><span class="p">,)</span>
+
+
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">CustomUser</span><span class="p">,</span> <span class="n">CustomUserAdmin</span><span class="p">)</span>
+</code></pre></div>
+
+<p>就是这样。运行服务器并登录到管理站点。您应该能够像平常一样添加和更改用户。</p>
+<p><img data-src="/static/images/blog/django/django-custom-user-model/admin-site.png" loading="lazy" class="lazyload" alt="django admin" src="../Images/616504bb1c988dff207048268a5a2606.png" data-original-src="https://testdriven.io/static/images/blog/django/django-custom-user-model/admin-site.png"/></p>
+<h2 id="conclusion">结论</h2>
+<p>在本文中，我们研究了如何创建自定义用户模型，以便电子邮件地址可以用作主要用户标识符，而不是用于身份验证的用户名。</p>
+<p>你可以在<a href="https://github.com/testdrivenio/django-custom-user-model">django-custom-user-model</a>repo中找到两个选项<code>AbstractUser</code>和<code>AbstractBaseUser</code>的最终代码。最后的代码示例还包括用户认证所需的模板、视图和URL。</p>
+<p>想了解更多关于定制Django用户模型的信息吗？查看以下资源:</p>
+<ol>
+<li><a href="https://medium.com/agatha-codes/options-objects-customizing-the-django-user-model-6d42b3e971a4">选项&amp;对象:定制Django用户模型</a></li>
+<li><a href="https://simpleisbetterthancomplex.com/tutorial/2016/07/22/how-to-extend-django-user-model.html">如何扩展Django用户模型</a></li>
+<li><a href="https://www.youtube.com/watch?v=sXZ3ntGp_Xc">充分利用Django的用户模式</a>(视频)</li>
+<li><a href="https://docs.djangoproject.com/en/4.1/topics/auth/customizing/">在Django中定制认证</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

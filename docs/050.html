@@ -1,0 +1,767 @@
+<html>
+<head>
+<title>Building a Single Page Application with Python and Pyodide - Part 1 </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Python和Pyodide构建单页面应用程序——第1部分</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/build-spa-with-python-part-1/#0001-01-01">https://testdriven.io/blog/build-spa-with-python-part-1/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <blockquote>
+<p>如果你和一个人用他能理解的语言交谈，那会进入他的大脑。如果你用他自己的语言和他交谈，那会触及他的内心。</p>
+<p>纳尔逊·曼德拉</p>
+</blockquote>
+<p>WebAssembly (WASM)为许多语言在不同的环境中使用打开了大门——比如浏览器、云、无服务器和区块链，仅举几个例子——这些语言以前不可能在这些环境中使用。例如，使用利用WASM的<a href="https://pyodide.org/"> Pyodide </a>，您可以在浏览器中运行Python。你也可以使用像<a href="https://wasmer.io/"> Wasmer </a>这样的运行时将Python编译成WebAssembly，将其容器化，然后在edge、IoT、操作系统等不同的目的地运行容器。</p>
+<p>在本教程中，您将使用Python和Pyodide构建一个单页面应用程序来操作DOM和管理状态。</p>
+<p>--</p>
+<p><strong> Python单页面应用系列:</strong></p>
+<ol>
+<li><em>第一部分</em>(本教程！):学习Pyodide的基础知识并创建基础应用程序</li>
+<li><em> <a href="/blog/build-spa-with-python-part-2">第二部分</a> </em>:用Pandas分析和操作数据，使用web worker加速应用程序</li>
+<li><em> <a href="/blog/build-spa-with-python-part-3">第三部分</a> </em>:创建Python包，添加附加特性，添加持久化数据层</li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>使用Pyodide和JavaScript在两者之间共享和访问对象</li>
+<li>直接从Python代码操作DOM</li>
+<li>在浏览器中运行Python强大的数据科学库</li>
+<li>创建一个单页面应用程序(SPA)应用程序，它从远程文件中获取数据，用Pandas处理数据，并在浏览器中呈现数据</li>
+</ol>
+<h2 id="python-in-the-browser">浏览器中的Python</h2>
+<p><em>这是什么意思？</em></p>
+<p>在浏览器中运行Python意味着我们可以直接在客户端执行Python代码，而不需要在服务器上托管和执行代码。这是通过<a href="/blog/python-webassembly/#webassembly"> WebAssembly </a>实现的，它允许我们构建真正的“无服务器”应用。</p>
+<p>为什么它很重要？为什么不用JavaScript呢？</p>
+<p>在浏览器中运行Python的主要目标不是取代JavaScript，而是将两种语言结合在一起，让每个社区都能使用彼此强大的工具和库。例如，在本教程中，我们将使用Python的<a href="https://pandas.pydata.org/"> Pandas </a>库和JavaScript。</p>
+<h2 id="what-were-building">我们正在建造的东西</h2>
+<p>在本系列教程中，我们将构建一个无服务器的单页应用程序(SPA ),它获取<a href="https://github.com/amirtds/kaggle-netflix-tv-shows-and-movies/blob/main/titles.csv">网飞电影并显示数据集</a>,并使用Pandas来读取、整理、操作和分析数据。然后，结果显示在DOM上，供最终用户查看。</p>
+<p>我们的最终项目是一个SPA，显示电影和电视节目列表、推荐的电影和节目以及有趣的事实。最终用户将能够删除和过滤电影和节目。数据保存在<a href="https://pouchdb.com/"> PouchDB </a>中。</p>
+<p>在这一部分，我们将重点关注:</p>
+<ol>
+<li>学习大熊猫的基本知识</li>
+<li>在Python和JavaScript之间共享对象和方法</li>
+<li>从Python代码操作DOM</li>
+<li>构建基本的应用程序结构</li>
+</ol>
+<p><img data-src="/static/images/blog/build-spa-with-python/sample_app.png" loading="lazy" class="lazyload" alt="Sample App" src="../Images/1fb3aabdfa481ad68386716ccaeeff6e.png" data-original-src="https://testdriven.io/static/images/blog/build-spa-with-python/sample_app.png"/></p>
+<p>您可以在这里找到您将在第一部分<a href="https://netflix-analysis-spa-part-1.onrender.com">中创建的应用程序的现场演示。</a></p>
+<h2 id="dom-manipulation-with-python">用Python操作DOM</h2>
+<p>在我们开始构建应用程序之前，让我们快速看一下如何使用Python与<a href="https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model"> DOM API </a>进行交互来直接操作它。</p>
+<p>首先，创建一个名为<em>index.html</em>的新HTML文件:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">p</span> <span class="na">id</span><span class="o">=</span><span class="s">"title"</span><span class="p">&gt;</span>My first Pyodide app<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+
+    <span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+
+<span class="w">        </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`print('Hello world, from the browser!')`</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+
+<span class="w">      </span><span class="nx">main</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>在这里，我们从CDN加载了主要的Pyodide运行时以及Pyodide的内置<a href="https://github.com/pyodide/pyodide/tree/0.20.0/packages">包</a>，并使用<a href="https://pyodide.org/en/stable/usage/api/js-api.html#pyodide.runPython"> runPython </a>方法运行了一个简单的Python脚本。</p>
+<p>在浏览器中打开文件。然后，在浏览器的<a href="https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_are_browser_developer_tools">开发者工具</a>的控制台中，您应该会看到:</p>
+<div class="codehilite"><pre><span/><code>Loading distutils
+Loaded distutils
+Python initialization complete
+Hello world, from the browser!
+</code></pre></div>
+
+<p>最后一行显示我们的Python代码是在浏览器中执行的。现在让我们看看如何访问DOM。为此，我们可以导入js库来访问JavaScript范围。</p>
+<p>像这样更新HTML文件:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">p</span> <span class="na">id</span><span class="o">=</span><span class="s">"title"</span><span class="p">&gt;</span>My first Pyodide app<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+
+    <span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+
+<span class="w">        </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">          print('Hello world, from the browser!')</span>
+
+<span class="sb">          import js</span>
+<span class="sb">          js.document.title = "Hello from Python"</span>
+<span class="sb">        `</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+
+<span class="w">      </span><span class="nx">main</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>因此，<code>js</code>表示全局对象<code>window</code>,它可以用来直接操作DOM和访问全局变量和函数。我们用它将浏览器/文档标题改为“来自Python的你好”。</p>
+<p>刷新浏览器以确保其正常工作。</p>
+<p>接下来，我们把段落内文从“我的第一个Pyodide app”更新为“被Python取代”:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">p</span> <span class="na">id</span><span class="o">=</span><span class="s">"title"</span><span class="p">&gt;</span>My first Pyodide app<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+
+    <span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+
+<span class="w">        </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">          print('Hello world, from the browser!')</span>
+
+<span class="sb">          import js</span>
+<span class="sb">          js.document.title = "Hello from Python"</span>
+
+<span class="sb">          js.document.getElementById("title").innerText = "Replaced by Python"</span>
+<span class="sb">        `</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+
+<span class="w">      </span><span class="nx">main</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>保存文件，并再次刷新页面。</p>
+<h2 id="type-translation">类型翻译</h2>
+<p>Pyodide的一个很棒的特性是你可以在Python和JavaScript之间传递对象。有两种翻译方法:</p>
+<ol>
+<li><a href="https://pyodide.org/en/stable/usage/type-conversions.html#implicit-conversions">隐式转换</a>转换两种语言中都存在的基本数据类型——例如，将Python <code>str</code>转换为JavaScript <code>String</code>。</li>
+<li><a href="https://pyodide.org/en/stable/usage/type-conversions.html#proxying">代理对象</a>转换语言之间不共享的对象/类型。</li>
+</ol>
+<h3 id="implicit-conversion">隐式转换</h3>
+<p>如前所述，基本数据类型将在Python和JavaScript之间直接转换，无需创建特殊对象。</p>
+<table>
+<thead>
+<tr>
+<th>计算机编程语言</th>
+<th>Java Script语言</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>int</code></td>
+<td><code>Number</code>或<code>BigInt</code></td>
+</tr>
+<tr>
+<td><code>float</code></td>
+<td><code>Number</code></td>
+</tr>
+<tr>
+<td><code>str</code></td>
+<td><code>String</code></td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>Boolean</code></td>
+</tr>
+<tr>
+<td><code>None</code></td>
+<td><code>undefined</code></td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Java Script语言</th>
+<th>计算机编程语言</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Number</code></td>
+<td><code>int</code>或<code>float</code></td>
+</tr>
+<tr>
+<td><code>BigInt</code></td>
+<td><code>int</code></td>
+</tr>
+<tr>
+<td><code>String</code></td>
+<td><code>str</code></td>
+</tr>
+<tr>
+<td><code>Boolean</code></td>
+<td><code>bool</code></td>
+</tr>
+<tr>
+<td><code>undefined</code></td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>null</code></td>
+<td><code>None</code></td>
+</tr>
+</tbody>
+</table>
+<p>让我们看一个例子。</p>
+<p>首先向<code>script</code>标签添加一个名为<code>name</code>的新变量:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="kd">var</span><span class="w"> </span><span class="nx">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"John Doe"</span><span class="p">;</span><span class="w">  </span><span class="c1">// NEW!</span><span class="w"/>
+
+<span class="w">  </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">      print('Hello world, from the browser!')</span>
+
+<span class="sb">      import js</span>
+<span class="sb">      js.document.title = "Hello from Python"</span>
+
+<span class="sb">      js.document.getElementById("title").innerText = "Replaced by Python"</span>
+<span class="sb">    `</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">main</span><span class="p">();</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>接下来，让我们看看使用js的类型和值:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="kd">var</span><span class="w"> </span><span class="nx">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"John Doe"</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">      print('Hello world, from the browser!')</span>
+
+<span class="sb">      import js</span>
+<span class="sb">      js.document.title = "Hello from Python"</span>
+
+<span class="sb">      js.document.getElementById("title").innerText = "Replaced by Python"</span>
+<span class="sb">    `</span><span class="p">);</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// NEW !!</span><span class="w"/>
+<span class="w">    </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">      import js</span>
+<span class="sb">      name = js.name</span>
+<span class="sb">      print(name, type(name))</span>
+<span class="sb">    `</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">main</span><span class="p">();</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>刷新浏览器。在控制台中，您应该会看到以下输出:</p>
+
+
+<p>如您所见，我们可以直接访问这个变量的值，它从JavaScript <code>String</code>转换为Python <code>str</code>。</p>
+<h3 id="proxying">代理</h3>
+<p>正如您所看到的，基本类型可以直接转换成目标语言中的等价类型。另一方面，“非基本”类型需要转换成代理对象。有两种类型的代理对象:</p>
+<ol>
+<li>JSProxy是一个代理，用于让JavaScript对象表现得像Python对象一样。换句话说，它允许您从Python代码中引用内存中的JavaScript对象。您可以使用<a href="https://pyodide.org/en/stable/usage/api/python-api.html?#pyodide.JsProxy.to_py"> to_py() </a>方法将代理转换为本地Python对象。</li>
+<li>PyProxy是一个让Python对象表现得像JavaScript对象的代理，允许你从JavaScript代码中引用内存中的Python对象。您可以使用<a href="https://pyodide.org/en/stable/usage/api/js-api.html#PyProxy.toJs"> toJs() </a>方法将对象转换为本地JavaScript对象。</li>
+</ol>
+<blockquote>
+<p>要将Python字典转换为JavaScript对象，请使用值为<code>Object.fromEntries</code>的<code>dict_converter</code>参数:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">dictionary_name</span><span class="p">.</span><span class="nx">toJs</span><span class="p">({</span> <span class="nx">dict_converter</span><span class="o">:</span> <span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span> <span class="p">})</span>
+</code></pre></div><p>如果没有这个参数，<code>toJs()</code>将把字典转换成一个JavaScript <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map"> Map </a>对象。</p>
+</blockquote>
+
+<h4 id="jsproxy-example">JSProxy示例</h4>
+<p>创建一个名为<code>products</code>的新变量:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">var</span><span class="w"> </span><span class="nx">products</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[{</span><span class="w"/>
+<span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">"product 1"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="mf">100</span><span class="p">,</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">"Product 2"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="mf">300</span><span class="p">,</span><span class="w"/>
+<span class="p">}];</span><span class="w"/>
+</code></pre></div>
+
+<p>将其导入<code>runPython</code>并检查类型:</p>
+<div class="codehilite"><pre><span/><code><span class="n">pyodide</span><span class="o">.</span><span class="n">runPython</span><span class="p">(</span><span class="err">`</span>
+  <span class="kn">import</span> <span class="nn">js</span>
+  <span class="nb">print</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">js</span><span class="o">.</span><span class="n">products</span><span class="p">))</span>
+<span class="err">`</span><span class="p">);</span>
+</code></pre></div>
+
+<p>完整的<code>script</code>标签:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="kd">var</span><span class="w"> </span><span class="nx">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"John Doe"</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// NEW !!</span><span class="w"/>
+<span class="w">  </span><span class="kd">var</span><span class="w"> </span><span class="nx">products</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[{</span><span class="w"/>
+<span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">"product 1"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="mf">100</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">"Product 2"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="mf">300</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">}];</span><span class="w"/>
+
+<span class="w">  </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">      print('Hello world, from the browser!')</span>
+
+<span class="sb">      import js</span>
+<span class="sb">      js.document.title = "Hello from Python"</span>
+
+<span class="sb">      js.document.getElementById("title").innerText = "Replaced by Python"</span>
+<span class="sb">    `</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">      import js</span>
+<span class="sb">      name = js.name</span>
+<span class="sb">      print(name, type(name))</span>
+<span class="sb">    `</span><span class="p">);</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// NEW !!</span><span class="w"/>
+<span class="w">    </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">      import js</span>
+<span class="sb">      print(type(js.products))</span>
+<span class="sb">    `</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">main</span><span class="p">();</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>刷新页面后，您应该在控制台中看到结果是<code>&lt;class 'pyodide.JsProxy'&gt;</code>。通过这个代理，我们可以从Python代码中访问内存中的JavaScript对象。</p>
+<p>像这样更新新添加的<code>pyodide.runPython</code>块:</p>
+<div class="codehilite"><pre><span/><code><span class="n">pyodide</span><span class="o">.</span><span class="n">runPython</span><span class="p">(</span><span class="err">`</span>
+  <span class="kn">import</span> <span class="nn">js</span>
+  <span class="n">products</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">products</span>
+  <span class="n">products</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+      <span class="s2">"id"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+      <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Product 3"</span><span class="p">,</span>
+      <span class="s2">"price"</span><span class="p">:</span> <span class="mi">400</span><span class="p">,</span>
+  <span class="p">})</span>
+  <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span><span class="p">:</span>
+      <span class="nb">print</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+<span class="err">`</span><span class="p">);</span>
+</code></pre></div>
+
+<p>您应该会在浏览器中看到一个<code>AttributeError: append</code>错误，因为JSProxy对象没有一个<code>append</code>方法。</p>
+<blockquote>
+<p>如果把<code>.append</code>改成<code>.push</code>会怎么样？</p>
+</blockquote>
+<p>要操作此对象，可以使用<code>to_py()</code>方法将其转换为Python对象:</p>
+<div class="codehilite"><pre><span/><code><span class="n">pyodide</span><span class="o">.</span><span class="n">runPython</span><span class="p">(</span><span class="err">`</span>
+  <span class="kn">import</span> <span class="nn">js</span>
+  <span class="n">products</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">products</span><span class="o">.</span><span class="n">to_py</span><span class="p">()</span>
+  <span class="n">products</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+    <span class="s2">"id"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Product 3"</span><span class="p">,</span>
+    <span class="s2">"price"</span><span class="p">:</span> <span class="mi">400</span><span class="p">,</span>
+  <span class="p">})</span>
+  <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span><span class="p">:</span>
+      <span class="nb">print</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+<span class="err">`</span><span class="p">);</span>
+</code></pre></div>
+
+<p>您现在应该看到:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="s1">'id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'product 1'</span><span class="p">,</span> <span class="s1">'price'</span><span class="p">:</span> <span class="mi">100</span><span class="p">}</span>
+<span class="p">{</span><span class="s1">'id'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'Product 2'</span><span class="p">,</span> <span class="s1">'price'</span><span class="p">:</span> <span class="mi">300</span><span class="p">}</span>
+<span class="p">{</span><span class="s1">'id'</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'Product 3'</span><span class="p">,</span> <span class="s1">'price'</span><span class="p">:</span> <span class="mi">400</span><span class="p">}</span>
+</code></pre></div>
+
+<h4 id="pyproxy-example">phproxy示例</h4>
+<p>像这样更新<code>script</code>标签:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+
+<span class="w">    </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPython</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">      import js</span>
+<span class="sb">      products = [</span>
+<span class="sb">        {</span>
+<span class="sb">          "id": 1,</span>
+<span class="sb">          "name": "new name",</span>
+<span class="sb">          "price": 100,</span>
+<span class="sb">          "votes": 2</span>
+<span class="sb">        },</span>
+<span class="sb">        {</span>
+<span class="sb">          "id": 2,</span>
+<span class="sb">          "name": "new name",</span>
+<span class="sb">          "price": 300,</span>
+<span class="sb">          "votes": 2</span>
+<span class="sb">        }</span>
+<span class="sb">      ]</span>
+<span class="sb">    `</span><span class="p">);</span><span class="w"/>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">products</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">globals</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">"products"</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">products</span><span class="p">.</span><span class="nx">toJs</span><span class="p">({</span><span class="w"> </span><span class="nx">dict_converter</span><span class="o">:</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="w"> </span><span class="p">}));</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">main</span><span class="p">();</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>这里，我们访问了Python变量，然后通过<code>.toJs({ dict_converter: Object.fromEntries })</code>将它从Python字典转换成JavaScript对象。</p>
+<p>刷新页面后，您应该会在控制台中看到以下输出:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'new name'</span><span class="p">,</span><span class="w"> </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="mf">100</span><span class="p">,</span><span class="w"> </span><span class="nx">votes</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="p">}</span><span class="w"/>
+<span class="p">{</span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'new name'</span><span class="p">,</span><span class="w"> </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="mf">300</span><span class="p">,</span><span class="w"> </span><span class="nx">votes</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>有了这些，让我们把你新发现的Pyodide知识用于构建一个应用程序吧！</p>
+<h2 id="netflix-dataset">网飞数据集</h2>
+<p>我们将开发一个获取网飞数据集的无服务器SPA应用程序。然后，我们将使用Pandas来读取、整理、操作和分析数据。最后，我们将把结果传递给DOM，以便向最终用户显示分析后的数据。</p>
+<p><a href="https://github.com/amirtds/kaggle-netflix-tv-shows-and-movies">数据集</a>是一个CSV，它包括以下几列:</p>
+<table>
+<thead>
+<tr>
+<th>名字</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>身份证明</td>
+<td><a href="https://www.justwatch.com/">上的标题ID just watch</a>。</td>
+</tr>
+<tr>
+<td>标题</td>
+<td>标题的名称。</td>
+</tr>
+<tr>
+<td>展览型</td>
+<td>电视节目或电影。</td>
+</tr>
+<tr>
+<td>描述</td>
+<td>简单描述一下。</td>
+</tr>
+<tr>
+<td>发布年份</td>
+<td>发行年份。</td>
+</tr>
+<tr>
+<td>年龄证明</td>
+<td>年龄证明。</td>
+</tr>
+<tr>
+<td>运行时间</td>
+<td>剧集(节目)或电影的长度。</td>
+</tr>
+<tr>
+<td>体裁</td>
+<td>流派列表。</td>
+</tr>
+<tr>
+<td>生产国</td>
+<td>出版这本书的国家名单。</td>
+</tr>
+<tr>
+<td>季节</td>
+<td>如果是一部剧的话有多少季。</td>
+</tr>
+<tr>
+<td>IMDB ID</td>
+<td><a href="https://www.imdb.com/"> IMDB </a>上的标题ID。</td>
+</tr>
+<tr>
+<td>IMDB分数</td>
+<td>在IMDB上评分。</td>
+</tr>
+<tr>
+<td>IMDB投票</td>
+<td>IMDB上的投票。</td>
+</tr>
+<tr>
+<td>imdb流行度</td>
+<td>TMDB的受欢迎程度。</td>
+</tr>
+<tr>
+<td>imdb分数</td>
+<td>TMDB得分。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="install-pyodide-and-tailwindcss">安装Pyodide和TailwindCSS</h2>
+<p>像这样更新你的<em>index.html</em>文件的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.tailwindcss.com"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+
+  <span class="p">&lt;</span><span class="nt">body</span> <span class="na">class</span><span class="o">=</span><span class="s">"bg-slate-900"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">id</span><span class="o">=</span><span class="s">"app"</span> <span class="na">class</span><span class="o">=</span><span class="s">"relative h-full max-w-7xl mx-auto my-16"</span><span class="p">&gt;&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+
+<span class="w">    </span><span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>正如你所看到的，我们从CDN加载了Pyodide和<a href="https://tailwindcss.com/"> Tailwind CSS </a>进行造型。我们还定义了一个带有<code>app</code>的<code>id</code>的<code>&lt;div&gt;</code>元素来保存我们接下来要构建的应用组件。</p>
+<h2 id="create-the-app-component">创建应用程序组件</h2>
+<p>将以下JavaScript代码添加到<code>script</code>标签中:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">class</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">titles</span><span class="o">:</span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">view</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="sb">`&lt;p class="text-slate-100"&gt;Hello, World!&lt;/p&gt;`</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">app</span><span class="p">.</span><span class="nx">innerHTML</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，我们定义了一个名为<code>App</code>的对象。我们将它称为组件，因为它是一段独立的、可重用的代码。</p>
+<p>组件<code>App</code>有一个保存数据的状态对象，以及两个嵌套的函数<code>view()</code>和<code>render()</code>。<code>render()</code>简单地将从<code>view()</code>输出的HTML代码附加到DOM，用<code>app</code>的<code>id</code>附加到<code>div</code>。</p>
+<p>让我们创建一个名为<code>appComponent</code>的<code>App</code>的新实例，并在其上调用<code>render()</code>。在<code>App</code>的<code>class</code>声明后添加以下代码:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">var</span><span class="w"> </span><span class="nx">appComponent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">App</span><span class="p">();</span><span class="w"/>
+<span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">();</span><span class="w"/>
+</code></pre></div>
+
+<p>在浏览器中打开文件。你应该看到“你好，世界！”。</p>
+<h2 id="add-sample-data">添加示例数据</h2>
+<p>接下来，让我们将示例电影添加到<code>state</code>中。在<code>script</code>标记中，就在调用<code>appComponent.render();</code>之前，用以下内容更新状态:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">  </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="s2">"id"</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"title"</span><span class="o">:</span><span class="w"> </span><span class="s2">"The Shawshank Redemption"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"release_year"</span><span class="o">:</span><span class="w"> </span><span class="mf">1994</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"type"</span><span class="o">:</span><span class="w"> </span><span class="s2">"MOVIE"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"genres"</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="s2">"Crime"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="s2">"Drama"</span><span class="w"/>
+<span class="w">    </span><span class="p">],</span><span class="w"/>
+<span class="w">    </span><span class="s2">"production_countries"</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="s2">"USA"</span><span class="w"/>
+<span class="w">    </span><span class="p">],</span><span class="w"/>
+<span class="w">    </span><span class="s2">"imdb_score"</span><span class="o">:</span><span class="w"> </span><span class="mf">9.3</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"imdb_votes"</span><span class="o">:</span><span class="w"> </span><span class="mf">93650</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"tmdb_score"</span><span class="o">:</span><span class="w"> </span><span class="mf">9.3</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="s2">"id"</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"title"</span><span class="o">:</span><span class="w"> </span><span class="s2">"The Godfather"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"release_year"</span><span class="o">:</span><span class="w"> </span><span class="mf">1972</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"type"</span><span class="o">:</span><span class="w"> </span><span class="s2">"MOVIE"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"genres"</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="s2">"Crime"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="s2">"Drama"</span><span class="w"/>
+<span class="w">    </span><span class="p">],</span><span class="w"/>
+<span class="w">    </span><span class="s2">"production_countries"</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="s2">"USA"</span><span class="w"/>
+<span class="w">    </span><span class="p">],</span><span class="w"/>
+<span class="w">    </span><span class="s2">"imdb_score"</span><span class="o">:</span><span class="w"> </span><span class="mf">9.2</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"imdb_votes"</span><span class="o">:</span><span class="w"> </span><span class="mf">93650</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s2">"tmdb_score"</span><span class="o">:</span><span class="w"> </span><span class="mf">9.3</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">];</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，我们可以通过更新我们的<code>App</code>类中的<code>view()</code>来构建一个表来显示数据，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">view</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">    &lt;div class="px-4 sm:px-6 lg:px-8"&gt;</span>
+<span class="sb">      &lt;div class="sm:flex sm:items-center"&gt;</span>
+<span class="sb">        &lt;div class="sm:flex-auto"&gt;</span>
+<span class="sb">          &lt;h1 class="text-4xl font-semibold text-gray-200"&gt;Netflix Movies and Shows&lt;/h1&gt;</span>
+<span class="sb">        &lt;/div&gt;</span>
+<span class="sb">      &lt;/div&gt;</span>
+<span class="sb">      &lt;!-- Start of Titles --!&gt;</span>
+<span class="sb">      &lt;div class="mt-8 flex flex-col"&gt;</span>
+<span class="sb">        &lt;div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8"&gt;</span>
+<span class="sb">          &lt;div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8"&gt;</span>
+<span class="sb">            &lt;div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg"&gt;</span>
+<span class="sb">              &lt;table class="min-w-full divide-y divide-gray-300"&gt;</span>
+<span class="sb">                &lt;thead class="bg-gray-50"&gt;</span>
+<span class="sb">                  &lt;tr&gt;</span>
+<span class="sb">                    &lt;th scope="col" class="whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6"&gt;Title&lt;/th&gt;</span>
+<span class="sb">                    &lt;th scope="col" class="whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"&gt;Type&lt;/th&gt;</span>
+<span class="sb">                    &lt;th scope="col" class="whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"&gt;Release Year&lt;/th&gt;</span>
+<span class="sb">                    &lt;th scope="col" class="whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"&gt;Genre&lt;/th&gt;</span>
+<span class="sb">                    &lt;th scope="col" class="whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"&gt;Production Country&lt;/th&gt;</span>
+<span class="sb">                  &lt;/tr&gt;</span>
+<span class="sb">                &lt;/thead&gt;</span>
+<span class="sb">                &lt;tbody class="divide-y divide-gray-200 bg-white"&gt;</span>
+<span class="sb">                  </span><span class="si">${</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">                      &lt;tr id=</span><span class="si">${</span><span class="nx">title</span><span class="p">.</span><span class="nx">id</span><span class="si">}</span><span class="sb">&gt;</span>
+<span class="sb">                        &lt;td class="whitespace-nowrap py-2 pl-4 pr-3 text-sm text-gray-500 sm:pl-6"&gt;</span><span class="si">${</span><span class="nx">title</span><span class="p">.</span><span class="nx">title</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">                        &lt;td class="whitespace-nowrap px-2 py-2 text-sm font-medium text-gray-900"&gt;</span><span class="si">${</span><span class="nx">title</span><span class="p">.</span><span class="nx">type</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">                        &lt;td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500"&gt;</span><span class="si">${</span><span class="nx">title</span><span class="p">.</span><span class="nx">release_year</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">                        &lt;td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500"&gt;</span><span class="si">${</span><span class="nx">title</span><span class="p">.</span><span class="nx">genres</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">                        &lt;td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500"&gt;</span><span class="si">${</span><span class="nx">title</span><span class="p">.</span><span class="nx">production_countries</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">                      &lt;/tr&gt;</span>
+<span class="sb">                    `</span><span class="p">)</span><span class="w"/>
+<span class="w">                  </span><span class="si">}</span><span class="sb">).join('') : (`</span><span class="w"/>
+<span class="w">                    </span><span class="o">&lt;</span><span class="nx">tr</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">                      </span><span class="o">&lt;</span><span class="nx">td</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"whitespace-nowrap py-2 pl-4 pr-3 text-sm text-gray-500 sm:pl-6"</span><span class="o">&gt;</span><span class="nx">Titles</span><span class="w"> </span><span class="nx">are</span><span class="w"> </span><span class="nx">loading</span><span class="p">...</span><span class="o">&lt;</span><span class="err">/td&gt;</span><span class="w"/>
+<span class="w">                      </span><span class="o">&lt;</span><span class="nx">td</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"whitespace-nowrap px-2 py-2 text-sm font-medium text-gray-900"</span><span class="o">&gt;</span><span class="nx">Titles</span><span class="w"> </span><span class="nx">are</span><span class="w"> </span><span class="nx">loading</span><span class="p">...</span><span class="o">&lt;</span><span class="err">/td&gt;</span><span class="w"/>
+<span class="w">                      </span><span class="o">&lt;</span><span class="nx">td</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="o">&gt;</span><span class="nx">Titles</span><span class="w"> </span><span class="nx">are</span><span class="w"> </span><span class="nx">loading</span><span class="p">...</span><span class="o">&lt;</span><span class="err">/td&gt;</span><span class="w"/>
+<span class="w">                      </span><span class="o">&lt;</span><span class="nx">td</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="o">&gt;</span><span class="nx">Titles</span><span class="w"> </span><span class="nx">are</span><span class="w"> </span><span class="nx">loading</span><span class="p">...</span><span class="o">&lt;</span><span class="err">/td&gt;</span><span class="w"/>
+<span class="w">                      </span><span class="o">&lt;</span><span class="nx">td</span><span class="w"> </span><span class="kd">class</span><span class="o">=</span><span class="s2">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="o">&gt;</span><span class="nx">Titles</span><span class="w"> </span><span class="nx">are</span><span class="w"> </span><span class="nx">loading</span><span class="p">...</span><span class="o">&lt;</span><span class="err">/td&gt;</span><span class="w"/>
+<span class="w">                    </span><span class="o">&lt;</span><span class="err">/tr&gt;</span><span class="w"/>
+<span class="w">                  </span><span class="sb">`)</span>
+<span class="sb">                  }</span>
+<span class="sb">                &lt;/tbody&gt;</span>
+<span class="sb">              &lt;/table&gt;</span>
+<span class="sb">            &lt;div&gt;</span>
+<span class="sb">          &lt;/div&gt;</span>
+<span class="sb">        &lt;/div&gt;</span>
+<span class="sb">      &lt;/div&gt;</span>
+<span class="sb">      &lt;!-- End of Titles --!&gt;</span>
+<span class="sb">    &lt;/div&gt;</span>
+<span class="sb">  `</span><span class="p">)</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>所以，我们-</p>
+<ol>
+<li>添加了一个表格元素，包含标题、类型、发行年份、流派和生产国家的列。</li>
+<li>已检查<code>state.titles</code>数组长度，查看它是否包含任何标题。如果有标题，我们遍历它们并为每个标题创建一个表格行。如果没有，我们创建一个带有加载消息的表行。</li>
+</ol>
+<p>在浏览器中刷新页面。</p>
+<h2 id="pandas-data-manipulation">熊猫数据处理</h2>
+<h3 id="installing-pandas">安装熊猫</h3>
+<p>要在Pyodide中<a href="https://pyodide.org/en/stable/usage/loading-packages.html">加载Python包</a>，可以在初始化Pyodide后立即使用<a href="https://pyodide.org/en/stable/usage/api/js-api.html?#pyodide.loadPackage"> loadPackage </a>函数。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+<span class="k">await</span><span class="w"> </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">loadPackage</span><span class="p">(</span><span class="s2">"requests"</span><span class="p">);</span><span class="w"/>
+</code></pre></div>
+
+<p>您可以使用列表加载多个包:</p>
+<div class="codehilite"><pre><span/><code><span class="k">await</span><span class="w"> </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">loadPackage</span><span class="p">([</span><span class="s2">"requests"</span><span class="p">,</span><span class="w"> </span><span class="s2">"pandas"</span><span class="p">,</span><span class="w"> </span><span class="s2">"numpy"</span><span class="p">]);</span><span class="w"/>
+</code></pre></div>
+
+<p>回到您的HTML文件，在<code>appComponent.render();</code>之后添加一个<code>main</code>函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">loadPackage</span><span class="p">(</span><span class="s2">"pandas"</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>别忘了叫它:</p>
+
+
+<p>在浏览器中刷新页面。您应该会在控制台中看到以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="n">Loading</span><span class="w"> </span><span class="n">pandas</span><span class="p">,</span><span class="w"> </span><span class="n">numpy</span><span class="p">,</span><span class="w"> </span><span class="n">python</span><span class="o">-</span><span class="n">dateutil</span><span class="p">,</span><span class="w"> </span><span class="n">six</span><span class="p">,</span><span class="w"> </span><span class="n">pytz</span><span class="p">,</span><span class="w"> </span><span class="n">setuptools</span><span class="p">,</span><span class="w"> </span><span class="n">pyparsing</span><span class="w"/>
+<span class="n">Loaded</span><span class="w"> </span><span class="n">python</span><span class="o">-</span><span class="n">dateutil</span><span class="p">,</span><span class="w"> </span><span class="n">six</span><span class="p">,</span><span class="w"> </span><span class="n">pytz</span><span class="p">,</span><span class="w"> </span><span class="n">pyparsing</span><span class="p">,</span><span class="w"> </span><span class="n">setuptools</span><span class="p">,</span><span class="w"> </span><span class="n">numpy</span><span class="p">,</span><span class="w"> </span><span class="n">pandas</span><span class="w"/>
+</code></pre></div>
+
+<p>于是，Pandas和相关的子依赖项被加载到浏览器中！</p>
+<h3 id="reading-and-manipulating-data">读取和操作数据</h3>
+<p>在这一节中，我们将从互联网上获取一个CSV文件，将它读入一个Pandas数据帧，对它进行整理和操作，最后将它传递给state。</p>
+<p>Python代码:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">js</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">pyodide.http</span> <span class="kn">import</span> <span class="n">pyfetch</span>
+
+<span class="c1"># 1. fetching CSV from and write it to memory</span>
+<span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pyfetch</span><span class="p">(</span><span class="s2">"https://raw.githubusercontent.com/amirtds/kaggle-netflix-tv-shows-and-movies/main/titles.csv"</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"titles.csv"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="k">await</span> <span class="n">response</span><span class="o">.</span><span class="n">bytes</span><span class="p">())</span>
+
+<span class="c1"># 2. load the csv file</span>
+<span class="n">all_titles</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">"titles.csv"</span><span class="p">)</span>
+
+<span class="c1"># 3. sanitize the data</span>
+<span class="c1"># drop unnecessary columns</span>
+<span class="n">all_titles</span> <span class="o">=</span> <span class="n">all_titles</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span>
+        <span class="s2">"age_certification"</span><span class="p">,</span>
+        <span class="s2">"seasons"</span><span class="p">,</span>
+        <span class="s2">"imdb_id"</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="c1"># drop rows with null values for important columns</span>
+<span class="n">sanitized_titles</span> <span class="o">=</span> <span class="n">all_titles</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span>
+    <span class="n">subset</span><span class="o">=</span><span class="p">[</span>
+        <span class="s2">"id"</span><span class="p">,</span>
+        <span class="s2">"title"</span><span class="p">,</span>
+        <span class="s2">"release_year"</span><span class="p">,</span>
+        <span class="s2">"genres"</span><span class="p">,</span>
+        <span class="s2">"production_countries"</span><span class="p">,</span>
+        <span class="s2">"imdb_score"</span><span class="p">,</span>
+        <span class="s2">"imdb_votes"</span><span class="p">,</span>
+        <span class="s2">"tmdb_score"</span><span class="p">,</span>
+        <span class="s2">"tmdb_popularity"</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="c1"># Convert the DataFrame to a JSON object. ('orient="records"' returns a list of objects)</span>
+<span class="n">titles_list</span> <span class="o">=</span> <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+
+<span class="c1"># 4. set titles to first 10 titles to the state</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">titles</span> <span class="o">=</span> <span class="n">titles_list</span>
+<span class="n">js</span><span class="o">.</span><span class="n">window</span><span class="o">.</span><span class="n">appComponent</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+</code></pre></div>
+
+<p>记下代码注释。</p>
+<p>将此代码添加到<code>main</code>中的<a href="https://pyodide.org/en/stable/usage/faq.html#how-can-i-change-the-behavior-of-runpython-and-runpythonasync"> runPythonAsync </a>方法中:</p>
+<div class="codehilite"><pre><span/><code><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">loadPackage</span><span class="p">(</span><span class="s2">"pandas"</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPythonAsync</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">    // add the code here</span>
+<span class="sb">  `</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来，移除<code>appComponent.state.titles</code>。此外，我们需要在<code>view</code>方法中更改这一行:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+</code></pre></div>
+
+<p>收件人:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">).</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+</code></pre></div>
+
+<p>为什么？</p>
+<p><code>titles_list</code> ( <code>titles_list = sanitized_titles.head(10).to_json(orient="records")</code>)是一个JSON字符串，所以为了迭代它，我们需要反序列化它。</p>
+<p>在浏览器中刷新页面。您应该首先在表中看到一条加载消息。Pyodide加载后，Pandas导入，脚本执行完成后，您应该会看到完整的电影列表。</p>
+<h2 id="conclusion">结论</h2>
+<p>我们在本教程中讨论了很多！我们了解了Pyodide如何让您在浏览器中运行Python代码，让您能够:</p>
+<ol>
+<li>直接在浏览器中加载和使用Python包。(我们用Pandas读取并分析了一个CSV文件。)</li>
+<li>从Python代码中访问和操作DOM。(在我们的Python代码中导入js使我们能够访问DOM。)</li>
+<li>在Python和JavaScript之间共享和访问对象和名称空间。(在我们的Javascript代码中，我们创建了一个可以在Python代码中访问的组件，以便管理它的状态和调用它的方法。)</li>
+</ol>
+<p>你可以在这里找到这个教程<a href="https://github.com/amirtds/netflix-analysis-spa/tree/part-1">的源代码。</a></p>
+<p>--</p>
+<p>但是，我们仍然缺少一些东西，我们需要解决一些问题:</p>
+<ol>
+<li>首先，我们没有对导入的CSV文件做太多处理。Pandas给了我们很大的能力来轻松地分析和操作数据。</li>
+<li>其次，Pyodide可能需要一些时间来初始化和运行Python脚本。由于它当前运行在<a href="https://developer.mozilla.org/en-US/docs/Glossary/Main_thread">主线程</a>中，它会使应用程序瘫痪，直到它运行完毕。我们应该把Pyodide和Python脚本转移到一个<a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers"> web worker </a>来防止这种情况。</li>
+<li>第三，我们还没有看到完全的SPA式行为。我们仍然需要更新组件以添加事件侦听器来响应用户操作。</li>
+<li>最后，Python脚本部分在代码编辑器中没有突出显示语法。另外，它开始变得难以阅读。我们应该将这段代码移动到一个Python包中，并导入到Pyodide中。这将使维护和扩展变得更加容易。</li>
+</ol>
+<p>我们将在接下来的教程中讨论这四件事！</p>
+<p>--</p>
+<p><strong> Python单页面应用系列:</strong></p>
+<ol>
+<li><em>第一部分</em>(本教程！):学习Pyodide的基础知识并创建基础应用程序</li>
+<li><em> <a href="/blog/build-spa-with-python-part-2">第二部分</a> </em>:用Pandas分析和操作数据，使用web worker加速应用程序</li>
+<li><em> <a href="/blog/build-spa-with-python-part-3">第三部分</a> </em>:创建Python包，添加附加特性，添加持久化数据层</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

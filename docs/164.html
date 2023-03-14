@@ -1,0 +1,341 @@
+<html>
+<head>
+<title>Primer on React Hooks </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>React挂钩上的底漆</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/react-hooks-primer/#0001-01-01">https://testdriven.io/blog/react-hooks-primer/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>React很棒，但是在开发更大的应用程序时，需要解决一些稍微令人恼火的架构原则。例如，使用复杂的高阶组件来重用有状态逻辑，以及依赖触发不相关逻辑的生命周期方法。嗯，<a href="https://reactjs.org/docs/hooks-intro.html">反应钩</a>有助于缓解这种恶化...让我们开始吧。</p>
+<blockquote>
+<p>这是两部分系列的第一部分:</p>
+<ol>
+<li><em>(本文)</em>React挂钩上的底漆</li>
+<li><a href="https://testdriven.io/blog/react-hooks-advanced">React Hooks——以useContext和useReducer为特色的深入探讨</a></li>
+</ol></blockquote>
+
+
+
+
+<h2 id="learning-objectives">学习目标</h2>
+<p>在本文结束时，你将能够回答以下问题:</p>
+<ol>
+<li>什么是钩子？</li>
+<li>为什么要在React中实现它们？</li>
+<li>钩子是如何使用的？</li>
+<li>使用钩子有什么规则吗？</li>
+<li>什么是自定义挂钩？</li>
+<li>什么时候应该使用定制挂钩？</li>
+<li>使用定制钩子有什么好处？</li>
+</ol>
+<h2 id="what-are-hooks">什么是钩子？</h2>
+<p>挂钩允许您:</p>
+<ol>
+<li>在功能组件中使用状态和“挂钩”生命周期方法。</li>
+<li>在组件之间重用有状态逻辑，这简化了组件逻辑，最重要的是，让您可以跳过编写类。</li>
+</ol>
+<h2 id="why-were-they-implemented-in-react">为什么要在React中实现它们？</h2>
+<p>如果你用过React，你就知道有状态逻辑有多复杂，对吗？当应用程序增加了几个新特性来增强功能时，就会出现这种情况。为了尝试和简化这个问题，React背后的智囊们试图找到一种方法来解决这个问题。</p>
+<ol>
+<li>
+<p><strong>重用组件间的有状态逻辑</strong></p>
+<p>钩子允许开发人员编写简单的、有状态的、功能性的组件，并且在开发时花费更少的时间来设计和重构组件层次结构。怎么会？使用钩子，你可以<em>提取</em>和<em>共享</em>组件之间的有状态逻辑。</p>
+</li>
+<li>
+<p><strong>简化组件逻辑</strong></p>
+<p>当不可避免的逻辑指数增长出现在您的应用程序中时，简单的组件就变成了令人眩晕的有状态逻辑和副作用的深渊。生命周期方法变得与不相关的方法混杂在一起。一个组件的职责不断增长，变得不可分割。反过来，这使得编码繁琐，测试困难。</p>
+</li>
+<li>
+<p><strong>可以逃课</strong></p>
+<p>类是React架构的重要组成部分。上课有很多好处，但是给初学者造成了入门的障碍。对于类，您还必须记住将<code>this</code>绑定到事件处理程序，因此代码会变得冗长且有点多余。编码的未来也不会很好地与类一起玩，因为它们可能会鼓励倾向于落后于其他设计模式的模式。</p>
+</li>
+</ol>
+<h2 id="how-are-hooks-used">钩子是如何使用的？</h2>
+<p>React版本<a href="https://reactjs.org/blog/2019/02/06/react-v16.8.0.html"> 16.8 </a>有钩子。</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useState</span><span class="p">,</span><span class="w"> </span><span class="nx">useEffect</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>很简单，但是你实际上如何使用这些新方法呢？下面的例子很简单，但是这些方法的能力非常强大。</p>
+<h3 id="the-usestate-hook-method">useState挂钩方法</h3>
+<p>使用状态挂钩的最佳方式是将其析构并设置初始值。第一个参数将用于存储状态，第二个用于更新状态。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">weight</span><span class="p">,</span><span class="w"> </span><span class="nx">setWeight</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="mf">150</span><span class="p">);</span><span class="w"/>
+
+<span class="nx">onClick</span><span class="o">=</span><span class="p">{()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">setWeight</span><span class="p">(</span><span class="nx">weight</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">15</span><span class="p">)}</span><span class="w"/>
+</code></pre></div>
+
+<ol>
+<li><code>weight</code>是状态</li>
+<li><code>setWeight</code>是一种用于更新状态的方法</li>
+<li><code>useState(150)</code>是用来设置初始值的方法(任何原始类型)</li>
+</ol>
+<p>值得注意的是，您可以在单个组件中多次析构状态挂钩:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">age</span><span class="p">,</span><span class="w"> </span><span class="nx">setAge</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="mf">42</span><span class="p">);</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">month</span><span class="p">,</span><span class="w"> </span><span class="nx">setMonth</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="s1">'February'</span><span class="p">);</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">todos</span><span class="p">,</span><span class="w"> </span><span class="nx">setTodos</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">([{</span><span class="w"> </span><span class="nx">text</span><span class="o">:</span><span class="w"> </span><span class="s1">'Eat pie'</span><span class="w"> </span><span class="p">}]);</span><span class="w"/>
+</code></pre></div>
+
+<p>因此，该组件可能类似于:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span><span class="o">,</span> <span class="p">{</span> <span class="n">useState</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">function</span> <span class="n">App</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">weight</span><span class="p">,</span> <span class="n">setWeight</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">(</span><span class="mi">150</span><span class="p">);</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">age</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">(</span><span class="mi">42</span><span class="p">);</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">month</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">(</span><span class="s1">'February'</span><span class="p">);</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">todos</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">([{</span> <span class="n">text</span><span class="p">:</span> <span class="s1">'Eat pie'</span> <span class="p">}]);</span>
+
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"App"</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="n">Current</span> <span class="n">Weight</span><span class="p">:</span> <span class="p">{</span><span class="n">weight</span><span class="p">}</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="n">Age</span><span class="p">:</span> <span class="p">{</span><span class="n">age</span><span class="p">}</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="n">Month</span><span class="p">:</span> <span class="p">{</span><span class="n">month</span><span class="p">}</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">button</span> <span class="n">onClick</span><span class="o">=</span><span class="p">{()</span> <span class="o">=&gt;</span> <span class="n">setWeight</span><span class="p">(</span><span class="n">weight</span> <span class="o">+</span> <span class="mi">15</span><span class="p">)}</span><span class="o">&gt;</span>
+        <span class="p">{</span><span class="n">todos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">}</span>
+      <span class="o">&lt;/</span><span class="n">button</span><span class="o">&gt;</span>
+    <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+  <span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="the-useeffect-hook-method">useEffect挂钩方法</h3>
+<p>最好像使用任何常见的生命周期方法一样使用效果挂钩，如<code>componentDidMount</code>、<code>componentDidUpdate</code>和<code>componentWillUnmount</code>。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// similar to the componentDidMount and componentDidUpdate methods</span><span class="w"/>
+<span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`You clicked </span><span class="si">${</span><span class="nx">count</span><span class="si">}</span><span class="sb"> times`</span><span class="p">;</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>每当组件更新时，<code>useEffect</code>将在渲染后被调用。现在，如果您只想在变量计数发生变化时更新<code>useEffect</code>，您只需将该事实添加到数组中方法的末尾，类似于高阶<code>reduce</code>方法末尾的累加器。</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// check out the variable count in the array at the end...</span><span class="w"/>
+<span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`You clicked </span><span class="si">${</span><span class="nx">count</span><span class="si">}</span><span class="sb"> times`</span><span class="p">;</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">count</span><span class="w"> </span><span class="p">]);</span><span class="w"/>
+</code></pre></div>
+
+<p>让我们结合两个例子:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">weight</span><span class="p">,</span><span class="w"> </span><span class="nx">setWeight</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="mf">150</span><span class="p">);</span><span class="w"/>
+
+<span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`You weigh </span><span class="si">${</span><span class="nx">weight</span><span class="si">}</span><span class="sb">, you ok with that?`</span><span class="p">;</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">weight</span><span class="w"> </span><span class="p">]);</span><span class="w"/>
+
+<span class="nx">onClick</span><span class="o">=</span><span class="p">{()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">setWeight</span><span class="p">(</span><span class="nx">weight</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">15</span><span class="p">)}</span><span class="w"/>
+</code></pre></div>
+
+<p>因此，当<code>onClick</code>被触发时，<code>useEffect</code>方法也将被调用，并在DOM更新后不久在文档标题中呈现新的权重。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span><span class="o">,</span> <span class="p">{</span> <span class="n">useState</span><span class="p">,</span> <span class="n">useEffect</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">function</span> <span class="n">App</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">weight</span><span class="p">,</span> <span class="n">setWeight</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">(</span><span class="mi">150</span><span class="p">);</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">age</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">(</span><span class="mi">42</span><span class="p">);</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">month</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">(</span><span class="s1">'February'</span><span class="p">);</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">todos</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">([{</span> <span class="n">text</span><span class="p">:</span> <span class="s1">'Eat pie'</span> <span class="p">}]);</span>
+
+  <span class="n">useEffect</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">document</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="err">`</span><span class="n">You</span> <span class="n">weigh</span> <span class="err">$</span><span class="p">{</span><span class="n">weight</span><span class="p">},</span> <span class="n">you</span> <span class="n">ok</span> <span class="k">with</span> <span class="n">that</span><span class="err">?`</span><span class="p">;</span>
+  <span class="p">});</span>
+
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"App"</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="n">Current</span> <span class="n">Weight</span><span class="p">:</span> <span class="p">{</span><span class="n">weight</span><span class="p">}</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="n">Age</span><span class="p">:</span> <span class="p">{</span><span class="n">age</span><span class="p">}</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="n">Month</span><span class="p">:</span> <span class="p">{</span><span class="n">month</span><span class="p">}</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">button</span> <span class="n">onClick</span><span class="o">=</span><span class="p">{()</span> <span class="o">=&gt;</span> <span class="n">setWeight</span><span class="p">(</span><span class="n">weight</span> <span class="o">+</span> <span class="mi">15</span><span class="p">)}</span><span class="o">&gt;</span>
+        <span class="p">{</span><span class="n">todos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">}</span>
+      <span class="o">&lt;/</span><span class="n">button</span><span class="o">&gt;</span>
+    <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+  <span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><code>useEffect</code>非常适合进行API调用:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">useEffect</span><span class="o">(()</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="err">fetch('</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">jsonplaceholder</span><span class="o">.</span><span class="n">typicode</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">todos</span><span class="o">/</span><span class="mi">1</span><span class="err">'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="o">.</span><span class="nf">then</span><span class="p">(</span><span class="n">results</span><span class="w"> </span><span class="err">=&gt;</span><span class="w"> </span><span class="n">results</span><span class="err">.</span><span class="nf">json</span><span class="p">())</span><span class="w"/>
+<span class="w">    </span><span class="o">.</span><span class="nf">then</span><span class="p">(</span><span class="err">(</span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="err">{</span><span class="w"> </span><span class="nf">setTodos</span><span class="p">(</span><span class="cp">[</span><span class="p">{</span><span class="w"> </span><span class="nx">text</span><span class="p">:</span><span class="w"> </span><span class="nx">data.title</span><span class="w"> </span><span class="p">}</span><span class="cp">]</span><span class="p">);</span><span class="w"> </span><span class="p">}</span><span class="o">);</span><span class="w"/>
+<span class="err">}</span><span class="o">,</span><span class="w"> </span><span class="cp">[]</span><span class="o">);</span><span class="w"/>
+</code></pre></div>
+
+<p>React钩子看起来很棒，但是如果你花一分钟，你可能会意识到在多个组件中重新初始化多个钩子方法，比如<code>useState</code>和<code>useEffect</code>，可能会轻视我们都珍视的DRY原则。好吧，让我们看看如何通过创建定制钩子来重用这些美妙的新内置方法。在我们开始一些涉及钩子的新技巧之前，我们先来看看使用钩子的规则，让我们的定制钩子之旅更加愉快。</p>
+<h2 id="are-there-rules-to-using-hooks">使用钩子有什么规则吗？</h2>
+<p>是的，React钩子是有规则的。乍一看，这些规则似乎不合常规，但是一旦你理解了React钩子是如何启动的，这些规则就很容易遵循了。另外，React有一个棉绒来防止你违反规则。</p>
+<h4 id="1-hooks-must-be-called-in-the-same-order-at-the-top-level">(1)钩子必须以相同的顺序调用，在顶层。</h4>
+<p>钩子创建一个钩子调用数组来保持秩序。这种顺序有助于React区分，例如，单个组件中或整个应用程序中的多个<code>useState</code>和<code>useEffect</code>方法调用之间的差异。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// This is good!</span><span class="w"/>
+<span class="kd">function</span><span class="w"> </span><span class="nx">ComponentWithHooks</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// top-level!</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">age</span><span class="p">,</span><span class="w"> </span><span class="nx">setAge</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="mf">42</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">month</span><span class="p">,</span><span class="w"> </span><span class="nx">setMonth</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="s1">'February'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">todos</span><span class="p">,</span><span class="w"> </span><span class="nx">setTodos</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">([{</span><span class="w"> </span><span class="nx">text</span><span class="o">:</span><span class="w"> </span><span class="s1">'Eat pie'</span><span class="w"> </span><span class="p">}]);</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="c1">//...</span><span class="w"/>
+<span class="w">  </span><span class="p">)</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<ol>
+<li>第一次渲染时，<code>42</code>、<code>February</code>、<code>[{ text: 'Eat pie'}]</code>都被推入一个状态数组。</li>
+<li>当组件重新呈现时，<code>useState</code>方法参数被忽略。</li>
+<li><code>age</code>、<code>month</code>和<code>todos</code>的值从组件的状态中检索，该状态是前述的状态数组。</li>
+</ol>
+<h4 id="2-hooks-cannot-be-called-within-conditional-statements-or-loops">(2)不能在条件语句或循环中调用钩子。</h4>
+<p>由于钩子的启动方式，它们不允许在条件语句或循环中使用<em>。对于钩子，如果在重新渲染时初始化的顺序改变了，你的应用程序很有可能不能正常工作。您仍然可以在组件中使用条件语句和循环，但是不能在代码块中使用钩子。</em></p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// DON'T DO THIS!!</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">DNAMatch</span><span class="p">,</span><span class="w"> </span><span class="nx">setDNAMatch</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span><span class="w"/>
+
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">setDNAMatch</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">setName</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">name</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">useEffect</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="nx">persistFamily</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">'dad'</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">[]);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code><span class="c1">// DO THIS!!</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">DNAMatch</span><span class="p">,</span><span class="w"> </span><span class="nx">setDNAMatch</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">setName</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">null</span><span class="p">)</span><span class="w"/>
+
+<span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">setDNAMatch</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="nx">setName</span><span class="p">(</span><span class="nx">name</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">'dad'</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="p">[]);</span><span class="w"/>
+</code></pre></div>
+
+<h4 id="3-hooks-cannot-be-used-in-class-components">(3)钩子不能用在类组件中。</h4>
+<p>钩子必须在函数组件或自定义钩子函数中初始化。自定义钩子函数只能在一个功能组件中调用，并且必须遵循与非自定义钩子相同的规则。</p>
+<blockquote>
+<p>您仍然可以在同一个应用程序中使用类组件。你可以用钩子把你的功能组件作为一个类组件的子组件。</p>
+</blockquote>
+<h4 id="4-custom-hooks-should-start-with-the-word-use-and-be-camel-cased">(4)定制挂钩应以单词<em>开头，使用</em>并采用驼色外壳。</h4>
+<p>这与其说是一个规则，不如说是一个强有力的建议，但是它将有助于应用程序的一致性。您还会知道，当您看到以单词<code>use</code>为前缀的函数时，它可能是一个定制的钩子。</p>
+<h2 id="what-is-a-custom-hook">什么是自定义挂钩？</h2>
+<p>自定义钩子只是遵循与非自定义钩子相同规则的函数。它们允许您整合逻辑、共享数据以及跨组件重用钩子。</p>
+<h2 id="when-should-i-use-custom-hooks">什么时候应该使用定制挂钩？</h2>
+<p>当您需要在组件之间共享逻辑时，最好使用定制挂钩。在JavaScript中，当您想要在两个独立的函数之间共享逻辑时，您可以创建另一个函数来支持它。和组件一样，钩子也是函数。您可以提取钩子逻辑，在应用程序的各个组件之间共享。在编写定制钩子时，您命名它们(再次以单词<code>use</code>开始)，设置参数，并告诉它们应该返回什么(如果有的话)。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useEffect</span><span class="p">,</span><span class="w"> </span><span class="nx">useState</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">useFetch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">({</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="nx">defaultData</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">setData</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">defaultData</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">loading</span><span class="p">,</span><span class="w"> </span><span class="nx">setLoading</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">error</span><span class="p">,</span><span class="w"> </span><span class="nx">setError</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">fetch</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">res</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">setData</span><span class="p">(</span><span class="nx">res</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="nx">setLoading</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">setError</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="nx">setLoading</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">[]);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">fetchResults</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">data</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">loading</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">error</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">fetchResults</span><span class="p">;</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">useFetch</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>你是不是想出一个需要自定义钩子的情况？发挥你的想象力。虽然在钩子旁边有非常规的规则，但它们仍然非常灵活，并且刚刚开始展示它们的潜力。</p>
+<h2 id="what-are-the-benefits-of-using-custom-hooks">使用定制钩子有什么好处？</h2>
+<p>钩子允许你随着应用程序的增长抑制复杂性，编写更容易理解的代码。下面的代码是具有相同功能的两个组件的比较。在第一次比较之后，我们将展示在带有容器的组件中使用自定义钩子的更多好处。</p>
+<p>下面的类组件应该看起来很熟悉:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+
+<span class="k">class</span> <span class="nc">OneChanceButton</span> <span class="n">extends</span> <span class="n">React</span><span class="o">.</span><span class="n">Component</span> <span class="p">{</span>
+  <span class="n">constructor</span><span class="p">(</span><span class="n">props</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nb">super</span><span class="p">(</span><span class="n">props</span><span class="p">);</span>
+    <span class="n">this</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="p">{</span>
+      <span class="n">clicked</span><span class="p">:</span> <span class="n">false</span><span class="p">,</span>
+    <span class="p">};</span>
+    <span class="n">this</span><span class="o">.</span><span class="n">handleClick</span> <span class="o">=</span> <span class="n">this</span><span class="o">.</span><span class="n">handleClick</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">this</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">handleClick</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">this</span><span class="o">.</span><span class="n">setState</span><span class="p">({</span> <span class="n">clicked</span><span class="p">:</span> <span class="n">true</span> <span class="p">});</span>
+  <span class="p">}</span>
+
+  <span class="n">render</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">(</span>
+      <span class="o">&lt;</span><span class="n">div</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">button</span>
+          <span class="n">onClick</span><span class="o">=</span><span class="p">{</span><span class="n">this</span><span class="o">.</span><span class="n">handleClick</span><span class="p">}</span>
+          <span class="n">disabled</span><span class="o">=</span><span class="p">{</span><span class="n">this</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">clicked</span><span class="p">}</span>
+        <span class="o">&gt;</span>
+          <span class="n">You</span> <span class="n">Have</span> <span class="n">One</span> <span class="n">Chance</span> <span class="n">to</span> <span class="n">Click</span>
+        <span class="o">&lt;/</span><span class="n">button</span><span class="o">&gt;</span>
+      <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+    <span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">OneChanceButton</span><span class="p">;</span>
+</code></pre></div>
+
+<p>用钩子实现相同的功能来简化代码和增加可读性怎么样:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span><span class="o">,</span> <span class="p">{</span> <span class="n">useState</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+
+<span class="n">function</span> <span class="n">OneChanceButton</span><span class="p">(</span><span class="n">props</span><span class="p">)</span> <span class="p">{</span>
+  <span class="n">const</span> <span class="p">[</span><span class="n">clicked</span><span class="p">,</span> <span class="n">setClicked</span><span class="p">]</span> <span class="o">=</span> <span class="n">useState</span><span class="p">(</span><span class="n">false</span><span class="p">);</span>
+
+  <span class="n">function</span> <span class="n">doClick</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">setClicked</span><span class="p">(</span><span class="n">true</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">div</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">button</span>
+        <span class="n">onClick</span><span class="o">=</span><span class="p">{</span><span class="n">clicked</span> <span class="err">?</span> <span class="n">undefined</span> <span class="p">:</span> <span class="n">doClick</span><span class="p">}</span>
+        <span class="n">disabled</span><span class="o">=</span><span class="p">{</span><span class="n">clicked</span><span class="p">}</span>
+      <span class="o">&gt;</span>
+        <span class="n">You</span> <span class="n">Have</span> <span class="n">One</span> <span class="n">Chance</span> <span class="n">to</span> <span class="n">Click</span>
+      <span class="o">&lt;/</span><span class="n">button</span><span class="o">&gt;</span>
+    <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+  <span class="p">);</span>
+<span class="p">}</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">OneChanceButton</span><span class="p">;</span>
+</code></pre></div>
+
+<h3 id="more-complex-comparisons">更复杂的比较</h3>
+<p>想要更多吗？</p>
+<ol>
+<li><a href="https://github.com/testdrivenio/react-hooks/tree/master/media-query-custom-hooks">media-query-custom-hooks</a>——这个比较将展示利用<code>useState</code>和<code>useEffect</code>方法实现定制挂钩的强大功能</li>
+<li><a href="https://github.com/testdrivenio/react-hooks/tree/master/media-query-custom-hooks">media-query-custom-hooks</a>——一个使用<code>useRef</code>和<code>useReducer</code>的更复杂的例子</li>
+</ol>
+<h2 id="conclusion">结论</h2>
+<p>React挂钩是一个惊人的新功能！实施的理由是正当的；此外，我相信这将极大地降低React中的编码壁垒，并使其保持在最受欢迎的框架列表的顶端。看到这如何改变第三方库的工作方式，尤其是状态管理工具和路由器，将是非常令人兴奋的。</p>
+<p>总之，React挂钩:</p>
+<ol>
+<li>无需使用类组件就可以轻松“挂钩”React的生命周期方法</li>
+<li>通过提高可重用性和抽象复杂性来帮助减少代码</li>
+<li>帮助简化组件之间共享数据的方式</li>
+</ol>
+<p>我迫不及待地想看到React钩子如何被利用的更有力的例子。感谢阅读！</p>
+<blockquote>
+<p>准备好了吗？查看下一部分:<a href="https://testdriven.io/blog/react-hooks-advanced">React Hooks——以useContext和useReducer </a>为特色的更深入的探讨。</p>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

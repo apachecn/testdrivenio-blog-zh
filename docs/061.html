@@ -1,0 +1,681 @@
+<html>
+<head>
+<title>Moving from Flask to FastAPI </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>从Flask转移到FastAPI</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/moving-from-flask-to-fastapi/#0001-01-01">https://testdriven.io/blog/moving-from-flask-to-fastapi/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>Python是最流行的编程语言之一。从脚本到API开发再到机器学习——Python都有足迹。它的受欢迎程度是由它对开发人员体验的关注和它提供的工具推动的。web框架Flask 就是这样一个工具，在机器学习社区中很流行。它也广泛用于API开发。但是一个新的框架正在崛起:<a href="https://fastapi.tiangolo.com/"> FastAPI </a>。与Flask不同，FastAPI是一个ASGI(异步服务器网关接口)框架。与Go和NodeJS一样，FastAPI是最快的基于Python的web框架之一。</p>
+<p>这篇文章的目标读者是那些对从Flask迁移到FastAPI感兴趣的人，文章比较和对比了Flask和FastAPI中的常见模式。</p>
+
+
+
+<h2 id="fastapi-vs-flask">FastAPI vs Flask</h2>
+<p>FastAPI构建时考虑了这三个主要问题:</p>
+<ol>
+<li>速度</li>
+<li>开发者体验</li>
+<li>开放标准</li>
+</ol>
+<p>你可以把FastAPI看作是将<a href="https://www.starlette.io/"> Starlette </a>、<a href="https://pydantic-docs.helpmanual.io/"> Pydantic </a>、<a href="https://github.com/OAI/OpenAPI-Specification"> OpenAPI </a>和<a href="https://json-schema.org/"> JSON模式</a>结合在一起的粘合剂。</p>
+<ul>
+<li>在底层，FastAPI使用Pydantic进行数据验证，使用Starlette进行工具验证，这使得它比Flask快得多，在Node或Go中提供了与高速web APIs相当的性能。</li>
+<li>starlette+<a href="https://www.uvicorn.org/">uvicon</a>提供异步请求能力，这是Flask所缺乏的。</li>
+<li>使用Pydantic和<a href="https://docs.python.org/3/library/typing.html">类型提示</a>，您可以获得一个良好的自动完成编辑器体验。您还可以获得数据验证、序列化和反序列化(用于构建API)，以及自动文档(通过JSON Schema和OpenAPI)。</li>
+</ul>
+<p>也就是说，Flask的使用范围更广，所以它经过了考验，并且有更大的社区支持它。由于这两个框架都是可扩展的，Flask是明显的赢家，因为它有巨大的插件生态系统。</p>
+<p>建议:</p>
+<ul>
+<li>如果您对上述三个问题有共鸣，厌倦了Flask扩展的过多选择，希望利用异步请求，或者只想建立一个RESTful API，请使用FastAPI。</li>
+<li>如果您对FastAPI的成熟度不满意，需要使用服务器端模板构建一个全栈应用程序，或者离不开一些社区维护的Flask扩展，请使用Flask。</li>
+</ul>
+<h2 id="getting-started">入门指南</h2>
+<h3 id="installation">装置</h3>
+<p>像任何其他Python包一样，安装相当简单。</p>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code>pip install flask
+
+<span class="c1"># or</span>
+poetry add flask
+pipenv install flask
+conda install flask
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code>pip install fastapi uvicorn
+
+<span class="c1"># or</span>
+poetry add fastapi uvicorn
+pipenv install fastapi uvicorn
+conda install fastapi uvicorn -c conda-forge
+</code></pre></div>
+
+<blockquote>
+<p>与Flask不同，FastAPI没有内置的开发服务器，所以需要一个像<a href="https://www.uvicorn.org/">uvicon</a>或<a href="https://github.com/django/daphne"> Daphne </a>这样的<a href="https://asgi.readthedocs.io/en/latest/"> ASGI </a>服务器。</p>
+</blockquote>
+<h3 id="hello-world-app">“Hello World”应用程序</h3>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="c1"># flask_code.py</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"Hello"</span><span class="p">:</span> <span class="s2">"World"</span><span class="p">}</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="c1"># fastapi_code.py</span>
+
+<span class="kn">import</span> <span class="nn">uvicorn</span>
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"Hello"</span><span class="p">:</span> <span class="s2">"World"</span><span class="p">}</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"fastapi_code:app"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>像<code>reload=True</code>这样的参数可以传递到<code>uvicorn.run()</code>中，以便为开发启用热重装。</p>
+<p>或者，您可以直接从终端启动服务器:</p>
+<div class="codehilite"><pre><span/><code>uvicorn run fastapi_code:app
+</code></pre></div>
+
+<p>对于热重装:</p>
+<div class="codehilite"><pre><span/><code>uvicorn run fastapi_code:app --reload
+</code></pre></div>
+
+<h3 id="configuration">配置</h3>
+<p>Flask和FastAPI都提供了许多选项来处理不同环境的不同配置。两者都支持以下模式:</p>
+<ol>
+<li>环境变量</li>
+<li>配置文件</li>
+<li>实例文件夹</li>
+<li>类和继承</li>
+</ol>
+<p>有关更多信息，请参考各自的文档:</p>
+
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span>
+
+<span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="n">MESSAGE</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"MESSAGE"</span><span class="p">)</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">from_object</span><span class="p">(</span><span class="n">Config</span><span class="p">)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/settings"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_settings</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span> <span class="s2">"message"</span><span class="p">:</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"MESSAGE"</span><span class="p">]</span> <span class="p">}</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>现在，在运行服务器之前，设置适当的环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">export</span> <span class="nv">MESSAGE</span><span class="o">=</span><span class="s2">"hello, world"</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">uvicorn</span>
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseSettings</span>
+
+<span class="k">class</span> <span class="nc">Settings</span><span class="p">(</span><span class="n">BaseSettings</span><span class="p">):</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="n">settings</span> <span class="o">=</span> <span class="n">Settings</span><span class="p">()</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/settings"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_settings</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span> <span class="s2">"message"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">message</span> <span class="p">}</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"fastapi_code:app"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>同样，在运行服务器之前，设置适当的环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">export</span> <span class="nv">MESSAGE</span><span class="o">=</span><span class="s2">"hello, world"</span>
+</code></pre></div>
+
+<h2 id="routes-templates-and-views">路线、模板和视图</h2>
+<h3 id="http-methods">HTTP方法</h3>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">request</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">"GET"</span><span class="p">,</span> <span class="s2">"POST"</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="c1"># handle POST</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s2">"POST"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"Hello"</span><span class="p">:</span> <span class="s2">"POST"</span><span class="p">}</span>
+    <span class="c1"># handle GET</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"Hello"</span><span class="p">:</span> <span class="s2">"GET"</span><span class="p">}</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"Hello"</span><span class="p">:</span> <span class="s2">"GET"</span><span class="p">}</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home_post</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"Hello"</span><span class="p">:</span> <span class="s2">"POST"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>FastAPI为每个方法提供了单独的装饰器:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="url-parameters">URL参数</h3>
+<p>通过管理状态的URL(如<code>/employee/1</code>)传递信息:</p>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/employee/&lt;int:id&gt;"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="nb">id</span><span class="p">}</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/employee/</span><span class="si">{id}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="nb">id</span><span class="p">}</span>
+</code></pre></div>
+
+<p>URL参数的指定类似于f字符串表达式。此外，您可以利用类型提示。这里，我们在运行时告诉Pydantic，<code>id</code>的类型是<code>int</code>。在开发中，这也可以导致更好的代码完成。</p>
+<h3 id="query-parameters">查询参数</h3>
+<p>与URL参数一样，查询参数(如<code>/employee?department=sales</code>)也可以用于管理状态(通常用于过滤或排序):</p>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">request</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/employee"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="n">department</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"department"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"department"</span><span class="p">:</span> <span class="n">department</span><span class="p">}</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/employee"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">department</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"department"</span><span class="p">:</span> <span class="n">department</span><span class="p">}</span>
+</code></pre></div>
+
+<h3 id="templates">模板</h3>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">render_template</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">"index.html"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>默认情况下，Flask在“templates”文件夹中查找模板。</p>
+<p><strong> FastAPI </strong></p>
+<p>你需要安装<a href="https://jinja.palletsprojects.com/"> Jinja </a>:</p>
+
+
+<p>实施:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">Request</span>
+<span class="kn">from</span> <span class="nn">fastapi.templating</span> <span class="kn">import</span> <span class="n">Jinja2Templates</span>
+<span class="kn">from</span> <span class="nn">fastapi.responses</span> <span class="kn">import</span> <span class="n">HTMLResponse</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="n">templates</span> <span class="o">=</span> <span class="n">Jinja2Templates</span><span class="p">(</span><span class="n">directory</span><span class="o">=</span><span class="s2">"templates"</span><span class="p">)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">response_class</span><span class="o">=</span><span class="n">HTMLResponse</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">templates</span><span class="o">.</span><span class="n">TemplateResponse</span><span class="p">(</span><span class="s2">"index.html"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"request"</span><span class="p">:</span> <span class="n">request</span><span class="p">})</span>
+</code></pre></div>
+
+<p>对于FastAPI，您需要显式定义“templates”文件夹。然后，对于每个响应，需要提供请求上下文。</p>
+<h3 id="static-files">静态文件</h3>
+<p><strong>烧瓶</strong></p>
+<p>默认情况下，Flask从“static”文件夹中提供静态文件。</p>
+<p><strong> FastAPI </strong></p>
+<p>在FastAPI中，您需要为静态文件挂载一个文件夹:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi.staticfiles</span> <span class="kn">import</span> <span class="n">StaticFiles</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">"/static"</span><span class="p">,</span> <span class="n">StaticFiles</span><span class="p">(</span><span class="n">directory</span><span class="o">=</span><span class="s2">"static"</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">"static"</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="asynchronous-tasks">异步任务</h3>
+<p><strong>烧瓶</strong></p>
+<p>从<a href="https://palletsprojects.com/blog/flask-2-0-released/"> Flask 2.0 </a>开始，您可以使用<code>async</code> / <code>await</code>创建异步路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">some_async_task</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">result</span>
+</code></pre></div>
+
+<blockquote>
+<p>有关Flask中异步视图的更多信息，请查看Flask 2.0中的异步文章。</p>
+</blockquote>
+<p>flask中的异步也可以通过使用线程(并发)或多处理(并行)来实现，或者通过像<a href="https://flask.palletsprojects.com/en/2.0.x/patterns/celery/"> Celery </a>或<a href="https://python-rq.org/"> RQ </a>这样的工具来实现:</p>
+<ol>
+<li><a href="/blog/flask-and-celery/">烧瓶和芹菜的异步任务</a></li>
+<li><a href="/blog/asynchronous-tasks-with-flask-and-redis-queue/">带Flask和Redis队列的异步任务</a></li>
+</ol>
+<p><strong> FastAPI </strong></p>
+<p>FastAPI极大地简化了异步任务，因为它本身支持asyncio。要使用，只需在视图函数中添加关键字<code>async</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">some_async_task</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">result</span>
+</code></pre></div>
+
+<p>FastAPI还有一个<a href="https://fastapi.tiangolo.com/tutorial/background-tasks/">后台任务</a>特性，可以用来定义在返回响应后运行的后台任务。这对于不需要在发送回响应之前完成的操作非常有用。</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">BackgroundTasks</span>
+
+<span class="k">def</span> <span class="nf">process_file</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="c1"># process file :: takes minimum 3 secs (just an example)</span>
+    <span class="k">pass</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/upload/</span><span class="si">{filename}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">upload_and_process</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">background_tasks</span><span class="p">:</span> <span class="n">BackgroundTasks</span><span class="p">):</span>
+    <span class="n">background_tasks</span><span class="o">.</span><span class="n">add_task</span><span class="p">(</span><span class="n">process_file</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"processing file"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>在这里，响应会立即发送，而不会让用户等待文件处理完成。</p>
+<p>当您需要执行繁重的后台计算时，或者如果您需要一个任务队列来管理任务和工作者时，您可能希望使用Celery而不是<code>BackgroundTasks</code>。更多信息，请参考【FastAPI和Celery的异步任务。</p>
+<h3 id="dependency-injection">依赖注入</h3>
+<p><strong>烧瓶</strong></p>
+<p>尽管您可以实现自己的依赖注入解决方案，但Flask在默认情况下并没有真正的一流支持。相反，你会想要使用一个像<a href="https://github.com/alecthomas/flask_injector">烧瓶注射器</a>的外部包。</p>
+<p><strong> FastAPI </strong></p>
+<p>另一方面，FastAPI有一个强大的<a href="https://fastapi.tiangolo.com/tutorial/dependencies/#dependencies-first-steps">解决方案</a>来处理依赖注入。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">databases</span> <span class="kn">import</span> <span class="n">Database</span>
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">Depends</span>
+<span class="kn">from</span> <span class="nn">starlette.requests</span> <span class="kn">import</span> <span class="n">Request</span>
+
+<span class="kn">from</span> <span class="nn">db_helpers</span> <span class="kn">import</span> <span class="n">get_all_data</span>
+<span class="k">def</span> <span class="nf">get_db</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">_db</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/data"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="n">db</span><span class="p">:</span> <span class="n">Database</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_db</span><span class="p">)):</span>
+    <span class="k">return</span> <span class="n">get_all_data</span><span class="p">(</span><span class="n">db</span><span class="p">)</span>
+</code></pre></div>
+
+<p>因此，<code>get_db</code>将在应用程序的启动事件处理程序中获取对数据库连接创建的引用。<a href="https://fastapi.tiangolo.com/tutorial/dependencies/">依赖</a>然后用于向FastAPI指示该路线“依赖于<code>get_db</code>。因此，它应该在路由处理程序中的代码之前执行，并且结果应该“注入”到路由本身中。</p>
+<h3 id="data-validation">数据有效性</h3>
+<p><strong>烧瓶</strong></p>
+<p>Flask没有任何内部数据验证支持。您可以通过<a href="https://github.com/bauerji/flask_pydantic"> Flask-Pydantic </a>使用强大的Pydantic包进行数据验证。</p>
+<p><strong> FastAPI </strong></p>
+<p>FastAPI如此强大的原因之一是它支持Pydantic。</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="k">class</span> <span class="nc">Request</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">password</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/login"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">login</span><span class="p">(</span><span class="n">req</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">req</span><span class="o">.</span><span class="n">username</span> <span class="o">==</span> <span class="s2">"testdriven.io"</span> <span class="ow">and</span> <span class="n">req</span><span class="o">.</span><span class="n">password</span> <span class="o">==</span> <span class="s2">"testdriven.io"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"Authentication Failed"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>这里，我们接受模型<code>Request</code>的输入。有效负载必须包含用户名和密码。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># correct payload format</span>
+✗ curl -X POST <span class="s1">'localhost:8000/login'</span> <span class="se">\</span>
+    --header <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    --data-raw <span class="s1">'{\"username\": \"testdriven.io\",\"password\":\"testdriven.io\"}'</span>
+
+<span class="o">{</span><span class="s2">"message"</span>:<span class="s2">"success"</span><span class="o">}</span>
+
+<span class="c1"># incorrect payload format</span>
+✗ curl -X POST <span class="s1">'localhost:8000/login'</span> <span class="se">\</span>
+    --header <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    --data-raw <span class="s1">'{\"username\": \"testdriven.io\",\"passwords\":\"testdriven.io\"}'</span>
+
+<span class="o">{</span><span class="s2">"detail"</span>:<span class="o">[{</span><span class="s2">"loc"</span>:<span class="o">[</span><span class="s2">"body"</span>,<span class="s2">"password"</span><span class="o">]</span>,<span class="s2">"msg"</span>:<span class="s2">"field required"</span>,<span class="s2">"type"</span>:<span class="s2">"value_error.missing"</span><span class="o">}]}</span>
+</code></pre></div>
+
+<p>记下这个请求。我们将<code>passwords</code>作为键而不是<code>password</code>传入。Pydantic模型自动告诉用户缺少<code>password</code>字段。</p>
+<h3 id="serialization-and-deserialization">序列化和反序列化</h3>
+<p><strong>烧瓶</strong></p>
+<p>最简单的序列化方法是使用<a href="https://flask.palletsprojects.com/en/2.0.x/api/#flask.json.jsonify"> jsonify </a>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">jsonify</span>
+<span class="kn">from</span> <span class="nn">data</span> <span class="kn">import</span> <span class="n">get_data_as_dict</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">send_data</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">get_data_as_dict</span><span class="p">)</span>
+</code></pre></div>
+
+<p>对于复杂的对象，Flask开发者经常使用<a href="https://flask-marshmallow.readthedocs.io/en/latest/"> Flask-Marshmallow </a>。</p>
+<p><strong> FastAPI </strong></p>
+<p>FastAPI自动序列化任何返回的<code>dict</code>。对于更复杂和结构化的数据，使用Pydantic:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="k">class</span> <span class="nc">Request</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">password</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="k">class</span> <span class="nc">Response</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/login"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">Response</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">login</span><span class="p">(</span><span class="n">req</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">req</span><span class="o">.</span><span class="n">username</span> <span class="o">==</span> <span class="s2">"testdriven.io"</span> <span class="ow">and</span> <span class="n">req</span><span class="o">.</span><span class="n">password</span> <span class="o">==</span> <span class="s2">"testdriven.io"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">req</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"Authentication Failed"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>这里，我们添加了一个有三个输入的<code>Request</code>模型:用户名、电子邮件和密码。我们还定义了一个只有用户名和电子邮件的<code>Response</code>模型。输入<code>Request</code>模型处理反序列化，而输出<code>Response</code>模型处理对象序列化。然后，响应模型通过<a href="https://fastapi.tiangolo.com/tutorial/response-model/"> response_model </a>参数传递给装饰器。</p>
+<p>现在，如果我们将请求本身作为响应返回，<code>Pydantic</code>将省略<code>password</code>，因为我们定义的响应模型不包含密码字段。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># output</span>
+✗ curl -X POST <span class="s1">'localhost:8000/login'</span> <span class="se">\</span>
+    --header <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    --data-raw <span class="s1">'{\"username\":\"testdriven.io\",\"email\":\"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7d1c191014133d09180e09190f140b1813531412">[email protected]</a>\",\"password\":\"testdriven.io\"}'</span>
+
+<span class="o">{</span><span class="s2">"username"</span>:<span class="s2">"testdriven.io"</span>,<span class="s2">"email"</span>:<span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5d3c393034331d29382e29392f342b3833733432">[email protected]</a>"</span><span class="o">}</span>
+</code></pre></div>
+
+<h3 id="middleware">中间件</h3>
+<p>中间件用于在视图功能处理请求之前对每个请求应用逻辑。</p>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">middleware</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">app</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">):</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">(</span><span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">)</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"request processed in </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2"> s"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">middleware</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">Request</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">middleware</span><span class="p">(</span><span class="s2">"http"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">add_process_time_header</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">call_next</span><span class="p">):</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">call_next</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+    <span class="n">process_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"request processed in </span><span class="si">{</span><span class="n">process_time</span><span class="si">}</span><span class="s2"> s"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<p><code>@app.middleware("http")</code>装饰器是<a href="https://fastapi.tiangolo.com/tutorial/middleware/#create-a-middleware">在FastAPI中创建</a>中间件所必须的。上述中间件计算处理一个请求所花费的时间。在view函数处理完请求后，计算总处理时间并作为响应头发送回去。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># flask output(logs)</span>
+request processed <span class="k">in</span> <span class="m">0</span>.0010077953338623047 s
+<span class="m">127</span>.0.0.1 - - <span class="o">[</span><span class="m">22</span>/Sep/2020 <span class="m">18</span>:56:21<span class="o">]</span> <span class="s2">"GET / HTTP/1.1"</span> <span class="m">200</span> -
+
+<span class="c1"># fastapi output(logs)</span>
+request processed <span class="k">in</span> <span class="m">0</span>.0009925365447998047 s
+INFO:     <span class="m">127</span>.0.0.1:51123 - <span class="s2">"GET / HTTP/1.1"</span> <span class="m">200</span> OK
+</code></pre></div>
+
+<h2 id="modularity">模块性</h2>
+<p>随着一个应用程序的增长，在某个时候你会想要将相似的视图、模板、静态文件和模型组合在一起，以帮助将应用程序分解成更小的组件。</p>
+<p><strong>烧瓶</strong></p>
+<p>在Flask中，<a href="https://flask.palletsprojects.com/en/2.0.x/blueprints/">蓝图</a>用于模块化:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blueprints/product/views.py</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Blueprint</span>
+
+<span class="n">product</span> <span class="o">=</span> <span class="n">Blueprint</span><span class="p">(</span><span class="s2">"product"</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
+
+<span class="nd">@product</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/product1"</span><span class="p">)</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code><span class="c1"># main.py</span>
+
+<span class="kn">from</span> <span class="nn">blueprints.product.views</span> <span class="kn">import</span> <span class="n">product</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">product</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<p>同时，使用FastAPI，通过一个<a href="https://fastapi.tiangolo.com/tutorial/bigger-applications/#apirouter"> APIRouter </a>实现模块化:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># routers/product/views.py</span>
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">APIRouter</span>
+
+<span class="n">product</span> <span class="o">=</span> <span class="n">APIRouter</span><span class="p">()</span>
+
+<span class="nd">@product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/product1"</span><span class="p">)</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code><span class="c1"># main.py</span>
+
+<span class="kn">from</span> <span class="nn">routers.product.views</span> <span class="kn">import</span> <span class="n">product</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">product</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="additional-features">附加功能</h2>
+<h3 id="automatic-documentation">自动文档</h3>
+<p><strong>烧瓶</strong></p>
+<p>Flask不会自动创建现成的API文档。然而，有几个扩展可以处理这个问题，比如<a href="https://github.com/gangverk/flask-swagger"> flask-swagger </a>和<a href="https://github.com/python-restx/flask-restx"> Flask RESTX </a>，但是它们需要额外的设置。</p>
+<p><strong> FastAPI </strong></p>
+<p>FastAPI默认支持OpenAPI以及<a href="https://swagger.io/tools/swagger-ui/"> Swagger UI </a>和<a href="https://github.com/Redocly/redoc"> ReDoc </a>。这意味着每一个端点都是从与该端点相关联的元数据中自动记录的。</p>
+<p><img data-src="/static/images/blog/fastapi/flask-to-fastapi/docs.png" loading="lazy" class="lazyload" alt="Swagger UI" src="../Images/d408532ade754555bb997d68924041ab.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/flask-to-fastapi/docs.png"/></p>
+<p/><center><small>All the registered endpoints are listed here</small></center> 
+<p><img data-src="/static/images/blog/fastapi/flask-to-fastapi/redoc.png" loading="lazy" class="lazyload" alt="ReDoc" src="../Images/c94bb0fdf9ab46e13c048b55ba617d4d.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/flask-to-fastapi/redoc.png"/></p>
+<p/><center><small>Alternative documentation</small></center>
+<p><img data-src="/static/images/blog/fastapi/flask-to-fastapi/register.png" loading="lazy" class="lazyload" alt="ReDoc" src="../Images/17b4618c9dc8f024ac8c21041e59703e.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/flask-to-fastapi/register.png"/></p>
+<h3 id="admin-app">管理应用程序</h3>
+<p><strong>烧瓶</strong></p>
+<p>Flask有一个广泛使用的第三方管理包，叫做<a href="https://github.com/flask-admin/flask-admin"> Flask-Admin </a>，用于快速对你的模型执行CRUD操作。</p>
+<p><strong> FastAPI </strong></p>
+<p>在撰写本文时，有两个流行的FastAPI扩展:</p>
+<ol>
+<li>FastAPI Admin  -功能管理面板，提供一个用户界面，用于对数据执行CRUD操作。</li>
+<li><a href="https://github.com/aminalaee/sqladmin">SQLAlchemy Admin</a>-FastAPI/Starlette的管理面板，用于SQLAlchemy模型。</li>
+</ol>
+<h3 id="authentication">证明</h3>
+<p><strong>烧瓶</strong></p>
+<p>虽然Flask没有原生解决方案，但有几个第三方扩展可用。</p>
+<p><strong> FastAPI </strong></p>
+<p>FastAPI通过<code>fastapi.security</code>包本地支持许多安全和认证工具。通过几行代码，您可以将基本的HTTP身份验证添加到您的应用程序中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">secrets</span>
+
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">Depends</span><span class="p">,</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">status</span>
+<span class="kn">from</span> <span class="nn">fastapi.security</span> <span class="kn">import</span> <span class="n">HTTPBasic</span><span class="p">,</span> <span class="n">HTTPBasicCredentials</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="n">security</span> <span class="o">=</span> <span class="n">HTTPBasic</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">get_current_username</span><span class="p">(</span><span class="n">credentials</span><span class="p">:</span> <span class="n">HTTPBasicCredentials</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">security</span><span class="p">)):</span>
+    <span class="n">correct_username</span> <span class="o">=</span> <span class="n">secrets</span><span class="o">.</span><span class="n">compare_digest</span><span class="p">(</span><span class="n">credentials</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="s2">"stanleyjobson"</span><span class="p">)</span>
+    <span class="n">correct_password</span> <span class="o">=</span> <span class="n">secrets</span><span class="o">.</span><span class="n">compare_digest</span><span class="p">(</span><span class="n">credentials</span><span class="o">.</span><span class="n">password</span><span class="p">,</span> <span class="s2">"swordfish"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">correct_username</span> <span class="ow">and</span> <span class="n">correct_password</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_401_UNAUTHORIZED</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">credentials</span><span class="o">.</span><span class="n">username</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/whoami"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">who_ami_i</span><span class="p">(</span><span class="n">username</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_current_username</span><span class="p">)):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"username"</span><span class="p">:</span> <span class="n">username</span><span class="p">}</span>
+</code></pre></div>
+
+<p>FastAPI通过<a href="https://swagger.io/docs/specification/authentication/"> OpenAPI标准</a>实现<a href="https://en.wikipedia.org/wiki/OAuth#OAuth_2.0_2"> OAuth2 </a>和<a href="https://en.wikipedia.org/wiki/OpenID_Connect"> OpenID Connect </a>。</p>
+<p>有关更多信息，请查看官方文档中的以下资源:</p>
+<ol>
+<li><a href="https://fastapi.tiangolo.com/tutorial/security/">安全介绍</a></li>
+<li><a href="https://fastapi.tiangolo.com/advanced/security/">高级安全性</a></li>
+</ol>
+<p><strong>附加资源</strong></p>
+<ol>
+<li><a href="/blog/web-authentication-methods/"> Web认证方法对比</a></li>
+<li><a href="/blog/flask-social-auth/">向Flask添加社会认证</a></li>
+<li><a href="/blog/flask-spa-auth/">使用Flask对单页应用进行基于会话的授权</a></li>
+<li><a href="/blog/fastapi-jwt-auth/">通过基于JWT令牌的认证保护FastAPI】</a></li>
+</ol>
+<h3 id="cors">克-奥二氏分级量表</h3>
+<p>CORS(跨来源资源共享)中间件检查请求是否来自允许的来源。如果是，请求将被传递到下一个中间件或视图功能。如果不是，它会拒绝请求，并向调用者返回一个错误响应。</p>
+<p><strong>烧瓶</strong></p>
+<p>Flask需要一个名为<a href="https://github.com/corydolphin/flask-cors"> Flask-CORS </a>的外部包来支持CORS:</p>
+
+
+<p>基本实现:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask_cors</span> <span class="kn">import</span> <span class="n">CORS</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">CORS</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<p>FastAPI本机支持CORS:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi.middleware.cors</span> <span class="kn">import</span> <span class="n">CORSMiddleware</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="n">origins</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"*"</span><span class="p">]</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span><span class="n">CORSMiddleware</span><span class="p">,</span> <span class="n">allow_origins</span><span class="o">=</span><span class="n">origins</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="testing">测试</h2>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">pytest</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"OK"</span><span class="p">}</span>
+
+<span class="k">def</span> <span class="nf">test_hello</span><span class="p">():</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">test_client</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">data</span> <span class="o">==</span> <span class="sa">b</span><span class="s1">'{"message":"OK"}</span><span class="se">\n</span><span class="s1">'</span>
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span> <span class="nn">fastapi.testclient</span> <span class="kn">import</span> <span class="n">TestClient</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">home</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"OK"</span><span class="p">}</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">TestClient</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">test_home</span><span class="p">():</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+    <span class="k">assert</span> <span class="n">res</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"message"</span><span class="p">:</span> <span class="s2">"OK"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>FastAPI提供了一个<a href="https://fastapi.tiangolo.com/tutorial/testing/#using-testclient">测试客户端</a>。有了它，你可以直接用FastAPI运行<code>pytest</code>。欲了解更多信息，请查阅官方文件中的<a href="https://fastapi.tiangolo.com/tutorial/testing/">测试</a>指南。</p>
+<h2 id="deployment">部署</h2>
+<h3 id="production-server">生产服务器</h3>
+<p><strong>烧瓶</strong></p>
+<p>Flask默认运行一个开发<a href="https://en.wikipedia.org/wiki/Web_Server_Gateway_Interface"> WSGI </a> (Web服务器网关接口)应用服务器。对于生产，你需要使用生产级的WSGI应用服务器，比如<a href="https://gunicorn.org"> Gunicorn </a>、<a href="https://uwsgi-docs.readthedocs.io/"> uWSGI </a>或<a href="https://modwsgi.readthedocs.io/"> mod_wsgi </a></p>
+<p>安装Gunicorn:</p>
+
+
+<p>启动服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># main.py</span>
+<span class="c1"># app = Flask(__name__)</span>
+
+gunicorn main:app
+</code></pre></div>
+
+<p><strong> FastAPI </strong></p>
+<p>由于FastAPI没有开发服务器，您将使用Uvicorn(或Daphne)进行开发和生产。</p>
+<p>安装Uvicorn:</p>
+
+
+<p>启动服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># main.py</span>
+<span class="c1"># app = FastAPI()</span>
+
+uvicorn main:app
+</code></pre></div>
+
+<p>您可能希望使用Gunicorn来管理uvicon，以便利用并发性(通过uvicon)和并行性(通过Gunicorn workers):</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># main.py</span>
+<span class="c1"># app = FastAPI()</span>
+
+gunicorn -w <span class="m">3</span> -k uvicorn.workers.UvicornWorker main:app
+</code></pre></div>
+
+<h3 id="docker">码头工人</h3>
+<p><strong>烧瓶</strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python3.10-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="k">EXPOSE</span><span class="w"> </span><span class="s">5000</span>
+
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"gunicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"main:app"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这是Flask最简单的docker文件之一。要了解如何为生产进行全面配置，请查看带有Postgres、Gunicorn和Nginx的<a href="/blog/dockerizing-flask-with-postgres-gunicorn-and-nginx/">Dockerizing Flask</a>教程。</p>
+<p><strong> FastAPI </strong></p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python3.10-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="k">EXPOSE</span><span class="w"> </span><span class="s">8000</span>
+
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"uvicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"main:app"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>同样，这是一个非常简单的配置。FastAPI作者提供了几个生产就绪的docker文件。更多信息，请查看官方FastAPI文档以及<a href="/blog/fastapi-docker-traefik/">dockering FastAPI with Postgres、Uvicorn和Traefik </a>教程。</p>
+<h2 id="conclusion">结论</h2>
+<p>退一步说，Django和Flask是两个最流行的基于Python的web框架(FastAPI是第三流行的)。然而，他们(姜戈和弗拉斯克)有着非常不同的哲学。Flask相对于Django的优势在于Flask是一个微框架。程序结构由程序员决定，并不强制执行。开发人员可以添加第三方扩展来改进他们认为合适的代码。也就是说，通常情况下，随着代码库的增长，几乎所有的web应用程序都需要一些通用的特性。这些特性与框架的紧密集成大大减少了最终开发人员需要自己创建和维护的代码。</p>
+<p>本文中的代码示例传达了同样的意思。换句话说，FastAPI包含了许多必需的特性。它还遵循严格的标准，使您的代码易于生产和维护。FastAPI也是有据可查的。</p>
+<p>虽然FastAPI可能不像Flask那样久经考验，但越来越多的开发人员正转向它来提供机器学习模型或开发RESTful API。切换到FastAPI是一个可靠的选择。</p>
+<h3 id="official-documentation">官方文件</h3>
+
+<h3 id="additional-resources">额外资源</h3>
+
+  </div>
+
+  </div>    
+</body>
+</html>

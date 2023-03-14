@@ -1,0 +1,399 @@
+<html>
+<head>
+<title>Continuously Deploying Django to DigitalOcean with Docker and GitHub Actions </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>通过Docker和GitHub操作不断将Django部署到数字海洋</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/deploying-django-to-digitalocean-with-docker-and-github-actions/#0001-01-01">https://testdriven.io/blog/deploying-django-to-digitalocean-with-docker-and-github-actions/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将了解如何配置GitHub操作，以便将Django和Docker应用程序持续部署到DigitalOcean。</p>
+<p><em>依赖关系</em>:</p>
+<ol>
+<li>Django v3.2.4</li>
+<li>Docker v20.04</li>
+<li>python 3 . 9 . 5版</li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>使用Docker将Django部署到数字海洋</li>
+<li>配置GitHub操作以持续将Django部署到数字海洋</li>
+<li>使用GitHub包来存储Docker图像</li>
+<li>设置无密码SSH登录</li>
+<li>为数据持久性配置数字海洋的托管数据库</li>
+</ol>
+<h2 id="project-setup">项目设置</h2>
+<p>除了Django和Docker，我们将使用的演示项目还包括<a href="https://www.postgresql.org/"> Postgres </a>、<a href="https://www.nginx.com"> Nginx </a>和<a href="https://gunicorn.org/"> Gunicorn </a>。</p>
+<blockquote>
+<p>好奇这个项目是怎么开发出来的？查看Postgres、Gunicorn和Nginx的博客文章。</p>
+</blockquote>
+<p>从克隆基础项目开始:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/django-github-digitalocean.git --branch base --single-branch
+$ <span class="nb">cd</span> django-github-digitalocean
+</code></pre></div>
+
+<p>要进行本地测试，构建映像并旋转容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>。您应该看到:</p>
+
+
+<h2 id="github-packages">GitHub包</h2>
+<p><a href="https://github.com/features/packages"> GitHub Packages </a>是一个包管理服务，与GitHub完全集成。它允许你公开或私下托管你的软件包，在你的GitHub项目中使用。我们将使用它来存储Docker图像。</p>
+<p>假设您在GitHub上有一个帐户，为这个项目创建一个新的存储库，并更新本地项目的origin remote以指向您刚刚创建的存储库。</p>
+<p>要进行本地测试，您需要<a href="https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line">创建</a>一个个人访问令牌。在您的<a href="https://github.com/settings/developers">开发者设置</a>中，点击“个人访问令牌”。然后，单击“生成新令牌”。提供描述性注释并选择以下范围:</p>
+<ol>
+<li><code>write:packages</code></li>
+<li><code>read:packages</code></li>
+<li><code>delete:packages</code></li>
+</ol>
+<p><img data-src="/static/images/blog/django/django-github-digitalocean/github_personal_access_token.png" loading="lazy" class="lazyload" alt="github personal access token" src="../Images/2543c6146eb7a25f207ffa2afa584b44.png" data-original-src="https://testdriven.io/static/images/blog/django/django-github-digitalocean/github_personal_access_token.png"/></p>
+<p>记下令牌。</p>
+<p>构建并标记图像:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -f app/Dockerfile -t ghcr.io/&lt;USERNAME&gt;/&lt;REPOSITORY_NAME&gt;/web:latest ./app
+
+<span class="c1"># example:</span>
+<span class="c1"># docker build -f app/Dockerfile -t ghcr.io/testdrivenio/django-github-digitalocean/web:latest ./app</span>
+</code></pre></div>
+
+<p>接下来，使用您的个人访问令牌，<a href="https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry">向Docker认证</a>GitHub包:</p>
+<div class="codehilite"><pre><span/><code>$ docker login ghcr.io -u &lt;USERNAME&gt; -p &lt;TOKEN&gt;
+
+<span class="c1"># example:</span>
+<span class="c1"># docker login ghcr.io -u testdrivenio -p ce70f1d4a3a906ce8ac24caa6870fd29f2273d30</span>
+</code></pre></div>
+
+<p>将图像推送到GitHub包的<a href="https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry">容器注册表</a>:</p>
+<div class="codehilite"><pre><span/><code>$ docker push ghcr.io/&lt;USERNAME&gt;/&lt;REPOSITORY_NAME&gt;/web:latest
+
+<span class="c1"># example:</span>
+<span class="c1"># docker push ghcr.io/testdrivenio/django-github-digitalocean/web:latest</span>
+</code></pre></div>
+
+<p>现在，您应该可以在以下网址之一看到该包(取决于您使用的是个人帐户还是组织):</p>
+<div class="codehilite"><pre><span/><code>https://github.com/orgs/&lt;USERNAME&gt;/packages
+
+https://github.com/&lt;USERNAME&gt;?tab=packages
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/django/django-github-digitalocean/github_packages.png" loading="lazy" class="lazyload" alt="github packages" src="../Images/af3064d0ce2fd070daa43ac6bc9f4f25.png" data-original-src="https://testdriven.io/static/images/blog/django/django-github-digitalocean/github_packages.png"/></p>
+<h2 id="digitalocean">数字海洋</h2>
+<p>让我们设置DigitalOcean来使用我们的应用程序。</p>
+<p>首先，你需要<a href="https://m.do.co/c/d8f211a4b4c2">注册</a>一个<a href="https://www.digitalocean.com/">数字海洋</a>账户(如果你还没有的话)，然后<a href="https://www.digitalocean.com/docs/apis-clis/api/create-personal-access-token/">生成</a>一个访问令牌，这样你就可以访问<a href="https://developers.digitalocean.com/documentation/v2/">数字海洋API </a>。</p>
+<p>将令牌添加到您的环境中:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="o">=[</span>your_digital_ocean_token<span class="o">]</span>
+</code></pre></div>
+
+<h3 id="droplet">微滴</h3>
+<p>接下来，使用预装的Docker创建一个新的Droplet:</p>
+<div class="codehilite"><pre><span/><code>$ curl -X POST <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    -d <span class="s1">'{"name":"django-docker","region":"sfo3","size":"s-2vcpu-4gb","image":"docker-20-04"}'</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/droplets"</span>
+</code></pre></div>
+
+<p>检查状态:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/droplets?name=django-docker"</span>
+</code></pre></div>
+
+<p>如果您安装了<a href="https://stedolan.github.io/jq/"> jq </a>，那么您可以像这样解析JSON响应:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/droplets?name=django-docker"</span> <span class="se">\</span>
+  <span class="p">|</span> jq <span class="s1">'.droplets[0].status'</span>
+</code></pre></div>
+
+<p>root密码应该会通过电子邮件发送给您。找回它。然后，一旦droplet的状态为<code>active</code>，就以root身份SSH到实例中，并在提示时更新密码。</p>
+<p>接下来，生成一个新的SSH密钥:</p>
+
+
+<p>将密钥保存到<em> /root/。ssh/id_rsa </em>并且不设置密码。这将分别生成一个公钥和私钥- <em> id_rsa </em>和<em> id_rsa.pub </em>。要设置无密码SSH登录，请将公钥复制到<a href="https://security.stackexchange.com/questions/20706/what-is-the-difference-between-authorized-keys-and-known-hosts-file-for-ssh"> authorized_keys </a>文件中，并设置适当的权限:</p>
+<div class="codehilite"><pre><span/><code>$ cat ~/.ssh/id_rsa.pub
+$ vi ~/.ssh/authorized_keys
+$ chmod <span class="m">600</span> ~/.ssh/authorized_keys
+$ chmod <span class="m">600</span> ~/.ssh/id_rsa
+</code></pre></div>
+
+<p>复制私钥的内容:</p>
+
+
+<p>退出SSH会话，然后将密钥设置为本地计算机上的环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">export</span> <span class="nv">PRIVATE_KEY</span><span class="o">=</span><span class="s1">'-----BEGIN RSA PRIVATE KEY-----</span>
+<span class="s1">MIIEpAIBAAKCAQEA04up8hoqzS1+APIB0RhjXyObwHQnOzhAk5Bd7mhkSbPkyhP1</span>
+<span class="s1">...</span>
+<span class="s1">iWlX9HNavcydATJc1f0DpzF0u4zY8PY24RVoW8vk+bJANPp1o2IAkeajCaF3w9nf</span>
+<span class="s1">q/SyqAWVmvwYuIhDiHDaV2A==</span>
+<span class="s1">-----END RSA PRIVATE KEY-----'</span>
+</code></pre></div>
+
+<p>将密钥添加到<a href="https://www.ssh.com/ssh/agent"> ssh-agent </a>中:</p>
+<div class="codehilite"><pre><span/><code>$ ssh-add - <span class="o">&lt;&lt;&lt;</span> <span class="s2">"</span><span class="si">${</span><span class="nv">PRIVATE_KEY</span><span class="si">}</span><span class="s2">"</span>
+</code></pre></div>
+
+<p>要进行测试，请运行:</p>
+
+
+<p>然后，为应用程序创建一个新目录:</p>
+
+
+<h3 id="database">数据库ˌ资料库</h3>
+<p>接下来，让我们通过数字海洋的<a href="https://www.digitalocean.com/products/managed-databases/">托管数据库</a>建立一个生产Postgres数据库:</p>
+<div class="codehilite"><pre><span/><code>$ curl -X POST <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    -d <span class="s1">'{"name":"django-docker-db","region":"sfo3","engine":"pg","version":"13","size":"db-s-2vcpu-4gb","num_nodes":1}'</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/databases"</span>
+</code></pre></div>
+
+<p>检查状态:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/databases?name=django-docker-db"</span> <span class="se">\</span>
+  <span class="p">|</span> jq <span class="s1">'.databases[0].status'</span>
+</code></pre></div>
+
+<p>它应该需要几分钟才能旋转起来。一旦状态为<code>online</code>，获取连接信息:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/databases?name=django-docker-db"</span> <span class="se">\</span>
+  <span class="p">|</span> jq <span class="s1">'.databases[0].connection'</span>
+</code></pre></div>
+
+<p>示例响应:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"protocol"</span>: <span class="s2">"postgresql"</span>,
+  <span class="s2">"uri"</span>: <span class="s2">"postgresql://doadmin:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2d5b1b1d5c4e544c4459421c441d451b1b6d49474c434a420049424e46485f00494f00494200585e485f001a1a151f1a19001d034c03494f03424349444a44594c">[email protected]</a>locean.com:25060/defaultdb?sslmode=require"</span>,
+  <span class="s2">"database"</span>: <span class="s2">"defaultdb"</span>,
+  <span class="s2">"host"</span>: <span class="s2">"django-docker-db-do-user-778274-0.a.db.ondigitalocean.com"</span>,
+  <span class="s2">"port"</span>: <span class="m">25060</span>,
+  <span class="s2">"user"</span>: <span class="s2">"doadmin"</span>,
+  <span class="s2">"password"</span>: <span class="s2">"v60qcyaito1i0h66"</span>,
+  <span class="s2">"ssl"</span>: <span class="nb">true</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<h2 id="github-actions">GitHub操作</h2>
+<p>要配置<a href="https://github.com/features/actions"> GitHub动作</a>，首先添加一个名为。github”在您的项目的根目录中。在该目录中添加另一个名为“workflows”的目录。现在，要配置由一个或多个作业组成的工作流，在“工作流”目录中创建一个名为<em> main.yml </em>的新文件。</p>
+<h3 id="build-job">构建作业</h3>
+<div class="codehilite"><pre><span/><code><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Continuous Integration and Delivery</span><span class="w"/>
+
+<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">WEB_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')/web</span><span class="w"/>
+<span class="w">  </span><span class="nt">NGINX_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')/nginx</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Docker Images</span><span class="w"/>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Checkout master</span><span class="w"/>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f7949f92949c988283b781c6">[email protected]</a></span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Add environment variables to .env</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">echo DEBUG=0 &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo SQL_ENGINE=django.db.backends.postgresql &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo DATABASE=postgres &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo SECRET_KEY=${{ secrets.SECRET_KEY }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo SQL_DATABASE=${{ secrets.SQL_DATABASE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo SQL_USER=${{ secrets.SQL_USER }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo SQL_PASSWORD=${{ secrets.SQL_PASSWORD }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo SQL_HOST=${{ secrets.SQL_HOST }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">          </span><span class="no">echo SQL_PORT=${{ secrets.SQL_PORT }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Set environment variables</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">echo "WEB_IMAGE=$(echo ${{env.WEB_IMAGE}} )" &gt;&gt; $GITHUB_ENV</span><span class="w"/>
+<span class="w">          </span><span class="no">echo "NGINX_IMAGE=$(echo ${{env.NGINX_IMAGE}} )" &gt;&gt; $GITHUB_ENV</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to GitHub Packages</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echo ${PERSONAL_ACCESS_TOKEN} | docker login ghcr.io -u ${{ secrets.NAMESPACE }} --password-stdin</span><span class="w"/>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">PERSONAL_ACCESS_TOKEN</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.PERSONAL_ACCESS_TOKEN }}</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pull images</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">docker pull ${{ env.WEB_IMAGE }} || true</span><span class="w"/>
+<span class="w">          </span><span class="no">docker pull ${{ env.NGINX_IMAGE }} || true</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build images</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">docker-compose -f docker-compose.ci.yml build</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push images</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">docker push ${{ env.WEB_IMAGE }}</span><span class="w"/>
+<span class="w">          </span><span class="no">docker push ${{ env.NGINX_IMAGE }}</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，我们定义了一个<code>build</code> <a href="https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobs">作业</a>，它将在我们:</p>
+<ol>
+<li>设置全局环境变量<code>WEB_IMAGE</code>和<code>NGINX_IMAGE</code></li>
+<li>签出存储库，以便作业可以访问它</li>
+<li>给一个<em>添加环境变量。环境</em>文件</li>
+<li><a href="https://help.github.com/en/actions/reference/workflow-commands-for-github-actions#setting-an-environment-variable">用设置<code>WEB_IMAGE</code>和<code>NGINX_IMAGE</code>环境变量</a>，这样就可以在Docker合成文件中访问它们</li>
+<li>登录GitHub包</li>
+<li>如果图像存在，请提取图像</li>
+<li>构建图像</li>
+<li>将图片上传到GitHub包</li>
+</ol>
+<p>你注意到那些秘密了吗？</p>
+<ol>
+<li><code>secrets.SECRET_KEY</code></li>
+<li><code>secrets.SQL_DATABASE</code></li>
+<li><code>secrets.SQL_USER</code></li>
+<li><code>secrets.SQL_PASSWORD</code></li>
+<li><code>secrets.SQL_HOST</code></li>
+<li><code>secrets.SQL_PORT</code></li>
+<li><code>secrets.NAMESPACE</code></li>
+<li><code>secrets.PERSONAL_ACCESS_TOKEN</code></li>
+</ol>
+<p>这些需要在你的储存库的<a href="https://help.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets#creating-encrypted-secrets">秘密</a>中设置(设置&gt;秘密)。根据上面的数据库连接信息，添加前六个变量。</p>
+<p>例如:</p>
+<ol>
+<li><code>SECRET_KEY</code> : <code>9zYGEFk2mn3mWB8Bmg9SAhPy6F4s7cCuT8qaYGVEnu7huGRKW9</code></li>
+<li><code>SQL_DATABASE</code> : <code>defaultdb</code></li>
+<li><code>SQL_HOST</code> : <code>django-docker-db-do-user-778274-0.a.db.ondigitalocean.com</code></li>
+<li><code>SQL_PORT</code> : <code>25060</code></li>
+<li><code>SQL_USER</code> : <code>doadmin</code></li>
+<li><code>SQL_PASSWORD</code> : <code>v60qcyaito1i0h66</code></li>
+</ol>
+<p>对<code>NAMESPACE</code>使用您的Github用户名或您的组织名称，对<code>PERSONAL_ACCESS_TOKEN</code>变量使用您的个人访问令牌。</p>
+<p><img data-src="/static/images/blog/django/django-github-digitalocean/github_secrets.png" loading="lazy" class="lazyload" alt="github secrets" src="../Images/bc3ed618e72aec266e8888e6e46135ff.png" data-original-src="https://testdriven.io/static/images/blog/django/django-github-digitalocean/github_secrets.png"/></p>
+<p>完成后，提交代码并上传到GitHub以触发新的构建。确保它通过。您应该会看到GitHub包中的图像:</p>
+<p><img data-src="/static/images/blog/django/django-github-digitalocean/github_packages_both_images.png" loading="lazy" class="lazyload" alt="github packages" src="../Images/c7ca3a01beccda7b915f6f28595e5030.png" data-original-src="https://testdriven.io/static/images/blog/django/django-github-digitalocean/github_packages_both_images.png"/></p>
+<h3 id="deploy-job">部署作业</h3>
+<p>接下来，添加一个<code>deploy</code>任务:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deploy to DigitalOcean</span><span class="w"/>
+<span class="w">  </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">needs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Checkout master</span><span class="w"/>
+<span class="w">      </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0e6d666b6d65617b7a4e783f">[email protected]</a></span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Add environment variables to .env</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">echo DEBUG=0 &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_ENGINE=django.db.backends.postgresql &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo DATABASE=postgres &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SECRET_KEY=${{ secrets.SECRET_KEY }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_DATABASE=${{ secrets.SQL_DATABASE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_USER=${{ secrets.SQL_USER }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_PASSWORD=${{ secrets.SQL_PASSWORD }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_HOST=${{ secrets.SQL_HOST }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_PORT=${{ secrets.SQL_PORT }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo WEB_IMAGE=${{ env.WEB_IMAGE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo NGINX_IMAGE=${{ env.NGINX_IMAGE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo NAMESPACE=${{ secrets.NAMESPACE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo PERSONAL_ACCESS_TOKEN=${{ secrets.PERSONAL_ACCESS_TOKEN }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Add the private SSH key to the ssh-agent</span><span class="w"/>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">SSH_AUTH_SOCK</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/ssh_agent.sock</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">mkdir -p ~/.ssh</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh-agent -a $SSH_AUTH_SOCK &gt; /dev/null</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh-keyscan github.com &gt;&gt; ~/.ssh/known_hosts</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh-add - &lt;&lt;&lt; "${{ secrets.PRIVATE_KEY }}"</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build and deploy images on DigitalOcean</span><span class="w"/>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">SSH_AUTH_SOCK</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/ssh_agent.sock</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="99ebf6f6edd9">[email protected]</a>${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }}:/app</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh -o StrictHostKeyChecking=no <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="087a67677c48">[email protected]</a>${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }} &lt;&lt; 'ENDSSH'</span><span class="w"/>
+<span class="w">          </span><span class="no">cd /app</span><span class="w"/>
+<span class="w">          </span><span class="no">source .env</span><span class="w"/>
+<span class="w">          </span><span class="no">docker login ghcr.io -u $NAMESPACE -p $PERSONAL_ACCESS_TOKEN</span><span class="w"/>
+<span class="w">          </span><span class="no">docker pull $WEB_IMAGE</span><span class="w"/>
+<span class="w">          </span><span class="no">docker pull $NGINX_IMAGE</span><span class="w"/>
+<span class="w">          </span><span class="no">docker-compose -f docker-compose.prod.yml up -d</span><span class="w"/>
+<span class="w">        </span><span class="no">ENDSSH</span><span class="w"/>
+</code></pre></div>
+
+<p>因此，在<code>deploy</code>作业中，只有当<code>build</code>作业成功完成时才会运行(通过<code>needs: build</code>，我们:</p>
+<ol>
+<li>签出存储库，以便作业可以访问它</li>
+<li>给一个<em>添加环境变量。环境</em>文件</li>
+<li>将私有SSH密钥添加到ssh-agent并运行代理</li>
+<li>复制完<em>。env </em>和<em> docker-compose.prod.yml </em>文件到远程服务器</li>
+<li>SSH到数字海洋上的删除服务器</li>
+<li>导航到部署目录并设置环境变量</li>
+<li>登录GitHub包</li>
+<li>调出图像</li>
+<li>旋转容器</li>
+<li>结束SSH会话</li>
+</ol>
+<p>将<code>DIGITAL_OCEAN_IP_ADDRESS</code>和<code>PRIVATE_KEY</code>秘密添加到GitHub。然后，将服务器的IP地址添加到Django设置中的<code>ALLOWED_HOSTS</code>列表中。</p>
+<p>提交并推送您的代码以触发新的构建。构建通过后，导航到实例的IP。您应该看到:</p>
+
+
+<h2 id="test">试验</h2>
+<p>最后，通过在<code>needs: build</code>下面添加<code>if: github.ref == 'refs/heads/master'</code>来更新<code>deploy</code>作业，以便它只在对<code>master</code>分支进行更改时运行:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deploy to DigitalOcean</span><span class="w"/>
+<span class="w">  </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span><span class="w"/>
+<span class="w">  </span><span class="nt">needs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github.ref == 'refs/heads/master'</span><span class="w"/>
+<span class="w">  </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Checkout master</span><span class="w"/>
+<span class="w">      </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="fd9e95989e96928889bd8bcc">[email protected]</a></span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Add environment variables to .env</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">echo DEBUG=0 &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_ENGINE=django.db.backends.postgresql &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo DATABASE=postgres &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SECRET_KEY=${{ secrets.SECRET_KEY }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_DATABASE=${{ secrets.SQL_DATABASE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_USER=${{ secrets.SQL_USER }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_PASSWORD=${{ secrets.SQL_PASSWORD }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_HOST=${{ secrets.SQL_HOST }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo SQL_PORT=${{ secrets.SQL_PORT }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo WEB_IMAGE=${{ env.WEB_IMAGE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo NGINX_IMAGE=${{ env.NGINX_IMAGE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo NAMESPACE=${{ secrets.NAMESPACE }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">        </span><span class="no">echo PERSONAL_ACCESS_TOKEN=${{ secrets.PERSONAL_ACCESS_TOKEN }} &gt;&gt; .env</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Add the private SSH key to the ssh-agent</span><span class="w"/>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">SSH_AUTH_SOCK</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/ssh_agent.sock</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">mkdir -p ~/.ssh</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh-agent -a $SSH_AUTH_SOCK &gt; /dev/null</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh-keyscan github.com &gt;&gt; ~/.ssh/known_hosts</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh-add - &lt;&lt;&lt; "${{ secrets.PRIVATE_KEY }}"</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build and deploy images on DigitalOcean</span><span class="w"/>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">SSH_AUTH_SOCK</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/ssh_agent.sock</span><span class="w"/>
+<span class="w">      </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">        </span><span class="no">scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a5d7cacad1e5">[email protected]</a>${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }}:/app</span><span class="w"/>
+<span class="w">        </span><span class="no">ssh -o StrictHostKeyChecking=no <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a1d3ceced5e1">[email protected]</a>${{ secrets.DIGITAL_OCEAN_IP_ADDRESS }} &lt;&lt; 'ENDSSH'</span><span class="w"/>
+<span class="w">          </span><span class="no">cd /app</span><span class="w"/>
+<span class="w">          </span><span class="no">source .env</span><span class="w"/>
+<span class="w">          </span><span class="no">docker login ghcr.io -u $NAMESPACE -p $PERSONAL_ACCESS_TOKEN</span><span class="w"/>
+<span class="w">          </span><span class="no">docker pull $WEB_IMAGE</span><span class="w"/>
+<span class="w">          </span><span class="no">docker pull $NGINX_IMAGE</span><span class="w"/>
+<span class="w">          </span><span class="no">docker-compose -f docker-compose.prod.yml up -d</span><span class="w"/>
+<span class="w">        </span><span class="no">ENDSSH</span><span class="w"/>
+</code></pre></div>
+
+<p>为了测试，创建一个新的<code>develop</code>分支。在<em> urls.py </em>中的<code>world</code>后加一个感叹号:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world!"</span><span class="p">})</span>
+</code></pre></div>
+
+<p>将您的更改提交并推送到GitHub。确保仅运行<code>build</code>作业。一旦构建通过，打开一个针对<code>master</code>分支的PR并合并变更。这将触发两个阶段的新构建- <code>build</code>和<code>deploy</code>。确保部署按预期工作:</p>
+
+
+<p>--</p>
+<p>就是这样！你可以在django-github-digital oceanrepo中找到最终代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

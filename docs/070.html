@@ -1,0 +1,214 @@
+<html>
+<head>
+<title>Running Django on DigitalOcean's App Platform </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>在DigitalOcean的应用平台上运行Django</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-digitalocean-app-platform/#0001-01-01">https://testdriven.io/blog/django-digitalocean-app-platform/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>DigitalOcean的<a href="https://www.digitalocean.com/products/app-platform"> App Platform </a>是一个平台即服务(PaaS)产品，它(很像Heroku)允许你从git库部署应用程序。</p>
+<p>本文着眼于如何将Django应用程序部署到DigitalOcean的应用程序平台。</p>
+
+
+
+<h2 id="why-use-digitaloceans-app-platform">为什么要用DigitalOcean的App平台？</h2>
+<p>DigitalOcean的应用程序平台的目标是简化部署，以便您可以专注于应用程序开发，而不是管理基础架构。它非常适合日常的Django应用程序，使用Postgres(或MySQL)实现持久性，使用Redis实现芹菜消息代理。也就是说，如果你的应用确实需要你访问底层基础设施，你可能会想避开应用平台，转而使用基础设施即服务(IaaS)解决方案，如DigitalOcean <a href="https://www.digitalocean.com/products/droplets/"> Droplet </a>。</p>
+<p>积极方面:</p>
+<ol>
+<li>不可变部署</li>
+<li>零停机部署</li>
+<li>内置持续部署</li>
+<li>默认情况下，Cloudflare CDN</li>
+<li>垂直和水平缩放(还没有自动缩放<a href="https://www.digitalocean.com/blog/introducing-digitalocean-app-platform-reimagining-paas-to-make-it-simpler-for-you-to-build-deploy-and-scale-apps/">和</a>)</li>
+<li>支持Docker</li>
+</ol>
+<p>底片:</p>
+<ol>
+<li><a href="https://www.digitalocean.com/docs/app-platform/">文档</a>需要改进(自从这篇文章最初发表以来，它已经变得好多了)</li>
+<li>与Heroku相比，它几乎没有扩展(比如日志和监控服务)</li>
+</ol>
+<p>是的，它比IaaS解决方案更贵，但是如果您的应用没有复杂的基础架构要求，那么您将节省时间和金钱，因为您不需要雇用运营工程师。</p>
+<h2 id="project-setup">项目设置</h2>
+<p>我们将部署一个基本的Django应用程序。如果你想跟进，你可以使用预先创建的演示应用程序或你自己的应用程序。</p>
+<h3 id="demo-app">演示应用程序</h3>
+<p>请随意从<a href="https://github.com/testdrivenio/digitalocean-app-platform-django">数字海洋-应用程序-平台-django </a> repo的<a href="https://github.com/testdrivenio/digitalocean-app-platform-django/releases/tag/v1"> v1 </a>分支中克隆演示应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/digitalocean-app-platform-django --branch v1
+$ <span class="nb">cd</span> digitalocean-app-platform-django
+$ git checkout -b main
+</code></pre></div>
+
+<p>确保创建一个新的GitHub repo，并将代码推送到主分支。</p>
+<h3 id="your-app">你的应用</h3>
+<p>如果您有自己想要部署的Django应用程序，为了简单起见，请更新您的<em> settings.py </em>文件中的以下配置:</p>
+<div class="codehilite"><pre><span/><code><span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="s1">'please-change-me'</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'*'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>在初始部署之后，我们将了解如何更改其中的每一项，以便您的应用程序更加安全。</p>
+<p>另外，添加以下静态资产配置:</p>
+<div class="codehilite"><pre><span/><code><span class="n">STATIC_URL</span> <span class="o">=</span> <span class="s1">'/static/'</span>
+<span class="n">STATIC_ROOT</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'staticfiles'</span><span class="p">)</span>
+<span class="n">STATICFILES_DIRS</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'static'</span><span class="p">),)</span>
+</code></pre></div>
+
+<h2 id="digitalocean">数字海洋</h2>
+<p>让我们设置DigitalOcean来使用我们的应用程序。</p>
+<p>首先，你需要<a href="https://m.do.co/c/d8f211a4b4c2">注册</a>一个<a href="https://www.digitalocean.com/">数字海洋</a>账户(如果你还没有的话)。接下来，从<a href="https://cloud.digitalocean.com/">数字海洋仪表盘</a>，点击侧边栏中的“应用”链接，点击“创建应用”，然后链接你的GitHub账户。您可能希望只授予对本文前面创建的单个回购的访问权限，而不是对所有回购的访问权限:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/authorize_github.png" loading="lazy" class="lazyload" alt="Authorize GitHub" src="../Images/b5d94061f94ebb021d518d9d77241fa9.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/authorize_github.png"/></p>
+<p>完成后，选择该存储库，保持选中“自动部署”以进行连续部署，然后单击“下一步”:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/select_repo.png" loading="lazy" class="lazyload" alt="Select GitHub Repo" src="../Images/fd6d064d328fd8989ec90be4c95969e0.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/select_repo.png"/></p>
+<p>在应用配置页面上，DigitalOcean应该已经检测到该应用是基于Python的(基于<em> requirements.txt </em>文件的存在)。</p>
+<blockquote>
+<p>在幕后，DigitalOcean使用<a href="https://docs.digitalocean.com/glossary/buildpack/">云原生构建包</a>来运行您的应用程序。</p>
+</blockquote>
+<p>将运行命令改为<code>gunicorn hello_django.wsgi:application --bind 0.0.0.0:8080 --worker-tmp-dir /dev/shm</code>，点击“下一步”:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/configure_app.png" loading="lazy" class="lazyload" alt="Configure App" src="../Images/755ee663e3beb0452ed2c7f1b86b2863.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/configure_app.png"/></p>
+<p>为您的应用程序命名并选择地区。请继续使用默认值，分别是回购名称和纽约。</p>
+<p>点击“下一步”。</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/name_region_autodeploy.png" loading="lazy" class="lazyload" alt="Name and Region" src="../Images/66c19fb114314e5786f8a6d5c28a2782.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/name_region_autodeploy.png"/></p>
+<p>坚持“基本”计划，启动应用程序。</p>
+<p>在下一个屏幕上，单击“转到构建日志”按钮查看实时部署日志:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/deployment_logs.png" loading="lazy" class="lazyload" alt="Deployment Logs" src="../Images/4af98e38be64a63f91291159f6ec8d4c.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/deployment_logs.png"/></p>
+<p>构建和部署应该需要几分钟时间。完成后，单击splash消息中的“Live App”链接，在新的浏览器选项卡中打开您正在运行的应用程序:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/deployment_complete.png" loading="lazy" class="lazyload" alt="Deployment Complete" src="../Images/c2f38c1cd464c6bed0a5f7f0d95422f2.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/deployment_complete.png"/></p>
+<p>您应该看到:</p>
+
+
+<h2 id="database">数据库ˌ资料库</h2>
+<p>接下来，让我们配置Postgres，而不是使用SQLite。</p>
+<p>从您的应用程序的仪表板中，单击“操作”下拉菜单，然后选择“创建/附加数据库”。坚持使用名为“db”的默认“开发数据库”。单击“创建并附加”。</p>
+<p>这将自动配置一个<code>DATABASE_URL</code>环境变量并重新部署应用程序。这大约需要10分钟，因为需要配置数据库。部署完成后，您可以从控制台查看环境变量:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/add_database.png" loading="lazy" class="lazyload" alt="Add Database" src="../Images/f788f0ab45508b89d78510ffa733ad34.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/add_database.png"/></p>
+<p>将以下变量添加到设置文件中，以读取环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="n">DATABASE_URL</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'DATABASE_URL'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，像这样更新数据库配置以使用<code>DATABASE_URL</code>(如果它存在)并配置Postgres:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="ow">not</span> <span class="n">DATABASE_URL</span><span class="p">:</span>
+    <span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">'ENGINE'</span><span class="p">:</span> <span class="s1">'django.db.backends.sqlite3'</span><span class="p">,</span>
+            <span class="s1">'NAME'</span><span class="p">:</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'db.sqlite3'</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">db_info</span> <span class="o">=</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">DATABASE_URL</span><span class="p">)</span>
+    <span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">'ENGINE'</span><span class="p">:</span> <span class="s1">'django.db.backends.postgresql_psycopg2'</span><span class="p">,</span>
+            <span class="s1">'NAME'</span><span class="p">:</span> <span class="s1">'db'</span><span class="p">,</span>
+            <span class="s1">'USER'</span><span class="p">:</span> <span class="n">db_info</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>
+            <span class="s1">'PASSWORD'</span><span class="p">:</span> <span class="n">db_info</span><span class="o">.</span><span class="n">password</span><span class="p">,</span>
+            <span class="s1">'HOST'</span><span class="p">:</span> <span class="n">db_info</span><span class="o">.</span><span class="n">hostname</span><span class="p">,</span>
+            <span class="s1">'PORT'</span><span class="p">:</span> <span class="n">db_info</span><span class="o">.</span><span class="n">port</span><span class="p">,</span>
+            <span class="s1">'OPTIONS'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'sslmode'</span><span class="p">:</span> <span class="s1">'require'</span><span class="p">},</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div>
+
+<p>将适当的导入添加到顶部:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="kn">import</span> <span class="n">urlparse</span>
+</code></pre></div>
+
+<p>将psycopg2添加到需求中:</p>
+
+
+<p>确保它在本地有效。将您的代码提交并推送到GitHub以触发新的部署。</p>
+<p>最后，部署完成后，跳回“控制台”应用您的迁移(通过<code>python manage.py migrate</code>)并创建一个超级用户(通过<code>python manage.py createsuperuser</code>):</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/run_migrations.png" loading="lazy" class="lazyload" alt="Apply Migrations and Create Superuser" src="../Images/65c13a69b274af8b97476fdbf494a7a6.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/run_migrations.png"/></p>
+<p>您还可以验证正在使用Postgres配置:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/verify_postgres.png" loading="lazy" class="lazyload" alt="Verify Postgres" src="../Images/2a04b01608645bb46d14d62df141f8d0.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/verify_postgres.png"/></p>
+<div class="codehilite"><pre><span/><code>$ python manage.py shell
+
+&gt;&gt;&gt; from django.conf import settings
+&gt;&gt;&gt; settings.DATABASES
+</code></pre></div>
+
+<h2 id="environment-variables">环境变量</h2>
+<p>接下来，让我们通过环境变量配置以下<a href="https://docs.djangoproject.com/en/4.0/ref/settings/">设置</a>来加强应用程序:</p>
+<ol>
+<li><code>SECRET_KEY</code></li>
+<li><code>DEBUG</code></li>
+<li><code>ALLOWED_HOSTS</code></li>
+</ol>
+<p>更新<em> settings.py </em>中的以下变量:</p>
+<div class="codehilite"><pre><span/><code><span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'SECRET_KEY'</span><span class="p">,</span> <span class="s1">'please-change-me'</span><span class="p">)</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'DEBUG'</span><span class="p">,</span> <span class="s1">'False'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'True'</span>
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'ALLOWED_HOSTS'</span><span class="p">,</span> <span class="s1">'127.0.0.1,localhost'</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">','</span><span class="p">)</span>
+</code></pre></div>
+
+<p>再次提交您的代码，并将其推送到GitHub，以触发另一个新的部署。</p>
+<p>部署完成后，单击“操作”下拉菜单，然后单击“管理环境变量”。然后，在“应用程序级环境变量”部分添加以下变量:</p>
+<ol>
+<li><code>SECRET_KEY</code> - <code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c8fdfa88b1">[email protected]</a>%9$#3#)9cff)jdcl&amp;<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="62524f2256">[email protected]</a>(u!y)<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0f6b784f633d">[email protected]</a>!e2s8!(jrrta_u+</code></li>
+<li><code>DEBUG</code> - <code>False</code></li>
+<li><code>ALLOWED_HOSTS</code> - <code>digitalocean-app-platform-django-3bmno.ondigitalocean.app</code></li>
+</ol>
+<blockquote>
+<p>请务必生成一个新的密钥，并用您的域替换<code>digitalocean-app-platform-django-3bmno.ondigitalocean.app</code>。</p>
+</blockquote>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/add_environment_variables.png" loading="lazy" class="lazyload" alt="Add Environment Variables" src="../Images/e7568173b7b7f45c9e4bdfe9c65caa22.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/add_environment_variables.png"/></p>
+<p>更新后，应用程序会自动重新部署。</p>
+<h2 id="static-files">静态文件</h2>
+<p>我们将使用<a href="http://whitenoise.evans.io/">whiten noise</a>管理静态资产。</p>
+<p>将其添加到<em> requirements.txt </em>文件中:</p>
+
+
+<p>更新<em> settings.py </em>中的<code>MIDDLEWARE</code>列表:</p>
+<div class="codehilite"><pre><span/><code><span class="n">MIDDLEWARE</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.middleware.security.SecurityMiddleware'</span><span class="p">,</span>
+    <span class="s1">'whitenoise.middleware.WhiteNoiseMiddleware'</span><span class="p">,</span>  <span class="c1"># new</span>
+    <span class="s1">'django.contrib.sessions.middleware.SessionMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.common.CommonMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.csrf.CsrfViewMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth.middleware.AuthenticationMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages.middleware.MessageMiddleware'</span><span class="p">,</span>
+    <span class="s1">'django.middleware.clickjacking.XFrameOptionsMiddleware'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>然后，要启用压缩和缓存支持，请添加:</p>
+<div class="codehilite"><pre><span/><code><span class="n">STATICFILES_STORAGE</span> <span class="o">=</span> <span class="s1">'whitenoise.storage.CompressedManifestStaticFilesStorage'</span>
+</code></pre></div>
+
+<p>提交。推送至GitHub。一旦部署完成，确保静态资产在管理页面上工作。</p>
+<h2 id="celery">芹菜</h2>
+<p>虽然在这篇文章中我们不会演示如何设置<a href="https://docs.celeryq.dev/"> Celery </a>，但是DigitalOcean使配置<a href="https://digitalocean.com/products/managed-databases-redis/"> Redis </a>变得很容易，它可以被用作你的消息代理和结果后端。然后，您可以通过“操作”-“T4”-“创建资源”，将芹菜工人设置为“工人”组件:</p>
+<p><img data-src="/static/images/blog/django/digitalocean-app-platform-django/worker_component.png" loading="lazy" class="lazyload" alt="Worker Component" src="../Images/2229514f965009ce50a91d9950fc4dbc.png" data-original-src="https://testdriven.io/static/images/blog/django/digitalocean-app-platform-django/worker_component.png"/></p>
+<h2 id="development-workflow">开发工作流程</h2>
+<p>启用autodeploy后，任何时候对主分支的更改被添加到GitHub上的源代码控制中，应用程序都会自动重新部署。默认情况下启用零停机，终端用户在重新部署时不会经历任何停机。</p>
+<p>最好使用某种风格的<a href="https://www.atlassian.com/git/tutorials/comparing-workflows/feature-branch-workflow">功能分支</a>工作流，这样你就可以在主分支之外的另一个分支上将代码签入GitHub，这样你就可以在修改投入生产之前测试你的应用程序。</p>
+<p>示例:</p>
+<ol>
+<li>创建新分支</li>
+<li>对代码进行更改</li>
+<li>通过<a href="https://github.com/features/actions"> GitHub动作</a>将您的代码提交并推送到GitHub以触发CI构建</li>
+<li>针对主要分支机构打开一个PR</li>
+<li>CI构建完成后进行合并，以更新生产</li>
+</ol>
+<h2 id="conclusion">结论</h2>
+<p>这篇文章简要介绍了如何在DigitalOcean的应用平台上运行Django应用程序。</p>
+<p>总的来说，App Platform是一个强大的PaaS解决方案，您应该为您的Django应用程序以及其他解决方案进行评估，例如:</p>
+<ol>
+<li><a href="https://heroku.com"> Heroku </a></li>
+<li><a href="https://www.pythonanywhere.com/"> PythonAnywhere </a></li>
+<li><a href="https://aws.amazon.com/elasticbeanstalk/"> AWS弹性豆茎</a></li>
+<li><a href="https://cloud.google.com/appengine">谷歌应用引擎</a></li>
+<li><a href="https://render.com/">渲染</a></li>
+</ol>
+<p>在这一点上，App Platform的主要缺点是它缺少一些其他PaaS解决方案提供的功能和扩展。也就是说，根据<a href="https://www.digitalocean.com/blog/introducing-digitalocean-app-platform-reimagining-paas-to-make-it-simpler-for-you-to-build-deploy-and-scale-apps/">这篇文章</a>的说法，有许多新功能正在开发中，比如计划作业、部署预览、VPC集成和部署回滚。</p>
+<p>如果您决定使用App平台，请确保:</p>
+<ol>
+<li>回顾如何利用<a href="https://www.digitalocean.com/docs/app-platform/how-to/scale-app/">垂直和水平缩放</a></li>
+<li>配置基于HTTP的<a href="https://docs.digitalocean.com/glossary/health-check/">健康检查</a></li>
+<li>建立生产级<a href="https://digitalocean.com/docs/app-platform/how-to/manage-databases/">托管数据库</a>以及<a href="https://digitalocean.com/products/managed-databases-redis/"> Redis </a></li>
+</ol>
+<p>确保删除你的Django应用和数据库，这样你就不会产生任何额外的费用。</p>
+<p>你可以在<a href="https://github.com/testdrivenio/digitalocean-app-platform-django">digital ocean-app-platform-django</a>repo中找到最终代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

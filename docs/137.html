@@ -1,0 +1,1110 @@
+<html>
+<head>
+<title>Test-Driven Development with React, Jest, and Enzyme - Part 2 </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用React、Jest和Enzyme的测试驱动开发——第2部分</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/tdd-with-react-jest-and-enzyme-part-two/#0001-01-01">https://testdriven.io/blog/tdd-with-react-jest-and-enzyme-part-two/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <blockquote>
+<p>这是使用React、Jest和Enzyme 的<strong>测试驱动开发的第二部分。你可以在这里找到第一部<a href="/blog/tdd-with-react-jest-and-enzyme-part-one"/>。</strong></p>
+</blockquote>
+<p>上一次，我们从项目概述开始，其中包括对测试驱动开发(TDD)的简要说明、应用程序设计过程以及应用程序组件的高级概要。从那里我们继续项目设置，开始编写我们的(<span>失败</span>)测试，然后是通过这些测试的代码，最终以我们的<code>Calculator</code>快照结束。至此，我们已经完成了<code>Calculator</code>和<code>Display</code>组件的UI，并且已经开始了<code>Keypad</code>组件的工作。</p>
+<p><strong>零件:</strong></p>
+<ul>
+<li><em> <a href="/blog/tdd-with-react-jest-and-enzyme-part-one">第1部分</a> </em>:在第一部分，我们将建立整个项目，然后用测试驱动开发来开发UI。</li>
+<li><em>第二部</em>(本帖！):在这一部分中，我们将在开始添加基本的计算器功能之前，通过添加数字和操作键来结束UI。</li>
+</ul>
+<p><img data-src="/static/images/blog/tdd_react/components/component_structure.png" loading="lazy" class="lazyload" alt="component structure" src="../Images/0a40e73eb4b7b01fe28ff6a190a1ddc5.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/components/component_structure.png"/></p>
+<p>让我们通过测试<code>numbers</code>和<code>operators</code>的<code>Keypad</code>渲染，回到<span>红色</span>、<span>绿色</span>、<span>重构</span>的循环中来！</p>
+
+
+
+<h2 id="keypad-component">键盘组件</h2>
+<h3 id="test-for-rendering-of-numbers-and-operators-in-keypad">测试数字和运算符在键盘中的呈现</h3>
+<p>按照我们测试<code>Display</code>组件中<code>displayValue</code>道具的渲染的相同方式，让我们为<code>Keypad</code>组件中的<code>numbers</code>和<code>operators</code>道具编写渲染测试。</p>
+<p>在<em> Keypad.spec.js </em>中，从<code>numbers</code>测试开始:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'renders the values of numbers'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setProps</span><span class="p">({</span><span class="nx">numbers</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">'0'</span><span class="p">,</span><span class="w"> </span><span class="s1">'1'</span><span class="p">,</span><span class="w"> </span><span class="s1">'2'</span><span class="p">]});</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'.numbers-container'</span><span class="p">).</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'012'</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>然后更新<em> Keypad.jsx </em>，通过添加一个<code>map</code>函数来遍历<code>numbers</code>数组以及一个容器<code>div</code>元素来容纳我们的新元素，从而通过测试:</p>
+<div class="codehilite"><pre><span/><code>...
+const Keypad = ({
+  callOperator,
+  numbers,
+  operators,
+  setOperator,
+  updateDisplay,
+}) =&gt; {
+  const numberKeys = numbers.map(number =&gt; <span class="nt">&lt;p</span> <span class="na">key=</span><span class="s">{number}</span><span class="nt">&gt;</span>{number}<span class="nt">&lt;/p&gt;</span>);
+
+  return (
+    <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"keypad-container"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"numbers-container"</span><span class="nt">&gt;</span>
+        {numberKeys}
+      <span class="nt">&lt;/div&gt;</span>
+    <span class="nt">&lt;/div&gt;</span>
+  );
+}
+...
+</code></pre></div>
+
+<p>现在<code>Keypad › should render a &lt;div /&gt;</code>应该断开，因为有不止一个<code>div</code>。</p>
+<p>更新<em> Keypad.spec.js </em>中的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render 2 &lt;div /&gt;\'s'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">2</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>全部通过！在<em> Keypad.spec.js </em>中对<code>operators</code>遵循相同的模式:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'renders the values of operators'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setProps</span><span class="p">({</span><span class="nx">operators</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">'+'</span><span class="p">,</span><span class="w"> </span><span class="s1">'-'</span><span class="p">,</span><span class="w"> </span><span class="s1">'*'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/'</span><span class="p">]});</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'.operators-container'</span><span class="p">).</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'+-*/'</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>然后在<em> Keypad.jsx </em>中，用我们对<code>numbers</code>所做的同样方式更新组件:</p>
+<div class="codehilite"><pre><span/><code>...
+const Keypad = ({
+  callOperator,
+  numbers,
+  operators,
+  setOperator,
+  updateDisplay,
+}) =&gt; {
+  const numberKeys = numbers.map(number =&gt; <span class="nt">&lt;p</span> <span class="na">key=</span><span class="s">{number}</span><span class="nt">&gt;</span>{number}<span class="nt">&lt;/p&gt;</span>);
+
+  const operatorKeys = operators.map(operator =&gt; <span class="nt">&lt;p</span> <span class="na">key=</span><span class="s">{operator}</span><span class="nt">&gt;</span>{operator}<span class="nt">&lt;/p&gt;</span>);
+
+  return (
+    <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"keypad-container"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"numbers-container"</span><span class="nt">&gt;</span>
+        {numberKeys}
+      <span class="nt">&lt;/div&gt;</span>
+      <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"operators-container"</span><span class="nt">&gt;</span>
+        {operatorKeys}
+      <span class="nt">&lt;/div&gt;</span>
+    <span class="nt">&lt;/div&gt;</span>
+  );
+}
+...
+</code></pre></div>
+
+<p>这个现在应该破<code>Keypad › should render 2 &lt;div /&gt;'s</code>。更新<em> Keypad.spec.js </em>中的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render 3 &lt;div /&gt;\'s'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">3</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>测试是绿色的！</p>
+<h3 id="add-keypad-css">添加键盘CSS</h3>
+<p>现在添加CSS变量和组件CSS。导航到<em> index.css </em>并对<code>:root</code>范围进行更新:</p>
+<div class="codehilite"><pre><span/><code><span class="c">/*</span>
+<span class="c">app variables</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c">/* background colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#696969</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#1d1f1f</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--main-font</span><span class="p">:</span><span class="w"> </span><span class="s1">'Orbitron'</span><span class="p">,</span><span class="w"> </span><span class="kc">sans-serif</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#23e000</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font weights */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-weight</span><span class="p">:</span><span class="w"> </span><span class="mi">400</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">72</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">36</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* display dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-height</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-width</span><span class="p">:</span><span class="w"> </span><span class="mi">92</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* keypad dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--keypad-height</span><span class="p">:</span><span class="w"> </span><span class="mi">72</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--keypad-width</span><span class="p">:</span><span class="w"> </span><span class="mi">96</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">media query for tablet or smaller screen</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">@</span><span class="k">media</span><span class="w"> </span><span class="nt">screen</span><span class="w"> </span><span class="nt">and</span><span class="w"> </span><span class="o">(</span><span class="nt">max-width</span><span class="o">:</span><span class="w"> </span><span class="nt">1024px</span><span class="o">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>将以下内容添加到<em> Keypad.css </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">.</span><span class="nc">keypad-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">display</span><span class="p">:</span><span class="w"> </span><span class="kc">flex</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">flex-direction</span><span class="p">:</span><span class="w"> </span><span class="kc">row</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">flex-wrap</span><span class="p">:</span><span class="w"> </span><span class="kc">wrap</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--keypad-height</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--keypad-width</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">numbers-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">display</span><span class="p">:</span><span class="w"> </span><span class="kc">flex</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">flex-direction</span><span class="p">:</span><span class="w"> </span><span class="kc">row</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">flex-wrap</span><span class="p">:</span><span class="w"> </span><span class="kc">wrap</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">80</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="mi">75</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">operators-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">display</span><span class="p">:</span><span class="w"> </span><span class="kc">flex</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">flex-direction</span><span class="p">:</span><span class="w"> </span><span class="kc">column</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">80</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="mi">25</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">submit-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>关于这些CSS属性:</p>
+<ul>
+<li><code>flex-direction: row;</code>将<code>flex-container</code>中内容的布局设置为<code>row</code>(这是<code>display: flex</code>的默认方向)。</li>
+<li><code>flex-wrap: wrap;</code>通知<code>flex-container</code>将超过<code>flex-container</code>宽度的内容打包到<code>flex-container</code>中。</li>
+<li><code>flex-direction: column;</code>将<code>flex-container</code>中内容的布局设置为<code>column</code>。</li>
+</ul></blockquote>
+
+<p>最后，将<em> Keypad.css </em>导入到<em> Keypad.jsx </em>中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">PropTypes</span> <span class="kn">from</span> <span class="s1">'prop-types'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="s1">'./Keypad.css'</span><span class="p">;</span>
+<span class="o">...</span>
+</code></pre></div>
+
+<p>启动应用程序:</p>
+
+
+<p>浏览器现在应该看起来像这样:</p>
+<p><img data-src="/static/images/blog/tdd_react/keypad_render_one.png" loading="lazy" class="lazyload" alt="keypad render" src="../Images/2b4c7a06eb266d185b6700be59885ab7.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/keypad_render_one.png"/></p>
+<h2 id="key-component">关键组分</h2>
+<h3 id="check-for-key-in-keypad">检查键盘中的钥匙</h3>
+<p>按照我们对<code>Calculator</code>、<code>Display</code>和<code>Keypad</code>组件使用的相同的浅层渲染测试模式，我们现在将检查<code>Keypad</code>中是否存在<code>Key</code>组件。</p>
+<p>将以下测试添加到<em> Keypad.spec.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render an instance of the Key component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'Key'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>您可能已经注意到，在之前的测试中，我们在检查子组件时使用了<code>containsMatchingElement</code>。因为我们将渲染17个不同的<code>Key</code>元素，每个元素都有不同的<code>keyAction</code>、<code>keyType</code>和<code>keyValue</code>，使用<code>containsMatchingElement</code>对这个例子不起作用。相反，我们将使用<code>find</code>方法检查元素的存在，然后检查结果数组的长度。</p>
+</blockquote>
+<p>在“src/components/Key”中为<code>Key</code>组件创建测试套件文件，然后在<em> Key.spec.js </em>中为<code>Key</code>添加浅层渲染测试:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">shallow</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'enzyme'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">Key</span> <span class="kn">from</span> <span class="s1">'./Key'</span><span class="p">;</span>
+
+<span class="n">describe</span><span class="p">(</span><span class="s1">'Key'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="n">let</span> <span class="n">wrapper</span><span class="p">;</span>
+
+  <span class="n">beforeEach</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">wrapper</span> <span class="o">=</span> <span class="n">shallow</span><span class="p">(</span>
+      <span class="o">&lt;</span><span class="n">Key</span>
+        <span class="n">keyAction</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+        <span class="n">keyType</span><span class="o">=</span><span class="p">{</span><span class="s1">''</span><span class="p">}</span>
+        <span class="n">keyValue</span><span class="o">=</span><span class="p">{</span><span class="s1">''</span><span class="p">}</span>
+      <span class="o">/&gt;</span>
+    <span class="p">);</span>
+  <span class="p">});</span>
+
+  <span class="n">it</span><span class="p">(</span><span class="s1">'should render a &lt;div /&gt;'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">expect</span><span class="p">(</span><span class="n">wrapper</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">)</span><span class="o">.</span><span class="n">length</span><span class="p">)</span><span class="o">.</span><span class="n">toEqual</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+  <span class="p">});</span>
+<span class="p">});</span>
+</code></pre></div>
+
+<p>将组件添加到<em> Key.jsx </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">PropTypes</span> <span class="kn">from</span> <span class="s1">'prop-types'</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">Key</span> <span class="o">=</span> <span class="p">({</span> <span class="n">keyAction</span><span class="p">,</span> <span class="n">keyType</span><span class="p">,</span> <span class="n">keyValue</span> <span class="p">})</span> <span class="o">=&gt;</span> <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"key-container"</span> <span class="o">/&gt;</span><span class="p">;</span>
+
+<span class="n">Key</span><span class="o">.</span><span class="n">propTypes</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="n">keyAction</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+  <span class="n">keyType</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">string</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+  <span class="n">keyValue</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">string</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">Key</span><span class="p">;</span>
+</code></pre></div>
+
+<p><code>Keypad › should render an instance of the Key component</code>应该还是失败了。</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/Display/Display.spec.js
+ PASS  src/components/Calculator/Calculator.spec.js
+ PASS  src/components/App/App.spec.js
+ FAIL  src/components/Keypad/Keypad.spec.js
+  ● Keypad › should render an instance of the Key component
+
+    expect<span class="o">(</span>received<span class="o">)</span>.toEqual<span class="o">(</span>expected<span class="o">)</span> // deep equality
+
+    Expected: <span class="m">1</span>
+    Received: <span class="m">0</span>
+
+      <span class="m">33</span> <span class="p">|</span>
+      <span class="m">34</span> <span class="p">|</span>   it<span class="o">(</span><span class="s1">'should render an instance of the Key component'</span>, <span class="o">()</span> <span class="o">=</span>&gt; <span class="o">{</span>
+    &gt; <span class="m">35</span> <span class="p">|</span>     expect<span class="o">(</span>wrapper.find<span class="o">(</span><span class="s1">'Key'</span><span class="o">)</span>.length<span class="o">)</span>.toEqual<span class="o">(</span><span class="m">1</span><span class="o">)</span><span class="p">;</span>
+         <span class="p">|</span>                                        ^
+      <span class="m">36</span> <span class="p">|</span>   <span class="o">})</span><span class="p">;</span>
+      <span class="m">37</span> <span class="p">|</span> <span class="o">})</span><span class="p">;</span>
+      <span class="m">38</span> <span class="p">|</span>
+
+      at Object.&lt;anonymous&gt; <span class="o">(</span>src/components/Keypad/Keypad.spec.js:35:40<span class="o">)</span>
+
+ PASS  src/components/Key/Key.spec.js
+
+Test Suites: <span class="m">1</span> failed, <span class="m">4</span> passed, <span class="m">5</span> total
+Tests:       <span class="m">1</span> failed, <span class="m">13</span> passed, <span class="m">14</span> total
+Snapshots:   <span class="m">3</span> passed, <span class="m">3</span> total
+Time:        <span class="m">3</span>.069s
+Ran all <span class="nb">test</span> suites related to changed files.
+</code></pre></div>
+
+<p>导入<em> Keypad.jsx </em>中的<code>Key</code>组件，更新<code>return</code>语句:</p>
+<div class="codehilite"><pre><span/><code><span class="o">...</span>
+<span class="kn">import</span> <span class="nn">Key</span> <span class="kn">from</span> <span class="s1">'../Key/Key'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="s1">'./Keypad.css'</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">Keypad</span> <span class="o">=</span> <span class="p">({</span>
+  <span class="n">callOperator</span><span class="p">,</span>
+  <span class="n">numbers</span><span class="p">,</span>
+  <span class="n">operators</span><span class="p">,</span>
+  <span class="n">setOperator</span><span class="p">,</span>
+  <span class="n">updateDisplay</span><span class="p">,</span>
+<span class="p">})</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="o">...</span>
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"keypad-container"</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"numbers-container"</span><span class="o">&gt;</span>
+        <span class="p">{</span><span class="n">numberKeys</span><span class="p">}</span>
+      <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"operators-container"</span><span class="o">&gt;</span>
+        <span class="p">{</span><span class="n">operatorKeys</span><span class="p">}</span>
+      <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+      <span class="o">&lt;</span><span class="n">Key</span>
+        <span class="n">keyAction</span><span class="o">=</span><span class="p">{</span><span class="n">callOperator</span><span class="p">}</span>
+        <span class="n">keyType</span><span class="o">=</span><span class="s2">""</span>
+        <span class="n">keyValue</span><span class="o">=</span><span class="s2">""</span>
+      <span class="o">/&gt;</span>
+    <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+  <span class="p">);</span>
+<span class="p">}</span>
+<span class="o">...</span>
+</code></pre></div>
+
+<p>测试应该会通过。</p>
+<h3 id="key-renders-keyvalue">键呈现键值</h3>
+<p>接下来，向<em> Key.spec.jsx </em>添加一个新的测试，检查<code>keyValue</code>的值是否存在:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render the value of keyValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setProps</span><span class="p">({</span><span class="w"> </span><span class="nx">keyValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'test'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'test'</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>重构<em> Key.jsx </em>中的<code>Key</code>组件:</p>
+<div class="codehilite"><pre><span/><code>const Key = ({ keyAction, keyType, keyValue }) =&gt; (
+  <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"key-container"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;p</span> <span class="na">className=</span><span class="s">"key-value"</span><span class="nt">&gt;</span>
+      {keyValue}
+    <span class="nt">&lt;/p&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+);
+</code></pre></div>
+
+<p>全部通过！</p>
+<h3 id="add-key-css">添加关键CSS</h3>
+<p>这是更新CSS变量和添加<code>Key</code> CSS的好地方。导航到<em> index.css </em>并进行以下更新:</p>
+<div class="codehilite"><pre><span/><code><span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c">/* background colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--action-key-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#545454</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--action-key-color-hover</span><span class="p">:</span><span class="w"> </span><span class="mh">#2a2a2a</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#696969</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#1d1f1f</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--number-key-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#696969</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--number-key-color-hover</span><span class="p">:</span><span class="w"> </span><span class="mh">#3f3f3f</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--submit-key-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#d18800</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--submit-key-color-hover</span><span class="p">:</span><span class="w"> </span><span class="mh">#aa6e00</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="err">...</span><span class="w"/>
+<span class="w">  </span><span class="c">/* font colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#23e000</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--key-text-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#d3d3d3</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--key-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font weights */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-weight</span><span class="p">:</span><span class="w"> </span><span class="mi">400</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--key-text-weight</span><span class="p">:</span><span class="w"> </span><span class="mi">700</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="err">...</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+<span class="o">...</span><span class="w"/>
+<span class="p">@</span><span class="k">media</span><span class="w"> </span><span class="nt">screen</span><span class="w"> </span><span class="nt">and</span><span class="w"> </span><span class="o">(</span><span class="nt">max-width</span><span class="o">:</span><span class="w"> </span><span class="nt">1024px</span><span class="o">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nv">--key-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="err">...</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>完整的<em> index.css </em>文件现在应该是这样的:</p>
+<div class="codehilite"><pre><span/><code><span class="c">/*</span>
+<span class="c">app variables</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c">/* background colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--action-key-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#545454</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--action-key-color-hover</span><span class="p">:</span><span class="w"> </span><span class="mh">#2a2a2a</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#696969</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#1d1f1f</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--number-key-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#696969</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--number-key-color-hover</span><span class="p">:</span><span class="w"> </span><span class="mh">#3f3f3f</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--submit-key-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#d18800</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--submit-key-color-hover</span><span class="p">:</span><span class="w"> </span><span class="mh">#aa6e00</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--main-font</span><span class="p">:</span><span class="w"> </span><span class="s1">'Orbitron'</span><span class="p">,</span><span class="w"> </span><span class="kc">sans-serif</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#23e000</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--key-text-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#d3d3d3</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--key-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font weights */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-weight</span><span class="p">:</span><span class="w"> </span><span class="mi">400</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--key-text-weight</span><span class="p">:</span><span class="w"> </span><span class="mi">700</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">72</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">36</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* display dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-height</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-width</span><span class="p">:</span><span class="w"> </span><span class="mi">92</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* keypad dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--keypad-height</span><span class="p">:</span><span class="w"> </span><span class="mi">72</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--keypad-width</span><span class="p">:</span><span class="w"> </span><span class="mi">96</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">media query for tablet or smaller screen</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">@</span><span class="k">media</span><span class="w"> </span><span class="nt">screen</span><span class="w"> </span><span class="nt">and</span><span class="w"> </span><span class="o">(</span><span class="nt">max-width</span><span class="o">:</span><span class="w"> </span><span class="nt">1024px</span><span class="o">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nv">--key-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">app CSS reset</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="nt">body</span><span class="o">,</span><span class="w"> </span><span class="nt">div</span><span class="o">,</span><span class="w"> </span><span class="nt">p</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">margin</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>然后在<em> Key.css </em>中添加组件CSS:</p>
+<div class="codehilite"><pre><span/><code><span class="p">.</span><span class="nc">key-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">align-items</span><span class="p">:</span><span class="w"> </span><span class="kc">center</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">display</span><span class="p">:</span><span class="w"> </span><span class="kc">flex</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">25</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">justify-content</span><span class="p">:</span><span class="w"> </span><span class="kc">center</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">transition</span><span class="p">:</span><span class="w"> </span><span class="k">background-color</span><span class="w"> </span><span class="mf">0.3</span><span class="kt">s</span><span class="w"> </span><span class="kc">linear</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">key-container</span><span class="p">:</span><span class="nd">hover</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">cursor</span><span class="p">:</span><span class="w"> </span><span class="kc">pointer</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">operator-key</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--action-key-color</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">operator-key</span><span class="p">:</span><span class="nd">hover</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--action-key-color-hover</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">number-key</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--number-key-color</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="nb">calc</span><span class="p">(</span><span class="mi">100</span><span class="kt">%</span><span class="o">/</span><span class="mi">3</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">number-key</span><span class="p">:</span><span class="nd">hover</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--number-key-color-hover</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">submit-key</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--submit-key-color</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">submit-key</span><span class="p">:</span><span class="nd">hover</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--submit-key-color-hover</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">key-value</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--key-text-color</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">font-family</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--main-font</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">font-size</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--key-text-size</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">font-weight</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--key-text-weight</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>属性用来给我们的<code>hover</code>效果一个非悬停和悬停背景色之间的平滑动画。第一个参数(<code>background-color</code>)定义了要过渡的属性，第二个参数(<code>0.3s</code>)指定了以秒为单位的过渡长度，第三个参数(<code>linear</code>)是过渡动画的样式。</p>
+</blockquote>
+<p>最后，导入CSS并在<em> Key.jsx </em>中进行上述更新:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">PropTypes</span> <span class="kn">from</span> <span class="s1">'prop-types'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="s1">'./Key.css'</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">Key</span> <span class="o">=</span> <span class="p">({</span> <span class="n">keyAction</span><span class="p">,</span> <span class="n">keyType</span><span class="p">,</span> <span class="n">keyValue</span> <span class="p">})</span> <span class="o">=&gt;</span> <span class="p">(</span>
+  <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="p">{</span><span class="err">`</span><span class="n">key</span><span class="o">-</span><span class="n">container</span> <span class="err">$</span><span class="p">{</span><span class="n">keyType</span><span class="p">}</span><span class="err">`</span><span class="p">}</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">p</span> <span class="n">className</span><span class="o">=</span><span class="s2">"key-value"</span><span class="o">&gt;</span>
+      <span class="p">{</span><span class="n">keyValue</span><span class="p">}</span>
+    <span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+  <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+<span class="p">);</span>
+<span class="o">...</span>
+</code></pre></div>
+
+<h3 id="add-snapshot-testing-for-key">为键添加快照测试</h3>
+<p>组件UI完成后，我们可以添加快照测试。在<em> Key.spec.js </em>中的测试顶部，添加:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render correctly'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">).</span><span class="nx">toMatchSnapshot</span><span class="p">());</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>同样，该测试将立即通过，并且将继续通过，直到对<code>Key</code>组件UI进行了更改。</p>
+</blockquote>
+<h3 id="refactor-keypad-to-use-key-for-numbers-operators-and-submit">重构键盘以使用数字、运算符和提交键</h3>
+<p>因为我们想要为<code>numbers</code>和<code>operators</code>数组的每个索引以及<code>submit</code>键呈现一个<code>Key</code>组件，所以重构<em> Keypad.spec.js </em>中的<code>Keypad › should render an instance of the Key component</code>测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render an instance of the Key component for each index of numbers, operators, and the submit Key'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">numbers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s1">'0'</span><span class="p">,</span><span class="w"> </span><span class="s1">'1'</span><span class="p">];</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">operators</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s1">'+'</span><span class="p">,</span><span class="w"> </span><span class="s1">'-'</span><span class="p">];</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">submit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">keyTotal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">numbers</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">operators</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">submit</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setProps</span><span class="p">({</span><span class="w"> </span><span class="nx">numbers</span><span class="p">,</span><span class="w"> </span><span class="nx">operators</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'Key'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="nx">keyTotal</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>重构<em> Keypad.jsx </em>的<code>return</code>语句中的地图函数和<code>Key</code>组件:</p>
+<div class="codehilite"><pre><span/><code>...
+const Keypad = ({
+  callOperator,
+  numbers,
+  operators,
+  setOperator,
+  updateDisplay,
+}) =&gt; {
+  const numberKeys = numbers.map(number =&gt; (
+    <span class="nt">&lt;Key</span>
+      <span class="na">key=</span><span class="s">{number}</span>
+      <span class="na">keyAction=</span><span class="s">{updateDisplay}</span>
+      <span class="na">keyType=</span><span class="s">"number-key"</span>
+      <span class="na">keyValue=</span><span class="s">{number}</span>
+    <span class="nt">/&gt;</span>)
+  );
+
+  const operatorKeys = operators.map(operator =&gt; (
+    <span class="nt">&lt;Key</span>
+      <span class="na">key=</span><span class="s">{operator}</span>
+      <span class="na">keyAction=</span><span class="s">{setOperator}</span>
+      <span class="na">keyType=</span><span class="s">"operator-key"</span>
+      <span class="na">keyValue=</span><span class="s">{operator}</span>
+    <span class="nt">/&gt;</span>)
+  );
+
+  return (
+    <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"keypad-container"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"numbers-container"</span><span class="nt">&gt;</span>
+        {numberKeys}
+      <span class="nt">&lt;/div&gt;</span>
+      <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"operators-container"</span><span class="nt">&gt;</span>
+        {operatorKeys}
+      <span class="nt">&lt;/div&gt;</span>
+      <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"submit-container"</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;Key</span>
+          <span class="na">keyAction=</span><span class="s">{callOperator}</span>
+          <span class="na">keyType=</span><span class="s">"submit-key"</span>
+          <span class="na">keyValue=</span><span class="s">"="</span>
+        <span class="nt">/&gt;</span>
+      <span class="nt">&lt;/div&gt;</span>
+    <span class="nt">&lt;/div&gt;</span>
+  );
+}
+...
+</code></pre></div>
+
+<p>重构之后，<code>Keypad › should render the Key component for each index of numbers, operators, and the submit Key</code>通过了，但是下面的测试失败了:</p>
+<ol>
+<li><code>Keypad › renders the values of numbers</code></li>
+<li><code>Keypad › renders the values of operators</code></li>
+</ol>
+<p>如果您检查测试运行程序，<code>Keypad › renders the values of operators</code>失败应该是这样的:</p>
+<div class="codehilite"><pre><span/><code>● Keypad › renders the values of operators
+
+  expect<span class="o">(</span>received<span class="o">)</span>.toEqual<span class="o">(</span>expected<span class="o">)</span> // deep equality
+
+  Expected: <span class="s2">"+-*/"</span>
+  Received: <span class="s2">"&lt;Key /&gt;&lt;Key /&gt;&lt;Key /&gt;&lt;Key /&gt;"</span>
+</code></pre></div>
+
+<p>这是因为<code>shallow</code>渲染方法只深入一层，并返回浅渲染的组件内容，而不是子组件的实际渲染内容。换句话说，当这些测试使用<code>find</code>时，返回的内容只是<code>Key</code>元素，而不是<code>Key</code>中的<em>实际</em>内容。对于这个功能，我们可以使用Enzyme <code>mount</code>，它可以进行完整的DOM渲染，并允许我们获取子元素的文本值。我们将把这些测试移到它们自己的<code>describe</code>语句中，以防止对<code>shallow</code>的不必要调用。</p>
+<blockquote>
+<p>作为编写渲染测试的规则:</p>
+<ol>
+<li>总是从<code>shallow</code>(浅渲染)开始</li>
+<li>当您想要测试以下任一项时，使用<code>mount</code>:<ul>
+<li><code>componentDidMount</code>或<code>componentDidUpdate</code></li>
+<li>DOM呈现、组件生命周期和子组件的行为</li>
+</ul>
+</li>
+</ol></blockquote>
+
+<p>另外，<code>Keypad › should render 3 &lt;div /&gt;'s</code>失败是因为我们添加了另一个容器<code>div</code>。</p>
+<p>更新<em> Keypad.spec.js </em>这样:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">mount</span><span class="p">,</span> <span class="n">shallow</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'enzyme'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">Keypad</span> <span class="kn">from</span> <span class="s1">'./Keypad'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">Key</span> <span class="kn">from</span> <span class="s1">'../Key/Key'</span><span class="p">;</span>
+
+<span class="n">describe</span><span class="p">(</span><span class="s1">'Keypad'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="n">let</span> <span class="n">wrapper</span><span class="p">;</span>
+
+  <span class="n">beforeEach</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">wrapper</span> <span class="o">=</span> <span class="n">shallow</span><span class="p">(</span>
+      <span class="o">&lt;</span><span class="n">Keypad</span>
+        <span class="n">callOperator</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+        <span class="n">numbers</span><span class="o">=</span><span class="p">{[]}</span>
+        <span class="n">operators</span><span class="o">=</span><span class="p">{[]}</span>
+        <span class="n">setOperator</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+        <span class="n">updateDisplay</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+      <span class="o">/&gt;</span>
+    <span class="p">);</span>
+  <span class="p">});</span>
+
+  <span class="n">it</span><span class="p">(</span><span class="s1">'should render 4 &lt;div /&gt;</span><span class="se">\'</span><span class="s1">s'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">expect</span><span class="p">(</span><span class="n">wrapper</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">)</span><span class="o">.</span><span class="n">length</span><span class="p">)</span><span class="o">.</span><span class="n">toEqual</span><span class="p">(</span><span class="mi">4</span><span class="p">);</span>
+  <span class="p">});</span>
+
+  <span class="n">it</span><span class="p">(</span><span class="s1">'should render an instance of the Key component for each index of numbers, operators, and the submit Key'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">const</span> <span class="n">numbers</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'0'</span><span class="p">,</span> <span class="s1">'1'</span><span class="p">];</span>
+    <span class="n">const</span> <span class="n">operators</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'+'</span><span class="p">,</span> <span class="s1">'-'</span><span class="p">];</span>
+    <span class="n">const</span> <span class="n">submit</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="n">const</span> <span class="n">keyTotal</span> <span class="o">=</span> <span class="n">numbers</span><span class="o">.</span><span class="n">length</span> <span class="o">+</span> <span class="n">operators</span><span class="o">.</span><span class="n">length</span> <span class="o">+</span> <span class="n">submit</span><span class="p">;</span>
+    <span class="n">wrapper</span><span class="o">.</span><span class="n">setProps</span><span class="p">({</span> <span class="n">numbers</span><span class="p">,</span> <span class="n">operators</span> <span class="p">});</span>
+    <span class="n">expect</span><span class="p">(</span><span class="n">wrapper</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">'Key'</span><span class="p">)</span><span class="o">.</span><span class="n">length</span><span class="p">)</span><span class="o">.</span><span class="n">toEqual</span><span class="p">(</span><span class="n">keyTotal</span><span class="p">);</span>
+  <span class="p">});</span>
+<span class="p">});</span>
+
+<span class="n">describe</span><span class="p">(</span><span class="s1">'mounted Keypad'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="n">let</span> <span class="n">wrapper</span><span class="p">;</span>
+
+  <span class="n">beforeEach</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">wrapper</span> <span class="o">=</span> <span class="n">mount</span><span class="p">(</span>
+      <span class="o">&lt;</span><span class="n">Keypad</span>
+        <span class="n">callOperator</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+        <span class="n">numbers</span><span class="o">=</span><span class="p">{[]}</span>
+        <span class="n">operators</span><span class="o">=</span><span class="p">{[]}</span>
+        <span class="n">setOperator</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+        <span class="n">updateDisplay</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+      <span class="o">/&gt;</span>
+    <span class="p">);</span>
+  <span class="p">});</span>
+
+  <span class="n">it</span><span class="p">(</span><span class="s1">'renders the values of numbers to the DOM'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">wrapper</span><span class="o">.</span><span class="n">setProps</span><span class="p">({</span> <span class="n">numbers</span><span class="p">:</span> <span class="p">[</span><span class="s1">'0'</span><span class="p">,</span> <span class="s1">'1'</span><span class="p">,</span> <span class="s1">'2'</span><span class="p">]</span> <span class="p">})</span>
+    <span class="n">expect</span><span class="p">(</span><span class="n">wrapper</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">'.numbers-container'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">())</span><span class="o">.</span><span class="n">toEqual</span><span class="p">(</span><span class="s1">'012'</span><span class="p">);</span>
+  <span class="p">});</span>
+
+  <span class="n">it</span><span class="p">(</span><span class="s1">'renders the values of operators to the DOM'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">wrapper</span><span class="o">.</span><span class="n">setProps</span><span class="p">({</span> <span class="n">operators</span><span class="p">:</span> <span class="p">[</span><span class="s1">'+'</span><span class="p">,</span> <span class="s1">'-'</span><span class="p">,</span> <span class="s1">'*'</span><span class="p">,</span> <span class="s1">'/'</span><span class="p">]</span> <span class="p">});</span>
+    <span class="n">expect</span><span class="p">(</span><span class="n">wrapper</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">'.operators-container'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">())</span><span class="o">.</span><span class="n">toEqual</span><span class="p">(</span><span class="s1">'+-*/'</span><span class="p">);</span>
+  <span class="p">});</span>
+<span class="p">});</span>
+</code></pre></div>
+
+<p>测试应该会通过。运行应用程序。您应该看到:</p>
+<p><img data-src="/static/images/blog/tdd_react/keypad_render_two.png" loading="lazy" class="lazyload" alt="keypad render" src="../Images/6c1dc3b0d67fa9a0c25dc1bf36dc094c.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/keypad_render_two.png"/></p>
+<h3 id="add-keypad-snapshot">添加键盘快照</h3>
+<p>现在已经完成了<code>Keypad</code>组件的UI，将快照测试添加到<em> Keypad.spec.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render correctly'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">).</span><span class="nx">toMatchSnapshot</span><span class="p">());</span><span class="w"/>
+</code></pre></div>
+
+<p>同样，快照测试将立即通过。</p>
+<h3 id="refactor-calculator-state">重构计算器状态</h3>
+<p>将数字和运算符值添加到<em> Calculator.jsx </em>中的状态对象:</p>
+<div class="codehilite"><pre><span/><code><span class="o">...</span><span class="w"/>
+<span class="k">class</span><span class="w"> </span><span class="n">Calculator</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="n">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="n">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="n">displayed</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="o">&lt;</span><span class="n">Display</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">    </span><span class="n">displayValue</span><span class="p">:</span><span class="w"> </span><span class="s1">'0'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">values</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="n">displayed</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">number</span><span class="w"> </span><span class="o">&lt;</span><span class="n">Keys</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">    </span><span class="n">numbers</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s1">'9'</span><span class="p">,</span><span class="w"> </span><span class="s1">'8'</span><span class="p">,</span><span class="w"> </span><span class="s1">'7'</span><span class="p">,</span><span class="w"> </span><span class="s1">'6'</span><span class="p">,</span><span class="w"> </span><span class="s1">'5'</span><span class="p">,</span><span class="w"> </span><span class="s1">'4'</span><span class="p">,</span><span class="w"> </span><span class="s1">'3'</span><span class="p">,</span><span class="w"> </span><span class="s1">'2'</span><span class="p">,</span><span class="w"> </span><span class="s1">'1'</span><span class="p">,</span><span class="w"> </span><span class="s1">'.'</span><span class="p">,</span><span class="w"> </span><span class="s1">'0'</span><span class="p">,</span><span class="s1">'ce'</span><span class="p">],</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">values</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="n">displayed</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">operator</span><span class="w"> </span><span class="o">&lt;</span><span class="n">Keys</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">    </span><span class="n">operators</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s1">'/'</span><span class="p">,</span><span class="w"> </span><span class="s1">'x'</span><span class="p">,</span><span class="w"> </span><span class="s1">'-'</span><span class="p">,</span><span class="w"> </span><span class="s1">'+'</span><span class="p">],</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">operator</span><span class="w"> </span><span class="n">selected</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">math</span><span class="w"> </span><span class="n">operation</span><span class="w"/>
+<span class="w">    </span><span class="n">selectedOperator</span><span class="p">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">stored</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">use</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">math</span><span class="w"> </span><span class="n">operation</span><span class="w"/>
+<span class="w">    </span><span class="n">storedValue</span><span class="p">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="o">...</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+<span class="o">...</span><span class="w"/>
+</code></pre></div>
+
+<p>更改之后，<code>Calculator</code>快照中断，因为我们对<code>Calculator</code>的UI进行了更改。我们需要更新快照。这可以通过在任务运行程序中输入<code>u</code>或者在从命令行调用测试运行程序时传递<code>--updateSnapshot</code>标志来实现:</p>
+<div class="codehilite"><pre><span/><code>$ npm <span class="nb">test</span> --updateSnapshot
+</code></pre></div>
+
+<p>运行应用程序:</p>
+<p><img data-src="/static/images/blog/tdd_react/final_application_render.png" loading="lazy" class="lazyload" alt="final application render" src="../Images/56a0b48ceb4106d99976f910ae6945e2.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/final_application_render.png"/></p>
+<p>我们已经完成了UI的开发和组件渲染测试的编写。现在我们已经准备好给我们的计算器添加功能了。</p>
+<h2 id="application-functions">应用功能</h2>
+<p>在本节中，我们将使用TDD来编写我们的应用程序函数，<code>updateDisplay</code>、<code>setOperator</code>和<code>callOperator</code>，利用<span>红色</span> - <span>绿色</span> - <span>重构</span>循环来创建失败的测试，然后编写相应的代码来使它们通过。我们将从测试不同计算器方法的<code>click</code>事件开始。</p>
+<h2 id="click-event-tests">单击事件测试</h2>
+<p>对于每个calculator方法，我们将编写测试来检查当相应的键类型被单击时对各个方法的调用。</p>
+<p>这些测试将进入它们自己的<code>describe</code>块，因为我们需要使用<code>mount</code>而不是<code>shallow</code>，因为我们正在测试子组件的行为。测试包括:</p>
+<ol>
+<li>使用Jest <code>spyOn</code>方法为我们正在测试的计算器方法创建一个<code>spy</code></li>
+<li>调用<code>forceUpdate</code>在测试中重新渲染<code>instance</code></li>
+<li>使用Enzyme的<code>simulate</code>方法对相应的<code>Key</code>创建事件</li>
+</ol>
+<p>在<em> Calculator.spec.js </em>中添加以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'mounted Calculator'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">mount</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Calculator</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'calls updateDisplay when a number key is clicked'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">spy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">jest</span><span class="p">.</span><span class="nx">spyOn</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">(),</span><span class="w"> </span><span class="s1">'updateDisplay'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">forceUpdate</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">spy</span><span class="p">).</span><span class="nx">toHaveBeenCalledTimes</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'.number-key'</span><span class="p">).</span><span class="nx">first</span><span class="p">().</span><span class="nx">simulate</span><span class="p">(</span><span class="s1">'click'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">spy</span><span class="p">).</span><span class="nx">toHaveBeenCalledTimes</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'calls setOperator when an operator key is clicked'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">spy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">jest</span><span class="p">.</span><span class="nx">spyOn</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">(),</span><span class="w"> </span><span class="s1">'setOperator'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">forceUpdate</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">spy</span><span class="p">).</span><span class="nx">toHaveBeenCalledTimes</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'.operator-key'</span><span class="p">).</span><span class="nx">first</span><span class="p">().</span><span class="nx">simulate</span><span class="p">(</span><span class="s1">'click'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">spy</span><span class="p">).</span><span class="nx">toHaveBeenCalledTimes</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'calls callOperator when the submit key is clicked'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">spy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">jest</span><span class="p">.</span><span class="nx">spyOn</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">(),</span><span class="w"> </span><span class="s1">'callOperator'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">forceUpdate</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">spy</span><span class="p">).</span><span class="nx">toHaveBeenCalledTimes</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'.submit-key'</span><span class="p">).</span><span class="nx">simulate</span><span class="p">(</span><span class="s1">'click'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">spy</span><span class="p">).</span><span class="nx">toHaveBeenCalledTimes</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>不要忘记导入<code>mount</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">mount</span><span class="p">,</span><span class="w"> </span><span class="nx">shallow</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'enzyme'</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>现在重构<em> Key.jsx </em>来对<code>click</code>事件执行计算器方法:</p>
+<div class="codehilite"><pre><span/><code>...
+const Key = ({ keyAction, keyType, keyValue }) =&gt; (
+  <span class="nt">&lt;div</span>
+    <span class="na">className=</span><span class="s">{`key-container</span> <span class="err">${keyType}`}</span>
+    <span class="na">onClick=</span><span class="s">{()</span> <span class="err">=</span><span class="nt">&gt;</span> keyAction(keyValue)}
+  &gt;
+    <span class="nt">&lt;p</span> <span class="na">className=</span><span class="s">"key-value"</span><span class="nt">&gt;</span>
+      {keyValue}
+    <span class="nt">&lt;/p&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+);
+...
+</code></pre></div>
+
+<p>测试将通过，但是<code>Key</code>快照失败。通过在测试运行程序中输入<code>u</code>或从命令行run更新<code>Key</code>快照:</p>
+<div class="codehilite"><pre><span/><code>$ npm <span class="nb">test</span> --updateSnapshot
+</code></pre></div>
+
+<p>现在<code>onClick</code>处理程序已经添加到了<code>Key</code>中，运行应用程序，然后跳回浏览器并打开JavaScript控制台。点击一个数字键。<code>click</code>事件的输出应该是这样的:</p>
+<p><img data-src="/static/images/blog/tdd_react/console_log.png" loading="lazy" class="lazyload" alt="console log" src="../Images/26c4462f88a30c0c48e2ba73188c269e.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/console_log.png"/></p>
+<p>现在我们已经为功能测试做好了准备！</p>
+<h2 id="update-display-tests">更新显示测试</h2>
+<p><code>updateDisplay</code>方法将接受一个字符串参数<code>value</code>，并更新<code>state</code>对象中的<code>displayValue</code>。当<code>displayValue</code>被更新时，React将重新渲染<code>Display</code>组件，并将<code>displayValue</code>的新值作为显示文本。</p>
+<p>我们需要在我们的<code>Calculator</code>测试文件中为<code>updateDisplay</code>添加一个新的<code>describe</code>块，然后为<code>updateDisplay</code>方法添加我们的测试。在测试中，将从<code>wrapper.instance()</code>对象中调用<code>updateDisplay</code>,并根据<code>state</code>对象测试结果。</p>
+<p>导航到<em> Calculator.spec.js </em>，声明<code>describe</code>块，并在其中添加测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'updateDisplay'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Calculator</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'concatenates displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'50'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'removes leading "0" from displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'prevents multiple leading "0"s from displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'removes last char of displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'ce'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'prevents multiple instances of "." in displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'.'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'.'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'.'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'will set displayValue to "0" if displayValue is equal to an empty string'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">updateDisplay</span><span class="p">(</span><span class="s1">'ce'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，导航到<em> Calculator.jsx </em>并更新<code>updateDisplay</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">...</span><span class="w"/>
+
+<span class="k">class</span><span class="w"> </span><span class="n">Calculator</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="n">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="o">...</span><span class="w"/>
+<span class="w">  </span><span class="n">updateDisplay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="n">let</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">this</span><span class="o">.</span><span class="n">state</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">prevent</span><span class="w"> </span><span class="n">multiple</span><span class="w"> </span><span class="n">occurences</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="s1">'.'</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'.'</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">displayValue</span><span class="o">.</span><span class="n">includes</span><span class="p">(</span><span class="s1">'.'</span><span class="p">))</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'ce'</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="n">deletes</span><span class="w"> </span><span class="n">last</span><span class="w"> </span><span class="nb">char</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">displayValue</span><span class="w"/>
+<span class="w">      </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">displayValue</span><span class="o">.</span><span class="n">substr</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">displayValue</span><span class="o">.</span><span class="n">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="s1">'0'</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="n">string</span><span class="w"/>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">displayValue</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'0'</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="n">replace</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="n">equal</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="s1">'0'</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">concatenate</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">value</span><span class="w"/>
+<span class="w">      </span><span class="n">displayValue</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'0'</span><span class="w"> </span><span class="err">?</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+
+<span class="w">    </span><span class="n">this</span><span class="o">.</span><span class="n">setState</span><span class="p">({</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="o">...</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+<span class="o">...</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>您必须小心React基于类的组件中声明方法时使用的语法。当使用es5对象方法语法时，默认情况下方法不绑定到类，绑定必须在<code>constructor</code>方法中显式声明。例如，如果您忘记绑定<code>this.handleClick</code>并将其传递给一个<code>onClick</code>处理程序，当函数被实际调用时，<code>this</code>将成为<code>undefined</code>。在本文中，我们使用es6中引入的胖箭头方法语法，它为我们处理方法绑定，并允许我们在初始化组件状态时省略<code>constructor</code>方法。</p>
+<p>es5示例:</p>
+<div class="codehilite"><pre><span/><span class="kr">class</span> <span class="nx">Calculator</span> <span class="kr">extends</span> <span class="nx">Component</span> <span class="p">{</span>
+  <span class="kr">constructor</span><span class="p">(</span><span class="nx">props</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">state</span> <span class="o">=</span> <span class="p">{</span>
+      <span class="nx">displayValue</span><span class="o">:</span> <span class="s1">'0'</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="c1">// explicit binding</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">updateDisplay</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">updateDisplay</span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="k">this</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="nx">updateDisplay</span><span class="p">(</span><span class="nx">value</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span> <span class="nx">displayValue</span>: <span class="kt">value</span> <span class="p">});</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></div><p>es6或更高版本示例:</p><div class="codehilite"><pre><span/><span class="kr">class</span> <span class="nx">Calculator</span> <span class="kr">extends</span> <span class="nx">Component</span> <span class="p">{</span>
+  <span class="nx">state</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="nx">displayValue</span><span class="o">:</span> <span class="s1">'0'</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="nx">updateDisplay</span> <span class="o">=</span> <span class="nx">value</span> <span class="o">=&gt;</span> <span class="k">this</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span> <span class="nx">displayValue</span>: <span class="kt">value</span> <span class="p">});</span>
+<span class="p">}</span>
+</pre></div><p>有关绑定的更多信息，请参考<a href="https://reactjs.org/docs/handling-events.html"> React文档</a>。</p></blockquote>
+
+<p>所有测试现在都应该通过了，导航到浏览器并单击数字键以查看显示更新。</p>
+<p><img data-src="/static/images/blog/tdd_react/number_keys.png" loading="lazy" class="lazyload" alt="number keys" src="../Images/4438dd1dd776cc908b225755947ad73d.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/number_keys.png"/></p>
+<p>现在转到<code>setOperator</code>方法！</p>
+<h2 id="set-operator-tests">设置操作员测试</h2>
+<p><code>setOperator</code>方法将接受一个字符串参数<code>value</code>，它将更新<code>state</code>对象中的<code>displayValue</code>、<code>selectedOperator</code>和<code>storedValue</code>。</p>
+<p>同样，在我们的<code>Calculator</code>测试文件中为<code>setOperator</code>添加一个<code>describe</code>块，然后为<code>setOperator</code>方法添加测试。像以前一样，<code>setOperator</code>将从<code>wrapper.instance()</code>对象中被调用，结果将对照<code>state</code>对象进行测试。</p>
+<p>导航到<em> Calculator.spec.js </em>，添加<code>describe</code>块以及测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'setOperator'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Calculator</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates the value of selectedOperator'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">setOperator</span><span class="p">(</span><span class="s1">'+'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'selectedOperator'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'+'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">setOperator</span><span class="p">(</span><span class="s1">'/'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'selectedOperator'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'/'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates the value of storedValue to the value of displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'5'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">setOperator</span><span class="p">(</span><span class="s1">'+'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'storedValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates the value of displayValue to "0"'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'5'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">setOperator</span><span class="p">(</span><span class="s1">'+'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'selectedOperator is not an empty string, does not update storedValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'5'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">setOperator</span><span class="p">(</span><span class="s1">'+'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'storedValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">setOperator</span><span class="p">(</span><span class="s1">'-'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'storedValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>导航到<em> Calculator.jsx </em>。更新<code>setOperator</code>方法:</p>
+<div class="codehilite"><pre><span/><code><span class="o">...</span><span class="w"/>
+<span class="k">class</span><span class="w"> </span><span class="n">Calculator</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="n">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="o">...</span><span class="w"/>
+<span class="w">  </span><span class="n">setOperator</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="n">let</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">displayValue</span><span class="p">,</span><span class="w"> </span><span class="n">selectedOperator</span><span class="p">,</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">this</span><span class="o">.</span><span class="n">state</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">check</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">already</span><span class="w"> </span><span class="n">present</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">selectedOperator</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">selectedOperator</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="n">update</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">displayValue</span><span class="w"/>
+<span class="w">      </span><span class="n">storedValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">displayValue</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="n">reset</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="s1">'0'</span><span class="w"/>
+<span class="w">      </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'0'</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="n">update</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">selectedOperator</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">given</span><span class="w"> </span><span class="n">value</span><span class="w"/>
+<span class="w">      </span><span class="n">selectedOperator</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">selectedOperator</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="n">an</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="n">string</span><span class="w"/>
+<span class="w">      </span><span class="o">//</span><span class="w"> </span><span class="n">update</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">selectedOperator</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">given</span><span class="w"> </span><span class="n">value</span><span class="w"/>
+<span class="w">      </span><span class="n">selectedOperator</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+
+<span class="w">    </span><span class="n">this</span><span class="o">.</span><span class="n">setState</span><span class="p">({</span><span class="w"> </span><span class="n">displayValue</span><span class="p">,</span><span class="w"> </span><span class="n">selectedOperator</span><span class="p">,</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="o">...</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="n">default</span><span class="w"> </span><span class="n">Calculator</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>同样，所有的测试现在都是绿色的。继续前进到<code>callOperator</code>。</p>
+<h2 id="call-operator-tests">呼叫接线员测试</h2>
+<p><code>callOperator</code>方法没有参数。它更新<code>state</code>对象中的<code>displayValue</code>、<code>selectedOperator</code>和<code>storedValue</code>。</p>
+<p>同样，在我们的<code>Calculator</code>测试文件中，我们需要一个<code>callOperator</code>的<code>describe</code>块。然后，我们将在里面添加我们对<code>callOperator</code>方法的测试。和上面的部分一样，<code>callOperator</code>将从<code>wrapper.instance()</code>对象中被调用，结果将根据<code>state</code>对象进行测试。</p>
+<p>导航到<em> Calculator.spec.js </em>，并在文件底部添加新的<code>describe</code>块:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'callOperator'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Calculator</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to the sum of storedValue and displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'3'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'2'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">'+'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'5'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to the difference of storedValue and displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'3'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'2'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">'-'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'1'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to the product of storedValue and displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'3'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'2'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">'x'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'6'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to the quotient of storedValue and displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'3'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'2'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">'/'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'1.5'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to "0" if operation results in "NaN"'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'3'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'string'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">'/'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to "0" if operation results in "Infinity"'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'7'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'0'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">'/'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to "0" if selectedOperator does not match cases'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'7'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'10'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">'string'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'updates displayValue to "0" if called with no value for storedValue or selectedOperator'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">storedValue</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'10'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">selectedOperator</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">callOperator</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">state</span><span class="p">(</span><span class="s1">'displayValue'</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'0'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>导航到<em> Calculator.jsx </em>，然后更新<code>callOperator</code>方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span><span class="w"> </span><span class="n">Calculator</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="n">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="o">...</span><span class="w"/>
+<span class="w">  </span><span class="n">callOperator</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="n">let</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">displayValue</span><span class="p">,</span><span class="w"> </span><span class="n">selectedOperator</span><span class="p">,</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">this</span><span class="o">.</span><span class="n">state</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="n">variable</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">updating</span><span class="w"> </span><span class="n">state</span><span class="w"> </span><span class="n">storedValue</span><span class="w"/>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">updateStoredValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">displayValue</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">parse</span><span class="w"> </span><span class="n">strings</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">operations</span><span class="w"/>
+<span class="w">    </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parseInt</span><span class="p">(</span><span class="n">displayValue</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="n">storedValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parseInt</span><span class="p">(</span><span class="n">storedValue</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span><span class="w"/>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">performs</span><span class="w"> </span><span class="n">selected</span><span class="w"> </span><span class="n">operation</span><span class="w"/>
+<span class="w">    </span><span class="n">switch</span><span class="w"> </span><span class="p">(</span><span class="n">selectedOperator</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="n">case</span><span class="w"> </span><span class="s1">'+'</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">displayValue</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="n">case</span><span class="w"> </span><span class="s1">'-'</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">displayValue</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="n">case</span><span class="w"> </span><span class="s1">'x'</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">displayValue</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="n">case</span><span class="w"> </span><span class="s1">'/'</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">storedValue</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">displayValue</span><span class="p">;</span><span class="w"/>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"/>
+<span class="w">      </span><span class="n">default</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="o">//</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">zero</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">no</span><span class="w"> </span><span class="n">case</span><span class="w"> </span><span class="n">matches</span><span class="w"/>
+<span class="w">        </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'0'</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">converts</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">string</span><span class="w"/>
+<span class="w">    </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">displayValue</span><span class="o">.</span><span class="n">toString</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">reset</span><span class="w"> </span><span class="n">selectedOperator</span><span class="w"/>
+<span class="w">    </span><span class="n">selectedOperator</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">check</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">'NaN'</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'Infinity'</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">true</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="s1">'0'</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">displayValue</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'NaN'</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'Infinity'</span><span class="p">)</span><span class="w"> </span><span class="n">displayValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'0'</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="n">this</span><span class="o">.</span><span class="n">setState</span><span class="p">({</span><span class="w"> </span><span class="n">displayValue</span><span class="p">,</span><span class="w"> </span><span class="n">selectedOperator</span><span class="p">,</span><span class="w"> </span><span class="n">storedValue</span><span class="p">:</span><span class="w"> </span><span class="n">updateStoredValue</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="o">...</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="n">default</span><span class="w"> </span><span class="n">Calculator</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>计算器现在功能齐全了！</p>
+<p><img data-src="/static/images/gifs/blog/tdd_react/final.gif" loading="lazy" class="lazyload" alt="final app" src="../Images/03959f8594c771a9f3bfe88262145dfb.png" data-original-src="https://testdriven.io/static/images/gifs/blog/tdd_react/final.gif"/></p>
+<p>所有测试都应该通过！</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/App/App.spec.js
+ PASS  src/components/Keypad/Keypad.spec.js
+ PASS  src/components/Key/Key.spec.js
+ PASS  src/components/Calculator/Calculator.spec.js
+ PASS  src/components/Display/Display.spec.js
+
+Test Suites: <span class="m">5</span> passed, <span class="m">5</span> total
+Tests:       <span class="m">39</span> passed, <span class="m">39</span> total
+Snapshots:   <span class="m">5</span> passed, <span class="m">5</span> total
+Time:        <span class="m">2</span>.603s
+Ran all <span class="nb">test</span> suites.
+</code></pre></div>
+
+<h2 id="final-thoughts">最后的想法</h2>
+<p>此时，我们有:</p>
+<ol>
+<li>使用测试驱动的开发，以及Enzyme和Jest来构建我们的应用程序和编写我们的测试。</li>
+<li>使用CSS变量，允许变量重用和重新分配，以响应设计。</li>
+<li>编写了一个可重用的React组件，我们可以用单独的函数和多种风格来呈现它。</li>
+<li>在整个应用程序中使用React的PropTypes进行类型检查。</li>
+</ol>
+<p>后续步骤:</p>
+<p>如果你玩计算器，你可能会注意到一个奇怪的现象，即<code>.</code>键并不像预期的那样工作。你知道该怎么做:先写一个测试，调试，然后写代码通过测试。</p>
+<p>你可能遇到的另一个怪癖是，如果你在一个操作之后点击一个键(不管是哪个键)，如果我们试图模仿使用一个普通计算器的体验，<code>displayValue</code>不会像我们预期的那样更新。将这个计算器与另一个计算器进行比较，隔离体验中的差异，为新的结果编写一些测试，并更新计算器的功能以使测试<span>变为绿色</span>。</p>
+<p>尝试使用CSS:</p>
+<p><img data-src="/static/images/blog/tdd_react/new_css.png" loading="lazy" class="lazyload" alt="new css" src="../Images/a77a68d5c469d81e4c325d48b2a655a2.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/new_css.png"/></p>
+<p>完成以上步骤后，下一步可能是为应用程序添加一个加载转换或键盘事件的事件监听器，以获得更好的用户体验。如果你对如何设置后者感到好奇，你可以在GitHub上的<a href="https://www.github.com/calebpollman/react-calculator"> react-calculator </a> repo的<code>master</code>分支中找到完整的应用程序。</p>
+<p>希望你喜欢这篇文章！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

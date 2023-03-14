@@ -1,0 +1,1171 @@
+<html>
+<head>
+<title>Building a Flask API with APIFairy </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用APIFairy构建Flask API</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/flask-apifairy/#0001-01-01">https://testdriven.io/blog/flask-apifairy/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程演示了如何使用<a href="https://flask.palletsprojects.com/"> Flask </a>和<a href="https://apifairy.readthedocs.io/"> APIFairy </a>轻松创建RESTful API。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>使用APIFairy提供的装饰器在Flask中创建API端点</li>
+<li>利用Flask-Marshmallow定义API端点的输入/输出模式</li>
+<li>使用APIFairy生成API文档</li>
+<li>将关系数据库与API端点集成在一起</li>
+<li>使用Flask-HTTPAuth实现基本和令牌认证</li>
+</ol>
+<h2 id="what-is-apifairy">什么是蜂仙？</h2>
+<p>APIFairy是一个由T2编写的API框架，允许用Flask轻松创建API。</p>
+<p>APIFairy为在Flask中轻松创建API提供了四个关键组件:</p>
+<ol>
+<li>装修工</li>
+<li>计划</li>
+<li>证明</li>
+<li>证明文件</li>
+</ol>
+<p>让我们详细探索每一个...</p>
+<h3 id="decorators">装修工</h3>
+<p>APIFairy提供了一组<a href="https://apifairy.readthedocs.io/en/latest/decorators.html">装饰器</a>，用于定义每个API端点的输入、输出和认证:</p>
+<p><img data-src="/static/images/blog/flask/flask-apifairy/flask_api_with_apifairy_decorators.png" loading="lazy" class="lazyload" alt="APIFairy Decorators" src="../Images/52ccd6d083ca9037724a2d1ba03bd76d.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-apifairy/flask_api_with_apifairy_decorators.png"/></p>
+<p>APIFairy提供了五个核心装饰器:</p>
+<ol>
+<li><a href="https://apifairy.readthedocs.io/en/latest/decorators.html#arguments"> @arguments </a> -指定URL的查询字符串中的输入参数</li>
+<li><a href="https://apifairy.readthedocs.io/en/latest/decorators.html#body"> @body </a> -将输入的JSON主体指定为模式</li>
+<li><a href="https://apifairy.readthedocs.io/en/latest/decorators.html#response"> @response </a> -将输出JSON主体指定为模式</li>
+<li><a href="https://apifairy.readthedocs.io/en/latest/decorators.html#other-responses"> @other_responses </a> -指定可以返回的附加响应(通常是错误)(仅限<em>文档</em>)</li>
+<li><a href="https://apifairy.readthedocs.io/en/latest/decorators.html#authenticate"> @authenticate </a> -指定认证过程</li>
+</ol>
+<h3 id="schemas">计划</h3>
+<p>API端点的输入(使用<code>@body</code>装饰器)和输出(使用<code>@response</code>装饰器)被定义为模式:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">EntrySchema</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="sd">"""Schema defining the attributes in a journal entry."""</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">Integer</span><span class="p">()</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">()</span>
+    <span class="n">user_id</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">Integer</span><span class="p">()</span>
+</code></pre></div>
+
+<p>模式利用<a href="https://marshmallow.readthedocs.io/">棉花糖</a>将数据类型定义为类。</p>
+<h3 id="authentication">证明</h3>
+<p><code>@authenticate</code>装饰器用于检查每个API端点的URL请求中提供的认证头。身份验证方案是使用<a href="https://flask-httpauth.readthedocs.io/"> Flask-HTTPAuth </a>实现的，它也是由Miguel Grinberg创建的。</p>
+<p>典型的API认证方法是定义<a href="https://flask-httpauth.readthedocs.io/#basic-authentication-examples">基本认证</a>来保护获取认证令牌的路径:</p>
+<div class="codehilite"><pre><span/><code><span class="n">basic_auth</span> <span class="o">=</span> <span class="n">HTTPBasicAuth</span><span class="p">()</span>
+
+<span class="nd">@basic_auth</span><span class="o">.</span><span class="n">verify_password</span>
+<span class="k">def</span> <span class="nf">verify_password</span><span class="p">(</span><span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">user</span><span class="o">.</span><span class="n">is_password_correct</span><span class="p">(</span><span class="n">password</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">user</span>
+</code></pre></div>
+
+<p>并且还定义了<a href="https://flask-httpauth.readthedocs.io/en/latest/#token-authentication-example">令牌认证</a>，用于基于时间敏感认证令牌保护大多数路由:</p>
+<div class="codehilite"><pre><span/><code><span class="n">token_auth</span> <span class="o">=</span> <span class="n">HTTPTokenAuth</span><span class="p">()</span>
+
+<span class="nd">@token_auth</span><span class="o">.</span><span class="n">verify_token</span>
+<span class="k">def</span> <span class="nf">verify_token</span><span class="p">(</span><span class="n">auth_token</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">User</span><span class="o">.</span><span class="n">verify_auth_token</span><span class="p">(</span><span class="n">auth_token</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="documentation">证明文件</h3>
+<p>APIFairy的一个伟大特性是自动生成的漂亮的API文档:</p>
+<p><img data-src="/static/images/blog/flask/flask-apifairy/api_documentation_1.png" loading="lazy" class="lazyload" alt="API Documentation - Main Page" src="../Images/cce51dd55976a2bbb4aa35de4602ce7c.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-apifairy/api_documentation_1.png"/></p>
+<p>文档是基于源代码中的文档字符串以及以下配置变量生成的:</p>
+<ol>
+<li><code>APIFAIRY_TITLE</code> -项目名称</li>
+<li><code>APIFAIRY_VERSION</code> -项目的版本字符串</li>
+<li><code>APIFAIRY_UI</code>-API文件的格式</li>
+</ol>
+<p>对于<code>APIFAIRY_UI</code>，您可以从以下OpenAPI文档渲染器之一生成模板:</p>
+<ol>
+<li><a href="https://swagger.io/tools/swagger-ui/"> Swagger UI </a></li>
+<li><a href="https://github.com/Redocly/redoc"> ReDoc </a></li>
+<li><a href="https://rapidocweb.com/"> RapiDoc </a></li>
+<li><a href="https://stoplight.io/open-source/elements">元素</a></li>
+</ol>
+<blockquote>
+<p>有关可用配置变量的完整列表，请参考<a href="https://apifairy.readthedocs.io/en/latest/intro.html#configuration">配置</a>文档。</p>
+</blockquote>
+<h2 id="what-are-we-building">我们在建造什么？</h2>
+<p>在本教程中，您将开发一个日志API，允许用户每天记录事件。您可以在GitLab上的<a href="https://gitlab.com/patkennedy79/flask-journal-api"> flask-journal-api </a>资源库中找到完整的源代码。</p>
+<p>使用的关键Python包:</p>
+<ol>
+<li>烧瓶:Python web应用开发的微框架</li>
+<li><a href="https://apifairy.readthedocs.io/">API fairy</a>:Flask的API框架，使用-</li>
+<li>烧瓶的ORM(对象关系映射器)</li>
+</ol>
+<p>您将逐步开发API:</p>
+<ol>
+<li>创建用于处理日记条目的API端点</li>
+<li>生成API文档</li>
+<li>添加一个关系数据库来存储日志条目</li>
+<li>添加身份验证以保护API端点</li>
+</ol>
+<h2 id="api-endpoints">API端点</h2>
+<p>让我们开始使用Flask和APIFairy创建一个API...</p>
+<h3 id="project-initialization">项目初始化</h3>
+<p>首先创建一个新的项目文件夹和一个虚拟环境:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir flask-journal-api
+$ <span class="nb">cd</span> flask-journal-api
+$ python3 -m venv venv
+$ <span class="nb">source</span> venv/bin/activate
+<span class="o">(</span>venv<span class="o">)</span>$
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>继续添加下列文件和文件夹:</p>
+<div class="codehilite"><pre><span/><code>├── app.py
+├── instance
+│   └── .gitkeep
+├── project
+│   ├── __init__.py
+│   └── journal_api
+│       ├── __init__.py
+│       └── routes.py
+└── requirements.txt
+</code></pre></div>
+
+<p>接下来，为了安装必要的Python包，将依赖项添加到项目根目录下的<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code>apifairy==0.9.1
+Flask==2.1.2
+Flask-SQLAlchemy==2.5.1
+marshmallow-sqlalchemy==0.28.0
+</code></pre></div>
+
+<p>安装:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>该烧瓶项目将利用烧瓶应用的两个最佳实践:</p>
+<ol>
+<li><a href="https://flask.palletsprojects.com/en/2.1.x/patterns/appfactories/">应用工厂</a> -用于在函数中创建Flask应用</li>
+<li><a href="https://flask.palletsprojects.com/en/2.1.x/tutorial/views/#blueprints-and-views">蓝图</a> -用于组织一组相关的视图</li>
+</ol>
+<h3 id="application-factory">应用工厂</h3>
+<p>首先在<em>项目/__init__中定义应用工厂函数。py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">apifairy</span> <span class="kn">import</span> <span class="n">APIFairy</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">json</span>
+<span class="kn">from</span> <span class="nn">flask_marshmallow</span> <span class="kn">import</span> <span class="n">Marshmallow</span>
+
+<span class="c1"># -------------</span>
+<span class="c1"># Configuration</span>
+<span class="c1"># -------------</span>
+
+<span class="c1"># Create the instances of the Flask extensions in the global scope,</span>
+<span class="c1"># but without any arguments passed in. These instances are not</span>
+<span class="c1"># attached to the Flask application at this point.</span>
+<span class="n">apifairy</span> <span class="o">=</span> <span class="n">APIFairy</span><span class="p">()</span>
+<span class="n">ma</span> <span class="o">=</span> <span class="n">Marshmallow</span><span class="p">()</span>
+
+
+<span class="c1"># ----------------------------</span>
+<span class="c1"># Application Factory Function</span>
+<span class="c1"># ----------------------------</span>
+
+<span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+    <span class="c1"># Create the Flask application</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="n">initialize_extensions</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">register_blueprints</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">app</span>
+
+
+<span class="c1"># ----------------</span>
+<span class="c1"># Helper Functions</span>
+<span class="c1"># ----------------</span>
+
+<span class="k">def</span> <span class="nf">initialize_extensions</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="c1"># Since the application instance is now created, pass it to each Flask</span>
+    <span class="c1"># extension instance to bind it to the Flask application instance (app)</span>
+    <span class="n">apifairy</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">ma</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">register_blueprints</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="c1"># Import the blueprints</span>
+    <span class="kn">from</span> <span class="nn">project.journal_api</span> <span class="kn">import</span> <span class="n">journal_api_blueprint</span>
+
+    <span class="c1"># Since the application instance is now created, register each Blueprint</span>
+    <span class="c1"># with the Flask application instance (app)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">journal_api_blueprint</span><span class="p">,</span> <span class="n">url_prefix</span><span class="o">=</span><span class="s1">'/journal'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>定义好应用工厂函数后，可以在项目顶层文件夹的<em> app.py </em>中调用:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">create_app</span>
+
+
+<span class="c1"># Call the application factory function to construct a Flask application</span>
+<span class="c1"># instance using the development configuration</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">()</span>
+</code></pre></div>
+
+<h3 id="blueprint">蓝图</h3>
+<p>让我们定义一下<code>journal_api</code>蓝图。首先在<em>项目/journal_api/__init_中定义<code>journal_api</code>蓝图。py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""</span>
+<span class="sd">The 'journal_api' blueprint handles the API for managing journal entries.</span>
+<span class="sd">Specifically, this blueprint allows for journal entries to be added, edited,</span>
+<span class="sd">and deleted.</span>
+<span class="sd">"""</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Blueprint</span>
+
+<span class="n">journal_api_blueprint</span> <span class="o">=</span> <span class="n">Blueprint</span><span class="p">(</span><span class="s1">'journal_api'</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">,</span> <span class="n">template_folder</span><span class="o">=</span><span class="s1">'templates'</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">routes</span>
+</code></pre></div>
+
+<p>现在是时候在<em>project/journal _ API/routes . py</em>中为日志定义API端点了。</p>
+<p>从必要的导入开始:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">apifairy</span> <span class="kn">import</span> <span class="n">body</span><span class="p">,</span> <span class="n">other_responses</span><span class="p">,</span> <span class="n">response</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">abort</span>
+
+<span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">ma</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">journal_api_blueprint</span>
+</code></pre></div>
+
+<p>对于Flask Journal API的这个初始版本，数据库将是一个日志条目列表:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># --------</span>
+<span class="c1"># Database</span>
+<span class="c1"># --------</span>
+
+<span class="n">messages</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="nb">dict</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">entry</span><span class="o">=</span><span class="s1">'The sun was shining when I woke up this morning.'</span><span class="p">),</span>
+    <span class="nb">dict</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">entry</span><span class="o">=</span><span class="s1">'I tried a new fruit mixture in my oatmeal for breakfast.'</span><span class="p">),</span>
+    <span class="nb">dict</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">entry</span><span class="o">=</span><span class="s1">'Today I ate a great sandwich for lunch.'</span><span class="p">)</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>接下来，定义创建新日志条目和返回日志条目的模式:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># -------</span>
+<span class="c1"># Schemas</span>
+<span class="c1"># -------</span>
+
+<span class="k">class</span> <span class="nc">NewEntrySchema</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="sd">"""Schema defining the attributes when creating a new journal entry."""</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">EntrySchema</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="sd">"""Schema defining the attributes in a journal entry."""</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">Integer</span><span class="p">()</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">()</span>
+
+
+<span class="n">new_entry_schema</span> <span class="o">=</span> <span class="n">NewEntrySchema</span><span class="p">()</span>
+<span class="n">entry_schema</span> <span class="o">=</span> <span class="n">EntrySchema</span><span class="p">()</span>
+<span class="n">entries_schema</span> <span class="o">=</span> <span class="n">EntrySchema</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这两个模式类都继承自<a href="https://marshmallow.readthedocs.io/en/latest/api_reference.html#marshmallow.Schema"> ma。图式</a>，由Flask-Marshmallow提供。创建这些模式的对象也是一个好主意，因为这允许您定义一个可以返回多个条目的模式(使用<code>many=True</code>参数)。</p>
+<p>现在我们已经准备好定义API端点了！</p>
+<h3 id="routes">路线</h3>
+<p>从检索所有日志条目开始:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entries_schema</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">journal</span><span class="p">():</span>
+    <span class="sd">"""Return all journal entries"""</span>
+    <span class="k">return</span> <span class="n">messages</span>
+</code></pre></div>
+
+<p>这个视图函数使用<code>@response</code>装饰器来定义返回多个条目。view函数返回日志条目的完整列表(<code>return messages</code>)。</p>
+<p>接下来，创建用于添加新日志条目的API端点:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="nd">@body</span><span class="p">(</span><span class="n">new_entry_schema</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">,</span> <span class="mi">201</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">add_journal_entry</span><span class="p">(</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">"""Add a new journal entry"""</span>
+    <span class="n">new_message</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">messages</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">'id'</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_message</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">new_message</span>
+</code></pre></div>
+
+<p>这个视图函数使用<code>@body</code>装饰器来定义API端点的输入，使用<code>@response</code>装饰器来定义API端点的输出。</p>
+<p>从<code>@body</code>装饰器解析的输入数据作为<code>kwargs</code>(<strong>k</strong>ey<strong>w</strong>ord<strong>arg</strong>uments)参数传递给<code>add_journal_entry()</code>视图函数。然后，该数据用于创建新的日志条目，并将其添加到数据库中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">new_message</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">messages</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">'id'</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_message</span><span class="p">)</span>
+</code></pre></div>
+
+<p>然后返回新创建的日志条目(<code>return new_message</code>)。注意<code>@response</code> decorator如何将返回代码定义为201 (Created ),以表示日志条目被添加到了数据库中。</p>
+<p>创建用于检索特定日记条目的API端点:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">get_journal_entry</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Return a journal entry"""</span>
+    <span class="k">if</span> <span class="n">index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">messages</span><span class="p">):</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">messages</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这个视图函数使用<code>@other_responses</code>装饰器来指定非标准响应。</p>
+<blockquote>
+<p>装饰器仅用于文档目的！它不提供任何返回错误代码的功能。</p>
+</blockquote>
+<p>创建用于更新日记帐分录的API端点:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'PUT'</span><span class="p">])</span>
+<span class="nd">@body</span><span class="p">(</span><span class="n">new_entry_schema</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">update_journal_entry</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Update a journal entry"""</span>
+    <span class="k">if</span> <span class="n">index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">messages</span><span class="p">):</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+
+    <span class="n">messages</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">messages</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这个视图函数使用<code>@body</code>和<code>@response</code>装饰器来定义这个API端点的输入和输出。另外，如果没有找到日志条目，<code>@other_responses</code>装饰器定义了非标准响应。</p>
+<p>最后，创建用于删除日志条目的API端点:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'DELETE'</span><span class="p">])</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">delete_journal_entry</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Delete a journal entry"""</span>
+    <span class="k">if</span> <span class="n">index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">messages</span><span class="p">):</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+
+    <span class="n">messages</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">''</span><span class="p">,</span> <span class="mi">204</span>
+</code></pre></div>
+
+<p>这个视图函数不使用<code>@body</code>和<code>@response</code>装饰器，因为这个API端点没有输入或输出。如果日志条目被成功删除，则返回204(无内容)状态代码，并且不包含任何数据。</p>
+<h3 id="running-the-flask-application">运行烧瓶应用程序</h3>
+<p>为了进行测试，在一个终端窗口中，配置Flask应用程序并运行开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span> $ <span class="nb">export</span> <span class="nv">FLASK_APP</span><span class="o">=</span>app.py
+<span class="o">(</span>venv<span class="o">)</span> $ <span class="nb">export</span> <span class="nv">FLASK_ENV</span><span class="o">=</span>development
+<span class="o">(</span>venv<span class="o">)</span> $ flask run
+</code></pre></div>
+
+<p>然后，在不同的终端窗口中，您可以与API进行交互。在这里你可以随意使用你选择的工具，比如cURL、<a href="https://httpie.io/"> HTTPie </a>、<a href="https://requests.readthedocs.io/"> Requests </a>或者<a href="https://www.postman.com/"> Postman </a>。</p>
+<p>请求示例:</p>
+<div class="codehilite"><pre><span/><code>$ python3
+
+&gt;&gt;&gt; import requests
+&gt;&gt;&gt;
+&gt;&gt;&gt; <span class="nv">r</span> <span class="o">=</span> requests.get<span class="o">(</span><span class="s1">'http://127.0.0.1:5000/journal/'</span><span class="o">)</span>
+&gt;&gt;&gt; print<span class="o">(</span>r.text<span class="o">)</span>
+&gt;&gt;&gt;
+&gt;&gt;&gt; <span class="nv">post_data</span> <span class="o">=</span> <span class="o">{</span><span class="s1">'entry'</span>: <span class="s2">"some message"</span><span class="o">}</span>
+&gt;&gt;&gt; <span class="nv">r</span> <span class="o">=</span> requests.post<span class="o">(</span><span class="s1">'http://127.0.0.1:5000/journal/'</span>, <span class="nv">json</span><span class="o">=</span>post_data<span class="o">)</span>
+&gt;&gt;&gt; print<span class="o">(</span>r.text<span class="o">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>想要更容易地测试API端点吗？查看这个脚本，它添加了CLI命令，用于与API端点进行交互，以检索、创建、更新和删除日志条目。</p>
+</blockquote>
+<h2 id="documentation_1">证明文件</h2>
+<p>APIFairy的一个令人难以置信的特性是自动创建API文档！</p>
+<p>配置API文档有三个关键方面:</p>
+<ol>
+<li>API端点的文档字符串(即视图函数)</li>
+<li>整个API项目的Docstring</li>
+<li>用于指定API文档外观的配置变量</li>
+</ol>
+<p>我们已经在前一节中讨论了第一项，因为我们包括了每个视图函数的文档字符串。例如，<code>journal()</code>视图函数对这个API端点的用途有一个简短的描述:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entries_schema</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">journal</span><span class="p">():</span>
+    <span class="sd">"""Return all journal entries"""</span>
+    <span class="k">return</span> <span class="n">messages</span>
+</code></pre></div>
+
+<p>接下来，我们需要在<em>项目/__init__的顶部包含描述整个项目的docstring。py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""</span>
+<span class="sd">Welcome to the documentation for the Flask Journal API!</span>
+
+<span class="sd">## Introduction</span>
+
+<span class="sd">The Flask Journal API is an API (Application Programming Interface) for creating a **daily journal** that documents events that happen each day.</span>
+
+<span class="sd">## Key Functionality</span>
+
+<span class="sd">The Flask Journal API has the following functionality:</span>
+
+<span class="sd">1. Work with journal entries:</span>
+<span class="sd">  * Create a new journal entry</span>
+<span class="sd">  * Update a journal entry</span>
+<span class="sd">  * Delete a journal entry</span>
+<span class="sd">  * View all journal entries</span>
+<span class="sd">2. &lt;More to come!&gt;</span>
+
+<span class="sd">## Key Modules</span>
+
+<span class="sd">This project is written using Python 3.10.1.</span>
+
+<span class="sd">The project utilizes the following modules:</span>
+
+<span class="sd">* **Flask**: micro-framework for web application development which includes the following dependencies:</span>
+<span class="sd">  * **click**: package for creating command-line interfaces (CLI)</span>
+<span class="sd">  * **itsdangerous**: cryptographically sign data</span>
+<span class="sd">  * **Jinja2**: templating engine</span>
+<span class="sd">  * **MarkupSafe**: escapes characters so text is safe to use in HTML and XML</span>
+<span class="sd">  * **Werkzeug**: set of utilities for creating a Python application that can talk to a WSGI server</span>
+<span class="sd">* **APIFairy**: API framework for Flask which includes the following dependencies:</span>
+<span class="sd">  * **Flask-Marshmallow** - Flask extension for using Marshmallow (object serialization/deserialization library)</span>
+<span class="sd">  * **Flask-HTTPAuth** - Flask extension for HTTP authentication</span>
+<span class="sd">  * **apispec** - API specification generator that supports the OpenAPI specification</span>
+<span class="sd">* **pytest**: framework for testing Python projects</span>
+<span class="sd">"""</span>
+<span class="o">...</span>
+</code></pre></div>
+
+<p>这个docstring用于描述整个项目，包括提供的关键功能和项目使用的关键Python包。</p>
+<p>最后，需要定义一些配置变量来指定API文档的外观。更新<em>项目/__init__中的<code>create_app()</code>函数。py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+    <span class="c1"># Create the Flask application</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="c1"># Configure the API documentation</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_TITLE'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Flask Journal API'</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_VERSION'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'0.1'</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_UI'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'elements'</span>
+
+    <span class="n">initialize_extensions</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">register_blueprints</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<p>准备好查看项目文档了吗？通过<code>flask run</code>启动Flask开发服务器，然后导航到<a href="http://127.0.0.1:5000/docs">http://127 . 0 . 0 . 1:5000/docs</a>查看APIFairy创建的API文档:</p>
+<p><img data-src="/static/images/blog/flask/flask-apifairy/api_documentation_1.png" loading="lazy" class="lazyload" alt="API Documentation - Main Page" src="../Images/cce51dd55976a2bbb4aa35de4602ce7c.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-apifairy/api_documentation_1.png"/></p>
+<p>在左侧窗格中，有一个针对<code>journal_api</code>蓝图的API端点列表。单击其中一个端点会显示该端点的所有详细信息:</p>
+<p><img data-src="/static/images/blog/flask/flask-apifairy/api_documentation_2.png" loading="lazy" class="lazyload" alt="API Documentation - Get Journal Entry API Endpoint" src="../Images/56529b8e4bed9008a85b096a5f5cfd28.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-apifairy/api_documentation_2.png"/></p>
+<p>这个API文档的惊人之处在于能够看到API端点是如何工作的(假设Flask development server正在运行)。在文档的右侧窗格中，输入日志条目索引，然后单击“发送API请求”。然后显示API响应:</p>
+<p><img data-src="/static/images/blog/flask/flask-apifairy/api_documentation_3.png" loading="lazy" class="lazyload" alt="API Documentation - Get Journal Entry API Response" src="../Images/db03c7d8e7ec8b3ac27f1c8f23c22523.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-apifairy/api_documentation_3.png"/></p>
+<p>这个交互式文档让用户很容易理解API！</p>
+<h2 id="database">数据库ˌ资料库</h2>
+<p>出于演示目的，本教程将使用一个SQLite数据库。</p>
+<h3 id="configuration">配置</h3>
+<p>由于本教程开始时已经安装了<a href="https://flask-sqlalchemy.palletsprojects.com/"> Flask-SQLAlchemy </a>，我们需要在<em>项目/__init__中配置它。py </em>文件。</p>
+<p>首先在“配置”部分创建一个<code>SQLAlchemy()</code>对象:</p>
+<div class="codehilite"><pre><span/><code><span class="o">...</span>
+
+<span class="kn">from</span> <span class="nn">apifairy</span> <span class="kn">import</span> <span class="n">APIFairy</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">json</span>
+<span class="kn">from</span> <span class="nn">flask_marshmallow</span> <span class="kn">import</span> <span class="n">Marshmallow</span>
+<span class="kn">from</span> <span class="nn">flask_sqlalchemy</span> <span class="kn">import</span> <span class="n">SQLAlchemy</span>  <span class="c1"># &lt;-- NEW!!</span>
+
+
+<span class="c1"># -------------</span>
+<span class="c1"># Configuration</span>
+<span class="c1"># -------------</span>
+
+<span class="c1"># Create the instances of the Flask extensions in the global scope,</span>
+<span class="c1"># but without any arguments passed in. These instances are not</span>
+<span class="c1"># attached to the Flask application at this point.</span>
+<span class="n">apifairy</span> <span class="o">=</span> <span class="n">APIFairy</span><span class="p">()</span>
+<span class="n">ma</span> <span class="o">=</span> <span class="n">Marshmallow</span><span class="p">()</span>
+<span class="n">database</span> <span class="o">=</span> <span class="n">SQLAlchemy</span><span class="p">()</span>  <span class="c1"># &lt;-- NEW!!</span>
+
+<span class="o">...</span>
+</code></pre></div>
+
+<p>接下来，更新<code>create_app()</code>函数以指定必要的配置变量:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+    <span class="c1"># Create the Flask application</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="c1"># Configure the API documentation</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_TITLE'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Flask Journal API'</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_VERSION'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'0.1'</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_UI'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'elements'</span>
+
+    <span class="c1"># NEW!</span>
+    <span class="c1"># Configure the SQLite database (intended for development only!)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'SQLALCHEMY_DATABASE_URI'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"sqlite:///</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="s1">'instance'</span><span class="p">,</span> <span class="s1">'app.db'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'SQLALCHEMY_TRACK_MODIFICATIONS'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">initialize_extensions</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">register_blueprints</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<p>将导入添加到顶部:</p>
+
+
+<p><code>SQLALCHEMY_DATABASE_URI</code>配置变量对于识别SQLite数据库的位置至关重要。对于本教程，数据库存储在<em> instance/app.db </em>中。</p>
+<p>最后，更新<code>initialize_extensions()</code>函数来初始化Flask-SQLAlchemy对象:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">initialize_extensions</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="c1"># Since the application instance is now created, pass it to each Flask</span>
+    <span class="c1"># extension instance to bind it to the Flask application instance (app)</span>
+    <span class="n">apifairy</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">ma</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>  <span class="c1"># &lt;-- NEW!!</span>
+</code></pre></div>
+
+<blockquote>
+<p>想进一步了解这个Flask应用程序是如何连接在一起的吗？查看我关于如何构建、测试和部署Flask应用程序的课程:</p>
+
+</blockquote>
+<h3 id="database-model">数据库模型</h3>
+<p>创建一个新的<em> project/models.py </em>文件来定义数据库表以表示日志条目:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">database</span>
+
+
+<span class="k">class</span> <span class="nc">Entry</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="sd">"""Class that represents a journal entry."""</span>
+    <span class="n">__tablename__</span> <span class="o">=</span> <span class="s1">'entries'</span>
+
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">String</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entry</span> <span class="o">=</span> <span class="n">entry</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entry</span> <span class="o">=</span> <span class="n">entry</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'&lt;Entry: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">entry</span><span class="si">}</span><span class="s1">&gt;'</span>
+</code></pre></div>
+
+<p>这个新类<code>Entry</code>指定<code>entries</code>数据库表将包含两个元素(目前！)来表示日志条目:</p>
+<ol>
+<li><code>id</code> -表的主键(<code>primary_key=True</code>)，这意味着它是表中每个元素(行)的唯一标识符</li>
+<li><code>entry</code> -用于存储日志条目文本的字符串</li>
+</ol>
+<p>虽然<em> models.py </em>定义了数据库表，但它并不在SQLite数据库中创建表。要创建表，请在终端窗口中启动Flask shell:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ flask shell
+
+&gt;&gt;&gt; from project import database
+&gt;&gt;&gt; database.drop_all<span class="o">()</span>
+&gt;&gt;&gt; database.create_all<span class="o">()</span>
+&gt;&gt;&gt; quit<span class="o">()</span>
+
+<span class="o">(</span>venv<span class="o">)</span>$
+</code></pre></div>
+
+<h3 id="journal-api-updates">日志API更新</h3>
+<p>因为我们正在使用SQLite数据库，所以从删除在<em>project/journal _ API/routes . py</em>中定义的临时<code>database</code> (Python列表)开始:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># --------</span>
+<span class="c1"># Database</span>
+<span class="c1"># --------</span>
+
+<span class="n">messages</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="nb">dict</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">entry</span><span class="o">=</span><span class="s1">'The sun was shining when I woke up this morning.'</span><span class="p">),</span>
+    <span class="nb">dict</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">entry</span><span class="o">=</span><span class="s1">'I tried a new fruit mixture in my oatmeal for breakfast.'</span><span class="p">),</span>
+    <span class="nb">dict</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">entry</span><span class="o">=</span><span class="s1">'Today I ate a great sandwich for lunch.'</span><span class="p">)</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>接下来，我们需要更新每个API端点(即视图函数)以利用SQLite数据库。</p>
+<p>首先更新<code>journal()</code>视图功能:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entries_schema</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">journal</span><span class="p">():</span>
+    <span class="sd">"""Return all journal entries"""</span>
+    <span class="k">return</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</code></pre></div>
+
+<p>现在可以从SQLite数据库中检索日志条目的完整列表。注意这个视图函数的模式或装饰器不需要改变...只有改变用户的底层过程！</p>
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">project.models</span> <span class="kn">import</span> <span class="n">Entry</span>
+</code></pre></div>
+
+<p>接下来，更新<code>add_journal_entry()</code>视图功能:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="nd">@body</span><span class="p">(</span><span class="n">new_entry_schema</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">,</span> <span class="mi">201</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">add_journal_entry</span><span class="p">(</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">"""Add a new journal entry"""</span>
+    <span class="n">new_message</span> <span class="o">=</span> <span class="n">Entry</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_message</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">new_message</span>
+</code></pre></div>
+
+<p>该视图功能的输入由<code>new_entry_schema</code>指定:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">NewEntrySchema</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="sd">"""Schema defining the attributes when creating a new journal entry."""</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">new_entry_schema</span> <span class="o">=</span> <span class="n">NewEntrySchema</span><span class="p">()</span>
+</code></pre></div>
+
+<p><code>entry</code>字符串用于创建<code>Entry</code>类的一个新实例(在<em> models.py </em>中定义)，然后这个日志条目被添加到数据库中。</p>
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">database</span>
+</code></pre></div>
+
+<p>接下来，更新<code>get_journal_entry()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">get_journal_entry</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Return a journal entry"""</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">entry</span>
+</code></pre></div>
+
+<p>该函数现在尝试查找指定的日志条目(基于<code>index</code>):</p>
+<div class="codehilite"><pre><span/><code><span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+</code></pre></div>
+
+<p>如果条目存在，则返回给用户。如果条目不存在，则返回404(未找到)错误。</p>
+<p>接下来，更新<code>update_journal_entry()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'PUT'</span><span class="p">])</span>
+<span class="nd">@body</span><span class="p">(</span><span class="n">new_entry_schema</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">update_journal_entry</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Update a journal entry"""</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+    <span class="n">entry</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'entry'</span><span class="p">])</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">entry</span>
+</code></pre></div>
+
+<p><code>update_journal_entry()</code>视图功能现在试图检索指定的日志条目:</p>
+<div class="codehilite"><pre><span/><code><span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+</code></pre></div>
+
+<p>如果日记条目存在，则用新文本更新该条目，然后保存到数据库。</p>
+<p>最后，更新<code>delete_journal_entry()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'DELETE'</span><span class="p">])</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">delete_journal_entry</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Delete a journal entry"""</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="s1">''</span><span class="p">,</span> <span class="mi">204</span>
+</code></pre></div>
+
+<p>如果找到了指定的日记条目，则将其从数据库中删除。</p>
+<p>运行开发服务器。测试每个端点以确保它们仍然工作。</p>
+<h3 id="error-handling">错误处理</h3>
+<p>由于这个Flask项目是一个API，错误代码应该以JSON格式返回，而不是典型的HTML格式。</p>
+<p>在Flask项目中，这可以通过使用自定义错误处理程序来完成。在<em> project/__init__。py </em>，在文件底部定义一个新函数(<code>register_error_handlers()</code>):</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">register_error_handlers</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="nd">@app</span><span class="o">.</span><span class="n">errorhandler</span><span class="p">(</span><span class="n">HTTPException</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">handle_http_exception</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+        <span class="sd">"""Return JSON instead of HTML for HTTP errors."""</span>
+        <span class="c1"># Start with the correct headers and status code from the error</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">get_response</span><span class="p">()</span>
+        <span class="c1"># Replace the body with JSON</span>
+        <span class="n">response</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span>
+            <span class="s1">'code'</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">code</span><span class="p">,</span>
+            <span class="s1">'name'</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s1">'description'</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+        <span class="p">})</span>
+        <span class="n">response</span><span class="o">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s1">'application/json'</span>
+        <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<p>这个函数注册了一个新的错误处理程序，用于当一个<code>HTTPException</code>被引发时将输出转换成JSON格式。</p>
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">werkzeug.exceptions</span> <span class="kn">import</span> <span class="n">HTTPException</span>
+</code></pre></div>
+
+<p>另外，更新应用程序工厂函数<code>create_app()</code>，以调用这个新函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+    <span class="c1"># Create the Flask application</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="c1"># Configure the API documentation</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_TITLE'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Flask Journal API'</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_VERSION'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'0.1'</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'APIFAIRY_UI'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'elements'</span>
+
+    <span class="c1"># Configure the SQLite database (intended for development only!)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'SQLALCHEMY_DATABASE_URI'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"sqlite:///</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="s1">'instance'</span><span class="p">,</span> <span class="s1">'app.db'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'SQLALCHEMY_TRACK_MODIFICATIONS'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">initialize_extensions</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">register_blueprints</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+    <span class="n">register_error_handlers</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>  <span class="c1"># NEW!!</span>
+
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<h2 id="authentication_1">证明</h2>
+<p>身份验证是验证试图访问系统的用户身份的过程，在本例中是API。</p>
+<blockquote>
+<p>另一方面，授权是验证特定用户应该访问哪些特定资源的过程。</p>
+</blockquote>
+<p>APIFairy利用<a href="https://flask-httpauth.readthedocs.io/"> Flask-HTTPAuth </a>进行认证支持。在本教程中，我们将以两种方式使用Flask-HTTPAuth:</p>
+<ol>
+<li><a href="https://flask-httpauth.readthedocs.io/en/latest/#basic-authentication-examples">基本认证</a> -用于根据用户的电子邮件/密码生成令牌</li>
+<li><a href="https://flask-httpauth.readthedocs.io/en/latest/#token-authentication-example">令牌认证</a> -用于在所有其他API端点上认证用户</li>
+</ol>
+<blockquote>
+<p>通过Flask-HTTPAuth使用的<a href="https://stackoverflow.com/a/36279890/1799408">令牌认证</a>通常被称为无记名认证，因为该过程调用对令牌“无记名”的授权访问。令牌必须包含在授权头的HTTP头中，例如“授权:载体<token>”。</token></p>
+</blockquote>
+<p>下图说明了新用户如何与应用程序交互以检索身份验证令牌的典型流程:</p>
+<p><img data-src="/static/images/blog/flask/flask-apifairy/flask_journal_api_flow_diagram.png" loading="lazy" class="lazyload" alt="Flask Journal API Flow Diagram" src="../Images/afaa9152f58226d58f4e844cc10af5de.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-apifairy/flask_journal_api_flow_diagram.png"/></p>
+<h3 id="configuration_1">配置</h3>
+<p>由于在本教程开始安装APIFairy时已经安装了Flask-HTTPAuth，所以我们只需要在<em>项目/__init__中配置它。py </em>文件。</p>
+<p>首先为基本身份验证和令牌身份验证创建单独的对象:</p>
+<div class="codehilite"><pre><span/><code><span class="o">...</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">apifairy</span> <span class="kn">import</span> <span class="n">APIFairy</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">json</span>
+<span class="kn">from</span> <span class="nn">flask_httpauth</span> <span class="kn">import</span> <span class="n">HTTPBasicAuth</span><span class="p">,</span> <span class="n">HTTPTokenAuth</span>  <span class="c1"># NEW!!</span>
+<span class="kn">from</span> <span class="nn">flask_marshmallow</span> <span class="kn">import</span> <span class="n">Marshmallow</span>
+<span class="kn">from</span> <span class="nn">flask_sqlalchemy</span> <span class="kn">import</span> <span class="n">SQLAlchemy</span>
+<span class="kn">from</span> <span class="nn">werkzeug.exceptions</span> <span class="kn">import</span> <span class="n">HTTPException</span>
+
+
+<span class="c1"># -------------</span>
+<span class="c1"># Configuration</span>
+<span class="c1"># -------------</span>
+
+<span class="c1"># Create the instances of the Flask extensions in the global scope,</span>
+<span class="c1"># but without any arguments passed in. These instances are not</span>
+<span class="c1"># attached to the Flask application at this point.</span>
+<span class="n">apifairy</span> <span class="o">=</span> <span class="n">APIFairy</span><span class="p">()</span>
+<span class="n">ma</span> <span class="o">=</span> <span class="n">Marshmallow</span><span class="p">()</span>
+<span class="n">database</span> <span class="o">=</span> <span class="n">SQLAlchemy</span><span class="p">()</span>
+<span class="n">basic_auth</span> <span class="o">=</span> <span class="n">HTTPBasicAuth</span><span class="p">()</span>  <span class="c1"># NEW!!</span>
+<span class="n">token_auth</span> <span class="o">=</span> <span class="n">HTTPTokenAuth</span><span class="p">()</span>  <span class="c1"># NEW!!</span>
+
+<span class="o">...</span>
+</code></pre></div>
+
+<p>在<em>项目/__init__中不需要进一步更新。py </em>。</p>
+<h3 id="database-model_1">数据库模型</h3>
+<p>在<em> project/models.py </em>中，需要创建一个新的<code>User</code>模型来代表一个用户:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">__tablename__</span> <span class="o">=</span> <span class="s1">'users'</span>
+
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">String</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">password_hashed</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="mi">128</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">entries</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">relationship</span><span class="p">(</span><span class="s1">'Entry'</span><span class="p">,</span> <span class="n">backref</span><span class="o">=</span><span class="s1">'user'</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="s1">'dynamic'</span><span class="p">)</span>
+    <span class="n">auth_token</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="mi">64</span><span class="p">),</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">auth_token_expiration</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">DateTime</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">email</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">password_plaintext</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">"""Create a new User object."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="n">email</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password_hashed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_password_hash</span><span class="p">(</span><span class="n">password_plaintext</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_password_correct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">password_plaintext</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">check_password_hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">password_hashed</span><span class="p">,</span> <span class="n">password_plaintext</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">set_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">password_plaintext</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password_hashed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_password_hash</span><span class="p">(</span><span class="n">password_plaintext</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_generate_password_hash</span><span class="p">(</span><span class="n">password_plaintext</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">generate_password_hash</span><span class="p">(</span><span class="n">password_plaintext</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">generate_auth_token</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth_token</span> <span class="o">=</span> <span class="n">secrets</span><span class="o">.</span><span class="n">token_urlsafe</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth_token_expiration</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">auth_token</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">verify_auth_token</span><span class="p">(</span><span class="n">auth_token</span><span class="p">):</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">auth_token</span><span class="o">=</span><span class="n">auth_token</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">user</span> <span class="ow">and</span> <span class="n">user</span><span class="o">.</span><span class="n">auth_token_expiration</span> <span class="o">&gt;</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">user</span>
+
+    <span class="k">def</span> <span class="nf">revoke_auth_token</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth_token_expiration</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'&lt;User: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="si">}</span><span class="s1">&gt;'</span>
+</code></pre></div>
+
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">secrets</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<span class="kn">from</span> <span class="nn">werkzeug.security</span> <span class="kn">import</span> <span class="n">check_password_hash</span><span class="p">,</span> <span class="n">generate_password_hash</span>
+</code></pre></div>
+
+<p><code>User</code>模型使用<code>werkzeug.security</code>在将用户密码存储到数据库之前对其进行哈希处理。</p>
+<blockquote>
+<p>记住:不要将明文密码存储在数据库中！</p>
+</blockquote>
+<p><code>User</code>模型使用<code>secrets</code>为特定用户生成认证令牌。该令牌在<code>generate_auth_token()</code>方法中创建，包含未来60分钟的到期日期/时间:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">generate_auth_token</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">auth_token</span> <span class="o">=</span> <span class="n">secrets</span><span class="o">.</span><span class="n">token_urlsafe</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">auth_token_expiration</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">auth_token</span>
+</code></pre></div>
+
+<p>有一个静态方法<code>verify_auth_token()</code>，用于验证身份验证令牌(同时考虑到期时间)并从有效令牌返回用户:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">verify_auth_token</span><span class="p">(</span><span class="n">auth_token</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">auth_token</span><span class="o">=</span><span class="n">auth_token</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">user</span> <span class="ow">and</span> <span class="n">user</span><span class="o">.</span><span class="n">auth_token_expiration</span> <span class="o">&gt;</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">user</span>
+</code></pre></div>
+
+<p>另一个有趣的方法是<code>revoke_auth_token()</code>，它用于撤销特定用户的认证令牌:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">revoke_auth_token</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">auth_token_expiration</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+</code></pre></div>
+
+<h3 id="entry-model">入门模型</h3>
+<p>为了在用户(“一”)和他们的条目(“多”)之间建立一对多的关系，需要更新<code>Entry</code>模型以将<code>entries</code>和<code>users</code>表链接在一起:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Entry</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="sd">"""Class that represents a journal entry."""</span>
+    <span class="n">__tablename__</span> <span class="o">=</span> <span class="s1">'entries'</span>
+
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">String</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">user_id</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">database</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'users.id'</span><span class="p">))</span>  <span class="c1"># &lt;-- NEW!!</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entry</span> <span class="o">=</span> <span class="n">entry</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entry</span> <span class="o">=</span> <span class="n">entry</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'&lt;Entry: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">entry</span><span class="si">}</span><span class="s1">&gt;'</span>
+</code></pre></div>
+
+<p><code>User</code>模型已经包含了返回到<code>entries</code>表的链接:</p>
+<div class="codehilite"><pre><span/><code><span class="n">entries</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">relationship</span><span class="p">(</span><span class="s1">'Entry'</span><span class="p">,</span> <span class="n">backref</span><span class="o">=</span><span class="s1">'user'</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="s1">'dynamic'</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="users-api-blueprint">用户API蓝图</h3>
+<p>Flask项目的用户管理功能将在名为<code>users_api_blueprint</code>的单独蓝图中定义。</p>
+<p>首先在“project”中创建一个名为“users_api”的新目录。在该目录中创建一个<em> __init__。py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Blueprint</span>
+
+
+<span class="n">users_api_blueprint</span> <span class="o">=</span> <span class="n">Blueprint</span><span class="p">(</span><span class="s1">'users_api'</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">authentication</span><span class="p">,</span> <span class="n">routes</span>
+</code></pre></div>
+
+<p>这个新蓝图需要在<em>项目/__init__中用烧瓶<code>app</code>注册。<code>register_blueprints()</code>功能内的py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">register_blueprints</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="c1"># Import the blueprints</span>
+    <span class="kn">from</span> <span class="nn">project.journal_api</span> <span class="kn">import</span> <span class="n">journal_api_blueprint</span>
+    <span class="kn">from</span> <span class="nn">project.users_api</span> <span class="kn">import</span> <span class="n">users_api_blueprint</span>  <span class="c1"># NEW!!</span>
+
+    <span class="c1"># Since the application instance is now created, register each Blueprint</span>
+    <span class="c1"># with the Flask application instance (app)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">journal_api_blueprint</span><span class="p">,</span> <span class="n">url_prefix</span><span class="o">=</span><span class="s1">'/journal'</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">users_api_blueprint</span><span class="p">,</span> <span class="n">url_prefix</span><span class="o">=</span><span class="s1">'/users'</span><span class="p">)</span>  <span class="c1"># NEW!!</span>
+</code></pre></div>
+
+<h3 id="authentication-functions">认证功能</h3>
+<p>要使用Flask-HTTPAuth，需要定义几个函数来检查用户凭证。</p>
+<p>创建一个新的<em>项目/users _ API/authentic ation . py</em>文件来处理基本认证和令牌认证。</p>
+<p>对于基本身份验证(检查用户的电子邮件和密码):</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">werkzeug.exceptions</span> <span class="kn">import</span> <span class="n">Forbidden</span><span class="p">,</span> <span class="n">Unauthorized</span>
+
+<span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">basic_auth</span><span class="p">,</span> <span class="n">token_auth</span>
+<span class="kn">from</span> <span class="nn">project.models</span> <span class="kn">import</span> <span class="n">User</span>
+
+
+<span class="nd">@basic_auth</span><span class="o">.</span><span class="n">verify_password</span>
+<span class="k">def</span> <span class="nf">verify_password</span><span class="p">(</span><span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">user</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">user</span><span class="o">.</span><span class="n">is_password_correct</span><span class="p">(</span><span class="n">password</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">user</span>
+
+
+<span class="nd">@basic_auth</span><span class="o">.</span><span class="n">error_handler</span>
+<span class="k">def</span> <span class="nf">basic_auth_error</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="mi">401</span><span class="p">):</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="p">(</span><span class="n">Forbidden</span> <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="mi">403</span> <span class="k">else</span> <span class="n">Unauthorized</span><span class="p">)()</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">'code'</span><span class="p">:</span> <span class="n">error</span><span class="o">.</span><span class="n">code</span><span class="p">,</span>
+        <span class="s1">'message'</span><span class="p">:</span> <span class="n">error</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="n">error</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+    <span class="p">},</span> <span class="n">error</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="p">{</span><span class="s1">'WWW-Authenticate'</span><span class="p">:</span> <span class="s1">'Form'</span><span class="p">}</span>
+</code></pre></div>
+
+<p><code>verify_password()</code>功能用于检查用户是否存在以及他们的密码是否正确。当需要基本认证时，Flask-HTTPAuth将使用这个函数来验证密码(感谢<code>@basic_auth.verify_password</code>装饰器)。)</p>
+<p>此外，为基本身份验证定义了一个错误处理程序，它以JSON格式返回有关错误的信息。</p>
+<p>对于令牌身份验证(处理令牌以确定用户是否有效):</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@token_auth</span><span class="o">.</span><span class="n">verify_token</span>
+<span class="k">def</span> <span class="nf">verify_token</span><span class="p">(</span><span class="n">auth_token</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">User</span><span class="o">.</span><span class="n">verify_auth_token</span><span class="p">(</span><span class="n">auth_token</span><span class="p">)</span>
+
+
+<span class="nd">@token_auth</span><span class="o">.</span><span class="n">error_handler</span>
+<span class="k">def</span> <span class="nf">token_auth_error</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="mi">401</span><span class="p">):</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="p">(</span><span class="n">Forbidden</span> <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="mi">403</span> <span class="k">else</span> <span class="n">Unauthorized</span><span class="p">)()</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">'code'</span><span class="p">:</span> <span class="n">error</span><span class="o">.</span><span class="n">code</span><span class="p">,</span>
+        <span class="s1">'message'</span><span class="p">:</span> <span class="n">error</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="n">error</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+    <span class="p">},</span> <span class="n">error</span><span class="o">.</span><span class="n">code</span>
+</code></pre></div>
+
+<p><code>verify_token()</code>函数用于检查认证令牌是否有效。当需要令牌认证时，Flask-HTTPAuth将使用该函数来验证令牌(感谢<code>@token_auth.verify_token</code>装饰器)。)</p>
+<p>此外，还为令牌身份验证定义了一个错误处理程序，它以JSON格式返回有关错误的信息。</p>
+<h3 id="users-routes">用户路线</h3>
+<p>在<code>users_api_blueprint</code>中，会有两条路线:</p>
+<ol>
+<li>注册新用户</li>
+<li>检索身份验证令牌</li>
+</ol>
+<p>首先，需要在<em>projects/users _ API/routes . py</em>中定义一组新的模式(使用marshmallow):</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">ma</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">users_api_blueprint</span>
+
+<span class="c1"># -------</span>
+<span class="c1"># Schemas</span>
+<span class="c1"># -------</span>
+
+<span class="k">class</span> <span class="nc">NewUserSchema</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="sd">"""Schema defining the attributes when creating a new user."""</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">()</span>
+    <span class="n">password_plaintext</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">UserSchema</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="sd">"""Schema defining the attributes of a user."""</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">Integer</span><span class="p">()</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">TokenSchema</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="sd">"""Schema defining the attributes of a token."""</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">String</span><span class="p">()</span>
+
+
+<span class="n">new_user_schema</span> <span class="o">=</span> <span class="n">NewUserSchema</span><span class="p">()</span>
+<span class="n">user_schema</span> <span class="o">=</span> <span class="n">UserSchema</span><span class="p">()</span>
+<span class="n">token_schema</span> <span class="o">=</span> <span class="n">TokenSchema</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这些模式将用于定义该文件中定义的视图函数的输入和输出。</p>
+<h4 id="registering-a-new-user">注册新用户</h4>
+<p>接下来，定义注册新用户的视图函数:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@users_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="nd">@body</span><span class="p">(</span><span class="n">new_user_schema</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">user_schema</span><span class="p">,</span> <span class="mi">201</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">"""Create a new user"""</span>
+    <span class="n">new_user</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_user</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">new_user</span>
+</code></pre></div>
+
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">apifairy</span> <span class="kn">import</span> <span class="n">authenticate</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">other_responses</span><span class="p">,</span> <span class="n">response</span>
+
+<span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">basic_auth</span><span class="p">,</span> <span class="n">database</span><span class="p">,</span> <span class="n">ma</span>
+<span class="kn">from</span> <span class="nn">project.models</span> <span class="kn">import</span> <span class="n">User</span>
+</code></pre></div>
+
+<p>这个API端点使用<code>new_user_schema</code>来指定电子邮件和密码是输入。</p>
+<blockquote>
+<p>注意:由于电子邮件和密码被发送到这个API端点，现在应该记住在开发测试期间使用HTTP是可以接受的，但是在生产中应该始终使用HTTPS(安全)。</p>
+</blockquote>
+<p>然后，电子邮件和密码(定义为<code>kwargs</code> -关键字参数)被解包以创建一个新的<code>User</code>对象，该对象被保存到数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="n">new_user</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_user</span><span class="p">)</span>
+<span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</code></pre></div>
+
+<p>API端点的输出由<code>user_schema</code>定义，它是新用户的ID和电子邮件。</p>
+<h4 id="retrieving-an-authentication-token">检索身份验证令牌</h4>
+<p>在<em>projects/users _ API/routes . py</em>中定义的另一个视图函数用于检索认证令牌:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@users_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/get-auth-token'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="nd">@authenticate</span><span class="p">(</span><span class="n">basic_auth</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">token_schema</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">401</span><span class="p">:</span> <span class="s1">'Invalid username or password'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">get_auth_token</span><span class="p">():</span>
+    <span class="sd">"""Get authentication token"""</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">basic_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">generate_auth_token</span><span class="p">()</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在本教程中第一次使用了<code>@authenticate</code> decorator，它指定了应该使用基本认证来保护这条路线:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@authenticate</span><span class="p">(</span><span class="n">basic_auth</span><span class="p">)</span>
+</code></pre></div>
+
+<p>当用户想要检索他们的身份验证令牌时，他们需要向这个API端点发送POST请求，并在“Authorization”头中嵌入电子邮件和密码。例如，可以对这个API端点使用以下使用<a href="https://requests.readthedocs.io/en/latest/user/authentication/#basic-authentication"> Requests </a>包的Python命令:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span> <span class="nn">requests</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+    <span class="s1">'http://127.0.0.1:5000/users/get-auth-token'</span><span class="p">,</span>
+    <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8fffe4eae1e1eaebf6cfe7eaf6a1ece0e2">[email protected]</a>'</span><span class="p">,</span> <span class="s1">'FlaskIsAwesome123'</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>如果基本认证成功，view函数使用Flask-HTTPAuth提供的<code>current_user()</code>方法检索当前用户:</p>
+<div class="codehilite"><pre><span/><code><span class="n">user</span> <span class="o">=</span> <span class="n">basic_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+</code></pre></div>
+
+<p>将为该用户创建一个新的身份验证令牌:</p>
+<div class="codehilite"><pre><span/><code><span class="n">token</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">generate_auth_token</span><span class="p">()</span>
+</code></pre></div>
+
+<p>并且该令牌被保存到数据库中，以便将来可以使用它来认证用户(至少在接下来的60分钟内！).</p>
+<p>最后，为用户返回新的身份验证令牌，以便为所有后续API调用保存。</p>
+<h3 id="api-endpoint-updates">API端点更新</h3>
+<p>有了身份验证过程之后，是时候为现有的API端点添加一些保护措施，以确保只有合法用户才能访问应用程序。</p>
+<p>这些更新是针对<em>projects/journal _ API/routes . py</em>中定义的视图函数的。</p>
+<p>首先，更新<code>journal()</code>以便只返回当前用户的日志条目:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@authenticate</span><span class="p">(</span><span class="n">token_auth</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entries_schema</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">journal</span><span class="p">():</span>
+    <span class="sd">"""Return journal entries"""</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">token_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">user_id</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</code></pre></div>
+
+<p>像这样更新顶部的导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">apifairy</span> <span class="kn">import</span> <span class="n">authenticate</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">other_responses</span><span class="p">,</span> <span class="n">response</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">abort</span>
+
+<span class="kn">from</span> <span class="nn">project</span> <span class="kn">import</span> <span class="n">database</span><span class="p">,</span> <span class="n">ma</span><span class="p">,</span> <span class="n">token_auth</span>
+<span class="kn">from</span> <span class="nn">project.models</span> <span class="kn">import</span> <span class="n">Entry</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">journal_api_blueprint</span>
+</code></pre></div>
+
+<p><code>@authenticate</code> decorator指定在访问这个API端点时需要使用令牌认证。例如，下面的GET请求可以使用Requests ( <em>在认证令牌被检索之后</em>):</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span> <span class="nn">requests</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'Authorization'</span><span class="p">:</span> <span class="sa">f</span><span class="s1">'Bearer </span><span class="si">{</span><span class="n">auth_token</span><span class="si">}</span><span class="s1">'</span><span class="p">}</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'http://127.0.0.1:5000/journal/'</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+</code></pre></div>
+
+<p>用户通过身份验证后，将根据用户ID从数据库中检索日志条目的完整列表:</p>
+<div class="codehilite"><pre><span/><code><span class="n">user</span> <span class="o">=</span> <span class="n">token_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+<span class="k">return</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">user_id</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这个API端点的输出由<code>@response</code>装饰器定义，它是一个日志条目列表(ID、entry、user ID)。</p>
+<p>接下来，更新<code>add_journal_entry()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="nd">@authenticate</span><span class="p">(</span><span class="n">token_auth</span><span class="p">)</span>
+<span class="nd">@body</span><span class="p">(</span><span class="n">new_entry_schema</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">,</span> <span class="mi">201</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">add_journal_entry</span><span class="p">(</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">"""Add a new journal entry"""</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">token_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+    <span class="n">new_message</span> <span class="o">=</span> <span class="n">Entry</span><span class="p">(</span><span class="n">user_id</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_message</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">new_message</span>
+</code></pre></div>
+
+<p>与前面的视图函数一样，<code>@authenticate</code>装饰器用于指定在访问这个API端点时需要使用令牌认证。此外，现在通过指定应该与日记条目相关联的用户ID来添加日记条目:</p>
+<div class="codehilite"><pre><span/><code><span class="n">user</span> <span class="o">=</span> <span class="n">token_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+<span class="n">new_message</span> <span class="o">=</span> <span class="n">Entry</span><span class="p">(</span><span class="n">user_id</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>新的日志条目被保存到数据库，并且日志条目被返回(由<code>@response</code>装饰器定义)。</p>
+<p>接下来，更新<code>get_journal_entry()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@authenticate</span><span class="p">(</span><span class="n">token_auth</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">403</span><span class="p">:</span> <span class="s1">'Forbidden'</span><span class="p">,</span> <span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">get_journal_entry</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Return a journal entry"""</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">token_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">user_id</span> <span class="o">!=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">403</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">entry</span>
+</code></pre></div>
+
+<p>添加<code>@authenticate</code>装饰器是为了指定访问这个API端点需要令牌认证。</p>
+<p>当试图检索一个日志条目时，需要进行额外的检查，以确保试图访问该日志条目的用户是该条目的实际“所有者”。如果没有，那么通过函数<code>abort()</code>从Flask返回一个403(禁止)错误代码:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">user_id</span> <span class="o">!=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">403</span><span class="p">)</span>
+</code></pre></div>
+
+<p>注意，这个API端点有两个由<code>@other_responses</code>装饰器指定的异常响应:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@other_responses</span><span class="p">({</span><span class="mi">403</span><span class="p">:</span> <span class="s1">'Forbidden'</span><span class="p">,</span> <span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+</code></pre></div>
+
+<blockquote>
+<p>提醒:<code>@other_responses</code>装饰器仅用于文档；提出这些错误是视图函数的责任。</p>
+</blockquote>
+<p>接下来，更新<code>update_journal_entry()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'PUT'</span><span class="p">])</span>
+<span class="nd">@authenticate</span><span class="p">(</span><span class="n">token_auth</span><span class="p">)</span>
+<span class="nd">@body</span><span class="p">(</span><span class="n">new_entry_schema</span><span class="p">)</span>
+<span class="nd">@response</span><span class="p">(</span><span class="n">entry_schema</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">403</span><span class="p">:</span> <span class="s1">'Forbidden'</span><span class="p">,</span> <span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">update_journal_entry</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Update a journal entry"""</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">token_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">user_id</span> <span class="o">!=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">403</span><span class="p">)</span>
+
+    <span class="n">entry</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'entry'</span><span class="p">])</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">entry</span>
+</code></pre></div>
+
+<p>此视图功能的更新类似于本节中的其他视图功能:</p>
+<ol>
+<li>装饰者指定需要令牌认证来访问这个API端点</li>
+<li>只有“拥有”日志条目的用户才被允许更新该条目(否则，403(禁止))</li>
+</ol>
+<p>最后，更新<code>delete_journal_entry()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@journal_api_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/&lt;int:index&gt;'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'DELETE'</span><span class="p">])</span>
+<span class="nd">@authenticate</span><span class="p">(</span><span class="n">token_auth</span><span class="p">)</span>
+<span class="nd">@other_responses</span><span class="p">({</span><span class="mi">403</span><span class="p">:</span> <span class="s1">'Forbidden'</span><span class="p">,</span> <span class="mi">404</span><span class="p">:</span> <span class="s1">'Entry not found'</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">delete_journal_entry</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="sd">"""Delete a journal entry"""</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">token_auth</span><span class="o">.</span><span class="n">current_user</span><span class="p">()</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">Entry</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">first_or_404</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">user_id</span> <span class="o">!=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+        <span class="n">abort</span><span class="p">(</span><span class="mi">403</span><span class="p">)</span>
+
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="s1">''</span><span class="p">,</span> <span class="mi">204</span>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>本教程提供了如何使用APIFairy在Flask中轻松快速地构建API的演练。</p>
+<p>装饰器是定义API端点的关键:</p>
+<ul>
+<li><strong>输入</strong>:<ul>
+<li><code>@arguments</code> -从URL的查询字符串中输入参数</li>
+<li><code>@body</code>-JSON请求的结构</li>
+</ul>
+</li>
+<li><strong>输出</strong>:<ul>
+<li><code>@response</code>-JSON响应的结构</li>
+</ul>
+</li>
+<li><strong>认证</strong>:<ul>
+<li><code>@authenticate</code> -使用Flask的认证方法-HTTPAuth</li>
+</ul>
+</li>
+<li><strong>错误</strong>:<ul>
+<li><code>@other_responses</code> -非正常响应，如HTTP错误代码</li>
+</ul>
+</li>
+</ul>
+<p>另外，APIFairy生成的API文档非常优秀，为应用程序的用户提供了关键信息。</p>
+<blockquote>
+<p>如果您有兴趣了解有关Flask的更多信息，请查看我关于如何构建、测试和部署Flask应用程序的课程:</p>
+
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

@@ -1,0 +1,315 @@
+<html>
+<head>
+<title>Deep Dive into Flask's Application and Request Contexts </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>深入研究Flask的应用程序和请求上下文</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/flask-contexts-advanced/#0001-01-01">https://testdriven.io/blog/flask-contexts-advanced/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文探讨了应用程序和请求上下文在Flask中是如何工作的。</p>
+<hr/>
+<p>这是关于Flask上下文的两部分系列的第二部分:</p>
+<ol>
+<li><strong>基础知识</strong> : <a href="/blog/flask-contexts/">理解Flask中的应用和请求上下文</a></li>
+<li><strong>高级</strong> : <a href="/blog/flask-contexts-advanced/">深入探讨Flask的应用和需求背景</a>(本文！)</li>
+</ol>
+<p>虽然您不必从第一篇文章开始，但建议至少回顾一下，为本文提供一点背景知识。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>在本文结束时，你应该能够解释:</p>
+<ol>
+<li>什么是语境</li>
+<li>哪些数据存储在应用程序和请求上下文中</li>
+<li>在Flask中处理请求时，处理应用程序和请求上下文所需的步骤</li>
+<li>如何使用应用程序和请求上下文的代理</li>
+<li>如何在视图函数中使用<code>current_app</code>和<code>request</code>代理</li>
+<li>什么是局部上下文</li>
+</ol>
+<h2 id="what-is-a-context">什么是语境？</h2>
+<p>为了执行你写的代码，它需要数据来处理。这些数据可以是配置数据、输入数据、来自数据库的数据等等。</p>
+<p><a href="https://en.wikipedia.org/wiki/Context_(computing)">上下文</a>用于跟踪你的代码需要执行的数据。</p>
+<p>在Flask中，上下文用于提供必要的数据来处理请求和命令行界面(CLI)命令。</p>
+<blockquote>
+<p>虽然本文的重点是处理请求，但是所介绍的概念也适用于CLI命令。</p>
+</blockquote>
+<h2 id="request-processing">请求处理</h2>
+<p>让我们从一个高层次的请求是如何处理的开始:</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/web_server_wsgi_server_flask_app_diagram.png" loading="lazy" class="lazyload" alt="Web Server, WSGI Server, and Flask App Diagram" src="../Images/a786da70d1f0ba1405ed29af88a568af.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/web_server_wsgi_server_flask_app_diagram.png"/></p>
+<p>因此，从浏览器向web服务器(如Nginx或Apache)发送一个请求，请求一个特定的URL(上图中的“/”URL)。然后，web服务器将这个请求路由到WSGI服务器进行处理。</p>
+<blockquote>
+<p>WSGI代表web服务器网关接口，是web服务器和基于Python的Web应用程序之间的接口。这是必需的，因为网络服务器不能直接与Python应用程序对话。更多信息，请查看<a href="/courses/python-web-framework/wsgi/"> WSGI </a>。</p>
+</blockquote>
+<p>WSGI服务器告诉Flask应用程序处理请求。</p>
+<p>Flask应用程序生成一个响应，该响应被发送回WSGI服务器和web服务器，并最终返回到web浏览器。</p>
+<p>这些步骤描述了请求-响应周期，这是如何通过web服务器、WSGI应用服务器和web应用程序处理请求的关键功能。</p>
+<h2 id="contexts-in-flask">烧瓶中的上下文</h2>
+<p>当接收到请求时，Flask提供两个上下文:</p>
+<table>
+<thead>
+<tr>
+<th>语境</th>
+<th>描述</th>
+<th>可用对象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://flask.palletsprojects.com/en/2.0.x/appcontext/">应用</a></td>
+<td>跟踪应用程序级数据(配置变量、记录器、数据库连接)</td>
+<td><code>current_app</code>，<code>g</code></td>
+</tr>
+<tr>
+<td><a href="https://flask.palletsprojects.com/en/2.0.x/reqcontext/">请求</a></td>
+<td>跟踪请求级数据(URL、HTTP方法、头、请求数据、会话信息)</td>
+<td><code>request</code>，<code>session</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>值得注意的是，上述每个对象通常被称为“代理”。这仅仅意味着它们是对象全局风格的代理。我们稍后将对此进行更深入的探讨。</p>
+</blockquote>
+<p>当收到请求时，Flask处理这些上下文的创建。它们会造成混乱，因为根据应用程序所处的状态，您并不总是能够访问特定的对象。</p>
+<h3 id="overview-diagram">概览图</h3>
+<p>下图说明了处理请求时如何处理上下文:</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/flask_request_processing_overview.png" loading="lazy" class="lazyload" alt="Request Processing - Overview" src="../Images/cba67b01fa999c2fb8e5f24681518749.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/flask_request_processing_overview.png"/></p>
+<p>该图中有很多内容，因此我们将详细介绍每一步。</p>
+<h3 id="step-1-web-and-wsgi-servers">步骤1 - Web和WSGI服务器</h3>
+<p>当web服务器收到请求时，一切都开始了:</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/flask_request_processing_step1.png" loading="lazy" class="lazyload" alt="Request Processing - Step 1" src="../Images/3a4d5e551d75d15cac6fbb4d8d2034e2.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/flask_request_processing_step1.png"/></p>
+<p>web服务器的工作是将传入的HTTP请求路由到一个<a href="https://en.wikipedia.org/wiki/Web_Server_Gateway_Interface"> WSGI </a>服务器。</p>
+<p>Apache 和<a href="https://www.nginx.com"> Nginx </a>是两种常见的web服务器，而<a href="https://gunicorn.org"> Gunicorn </a>、<a href="https://uwsgi-docs.readthedocs.io/"> uWSGI </a>和<a href="https://modwsgi.readthedocs.io/"> mod_wsgi </a>是流行的WSGI服务器。</p>
+<blockquote>
+<p>值得注意的是，虽然<a href="https://flask.palletsprojects.com/en/2.0.x/server/"> Flask开发服务器</a>是一个WSGI服务器，但它并不打算用于生产。</p>
+</blockquote>
+<h3 id="step-2-worker">第二步-工人</h3>
+<p>为了处理请求，WSGI服务器产生一个工作器来处理请求:</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/flask_request_processing_step2.png" loading="lazy" class="lazyload" alt="Request Processing - Step 2" src="../Images/b497f9596169a551e1a642cd6a8b0a80.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/flask_request_processing_step2.png"/></p>
+<p>工作者可以是线程、进程或协程。例如，如果您使用Flask Development Server的默认配置，那么工作线程就是线程。</p>
+<blockquote>
+<p>如果您有兴趣了解更多关于Python中线程、多处理和异步的区别，请查看<a href="/blog/concurrency-parallelism-asyncio/">用并发、并行和异步加速Python的文章</a>和Python中的<a href="https://www.youtube.com/watch?v=9zinZmE3Ogk">并发视频</a>。</p>
+</blockquote>
+<p>对于这个解释，工作者类型并不重要；关于worker的关键点是它一次处理一个请求(因此需要不止一个worker)。</p>
+<h3 id="step-3-contexts">步骤3 -背景</h3>
+<p>一旦执行切换到Flask应用，Flask就创建<a href="https://flask.palletsprojects.com/en/2.0.x/appcontext/">应用</a>和<a href="https://flask.palletsprojects.com/en/2.0.x/reqcontext/">请求</a>上下文，并将它们推送到各自的堆栈上:</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/flask_request_processing_step3.png" loading="lazy" class="lazyload" alt="Request Processing - Step 3" src="../Images/aae454ab8a3afa0cdd9fb6d81fc9cc7b.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/flask_request_processing_step3.png"/></p>
+<p>回顾一下，应用程序上下文存储应用程序级别的数据，例如配置变量、数据库连接和记录器。同时，请求上下文存储需要处理的特定于请求的数据，以便生成响应。</p>
+<p>这可能令人惊讶，但是两个栈都是作为全局对象实现的(这将在下一节中变得更清楚)。</p>
+<h3 id="step-4-proxies">第4步-代理</h3>
+<p>既然Flask应用程序已经准备好处理数据(在视图函数中),并且数据已经在应用程序和请求上下文堆栈中准备好了，我们需要一种方法来连接这两个部分...<a href="https://flask.palletsprojects.com/en/2.0.x/reqcontext/#notes-on-proxies">代理人</a>来救援了！</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/flask_request_processing_step4.png" loading="lazy" class="lazyload" alt="Request Processing - Step 4" src="../Images/d982f26c5037beaf1819c241922c7c30.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/flask_request_processing_step4.png"/></p>
+<p>视图函数使用代理来访问应用程序(存储在应用程序上下文堆栈中)和请求上下文(存储在请求上下文堆栈中):</p>
+<ul>
+<li><code>current_app</code> -工作者应用程序上下文的代理</li>
+<li><code>request</code> -工作者请求上下文的代理</li>
+</ul>
+<p>乍一看，这个序列可能会令人困惑，因为view函数似乎是通过代理访问全局对象(应用程序和请求上下文堆栈)。如果是这样的话，这个操作就会有问题，因为它不是线程安全的。您也可能认为这些堆栈(作为全局对象)可以被任何工作者访问，这是一个安全问题。</p>
+<p>不过，这种设计是Flask的一大特色...栈被实现为<a href="https://werkzeug.palletsprojects.com/en/2.0.x/local/">上下文本地</a>对象。</p>
+<blockquote>
+<p>关于代理的更多信息，请查看Flask文档中关于代理的注释和T2的代理模式文章。</p>
+</blockquote>
+<h4 id="context-locals">上下文局部变量</h4>
+<p>Python有一个<a href="https://docs.python.org/3/library/threading.html#thread-local-data">线程本地数据</a>的概念，用于存储特定于线程的数据，这既是“线程安全的，也是线程唯一的”。换句话说，每个线程都能够以线程安全的方式访问数据，并且数据对于特定的线程总是唯一的。</p>
+<p>Flask实现了类似的行为(上下文局部变量)，但是以一种更通用的方式允许工作线程、进程或协程。</p>
+<blockquote>
+<p><a href="https://werkzeug.palletsprojects.com/en/2.0.x/local/"> Context-locals </a>实际上是在<a href="https://werkzeug.palletsprojects.com/en/2.0.x/"> Werkzeug </a>中实现的，它是组成Flask的关键包之一。为简单起见，在讨论上下文局部变量时，我们将引用Flask。</p>
+</blockquote>
+<p>当数据存储在本地上下文对象中时，数据的存储方式只有一个工作线程可以检索。因此，如果两个独立的工作者访问一个上下文本地对象，他们将各自得到自己的特定数据，这些数据对每个工作者来说是唯一的。</p>
+<blockquote>
+<p>下一节将给出一个使用上下文本地对象的例子。</p>
+</blockquote>
+<p>总的来说，<code>current_app</code>和<code>request</code>代理在每个视图函数中都是可用的，它们用于从各自的堆栈中访问上下文，这些堆栈存储为上下文本地对象。</p>
+<blockquote>
+<p>在应用程序和请求上下文堆栈的上下文中使用“stack”使得这个概念更加混乱。这些“堆栈”通常只存储一个上下文。</p>
+<p>使用的数据结构是一个堆栈，因为有非常高级的场景(例如，<a href="https://flask.palletsprojects.com/en/2.0.x/reqcontext/#how-the-context-works">内部重定向</a>)需要不止一个元素。</p>
+</blockquote>
+<h4 id="benefit-of-proxies-in-flask">Flask中代理的好处</h4>
+<p>如果您要从头开始创建自己的web框架，您可以考虑将应用程序和请求上下文传递给每个视图函数，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/add_item'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">add_item</span><span class="p">(</span><span class="n">application_context</span><span class="p">,</span> <span class="n">request_context</span><span class="p">):</span>  <span class="c1"># contexts passed in!</span>
+   <span class="k">if</span> <span class="n">request_context</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+       <span class="c1"># Save the form data to the database</span>
+       <span class="o">...</span>
+       <span class="n">application_context</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Added new item (</span><span class="si">{</span> <span class="n">request_context</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">'item_name'</span><span class="p">]</span> <span class="si">}</span><span class="s2">)!"</span><span class="p">)</span>
+       <span class="o">...</span>
+</code></pre></div>
+
+<p>事实上，许多web框架都是这样工作的(包括<a href="https://www.djangoproject.com"> Django </a>)。</p>
+<p>然而，Flask提供了<code>current_app</code>和<code>request</code>代理，它们最终看起来像视图函数的全局变量:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">current_app</span><span class="p">,</span> <span class="n">request</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/add_item'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">add_item</span><span class="p">():</span>
+   <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+       <span class="c1"># Save the form data to the database</span>
+       <span class="o">...</span>
+       <span class="n">current_app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Added new item (</span><span class="si">{</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">'item_name'</span><span class="p">]</span> <span class="si">}</span><span class="s2">)!"</span><span class="p">)</span>
+       <span class="o">...</span>
+</code></pre></div>
+
+<p>通过使用这种方法，view函数不需要作为参数传入的上下文；这种方法有助于简化视图函数定义。这可能会造成混乱，因为您并不总是能够访问<code>current_app</code>和<code>request</code>代理，这取决于您的应用程序所处的状态。</p>
+<blockquote>
+<p>提醒:<code>current_app</code>和<code>request</code>代理实际上不是全局变量；它们指向作为上下文局部变量实现的全局对象，所以代理对于每个工作者来说总是<strong>唯一的</strong>。</p>
+</blockquote>
+<h3 id="step-5-clean-up">第五步-清理</h3>
+<p>生成响应后，请求和应用程序上下文从各自的堆栈中弹出:</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/flask_request_processing_step5.png" loading="lazy" class="lazyload" alt="Request Processing - Step 5" src="../Images/e78d4eafd132db5899f99ebc67611baa.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/flask_request_processing_step5.png"/></p>
+<p>这一步清理堆栈。</p>
+<p>然后，响应被发送回web浏览器，从而完成对该请求的处理。</p>
+<h2 id="context-locals_1">上下文-本地</h2>
+<p>上下文本地对象是使用<a href="https://werkzeug.palletsprojects.com/en/2.0.x/local/">本地</a>对象实现的，可以这样创建:</p>
+<div class="codehilite"><pre><span/><code>$ python
+
+&gt;&gt;&gt; from werkzeug.local import Local
+&gt;&gt;&gt; <span class="nv">data</span> <span class="o">=</span> Local<span class="o">()</span>
+&gt;&gt;&gt; data.user <span class="o">=</span> <span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d0a0bbb5bebeb5b4a990b8b5a9feb3bfbd">[email protected]</a>'</span>
+</code></pre></div>
+
+<p>每个上下文(即上一节中讨论的“工人”)都可以访问一个<code>Local</code>对象来存储上下文特有的数据。所访问的数据对于上下文是唯一的，并且只能由该上下文访问。</p>
+<p><a href="https://werkzeug.palletsprojects.com/en/2.0.x/local/#werkzeug.local.LocalStack"> LocalStack </a>对象类似于<code>Local</code>对象，但是保留一个对象栈以允许<code>push()</code>和<code>pop()</code>操作。</p>
+<p>在上一节中，我们学习了在Flask中处理请求时如何利用应用程序上下文堆栈和请求上下文堆栈。这些堆栈在Flask的全局内存中被实现为<code>LocalStack</code>对象。</p>
+<p>为了帮助巩固上下文局部变量的工作方式，我们来看一个例子，在全局内存中创建一个<code>LocalStack</code>对象，然后让三个单独的线程访问它:</p>
+<p><img data-src="/static/images/blog/flask/flask-contexts/flask_thread_local_example.png" loading="lazy" class="lazyload" alt="LocalStack Example with Three Threads" src="../Images/a0e8923796752f4f6005113b697adf88.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-contexts/flask_thread_local_example.png"/></p>
+<p>下面是这个例子的完整脚本:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""</span>
+<span class="sd">Example script to illustrate how a global `LocalStack` object can be used</span>
+<span class="sd">when working with multiple threads.</span>
+<span class="sd">"""</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">from</span> <span class="nn">werkzeug.local</span> <span class="kn">import</span> <span class="n">LocalStack</span>
+
+<span class="c1"># Create a global LocalStack object for storing data about each thread</span>
+<span class="n">thread_data_stack</span> <span class="o">=</span> <span class="n">LocalStack</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">long_running_function</span><span class="p">(</span><span class="n">thread_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="sd">"""Simulates a long-running function by using time.sleep()."""</span>
+
+    <span class="n">thread_data_stack</span><span class="o">.</span><span class="n">push</span><span class="p">({</span><span class="s1">'index'</span><span class="p">:</span> <span class="n">thread_index</span><span class="p">,</span> <span class="s1">'thread_id'</span><span class="p">:</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_native_id</span><span class="p">()})</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Starting thread #</span><span class="si">{</span><span class="n">thread_index</span><span class="si">}</span><span class="s1">... </span><span class="si">{</span><span class="n">thread_data_stack</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">))</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'LocalStack contains: </span><span class="si">{</span><span class="n">thread_data_stack</span><span class="o">.</span><span class="n">top</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Finished thread #</span><span class="si">{</span><span class="n">thread_index</span><span class="si">}</span><span class="s1">!'</span><span class="p">)</span>
+    <span class="n">thread_data_stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">threads</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># Create and start 3 threads that each run long_running_function()</span>
+    <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">thread</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">long_running_function</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">index</span><span class="p">,))</span>
+        <span class="n">threads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">thread</span><span class="p">)</span>
+        <span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+    <span class="c1"># Wait until each thread terminates before the script exits by</span>
+    <span class="c1"># 'join'ing each thread</span>
+    <span class="k">for</span> <span class="n">thread</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+        <span class="n">thread</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">'Done!'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这个文件创建了一个<code>LocalStack</code>对象(<code>thread_data_stack</code>)，用于存储将要创建的每个线程的数据。</p>
+<blockquote>
+<p><code>thread_data_stack</code>模仿Flask中的应用上下文栈或请求上下文栈。</p>
+</blockquote>
+<p><code>long_running_function</code>在每个线程中运行:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">long_running_function</span><span class="p">(</span><span class="n">thread_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="sd">"""Simulates a long-running function by using time.sleep()."""</span>
+
+    <span class="n">thread_data_stack</span><span class="o">.</span><span class="n">push</span><span class="p">({</span><span class="s1">'index'</span><span class="p">:</span> <span class="n">thread_index</span><span class="p">,</span> <span class="s1">'thread_id'</span><span class="p">:</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_native_id</span><span class="p">()})</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Starting thread #</span><span class="si">{</span><span class="n">thread_index</span><span class="si">}</span><span class="s1">... </span><span class="si">{</span><span class="n">thread_data_stack</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">))</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'LocalStack contains: </span><span class="si">{</span><span class="n">thread_data_stack</span><span class="o">.</span><span class="n">top</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Finished thread #</span><span class="si">{</span><span class="n">thread_index</span><span class="si">}</span><span class="s1">!'</span><span class="p">)</span>
+    <span class="n">thread_data_stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+</code></pre></div>
+
+<p>该函数将关于线程的数据推送到全局内存中的<code>thread_data_stack</code>对象:</p>
+<div class="codehilite"><pre><span/><code><span class="n">thread_data_stack</span><span class="o">.</span><span class="n">push</span><span class="p">({</span><span class="s1">'index'</span><span class="p">:</span> <span class="n">thread_index</span><span class="p">,</span> <span class="s1">'thread_id'</span><span class="p">:</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_native_id</span><span class="p">()})</span>
+</code></pre></div>
+
+<blockquote>
+<p>这个操作模拟了应用程序或请求上下文被推送到它们各自的堆栈。</p>
+</blockquote>
+<p>在<code>time.sleep()</code>功能完成后，来自<code>thread_data_stack</code>的数据被访问:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'LocalStack contains: </span><span class="si">{</span><span class="n">thread_data_stack</span><span class="o">.</span><span class="n">top</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>这个操作模仿使用<code>app_context</code>和<code>request</code>代理，因为这些代理访问它们各自栈顶的数据。</p>
+</blockquote>
+<p>函数结束时，数据从<code>thread_data_stack</code>弹出:</p>
+
+
+<blockquote>
+<p>该操作模拟从各自的堆栈中弹出应用程序或请求上下文。</p>
+</blockquote>
+<p>当脚本运行时，它将启动3个线程:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Create and start 3 threads that each run long_running_function()</span>
+<span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+    <span class="n">thread</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">long_running_function</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">index</span><span class="p">,))</span>
+    <span class="n">threads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">thread</span><span class="p">)</span>
+    <span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</code></pre></div>
+
+<p>并且<code>join</code>每个线程，因此脚本等待直到每个线程完成执行:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Wait until each thread terminates before the script exits by</span>
+<span class="c1"># 'join'ing each thread</span>
+<span class="k">for</span> <span class="n">thread</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+    <span class="n">thread</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+</code></pre></div>
+
+<p>让我们运行这个脚本来看看会发生什么:</p>
+<div class="codehilite"><pre><span/><code>$ python app.py
+
+Starting thread <span class="c1">#0... &lt;werkzeug.local.LocalStack object at 0x109cebc40&gt;</span>
+Starting thread <span class="c1">#1... &lt;werkzeug.local.LocalStack object at 0x109cebc40&gt;</span>
+Starting thread <span class="c1">#2... &lt;werkzeug.local.LocalStack object at 0x109cebc40&gt;</span>
+LocalStack contains: <span class="o">{</span><span class="s1">'index'</span>: <span class="m">0</span>, <span class="s1">'thread_id'</span>: <span class="m">320270</span><span class="o">}</span>
+Finished thread <span class="c1">#0!</span>
+LocalStack contains: <span class="o">{</span><span class="s1">'index'</span>: <span class="m">1</span>, <span class="s1">'thread_id'</span>: <span class="m">320271</span><span class="o">}</span>
+Finished thread <span class="c1">#1!</span>
+LocalStack contains: <span class="o">{</span><span class="s1">'index'</span>: <span class="m">2</span>, <span class="s1">'thread_id'</span>: <span class="m">320272</span><span class="o">}</span>
+Finished thread <span class="c1">#2!</span>
+Done!
+</code></pre></div>
+
+<p>每个线程真正有趣的是它们都指向内存中同一个<code>LocalStack</code>对象:</p>
+<div class="codehilite"><pre><span/><code>Starting thread <span class="c1">#0... &lt;werkzeug.local.LocalStack object at 0x109cebc40&gt;</span>
+Starting thread <span class="c1">#1... &lt;werkzeug.local.LocalStack object at 0x109cebc40&gt;</span>
+Starting thread <span class="c1">#2... &lt;werkzeug.local.LocalStack object at 0x109cebc40&gt;</span>
+</code></pre></div>
+
+<p>当每个线程访问<code>thread_data_stack</code>时，这个访问<strong>对于那个线程来说是唯一的</strong>！这就是<code>LocalStack</code>(和<code>Local</code>)的神奇之处——它们允许上下文特有的访问:</p>
+<div class="codehilite"><pre><span/><code>LocalStack contains: <span class="o">{</span><span class="s1">'index'</span>: <span class="m">0</span>, <span class="s1">'thread_id'</span>: <span class="m">320270</span><span class="o">}</span>
+LocalStack contains: <span class="o">{</span><span class="s1">'index'</span>: <span class="m">1</span>, <span class="s1">'thread_id'</span>: <span class="m">320271</span><span class="o">}</span>
+LocalStack contains: <span class="o">{</span><span class="s1">'index'</span>: <span class="m">2</span>, <span class="s1">'thread_id'</span>: <span class="m">320272</span><span class="o">}</span>
+</code></pre></div>
+
+<blockquote>
+<p>与典型的全局内存访问不同，对<code>thread_data_stack</code>的访问也是线程安全的。</p>
+</blockquote>
+<h2 id="conclusion">结论</h2>
+<p>Flask的一个强大(但令人困惑)的方面是如何处理应用程序和请求上下文。希望这篇文章对这个话题有所澄清！</p>
+<p>应用程序和请求上下文在处理请求或CLI命令时提供必要的数据。确保使用<code>current_app</code>和<code>request</code>代理来访问应用程序上下文和请求上下文。</p>
+<p>想了解更多？看看下面这个来自FlaskCon 2020的视频:</p>
+
+<blockquote>
+<p>如果您有兴趣了解有关Flask的更多信息，请查看我关于如何构建、测试和部署Flask应用程序的课程:</p>
+
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

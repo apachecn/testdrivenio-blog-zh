@@ -1,0 +1,680 @@
+<html>
+<head>
+<title>Accepting Crypto Payments with Django and Coinbase </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>接受姜戈和比特币基地的加密付款</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-coinbase/#0001-01-01">https://testdriven.io/blog/django-coinbase/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将把Django与<a href="https://commerce.coinbase.com/">比特币基地商务</a>集成起来，以接受不同的加密支付。我们来看看两种不同的方法:<a href="https://commerce.coinbase.com/docs/api/#charges">比特币基地收费</a>和<a href="https://commerce.coinbase.com/docs/api/#checkouts">比特币基地结账</a>。</p>
+
+
+
+<h2 id="what-is-coinbase-commerce">什么是比特币基地商业？</h2>
+<p><a href="https://commerce.coinbase.com/">比特币基地商务</a>是由<a href="https://www.coinbase.com/">比特币基地</a>提供的企业数字支付服务，允许商家接受不同数字货币的加密支付。在撰写本文时，<a href="https://commerce.coinbase.com/faq#which-cryptocurrencies-can-i-accept-do-i-have-to-accept-all-of-the-cryptocurrencies-that-coinbase-commerce-offers">支持</a>比特币、比特币现金、戴币、以太币、莱特币、Dogecoin和美元币。比特币基地商务很容易集成到您的web应用程序中，并消除了处理加密支付的麻烦。</p>
+<blockquote>
+<p><a href="https://www.coinbase.com/">比特币基地</a>和<a href="https://commerce.coinbase.com/">比特币基地商贸</a>不是一回事。比特币基地是一家加密交易所和钱包管理公司，而比特币基地商业是一家面向商家的数字支付服务提供商。</p>
+</blockquote>
+<p>比特币基地商业API提供了两种不同的接受加密支付的方式:<a href="https://commerce.coinbase.com/docs/api/#charges">比特币基地收费</a>和<a href="https://commerce.coinbase.com/docs/api/#checkouts">比特币基地结账</a>。</p>
+<p>比特币基地收费的优势:</p>
+<ul>
+<li>高度可定制</li>
+<li>能够以编程方式附加元数据</li>
+</ul>
+<p>比特币基地收银台的优势:</p>
+<ul>
+<li>开箱即用</li>
+<li>仪表板产品管理</li>
+<li>嵌入式结帐</li>
+</ul>
+<p>对于大多数应用程序，我们推荐Charges API，因为它可以定制。这比结帐API提供的简单性更重要。如果你在销售一个固定的产品，定制并没有发挥很大的作用，请放心使用结帐API。</p>
+<h2 id="project-setup">项目设置</h2>
+<p>在本教程中，我们将展示如何让这两种方法，比特币基地收费和比特币基地结帐，启动和运行。我们将从相同的项目设置开始。一旦设置好了，就可以随意遵循其中一种或两种方法。</p>
+<h3 id="django-project-setup">Django项目设置</h3>
+<p>首先创建一个新目录，并建立一个新的Django项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-coinbase <span class="o">&amp;&amp;</span> <span class="nb">cd</span> django-coinbase
+$ python3.9 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">django</span><span class="o">==</span><span class="m">3</span>.2.8
+<span class="o">(</span>env<span class="o">)</span>$ django-admin startproject core .
+</code></pre></div>
+
+<p>之后，创建一个名为<code>payments</code>的新应用:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py startapp payments
+</code></pre></div>
+
+<p>在<code>INSTALLED_APPS</code>下的<em> core/settings.py </em>中注册app:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'payments.apps.PaymentsConfig'</span><span class="p">,</span> <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>向<em> payments/views.py </em>添加一个名为<code>home_view</code>的简单功能视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+
+<span class="k">def</span> <span class="nf">home_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">,</span> <span class="p">{})</span>
+</code></pre></div>
+
+<p>在<code>payments</code> app里面创建一个<em> urls.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'payments-home'</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>使用<code>payments</code>应用程序更新项目级URL文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span><span class="p">,</span> <span class="n">include</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'payments.urls'</span><span class="p">)),</span> <span class="c1"># new</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>为主页创建一个专用的“模板”文件夹和一个文件:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ mkdir templates
+<span class="o">(</span>env<span class="o">)</span>$ touch templates/home.html
+</code></pre></div>
+
+<p>然后，将以下HTML添加到<em> templates/home.html </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/home.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Coinbase<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="33515c5c47404741524373061d021d02">[email protected]</a>/dist/css/bootstrap.min.css"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c6a4a9a9b2b5b2b4a7b686f3e8f7e8f7">[email protected]</a>/dist/js/bootstrap.min.js"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">a</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary"</span> <span class="na">href</span><span class="o">=</span><span class="s">"#"</span><span class="p">&gt;</span>Purchase<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>确保更新settings.py文件，以便Django知道要查找“templates”文件夹:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">TEMPLATES</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s1">'BACKEND'</span><span class="p">:</span> <span class="s1">'django.template.backends.django.DjangoTemplates'</span><span class="p">,</span>
+        <span class="s1">'DIRS'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'templates'</span><span class="p">],</span> <span class="c1"># new</span>
+        <span class="o">...</span>
+</code></pre></div>
+
+<p>最后运行<code>migrate</code>来同步数据库，运行<code>runserver</code>来启动Django的本地web服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>就是这样！在自己喜欢的浏览器中打开<a href="http://localhost:8000/"> http://localhost:8000/ </a>。您应该会看到主页:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/homepage.png" loading="lazy" class="lazyload" alt="Django + Coinbase Home Page" src="../Images/b59d1759aa2e7617c1d8f36abb8a455e.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/homepage.png"/></p>
+<h3 id="add-coinbase-commerce">添加比特币基地商务</h3>
+<p>接下来，安装<code>coinbase-commerce</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install coinbase-commerce<span class="o">==</span><span class="m">1</span>.0.1
+</code></pre></div>
+
+<p>为了使用<a href="https://commerce.coinbase.com/docs/api/">比特币基地商务API </a>，你需要<a href="https://commerce.coinbase.com/signup">创建一个账户</a>(如果你还没有的话)。创建帐户后，登录并导航至您的设置。向下滚动到“API密钥”部分，单击“创建API密钥”，然后单击“显示”。将API密钥复制到剪贴板。</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/coinbase_api_keys.png" loading="lazy" class="lazyload" alt="Coinbase API keys" src="../Images/f4cf8860b09f8688570a91743b8efd7d.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/coinbase_api_keys.png"/></p>
+<p>然后将密钥添加到<em> settings.py </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">COINBASE_COMMERCE_API_KEY</span> <span class="o">=</span> <span class="s1">'&lt;your coinbase api key here&gt;'</span>
+</code></pre></div>
+
+<p>在进入下一步之前，让我们测试一下是否可以从API中检索数据。使用以下命令输入Python shell:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py shell
+</code></pre></div>
+
+<p>导入以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">settings</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span> <span class="nn">coinbase_commerce.client</span> <span class="kn">import</span> <span class="n">Client</span>
+</code></pre></div>
+
+<p>初始化新客户端并列出费用:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">COINBASE_COMMERCE_API_KEY</span><span class="p">)</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="k">for</span> <span class="n">charge</span> <span class="ow">in</span> <span class="n">client</span><span class="o">.</span><span class="n">charge</span><span class="o">.</span><span class="n">list_paging_iter</span><span class="p">():</span>
+<span class="o">...</span>     <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="si">{!r}</span><span class="s2">"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">charge</span><span class="p">))</span>
+</code></pre></div>
+
+<p>如果一切正常，<code>client.charge.list_paging_iter()</code>应该是一个空列表。只要您没有看到以下错误，就可以认为一切正常:</p>
+<div class="codehilite"><pre><span/><code><span class="n">coinbase_commerce</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">AuthenticationError</span><span class="p">:</span> <span class="n">Request</span> <span class="nb">id</span> <span class="mi">10780</span><span class="n">b77</span><span class="o">-</span><span class="mi">1021</span><span class="o">-</span><span class="mi">4</span><span class="n">b09</span><span class="o">-</span><span class="n">b53b</span><span class="o">-</span><span class="n">a590ea044380</span><span class="p">:</span> <span class="n">No</span> <span class="n">such</span> <span class="n">API</span> <span class="n">key</span><span class="o">.</span>
+</code></pre></div>
+
+<p>使用比特币基地API的有用页面:</p>
+
+<p>有了这个，决定你想采取哪种方法，比特币基地收费或比特币基地结帐。</p>
+<h2 id="coinbase-charges">比特币基地收费</h2>
+<blockquote>
+<p>教程的这一部分展示了如何使用<a href="https://commerce.coinbase.com/docs/api/#charges">比特币基地收费API </a>接受付款。</p>
+</blockquote>
+<p>比特币基地收费是收集加密支付的最可定制的方法。使用这种方法，您可以完全控制费用。</p>
+<p>工作流程:</p>
+<ol>
+<li>使用客户端连接到比特币基地商务API</li>
+<li>创建费用(来自JSON)</li>
+<li>获取新创建的费用，并将其传递给模板</li>
+<li>将用户重定向到比特币基地商务网站</li>
+<li>(可选)使用webhooks验证费用</li>
+</ol>
+<h3 id="create-a-charge">创建一个收费</h3>
+<p>要请求加密货币支付，您需要创建一个<a href="https://commerce.coinbase.com/docs/api/#charges">费用</a>。由于加密货币支付是<a href="https://commerce.coinbase.com/docs/#cryptocurrency-payments">推送支付</a>，如果没有检测到支付，则在等待期后收费将到期。费用由一个独特的8字符代码识别。</p>
+<p>将<code>home_view</code>更新为<a href="https://commerce.coinbase.com/docs/api/#create-a-charge">创建费用</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="kn">from</span> <span class="nn">coinbase_commerce.client</span> <span class="kn">import</span> <span class="n">Client</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+
+<span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">settings</span>
+
+
+<span class="k">def</span> <span class="nf">home_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">COINBASE_COMMERCE_API_KEY</span><span class="p">)</span>
+    <span class="n">domain_url</span> <span class="o">=</span> <span class="s1">'http://localhost:8000/'</span>
+    <span class="n">product</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'Coffee'</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'A really good local coffee.'</span><span class="p">,</span>
+        <span class="s1">'local_price'</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">'amount'</span><span class="p">:</span> <span class="s1">'5.00'</span><span class="p">,</span>
+            <span class="s1">'currency'</span><span class="p">:</span> <span class="s1">'USD'</span>
+        <span class="p">},</span>
+        <span class="s1">'pricing_type'</span><span class="p">:</span> <span class="s1">'fixed_price'</span><span class="p">,</span>
+        <span class="s1">'redirect_url'</span><span class="p">:</span> <span class="n">domain_url</span> <span class="o">+</span> <span class="s1">'success/'</span><span class="p">,</span>
+        <span class="s1">'cancel_url'</span><span class="p">:</span> <span class="n">domain_url</span> <span class="o">+</span> <span class="s1">'cancel/'</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">charge</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">charge</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">**</span><span class="n">product</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'charge'</span><span class="p">:</span> <span class="n">charge</span><span class="p">,</span>
+    <span class="p">})</span>
+</code></pre></div>
+
+<p>我们首先通过向客户端传递<code>COINBASE_COMMERCE_API_KEY</code>来初始化它。然后，我们创建了一个代表我们产品的JSON对象(我们提供了名称、描述等。).我们还将<code>redirect_url</code>和<code>cancel_url</code>传递给了charge，稍后我们将在这里实现它。然后，我们解包JSON对象，并使用客户机创建一个费用。最后，我们将它作为上下文传递给home模板。</p>
+<p>我们现在可以访问<em> templates/home.html </em>中的费用信息。像这样更新模板:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/home.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Coinbase Charge<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="593b36362d2a2d2b3829196c77687768">[email protected]</a>/dist/css/bootstrap.min.css"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="46242929323532342736067368776877">[email protected]</a>/dist/js/bootstrap.min.js"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card w-25"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-body"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">h5</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-title"</span><span class="p">&gt;</span>{{ charge.name }}<span class="p">&lt;/</span><span class="nt">h5</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">p</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-text"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">span</span><span class="p">&gt;</span>{{ charge.description }}<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">span</span><span class="p">&gt;</span>${{ charge.pricing.local.amount }} {{ charge.pricing.local.currency }}<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">a</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary w-100"</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ charge.hosted_url }}"</span><span class="p">&gt;</span>Purchase<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<blockquote>
+<p>请参考<a href="https://commerce.coinbase.com/docs/api/#charges">收费API </a>文档，了解您可以在模板上显示的所有收费相关信息。</p>
+</blockquote>
+<p>运行开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p><a href="http://localhost:8000/"> http://localhost:8000/ </a>现在应该是这样的:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/homepage_2.png" loading="lazy" class="lazyload" alt="Django + Coinbase Home Page" src="../Images/3518f074f87b6c909254c53cdb59c64e.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/homepage_2.png"/></p>
+<p>先不要测试。我们很快就会这么做。</p>
+<h3 id="create-the-redirect-views">创建重定向视图</h3>
+<p>让我们实现传递给charge的视图<code>redirect_url</code>和<code>cancel_url</code>。</p>
+<p>在<em> payments/views.py </em>中创建两个新视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="k">def</span> <span class="nf">success_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'success.html'</span><span class="p">,</span> <span class="p">{})</span>
+
+
+<span class="k">def</span> <span class="nf">cancel_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'cancel.html'</span><span class="p">,</span> <span class="p">{})</span>
+</code></pre></div>
+
+<p>在<em> payments/urls.py </em>中注册新视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'payments-home'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'success/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">success_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'payments-success'</span><span class="p">),</span> <span class="c1"># new</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'cancel/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">cancel_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'payments-cancel'</span><span class="p">),</span> <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>以及<em> templates/success.html </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/success.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Coinbase Charge<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3f5d50504b4c4b4d5e4f7f0a110e110e">[email protected]</a>/dist/css/bootstrap.min.css"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6f0d00001b1c1b1d0e1f2f5a415e415e">[email protected]</a>/dist/js/bootstrap.min.js"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Your payment has been successful.<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>以及<em> templates/cancel.html </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/cancel.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Coinbase Charge<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6a0805051e191e180b1a2a5f445b445b">[email protected]</a>/dist/css/bootstrap.min.css"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3b5954544f484f495a4b7b0e150a150a">[email protected]</a>/dist/js/bootstrap.min.js"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Your payment has been cancelled.<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>现在确认支付后，用户会被重定向到<code>redirect_url</code>。如果他们取消支付(或收费超时)，他们将被重定向到<code>cancel_url</code>。</p>
+<h3 id="testing">测试</h3>
+<blockquote>
+<p>不幸的是，比特币基地商务不支持沙盒账户测试，这意味着你需要使用真正的加密来测试你的应用。</p>
+</blockquote>
+<p>运行服务器，导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>，点击“购买”按钮。您将被重定向到比特币基地商业托管网站:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/coinbase_commerce_1.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Charges" src="../Images/ac680c5afe85f364e1d304cf8d3d861b.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/coinbase_commerce_1.png"/></p>
+<p>当您选择要支付的加密货币时，将显示钱包地址(和二维码):</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/coinbase_pay_bitcoin.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Charges Addresses" src="../Images/1bd659cd9e0bd901b58fcee73b60e39c.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/coinbase_pay_bitcoin.png"/></p>
+<p>然后你有60分钟的时间在充电超时前转移密码。</p>
+<p>在您发送加密后，矿工将需要几分钟(取决于您使用的加密货币)来确认您的交易。在交易获得所需数量的确认(基于加密货币)后，您将被重定向到与<code>redirect_url</code>相关联的URL。</p>
+<p>付款将出现在<a href="https://commerce.coinbase.com/dashboard/payments">商务仪表板</a>的“付款”下:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/all_payments.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Payments" src="../Images/743d01640871af96f6efbb8c763f0e4d.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/all_payments.png"/></p>
+<p>跳到“用Webhooks确认付款”部分，了解付款确认。</p>
+<h2 id="coinbase-checkout">比特币基地收银台</h2>
+<blockquote>
+<p>教程的这一部分展示了如何使用<a href="https://commerce.coinbase.com/docs/api/#checkouts">比特币基地结账API </a>接受付款。如果您决定使用比特币基地收费，请随意跳过这一部分，转到“用Webhooks确认付款”部分。</p>
+</blockquote>
+<p>比特币基地结帐是用比特币基地商业收集加密付款的最简单的方法。通过这种方式，将自动为您生成费用。这种方法适用于处理固定产品。</p>
+<p>工作流程:</p>
+<ol>
+<li>使用客户端连接到比特币基地商务API</li>
+<li>从比特币基地商业API获取一个结帐并将其传递给模板</li>
+<li>(可选)如果处理嵌入式签出，请将所需的HTML代码添加到模板中</li>
+<li>将用户重定向到比特币基地商业托管网站或使用嵌入式结帐</li>
+<li>(可选)使用webhooks验证费用</li>
+</ol>
+<h3 id="create-a-checkout">创建结帐</h3>
+<p>创建签出有两种方式:</p>
+<ol>
+<li>通过<a href="https://github.com/coinbase/coinbase-commerce-python#create"> coinbase-commerce </a>库进行编程</li>
+<li>在比特币基地商务控制板中人工操作</li>
+</ol>
+<p>为简单起见，我们将使用<a href="https://commerce.coinbase.com/dashboard/settings">商务仪表板</a>。</p>
+<p>导航至“结帐”并点击“创建结帐”:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/create_checkout.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Checkout" src="../Images/2cbcc16e6a2bbfa4c8dbaf8e6db1015a.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/create_checkout.png"/></p>
+<p>点击“销售产品”。输入产品名称、描述和价格。点击“下一步”。在“客户信息”下，选择“不收集任何信息”。然后，点击“完成”。</p>
+<p>比特币基地商务生成了所有必要的HTML代码，您需要添加到您的主页模板。你可以在“嵌入”标签下看到这个。为了使web应用程序更加模块化和可重用，我们将在<code>home_view</code>中获取结帐信息，而不是在模板中硬编码。为此，我们首先需要通过复制托管页面的URL来获取结帐ID:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/checkout_details_copy.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Checkout" src="../Images/894ec96cbf602ef1fdf2c6f769db61b9.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/checkout_details_copy.png"/></p>
+<p>永久链接应该是这样的:</p>
+<div class="codehilite"><pre><span/><code>https://commerce.coinbase.com/checkout/df2d7c68-145e-4537-86fa-1cac705eb748
+</code></pre></div>
+
+<p>我们只对URL的最后一段感兴趣，它表示结账ID:</p>
+<div class="codehilite"><pre><span/><code>df2d7c68-145e-4537-86fa-1cac705eb748
+</code></pre></div>
+
+<p>将它保存在<em> core/settings.py </em>文件中，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">COINBASE_CHECKOUT_ID</span> <span class="o">=</span> <span class="s1">'&lt;your checkout id&gt;'</span>
+</code></pre></div>
+
+<p>更新<em>支付/查看. py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="kn">from</span> <span class="nn">coinbase_commerce.client</span> <span class="kn">import</span> <span class="n">Client</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+
+<span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">settings</span>
+
+
+<span class="k">def</span> <span class="nf">home_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">COINBASE_COMMERCE_API_KEY</span><span class="p">)</span>
+    <span class="n">checkout</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">checkout</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">COINBASE_CHECKOUT_ID</span><span class="p">)</span>
+    <span class="n">checkout_link</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'https://commerce.coinbase.com/checkout/</span><span class="si">{</span><span class="n">checkout</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">'</span>
+
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'home.html'</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'checkout'</span><span class="p">:</span> <span class="n">checkout</span><span class="p">,</span>
+        <span class="s1">'checkout_link'</span><span class="p">:</span> <span class="n">checkout_link</span><span class="p">,</span>
+    <span class="p">})</span>
+</code></pre></div>
+
+<p>这段代码获取结帐并将其传递给模板。</p>
+<p>最后，我们需要修改home模板来使用checkout。您可以使用:</p>
+<ol>
+<li>托管页面——用户被重定向到比特币基地结账网站</li>
+<li>嵌入式页面-一切都发生在你的网站上</li>
+</ol>
+<p>出于教育目的，我们将使用这两种方法。</p>
+<p>更新<em> templates/home.html </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/home.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Django + Coinbase Checkout<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="36545959424542445746760318071807">[email protected]</a>/dist/css/bootstrap.min.css"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4f2d20203b3c3b3d2e3f0f7a617e617e">[email protected]</a>/dist/js/bootstrap.min.js"</span> <span class="na">crossorigin</span><span class="o">=</span><span class="s">"anonymous"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container mt-5"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card w-25"</span><span class="p">&gt;</span>
+        <span class="cm">&lt;!-- Coinbase checkout details --&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-body"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">h5</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-title"</span><span class="p">&gt;</span>{{ checkout.name }}<span class="p">&lt;/</span><span class="nt">h5</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">p</span> <span class="na">class</span><span class="o">=</span><span class="s">"card-text"</span><span class="p">&gt;</span>
+            {{ checkout.description }}<span class="p">&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+            {{ checkout.local_price.amount }} {{ checkout.local_price.currency }}
+          <span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>
+            <span class="cm">&lt;!-- Coinbase hosted approach (script not required) --&gt;</span>
+            <span class="p">&lt;</span><span class="nt">a</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary w-100"</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ checkout_link }}"</span><span class="p">&gt;</span>Purchase (hosted)<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+            <span class="cm">&lt;!-- Coinbase embedded approach (script required) --&gt;</span>
+            <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"mt-2"</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">a</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary buy-with-crypto w-100"</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ checkout_link }}"</span><span class="p">&gt;</span>Purchase (embedded)<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+              <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://commerce.coinbase.com/v1/checkout.js?version=201807"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+          <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>运行服务器并导航到<a href="http://localhost:8000"> http://localhost:8000/ </a>:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/coinbase_checkout.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Checkout Example" src="../Images/aa707738a84f0a16f0acdb7c8409b88b.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/coinbase_checkout.png"/></p>
+<p>此时，应用程序完全正常工作。但是现在不要测试任何东西。我们将在下一节中介绍这一点。</p>
+<h3 id="testing_1">测试</h3>
+<blockquote>
+<p>不幸的是，比特币基地商务不支持沙盒账户测试，这意味着你需要使用真正的加密来测试你的应用。</p>
+</blockquote>
+<p>在服务器运行的情况下，导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>。您可以使用比特币基地托管的网站或嵌入式结帐测试。你的选择。</p>
+<p>当您选择要支付的加密货币时，将显示钱包地址(和二维码):</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/coinbase_pay_bitcoin.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Charges Addresses" src="../Images/1bd659cd9e0bd901b58fcee73b60e39c.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/coinbase_pay_bitcoin.png"/></p>
+<p>然后你有60分钟的时间在充电超时前转移密码。</p>
+<p>在您发送加密后，矿工将需要几分钟(取决于您使用的加密货币)来确认您的交易。在交易获得所需数量的确认(基于加密货币)后，您将收到一条“支付完成”消息。</p>
+<p>付款将出现在<a href="https://commerce.coinbase.com/dashboard/payments">商务仪表板</a>的“付款”下:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/all_payments.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Payments" src="../Images/743d01640871af96f6efbb8c763f0e4d.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/all_payments.png"/></p>
+<h2 id="confirm-payments-with-webhooks">用Webhooks确认付款</h2>
+<p>我们的应用程序在这一点上运行良好，但我们还不能以编程方式确认付款。我们只是在用户结帐后将他们重定向到成功页面，但我们不能只依赖该页面，因为支付确认是异步发生的。</p>
+<blockquote>
+<p>在编程时，您经常要处理两种不同类型的事件:同步事件，它们会产生即时的效果和结果(例如，创建收费)，异步事件，它们不会产生即时的结果(例如，确认付款)。因为支付确认是异步完成的，用户可能会在他们的支付被确认之前<em>和</em>我们收到他们的资金之前<em>被重定向到成功页面。</em></p>
+</blockquote>
+<p>为了在付款完成时得到通知，您需要创建一个<a href="https://commerce.coinbase.com/docs/api/#webhooks"> webhook </a>。我们需要在应用程序中创建一个简单的端点，每当事件发生时(即确认收费时)，比特币基地商务部都会调用这个端点。通过使用webhooks，我们可以确保支付成功。</p>
+<p>为了使用webhooks，我们需要:</p>
+<ol>
+<li>在应用程序中设置webhook端点</li>
+<li>在比特币基地商务仪表板中注册端点</li>
+</ol>
+<h3 id="configure-the-endpoint">配置端点</h3>
+<p>在<em> payments/views.py </em>中创建<code>coinbase_webhook</code>视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="nd">@csrf_exempt</span>
+<span class="nd">@require_http_methods</span><span class="p">([</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">coinbase_webhook</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="n">request_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">'utf-8'</span><span class="p">)</span>
+    <span class="n">request_sig</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'X-CC-Webhook-Signature'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">webhook_secret</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">COINBASE_COMMERCE_WEBHOOK_SHARED_SECRET</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">Webhook</span><span class="o">.</span><span class="n">construct_event</span><span class="p">(</span><span class="n">request_data</span><span class="p">,</span> <span class="n">request_sig</span><span class="p">,</span> <span class="n">webhook_secret</span><span class="p">)</span>
+
+        <span class="c1"># List of all Coinbase webhook events:</span>
+        <span class="c1"># https://commerce.coinbase.com/docs/api/#webhooks</span>
+
+        <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s1">'type'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'charge:confirmed'</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Payment confirmed.'</span><span class="p">)</span>
+            <span class="c1"># TODO: run some custom code here</span>
+
+    <span class="k">except</span> <span class="p">(</span><span class="n">SignatureVerificationError</span><span class="p">,</span> <span class="n">WebhookInvalidPayload</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Received event: id=</span><span class="si">{</span><span class="n">event</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">, type=</span><span class="si">{</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s1">'ok'</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这个代码块验证请求的签名和有效负载，然后从中生成一个事件。现在，您可以检查事件类型，并根据类型执行不同的操作。</p>
+<p>更新导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="kn">from</span> <span class="nn">coinbase_commerce.client</span> <span class="kn">import</span> <span class="n">Client</span>
+<span class="kn">from</span> <span class="nn">coinbase_commerce.error</span> <span class="kn">import</span> <span class="n">SignatureVerificationError</span><span class="p">,</span> <span class="n">WebhookInvalidPayload</span>
+<span class="kn">from</span> <span class="nn">coinbase_commerce.webhook</span> <span class="kn">import</span> <span class="n">Webhook</span>
+<span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">HttpResponse</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.csrf</span> <span class="kn">import</span> <span class="n">csrf_exempt</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.http</span> <span class="kn">import</span> <span class="n">require_http_methods</span>
+
+<span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">settings</span>
+</code></pre></div>
+
+<blockquote>
+<p>忽略<code>COINBASE_COMMERCE_WEBHOOK_SHARED_SECRET</code>还不存在的错误。我们将在下一步中添加它。</p>
+</blockquote>
+<p>在<em> payments/urls.py </em>中注册网址:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">''</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">home_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'payments-home'</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'success/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">success_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'payments-success'</span><span class="p">),</span>   <span class="c1"># only for the Coinbase charges approach</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'cancel/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">cancel_view</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'payments-cancel'</span><span class="p">),</span>      <span class="c1"># only for the Coinbase charges approach</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'webhook/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">coinbase_webhook</span><span class="p">),</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p><code>coinbase_webhook</code>视图现在充当我们的webhook端点，当事件发生时，比特币基地商务会将事件发送到该端点。</p>
+<blockquote>
+<p>如果你遵循比特币基地结帐方法，不要包含<code>success/</code>或<code>cancel/</code>URL。</p>
+</blockquote>
+<h3 id="identify-the-user">识别用户</h3>
+<p>为了识别webhook中的用户，您需要在创建费用或开始结帐会话时传递一些元数据。然后，您将能够在webhook中获取这些元数据。</p>
+<p>根据您使用的方法，传递元数据的方式会有所不同:</p>
+<ol>
+<li><strong>收费API </strong> -你必须将元数据附加到产品上</li>
+<li><strong>check out API</strong>——你必须将元数据作为HTML属性传递</li>
+</ol>
+<h4 id="identify-the-user-with-the-charges-api">使用费用API确定用户</h4>
+<p>要使用收费API识别用户，首先将以下内容添加到<code>home_view</code>内的<code>product</code>字典中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="n">product</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="o">...</span>
+    <span class="s1">'metadata'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'customer_id'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span> <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s1">'customer_username'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span> <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="o">...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这段代码附加了经过身份验证的用户的用户ID和用户名。</p>
+<p>您现在可以像这样访问<code>coinbase_webhook</code>视图中的元数据:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="nd">@csrf_exempt</span>
+<span class="nd">@require_http_methods</span><span class="p">([</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">coinbase_webhook</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="n">request_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">'utf-8'</span><span class="p">)</span>
+    <span class="n">request_sig</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'X-CC-Webhook-Signature'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">webhook_secret</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">COINBASE_COMMERCE_WEBHOOK_SHARED_SECRET</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">Webhook</span><span class="o">.</span><span class="n">construct_event</span><span class="p">(</span><span class="n">request_data</span><span class="p">,</span> <span class="n">request_sig</span><span class="p">,</span> <span class="n">webhook_secret</span><span class="p">)</span>
+
+        <span class="c1"># List of all Coinbase webhook events:</span>
+        <span class="c1"># https://commerce.coinbase.com/docs/api/#webhooks</span>
+
+        <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s1">'type'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'charge:confirmed'</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Payment confirmed.'</span><span class="p">)</span>
+            <span class="n">customer_id</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s1">'data'</span><span class="p">][</span><span class="s1">'metadata'</span><span class="p">][</span><span class="s1">'customer_id'</span><span class="p">]</span> <span class="c1"># new</span>
+            <span class="n">customer_username</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s1">'data'</span><span class="p">][</span><span class="s1">'metadata'</span><span class="p">][</span><span class="s1">'customer_username'</span><span class="p">]</span> <span class="c1"># new</span>
+            <span class="c1"># TODO: run some custom code here</span>
+            <span class="c1"># you can also use 'customer_id' or 'customer_username'</span>
+            <span class="c1"># to fetch an actual Django user</span>
+
+    <span class="k">except</span> <span class="p">(</span><span class="n">SignatureVerificationError</span><span class="p">,</span> <span class="n">WebhookInvalidPayload</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Received event: id=</span><span class="si">{</span><span class="n">event</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">, type=</span><span class="si">{</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s1">'ok'</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+</code></pre></div>
+
+<h4 id="identify-the-user-with-the-checkout-api">使用结帐API识别用户</h4>
+<p>为了使用结帐API识别用户，我们需要将元数据作为一个数据属性添加到<em> templates/home.html </em>中的锚点:</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="cm">&lt;!-- Coinbase hosted approach (script not required) --&gt;</span>
+  <span class="p">&lt;</span><span class="nt">a</span>
+    <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary w-100"</span>
+    <span class="err">{%</span> <span class="na">if</span> <span class="na">user</span><span class="err">.</span><span class="na">is_authenticated</span> <span class="err">%}</span><span class="na">data-custom</span><span class="o">=</span><span class="s">"{{ user.pk }}"</span><span class="err">{%</span> <span class="na">endif</span> <span class="err">%}</span>
+    <span class="na">href</span><span class="o">=</span><span class="s">"{{ checkout_link }}"</span>
+  <span class="p">&gt;</span>Purchase (hosted)<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  <span class="cm">&lt;!-- Coinbase embedded approach (script required) --&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"mt-2"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">a</span>
+      <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary buy-with-crypto w-100"</span>
+      <span class="err">{%</span> <span class="na">if</span> <span class="na">user</span><span class="err">.</span><span class="na">is_authenticated</span> <span class="err">%}</span><span class="na">data-custom</span><span class="o">=</span><span class="s">"{{ user.pk }}"</span><span class="err">{%</span> <span class="na">endif</span> <span class="err">%}</span>
+      <span class="na">href</span><span class="o">=</span><span class="s">"{{ checkout_link }}"</span>
+    <span class="p">&gt;</span>Purchase (embedded)<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://commerce.coinbase.com/v1/checkout.js?version=201807"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>然后，您可以在<code>coinbase_webhook</code>视图中检索元数据，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># payments/views.py</span>
+
+<span class="nd">@csrf_exempt</span>
+<span class="nd">@require_http_methods</span><span class="p">([</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">coinbase_webhook</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="kn">import</span> <span class="nn">logging</span>
+
+    <span class="n">request_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">'utf-8'</span><span class="p">)</span>
+    <span class="n">request_sig</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'X-CC-Webhook-Signature'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">webhook_secret</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">COINBASE_COMMERCE_WEBHOOK_SHARED_SECRET</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">Webhook</span><span class="o">.</span><span class="n">construct_event</span><span class="p">(</span><span class="n">request_data</span><span class="p">,</span> <span class="n">request_sig</span><span class="p">,</span> <span class="n">webhook_secret</span><span class="p">)</span>
+
+        <span class="c1"># List of all Coinbase webhook events:</span>
+        <span class="c1"># https://commerce.coinbase.com/docs/api/#webhooks</span>
+
+        <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s1">'type'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'charge:confirmed'</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Payment confirmed.'</span><span class="p">)</span>
+            <span class="n">customer_id</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s1">'data'</span><span class="p">][</span><span class="s1">'metadata'</span><span class="p">][</span><span class="s1">'custom'</span><span class="p">]</span> <span class="c1"># new</span>
+            <span class="c1"># TODO: run some custom code here</span>
+            <span class="c1"># you can also use 'customer_id'</span>
+            <span class="c1"># to fetch an actual Django user</span>
+
+    <span class="k">except</span> <span class="p">(</span><span class="n">SignatureVerificationError</span><span class="p">,</span> <span class="n">WebhookInvalidPayload</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Received event: id=</span><span class="si">{</span><span class="n">event</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">, type=</span><span class="si">{</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s1">'ok'</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>请记住，webhook以纯文本形式接收<code>data-custom</code>。在使用它从数据库中获取用户之前，一定要将它解析为一个整数。</p>
+</blockquote>
+<h3 id="register-the-endpoint">注册端点</h3>
+<p>导航至<a href="https://commerce.coinbase.com/dashboard/settings">https://commerce.coinbase.com/dashboard/settings</a>，向下滚动至“Webhook订阅”并点击“添加端点”:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/coinbase_add_endpoint.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Webhook" src="../Images/e96f12a35b6b0677a2678d4faeb011b4.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/coinbase_add_endpoint.png"/></p>
+<p>输入您的端点URL，然后按“保存”。</p>
+<blockquote>
+<p>该网址需要以HTTPS开头，这意味着您需要部署您的应用程序，然后才能测试它。</p>
+</blockquote>
+<p>接下来，点击“显示共享密码”并复制密码:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/coinbase_show_webhook_secret.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Webhook Secret" src="../Images/c5b92ca7346216132aaebe01207d2f83.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/coinbase_show_webhook_secret.png"/></p>
+<p>将共享密钥添加到<em> settings.py </em>文件中，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">COINBASE_COMMERCE_WEBHOOK_SHARED_SECRET</span> <span class="o">=</span> <span class="s1">'&lt;your coinbase webhook secret here&gt;'</span>
+</code></pre></div>
+
+<h3 id="test-the-endpoint">测试端点</h3>
+<p>部署好应用程序后，您可以从<a href="https://commerce.coinbase.com/dashboard/settings"> Commerce Dashboard </a>发送一个测试webhook请求。导航至“Webhook订阅”,点击webhook端点下的“详细信息”:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/webhook_details.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Webhook Details" src="../Images/6fad7683b5029877750bae93a53e11c8.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/webhook_details.png"/></p>
+<p>然后点击“发送测试”:</p>
+<p><img data-src="/static/images/blog/django/django-coinbase/webhook_test.png" loading="lazy" class="lazyload" alt="Coinbase Commerce Webhook Details Test" src="../Images/6ac989bc850892403d91a2c28b71adac.png" data-original-src="https://testdriven.io/static/images/blog/django/django-coinbase/webhook_test.png"/></p>
+<p>最后，选择“充电:确认”并再次点击“发送测试”。您应该会看到“支付已成功”日志消息。</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，您学习了如何接受比特币基地商务加密支付。您现在应该能够将其与Django集成，并通过webhook验证支付。</p>
+<p>您可以在GitHub上的以下repos中找到代码:</p>
+<ol>
+<li><a href="https://github.com/testdrivenio/django-coinbase-charges"> django-coinbase-charges </a></li>
+<li><a href="https://github.com/testdrivenio/django-coinbase-checkout"> django-coinbase-checkout </a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

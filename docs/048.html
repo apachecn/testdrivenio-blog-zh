@@ -1,0 +1,620 @@
+<html>
+<head>
+<title>Building a Single Page Application with Python and Pyodide - Part 3 </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Python和Pyodide构建单页面应用程序——第3部分</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/build-spa-with-python-part-3/#0001-01-01">https://testdriven.io/blog/build-spa-with-python-part-3/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本系列的第二部分中，我们通过将Pyodide和Python代码执行卸载给Web worker来改善用户体验。我们还创建了一个关于熊猫的建议和事实的列表。</p>
+<p>在这最后一部分中，我们将看看如何打包Python代码以使其更具可读性和可维护性，添加一个搜索栏和一个删除按钮，并使用PouchDB添加一个持久数据层。</p>
+<p>--</p>
+<p><strong> Python单页面应用系列:</strong></p>
+<ol>
+<li><em> <a href="/blog/build-spa-with-python-part-1">第1部分</a> </em>:学习Pyodide的基础知识，创建基础应用</li>
+<li><em> <a href="/blog/build-spa-with-python-part-2">第二部分</a> </em>:用Pandas分析和操作数据，使用web worker加速应用程序</li>
+<li><em>第三部分</em>(本教程！):创建一个Python包，添加附加功能，并添加一个持久数据层</li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>打包您的Python代码，并将其导入Pyodide</li>
+<li>使用PouchDB向应用程序添加数据层</li>
+</ol>
+<h2 id="what-were-building">我们正在建造的东西</h2>
+<p>首先，我们将把Python代码打包到一个单独的Python模块中。这将使我们的代码污染更少，可读性更好。我们将修改web worker以在Pyodide中导入Python文件。我们还将添加一个搜索栏和一个删除按钮。我们最后的任务是添加一个持久数据层来存储PouchDB数据库中的数据，这将使我们的应用程序在页面重新加载时更快。</p>
+<p>你可以在这里找到该应用<a href="https://netflix-analysis-spa-part-3.onrender.com">的现场演示。</a></p>
+<h2 id="improve-code-maintainability">提高代码可维护性</h2>
+<p>至此，我们已经将Python代码直接添加到了<code>runPythonAsync</code>方法中。正如您可能已经知道的，这对于小代码片段来说是没问题的，但是随着代码的增长，它变得越来越难以维护和扩展。</p>
+<p>为了改善现状，我们会-</p>
+<ol>
+<li>将Python代码分离到一个模块中。</li>
+<li>取<em> worker.js </em>中的Python模块代码，将结果写入浏览器的虚拟内存，导入包在Pyodide中使用。</li>
+</ol>
+<h3 id="packaging-the-python-code">打包Python代码</h3>
+<p>在项目的根目录下创建一个名为<em> main.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">io</span>
+
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+
+<span class="k">def</span> <span class="nf">analyze_titles</span><span class="p">(</span><span class="n">titlesCSV</span><span class="p">):</span>
+    <span class="c1"># 1. create csv buffer to make it readable by pandas</span>
+    <span class="n">csv_buffer</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">(</span><span class="n">titlesCSV</span><span class="p">)</span>
+    <span class="c1"># 2. load the csv file</span>
+    <span class="n">all_titles</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">csv_buffer</span><span class="p">)</span>
+
+    <span class="c1"># 3. sanitize the data</span>
+    <span class="c1"># drop unnecessary columns</span>
+    <span class="n">all_titles</span> <span class="o">=</span> <span class="n">all_titles</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span>
+        <span class="n">columns</span><span class="o">=</span><span class="p">[</span>
+            <span class="s2">"age_certification"</span><span class="p">,</span>
+            <span class="s2">"seasons"</span><span class="p">,</span>
+            <span class="s2">"imdb_id"</span><span class="p">,</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+    <span class="c1"># drop rows with null values for important columns</span>
+    <span class="n">sanitized_titles</span> <span class="o">=</span> <span class="n">all_titles</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span>
+        <span class="n">subset</span><span class="o">=</span><span class="p">[</span>
+            <span class="s2">"id"</span><span class="p">,</span>
+            <span class="s2">"title"</span><span class="p">,</span>
+            <span class="s2">"release_year"</span><span class="p">,</span>
+            <span class="s2">"genres"</span><span class="p">,</span>
+            <span class="s2">"production_countries"</span><span class="p">,</span>
+            <span class="s2">"imdb_score"</span><span class="p">,</span>
+            <span class="s2">"imdb_votes"</span><span class="p">,</span>
+            <span class="s2">"tmdb_score"</span><span class="p">,</span>
+            <span class="s2">"tmdb_popularity"</span><span class="p">,</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+    <span class="c1"># Convert the DataFrame to a JSON object. ('orient="records"' returns a list of objects)</span>
+    <span class="n">titles_list</span> <span class="o">=</span> <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+
+    <span class="c1"># 4. Create recommendation list for Shows and Movies</span>
+    <span class="c1"># 4.1 Copy the sanitized_titles to add new column to it</span>
+    <span class="n">recommended_titles</span> <span class="o">=</span> <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># 4.2 Add new column to the sanitized_titles</span>
+    <span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"recommendation_score"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_votes"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span>
+        <span class="o">+</span> <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"imdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.3</span>
+        <span class="o">+</span> <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_score"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span>
+        <span class="o">+</span> <span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"tmdb_popularity"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span>
+    <span class="p">)</span>
+    <span class="c1"># 4.3 Create Recommended movies list</span>
+    <span class="n">recommended_movies</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">recommended_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"MOVIE"</span><span class="p">]</span>
+        <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s2">"recommendation_score"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="c1"># 4.4 Create Recommended shows list</span>
+    <span class="n">recommended_shows</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">recommended_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">recommended_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SHOW"</span><span class="p">]</span>
+        <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s2">"recommendation_score"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"records"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">recommendations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"movies"</span><span class="p">:</span> <span class="n">recommended_movies</span><span class="p">,</span> <span class="s2">"shows"</span><span class="p">:</span> <span class="n">recommended_shows</span><span class="p">}</span>
+
+    <span class="c1"># 5. Create facts list for Movies and Shows</span>
+    <span class="n">facts_movies</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"MOVIE"</span><span class="p">]</span>
+        <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"release_year"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">count</span><span class="p">()[</span><span class="s2">"id"</span><span class="p">]</span>
+        <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"table"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">facts_shows</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">sanitized_titles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">sanitized_titles</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SHOW"</span><span class="p">]</span>
+        <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"release_year"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">count</span><span class="p">()[</span><span class="s2">"id"</span><span class="p">]</span>
+        <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">"table"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">facts</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"movies"</span><span class="p">:</span> <span class="n">facts_movies</span><span class="p">,</span> <span class="s2">"shows"</span><span class="p">:</span> <span class="n">facts_shows</span><span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">titles_list</span><span class="p">,</span> <span class="n">recommendations</span><span class="p">,</span> <span class="n">facts</span>
+</code></pre></div>
+
+<p>这里没什么新东西。请自行复习。</p>
+<h3 id="pass-python-file-to-pyodide">将Python文件传递给Pyodide</h3>
+<p>接下来，我们需要对<em> worker.js </em>进行一些修改:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// load pyodide.js</span><span class="w"/>
+<span class="nx">importScripts</span><span class="p">(</span><span class="s2">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// Initialize pyodide and load Pandas</span><span class="w"/>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">initialize</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">loadPyodide</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">loadPackage</span><span class="p">(</span><span class="s2">"pandas"</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">let</span><span class="w"> </span><span class="nx">initialized</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">initialize</span><span class="p">();</span><span class="w"/>
+
+<span class="nx">self</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">initialized</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">fetch</span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="s2">"https://raw.githubusercontent.com/amirtds/kaggle-netflix-tv-shows-and-movies/main/titles.csv"</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">response</span><span class="p">.</span><span class="nx">ok</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">200</span><span class="w"/>
+<span class="w">    </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">text</span><span class="p">())</span><span class="w"/>
+<span class="w">    </span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">""</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// fetch main.py, save it in browser memory</span><span class="w"/>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">self</span><span class="p">.</span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">runPythonAsync</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">    from pyodide.http import pyfetch</span>
+<span class="sb">    response = await pyfetch("main.py")</span>
+<span class="sb">    with open("main.py", "wb") as f:</span>
+<span class="sb">        f.write(await response.bytes())</span>
+<span class="sb">  `</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Importing fetched py module</span><span class="w"/>
+<span class="w">  </span><span class="nx">pkg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">pyodide</span><span class="p">.</span><span class="nx">pyimport</span><span class="p">(</span><span class="s2">"main"</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Run the analyze_titles function from main.py and assign the result to a variable</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">analyzedTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">pkg</span><span class="p">.</span><span class="nx">analyze_titles</span><span class="p">(</span><span class="nx">titles</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="c1">// convert the Proxy object to Javascript object</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">analyzedTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">analyzedTitles</span><span class="p">.</span><span class="nx">toJs</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">dict_converter</span><span class="o">:</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Set variables to corresponding values from the analyzedTitles object</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">titlesList</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">analyzedTitles</span><span class="p">[</span><span class="mf">0</span><span class="p">];</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">analyzedTitles</span><span class="p">[</span><span class="mf">1</span><span class="p">].</span><span class="nx">movies</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">analyzedTitles</span><span class="p">[</span><span class="mf">1</span><span class="p">].</span><span class="nx">shows</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">analyzedTitles</span><span class="p">[</span><span class="mf">2</span><span class="p">].</span><span class="nx">movies</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">factsShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">analyzedTitles</span><span class="p">[</span><span class="mf">2</span><span class="p">].</span><span class="nx">shows</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">self</span><span class="p">.</span><span class="nx">postMessage</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">titles</span><span class="o">:</span><span class="w"> </span><span class="nx">titlesList</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">recommendedMovies</span><span class="o">:</span><span class="w"> </span><span class="nx">recommendedMovies</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">recommendedShows</span><span class="o">:</span><span class="w"> </span><span class="nx">recommendedShows</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">factsMovies</span><span class="o">:</span><span class="w"> </span><span class="nx">factsMovies</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">factsShows</span><span class="o">:</span><span class="w"> </span><span class="nx">factsShows</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>记下<code>runPythonAsync</code>方法中的Python代码。我们使用<a href="https://pyodide.org/en/stable/usage/api/python-api.html#pyodide.http.pyfetch"> pyfetch </a>获取本地<em> main.py </em>文件，并保存在浏览器的虚拟内存中以备后用。</p>
+<p>在您的终端中运行Python的<a href="https://docs.python.org/3/library/http.server.html"> http服务器</a>:</p>
+
+
+<p>然后，在浏览器中导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>。</p>
+<p>您应该会看到和以前一样的结果，但是Python代码的执行现在封装在一个单独的模块中，使得代码更具可读性和可维护性。另外，您现在可以利用代码编辑器中的语法突出显示，并为其编写自动化测试。</p>
+<h2 id="spa-features">水疗特色</h2>
+<p>随着应用程序性能的提高和代码被分离到一个模块中，让我们将注意力转回到特性开发上来。</p>
+<p>在这一节中，我们将添加一个删除按钮和搜索功能，以根据名称过滤标题。</p>
+<h3 id="delete-button">删除按钮</h3>
+<p>要添加删除功能，我们需要:</p>
+<ol>
+<li>在每个标题旁边的DOM中添加一个按钮</li>
+<li>设置一个事件侦听器，以便在单击按钮时触发删除</li>
+<li>创建一个函数来处理实际的删除</li>
+</ol>
+<p>首先在<em>index.html</em>的表格标题中添加一个新列:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">thead</span> <span class="na">class</span><span class="o">=</span><span class="s">"bg-gray-50"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6"</span><span class="p">&gt;</span>Title<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"</span><span class="p">&gt;</span>Type<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"</span><span class="p">&gt;</span>Release Year<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"</span><span class="p">&gt;</span>Genre<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"</span><span class="p">&gt;</span>Production Country<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+     <span class="cm">&lt;!-- NEW --&gt;</span>
+    <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900"</span><span class="p">&gt;&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">thead</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>接下来，对表体进行以下更改:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">tbody</span> <span class="na">class</span><span class="o">=</span><span class="s">"divide-y divide-gray-200 bg-white"</span><span class="p">&gt;</span>
+  ${this.state.titles.length &gt; 0 ? JSON.parse(this.state.titles).map(function (title) {
+    return (`
+      <span class="p">&lt;</span><span class="nt">tr</span> <span class="na">id</span><span class="o">=</span><span class="s">${title.id}</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap py-2 pl-4 pr-3 text-sm text-gray-500 sm:pl-6"</span><span class="p">&gt;</span>${title.title}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm font-medium text-gray-900"</span><span class="p">&gt;</span>${title.type}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>${title.release_year}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>${title.genres}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>${title.production_countries}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="cm">&lt;!-- NEW --&gt;</span>
+        <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">button</span> <span class="na">id</span><span class="o">=</span><span class="s">${title.id}</span> <span class="na">class</span><span class="o">=</span><span class="s">"delete text-red-600 hover:text-red-900"</span><span class="p">&gt;</span>Delete<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+    `)
+  }).join('') : (`
+    <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap py-2 pl-4 pr-3 text-sm text-gray-500 sm:pl-6"</span><span class="p">&gt;</span>Titles are loading...<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm font-medium text-gray-900"</span><span class="p">&gt;</span>Titles are loading...<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>Titles are loading...<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>Titles are loading...<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>Titles are loading...<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+       <span class="cm">&lt;!-- NEW --&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span> <span class="na">class</span><span class="o">=</span><span class="s">"whitespace-nowrap px-2 py-2 text-sm text-gray-500"</span><span class="p">&gt;</span>Titles are loading...<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+  `)
+  }
+<span class="p">&lt;/</span><span class="nt">tbody</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>在这里，我们添加了删除按钮，并在标题仍在加载时添加了额外的加载消息。</p>
+<p>继续向前，向<em>index.html</em>中的<code>App</code>类添加两个新方法:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">setupEvents</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">deleteButtons</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelectorAll</span><span class="p">(</span><span class="s2">".delete"</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">forEach</span><span class="p">((</span><span class="nx">button</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">button</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">deleteTitle</span><span class="p">(</span><span class="nx">button</span><span class="p">.</span><span class="nx">id</span><span class="p">))</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="nx">deleteTitle</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">).</span><span class="nx">filter</span><span class="p">(</span><span class="nx">title</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">title</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nx">id</span><span class="p">));</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li><code>setupEvents</code>用于将事件侦听器添加到删除按钮，以便当用户单击按钮时，调用<code>deleteTitle</code>方法。</li>
+<li><code>deleteTitle</code>用于从列表中删除标题。</li>
+</ol>
+<p>最后更新<code>render</code>调用<code>setupEvents</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">app</span><span class="p">.</span><span class="nx">innerHTML</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">setupEvents</span><span class="p">();</span><span class="w">  </span><span class="c1">// NEW</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>测试一下。</p>
+<blockquote>
+<p>想挑战吗？删除标题后，尝试更新建议和事实。</p>
+</blockquote>
+<h3 id="search-box">搜索框</h3>
+<p>接下来，让我们添加一个搜索框来过滤电影，并按标题显示列表。</p>
+<p>在<em>index.html</em>的开始<code>body</code>标签下添加搜索框的HTML:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- Start Search box --&gt;</span>
+<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"absolute top-1 right-0 mr-20 z-50"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"h-full max-w-7xl mt-16 px-4 sm:px-6 lg:px-8 flex flex-row-reverse"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">label</span> <span class="na">for</span><span class="o">=</span><span class="s">"search"</span> <span class="na">class</span><span class="o">=</span><span class="s">"sr-only"</span><span class="p">&gt;</span>Search<span class="p">&lt;/</span><span class="nt">label</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"relative text-gray-400 focus-within:text-gray-600"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">svg</span> <span class="na">class</span><span class="o">=</span><span class="s">"h-5 w-5"</span> <span class="na">xmlns</span><span class="o">=</span><span class="s">"http://www.w3.org/2000/svg"</span> <span class="na">viewBox</span><span class="o">=</span><span class="s">"0 0 20 20"</span> <span class="na">fill</span><span class="o">=</span><span class="s">"currentColor"</span> <span class="na">aria-hidden</span><span class="o">=</span><span class="s">"true"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">path</span> <span class="na">fill-rule</span><span class="o">=</span><span class="s">"evenodd"</span> <span class="na">d</span><span class="o">=</span><span class="s">"M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"</span> <span class="na">clip-rule</span><span class="o">=</span><span class="s">"evenodd"</span> <span class="p">/&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">svg</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">input</span> <span class="na">id</span><span class="o">=</span><span class="s">"search"</span> <span class="na">class</span><span class="o">=</span><span class="s">"block w-full bg-white py-2 pl-10 pr-3 border border-transparent rounded-md leading-5 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-indigo-600 focus:ring-white focus:border-white sm:text-sm"</span> <span class="na">placeholder</span><span class="o">=</span><span class="s">"Search"</span> <span class="na">type</span><span class="o">=</span><span class="s">"search"</span> <span class="na">name</span><span class="o">=</span><span class="s">"search"</span> <span class="na">autofocus</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="cm">&lt;!-- End Search box --&gt;</span>
+</code></pre></div>
+
+<p>接下来，给<code>App</code>的状态添加一个新值:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">titles</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">recommendedMovies</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">recommendedShows</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">factsMovies</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">factsShows</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">filteredTitles</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w">  </span><span class="c1">// NEW</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>在<code>view</code>方法中，我们需要遍历<code>filteredTitles</code>状态，而不是遍历<code>titles</code>状态。</p>
+<p>所以，改变:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">).</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+</code></pre></div>
+
+<p>收件人:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">$</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="p">).</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+</code></pre></div>
+
+<p>更新<code>deleteTitle</code>方法以使用<code>filteredTitles</code>状态而不是<code>titles</code>状态:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">deleteTitle</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="p">).</span><span class="nx">filter</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nx">title</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">id</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">render</span><span class="p">();</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>添加一个名为<code>searchTitle</code>的新方法来处理搜索逻辑:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">searchTitle</span><span class="p">(</span><span class="nx">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">).</span><span class="nx">filter</span><span class="p">((</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">      </span><span class="nx">title</span><span class="p">.</span><span class="nx">title</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">().</span><span class="nx">includes</span><span class="p">(</span><span class="nx">name</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">())</span><span class="w"/>
+<span class="w">    </span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">render</span><span class="p">();</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>为搜索框的<code>setupEvents</code>添加一个新的事件监听器，以便当用户在搜索框中键入时调用<code>searchTitle</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">setupEvents</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">deleteButtons</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelectorAll</span><span class="p">(</span><span class="s2">".delete"</span><span class="p">).</span><span class="nx">forEach</span><span class="p">((</span><span class="nx">button</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">button</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">deleteTitle</span><span class="p">(</span><span class="nx">button</span><span class="p">.</span><span class="nx">id</span><span class="p">));</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">searchBox</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#search"</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">"keyup"</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">searchTitle</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">value</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>最后，将<code>filteredTitles</code>状态设置为<code>titles</code>状态，以便在<code>worker.onmessage</code>中使用一些初始值:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">worker</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="c1">// NEW</span><span class="w"/>
+<span class="w">  </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>在浏览器中测试一下！</p>
+<h2 id="persistent-data-layer">持久数据层</h2>
+<p>我们将添加的最后一个功能是保存数据的持久日期层，这样我们就不必在每次页面重新加载时远程获取CSV文件并分析和处理数据。当标题被删除时，我们也会保存结果。</p>
+<p>对于持久性，我们将使用<a href="https://pouchdb.com/"> PouchDB </a>。</p>
+<h3 id="pouchdb">PouchDB</h3>
+<p>PouchDB一个为浏览器设计的开源数据库，允许你在浏览器中本地保存数据。因为所有数据都存储在<a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API"> IndexedDB </a>中，所以它为我们的应用程序带来了离线支持。所有现代浏览器都支持T2。</p>
+<h3 id="setup">设置</h3>
+<p>更新<em>index.html</em>文件的头，就在顺风CSS之后，安装::</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.tailwindcss.com"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+   <span class="cm">&lt;!-- NEW --&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c0b0afb5a3a8a4a280f7eef3eef0">[email protected]</a>/dist/pouchdb.min.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>现在，我们可以为标题、推荐和事实创建不同的数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.tailwindcss.com"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c5b5aab0a6ada1a785f2ebf6ebf5">[email protected]</a>/dist/pouchdb.min.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="cm">&lt;!-- NEW --&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Setup PouchDB databases</span><span class="w"/>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">titlesDB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">PouchDB</span><span class="p">(</span><span class="s1">'titles'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">recommendedMoviesDB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">PouchDB</span><span class="p">(</span><span class="s1">'recommendedMovies'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">recommendedShowsDB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">PouchDB</span><span class="p">(</span><span class="s1">'recommendedShows'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">factsMoviesDB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">PouchDB</span><span class="p">(</span><span class="s1">'factsMovies'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">factsShowsDB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">PouchDB</span><span class="p">(</span><span class="s1">'factsShows'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">remoteCouch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<h3 id="persisting-data">持久数据</h3>
+<p>为了避免在每次页面加载时执行大量的获取和操作数据的操作，我们可以简单地在初始页面加载时运行<em> worker.js </em>文件，将结果保存到PouchDB数据库，然后在后续页面加载时从数据库中获取数据。</p>
+<p>在<em>index.html</em>中，更新最终的脚本标签，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&lt;</span><span class="nx">script</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">  </span><span class="nx">titlesDB</span><span class="p">.</span><span class="nx">info</span><span class="p">().</span><span class="nx">then</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">info</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">info</span><span class="p">.</span><span class="nx">doc_count</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">worker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Worker</span><span class="p">(</span><span class="s2">"worker.js"</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="nx">worker</span><span class="p">.</span><span class="nx">postMessage</span><span class="p">(</span><span class="s2">"Running Pyodide"</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="nx">worker</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="p">)</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">        </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">titles</span><span class="p">)</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">        </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="p">)</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">        </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="p">)</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">        </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsMovies</span><span class="p">)</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">        </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">undefined</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">factsShows</span><span class="p">)</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">        </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">();</span><span class="w"/>
+
+<span class="w">        </span><span class="c1">// Add titles to database</span><span class="w"/>
+<span class="w">        </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="nx">titlesDB</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">bulkDocs</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">))</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="c1">// handle result</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"titles DB:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"No titles to add to database"</span><span class="p">);</span><span class="w"/>
+
+<span class="w">        </span><span class="c1">// Add recommended movies to database</span><span class="w"/>
+<span class="w">        </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="nx">recommendedMoviesDB</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">bulkDocs</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="p">))</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="c1">// handle result</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"recommendedMovies DB:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"No recommended movies to add to database"</span><span class="p">);</span><span class="w"/>
+
+<span class="w">        </span><span class="c1">// Add recommended shows to database</span><span class="w"/>
+<span class="w">        </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="nx">recommendedShowsDB</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">bulkDocs</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="p">))</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="c1">// handle result</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"recommendedShows DB:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"No recommended shows to add to database"</span><span class="p">);</span><span class="w"/>
+
+<span class="w">        </span><span class="c1">// Add facts movies to database</span><span class="w"/>
+<span class="w">        </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="nx">factsMoviesDB</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">bulkDocs</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="p">).</span><span class="nx">data</span><span class="p">)</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="c1">// handle result</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"factsMovies DB:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"No facts movies to add to database"</span><span class="p">);</span><span class="w"/>
+
+<span class="w">        </span><span class="c1">// Add facts shows to database</span><span class="w"/>
+<span class="w">        </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="nx">factsShowsDB</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">bulkDocs</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="p">).</span><span class="nx">data</span><span class="p">)</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="c1">// handle result</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">              </span><span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"factsShows DB:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">              </span><span class="p">})</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"No facts shows to add to database"</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Database already populated"</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="o">&lt;</span><span class="err">/script&gt;</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，我们检查了标题数据库是否为空:</p>
+<ul>
+<li>如果是，我们获取并保存数据</li>
+<li>如果没有，我们只需在控制台上记录一条“数据库已经填充”的消息</li>
+</ul>
+<p>继续在浏览器中测试。</p>
+<p>在浏览器的<a href="https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_are_browser_developer_tools">开发者工具</a>中，在“应用”选项卡的“IndexedDB”下，您应该会看到以下数据库:</p>
+<ol>
+<li><code>_pouch_titles</code></li>
+<li><code>_pouch_factsMovies</code></li>
+<li><code>_pouch_factsShows</code></li>
+<li><code>_pouch_recommendedMovies</code></li>
+<li><code>_pouch_recommendedShows</code></li>
+</ol>
+<p><img data-src="/static/images/blog/build-spa-with-python/indexeddb.png" loading="lazy" class="lazyload" alt="IndexedDB PouchDB databases" src="../Images/260d98a6344ed592203007e533ce8341.png" data-original-src="https://testdriven.io/static/images/blog/build-spa-with-python/indexeddb.png"/></p>
+<p>重新加载页面。会发生什么？什么都没有，除了唯一的控制台日志，对吗？我们仍然需要从本地数据库加载数据。为此，用以下内容更新<code>else</code>块:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// use database to populate app state</span><span class="w"/>
+<span class="c1">// setting titles state</span><span class="w"/>
+<span class="nx">titlesDB</span><span class="p">.</span><span class="nx">allDocs</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">include_docs</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">descending</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">doc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">doc</span><span class="p">.</span><span class="nx">rows</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">row</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">doc</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">titles</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">titles</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+<span class="c1">// setting recommended movies state</span><span class="w"/>
+<span class="nx">recommendedMoviesDB</span><span class="p">.</span><span class="nx">allDocs</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">include_docs</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">descending</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">doc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">doc</span><span class="p">.</span><span class="nx">rows</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">row</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">doc</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">recommendedMovies</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+<span class="c1">// setting recommended shows state</span><span class="w"/>
+<span class="nx">recommendedShowsDB</span><span class="p">.</span><span class="nx">allDocs</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">include_docs</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">descending</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">doc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">doc</span><span class="p">.</span><span class="nx">rows</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">row</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">doc</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">recommendedShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">recommendedShows</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+<span class="c1">// setting facts movies state</span><span class="w"/>
+<span class="nx">factsMoviesDB</span><span class="p">.</span><span class="nx">allDocs</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">include_docs</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">descending</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">doc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">doc</span><span class="p">.</span><span class="nx">rows</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">row</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">doc</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsMovies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="nx">factsMovies</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+<span class="c1">// setting facts shows state</span><span class="w"/>
+<span class="nx">factsShowsDB</span><span class="p">.</span><span class="nx">allDocs</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">include_docs</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">descending</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+<span class="p">},</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">doc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">factsShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">doc</span><span class="p">.</span><span class="nx">rows</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">row</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">doc</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">factsShows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="nx">factsShows</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="nx">appComponent</span><span class="p">.</span><span class="nx">render</span><span class="p">()</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>回到你的浏览器，让我们测试新的东西。删除“应用程序”选项卡的“索引数据库”部分中的所有数据库。重新加载页面。数据填充需要几秒钟时间。随后的重新加载应该只是瞬间加载。</p>
+<h3 id="handling-deletions">处理删除</h3>
+<p>要在用户删除标题时正确删除标题，请更新<code>deleteTitle</code>，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">deleteTitle</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">).</span><span class="nx">find</span><span class="p">((</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">title</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nx">id</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">titlesDB</span><span class="p">.</span><span class="nx">remove</span><span class="p">(</span><span class="nx">title</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">titles</span><span class="p">).</span><span class="nx">filter</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nx">title</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">id</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">filteredTitles</span><span class="p">).</span><span class="nx">filter</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nx">title</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">id</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">render</span><span class="p">();</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>回到您的浏览器，测试删除。请通过重新加载页面来确保它持续存在。</p>
+<h2 id="conclusion">结论</h2>
+<p>就是这样！</p>
+<p>在本系列教程中，您学习了如何使用Python构建单页面应用程序。用Pyodide在浏览器中执行Python打开了许多以前不可能的新大门。例如，您:</p>
+<ol>
+<li>可以在浏览器中使用像熊猫这样强大的库</li>
+<li>使用Python可以直接访问所有Web APIs</li>
+<li>甚至可以使用Python来操作DOM</li>
+</ol>
+<p>此外，您可以将Python与JavaScript结合使用，以最大限度地发挥这两种语言(及其丰富的库)的优势！</p>
+<p>我们还看到了如何通过使用web workers在后台运行繁重的计算，从主线程中分离出来，从而提高应用程序的性能。通过将Python脚本移动到一个单独的模块中，我们减少了应用程序的污染，并且更易于维护和扩展。</p>
+<p>我们通过使用PouchDB向我们的应用程序添加一个数据层来完成这个系列。该功能通过减少页面负载和引入离线功能改善了用户体验。</p>
+<p>你可以在这里找到这个教程<a href="https://github.com/amirtds/netflix-analysis-spa/tree/part-3">的源代码。</a></p>
+<p>我希望你喜欢这个系列。如果您有任何问题或意见，请随时联系我。干杯！</p>
+<p>--</p>
+<p><strong> Python单页面应用系列:</strong></p>
+<ol>
+<li><em> <a href="/blog/build-spa-with-python-part-1">第1部分</a> </em>:学习Pyodide的基础知识，创建基础应用</li>
+<li><em> <a href="/blog/build-spa-with-python-part-2">第二部分</a> </em>:用Pandas分析和操作数据，使用web worker加速应用程序</li>
+<li><em>第三部分</em>(本教程！):创建一个Python包，添加附加功能，并添加一个持久数据层</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

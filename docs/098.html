@@ -1,0 +1,471 @@
+<html>
+<head>
+<title>Creating a Kubernetes Cluster on DigitalOcean with Python and Fabric </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Python和Fabric在DigitalOcean上创建Kubernetes集群</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/creating-a-kubernetes-cluster-on-digitalocean/#0001-01-01">https://testdriven.io/blog/creating-a-kubernetes-cluster-on-digitalocean/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将使用Ubuntu 20.04<a href="https://m.do.co/c/d8f211a4b4c2">digital ocean</a>droplets构建一个三节点Kubernetes集群。我们还将看看如何使用Python和<a href="http://www.fabfile.org/"> Fabric </a>来自动设置Kubernetes集群。</p>
+<blockquote>
+<p>请随意将DigitalOcean更换为不同的云托管提供商或您自己的内部环境。</p>
+</blockquote>
+<p><em>依赖关系</em>:</p>
+<ol>
+<li>Docker v20.10</li>
+<li>Kubernetes v1.21版</li>
+</ol>
+
+
+
+<h2 id="what-is-fabric">什么是面料？</h2>
+<p><a href="https://www.fabfile.org/"> Fabric </a>是一个Python库，用于自动化SSH上的例行shell命令，我们将使用它来自动化Kubernetes集群的设置。</p>
+<p>安装:</p>
+<div class="codehilite"><pre><span/><code>$ pip install <span class="nv">fabric</span><span class="o">==</span><span class="m">2</span>.6.0
+</code></pre></div>
+
+<p>验证版本:</p>
+<div class="codehilite"><pre><span/><code>$ fab --version
+
+Fabric <span class="m">2</span>.6.0
+Paramiko <span class="m">2</span>.8.0
+Invoke <span class="m">1</span>.6.0
+</code></pre></div>
+
+<p>通过将以下代码添加到名为<em> fabfile.py </em>的新文件中进行测试:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fabric</span> <span class="kn">import</span> <span class="n">task</span>
+
+
+<span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+    <span class="sd">"""Sanity check"""</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"pong!"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"hello </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">!"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>尝试一下:</p>
+<div class="codehilite"><pre><span/><code>$ fab ping --output<span class="o">=</span><span class="s2">"world"</span>
+
+pong!
+hello world!
+</code></pre></div>
+
+<blockquote>
+<p>更多信息，请查看官方网站<a href="http://docs.fabfile.org/">文档</a>。</p>
+</blockquote>
+<h2 id="droplets-setup">水滴设置</h2>
+<p>首先，<a href="https://m.do.co/c/d8f211a4b4c2">在DigitalOcean上注册</a>账户(如果你还没有的话)，<a href="https://www.digitalocean.com/docs/droplets/how-to/add-ssh-keys/to-account/">给你的账户添加</a>一个公共SSH密钥，然后<a href="https://www.digitalocean.com/docs/apis-clis/api/">生成</a>一个访问令牌，这样你就可以访问DigitalOcean API了。</p>
+<p>将令牌添加到您的环境中:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="o">=</span>&lt;YOUR_DIGITAL_OCEAN_ACCESS_TOKEN&gt;
+</code></pre></div>
+
+<p>接下来，为了以编程方式与API交互，安装<a href="https://github.com/koalalorenzo/python-digitalocean"> python-digitalocean </a>模块:</p>
+<div class="codehilite"><pre><span/><code>$ pip install python-digitalocean<span class="o">==</span><span class="m">1</span>.17.0
+</code></pre></div>
+
+<p>现在，让我们创建另一个任务来旋转三个droplets:一个用于Kubernetes master，两个用于workers。更新<em> fabfile.py </em>这样:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">digitalocean</span> <span class="kn">import</span> <span class="n">Droplet</span><span class="p">,</span> <span class="n">Manager</span>
+<span class="kn">from</span> <span class="nn">fabric</span> <span class="kn">import</span> <span class="n">task</span>
+
+<span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"DIGITAL_OCEAN_ACCESS_TOKEN"</span><span class="p">)</span>
+
+
+<span class="c1"># tasks</span>
+
+
+<span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+    <span class="sd">"""Sanity check"""</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"pong!"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"hello </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">!"</span><span class="p">)</span>
+
+
+<span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">create_droplets</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Create three new DigitalOcean droplets -</span>
+<span class="sd">    node-1, node-2, node-3</span>
+<span class="sd">    """</span>
+    <span class="n">manager</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="p">)</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_all_sshkeys</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"node-</span><span class="si">{</span><span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">droplet</span> <span class="o">=</span> <span class="n">Droplet</span><span class="p">(</span>
+            <span class="n">token</span><span class="o">=</span><span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">node</span><span class="p">,</span>
+            <span class="n">region</span><span class="o">=</span><span class="s2">"nyc3"</span><span class="p">,</span>
+            <span class="n">image</span><span class="o">=</span><span class="s2">"ubuntu-20-04-x64"</span><span class="p">,</span>
+            <span class="n">size</span><span class="o">=</span><span class="s2">"s-2vcpu-4gb"</span><span class="p">,</span>
+            <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="n">node</span><span class="p">],</span>
+            <span class="n">ssh_keys</span><span class="o">=</span><span class="n">keys</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">droplet</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> has been created."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>注意传递给Droplet类的参数。本质上，这将在NYC3区域创建三个Ubuntu 20.04 droplets，每个都有4 GB的内存。它还会给每个droplet添加<em> <a href="https://github.com/koalalorenzo/python-digitalocean#creating-a-new-droplet-with-all-your-ssh-keys">所有</a> </em> SSH密钥。您可能希望更新它，以便只包含您专门为此项目创建的SSH密钥:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">create_droplets</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Create three new DigitalOcean droplets -</span>
+<span class="sd">    node-1, node-2, node-3</span>
+<span class="sd">    """</span>
+    <span class="n">manager</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="p">)</span>
+    <span class="c1"># Get ALL SSH keys</span>
+    <span class="n">all_keys</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_all_sshkeys</span><span class="p">()</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">all_keys</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"&lt;ADD_YOUR_KEY_NAME_HERE&gt;"</span><span class="p">:</span>
+            <span class="n">keys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"node-</span><span class="si">{</span><span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">droplet</span> <span class="o">=</span> <span class="n">Droplet</span><span class="p">(</span>
+            <span class="n">token</span><span class="o">=</span><span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">node</span><span class="p">,</span>
+            <span class="n">region</span><span class="o">=</span><span class="s2">"nyc3"</span><span class="p">,</span>
+            <span class="n">image</span><span class="o">=</span><span class="s2">"ubuntu-20-04-x64"</span><span class="p">,</span>
+            <span class="n">size</span><span class="o">=</span><span class="s2">"s-2vcpu-4gb"</span><span class="p">,</span>
+            <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="n">node</span><span class="p">],</span>
+            <span class="n">ssh_keys</span><span class="o">=</span><span class="n">keys</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">droplet</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> has been created."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>创造水滴:</p>
+<div class="codehilite"><pre><span/><code>$ fab create-droplets
+
+node-1 has been created.
+node-2 has been created.
+node-3 has been created.
+</code></pre></div>
+
+<p>接下来，让我们添加一个任务来检查每个droplet的状态，以确保在开始安装Docker和Kubernetes之前，每个droplet都已启动并准备就绪:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">wait_for_droplets</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""Wait for each droplet to be ready and active"""</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"node-</span><span class="si">{</span><span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">get_droplet_status</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="s2">"active"</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> is ready."</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> is not ready."</span><span class="p">)</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加<code>get_droplet_status</code>辅助函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">get_droplet_status</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="sd">"""Given a droplet's tag name, return the status of the droplet"""</span>
+    <span class="n">manager</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="p">)</span>
+    <span class="n">droplet</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_all_droplets</span><span class="p">(</span><span class="n">tag_name</span><span class="o">=</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">droplet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">status</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+
+
+<p>在我们测试之前，添加另一个任务来销毁液滴:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">destroy_droplets</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""Destroy the droplets - node-1, node-2, node-3"""</span>
+    <span class="n">manager</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"node-</span><span class="si">{</span><span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">droplets</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_all_droplets</span><span class="p">(</span><span class="n">tag_name</span><span class="o">=</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">droplet</span> <span class="ow">in</span> <span class="n">droplets</span><span class="p">:</span>
+            <span class="n">droplet</span><span class="o">.</span><span class="n">destroy</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> has been destroyed."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>摧毁我们刚刚创造的三个液滴:</p>
+<div class="codehilite"><pre><span/><code>$ fab destroy-droplets
+
+node-1 has been destroyed.
+node-2 has been destroyed.
+node-3 has been destroyed.
+</code></pre></div>
+
+<p>然后，调出三个新液滴，并验证它们是否可以运行:</p>
+<div class="codehilite"><pre><span/><code>$ fab create-droplets
+
+node-1 has been created.
+node-2 has been created.
+node-3 has been created.
+
+$ fab wait-for-droplets
+
+node-1 is not ready.
+node-1 is not ready.
+node-1 is not ready.
+node-1 is not ready.
+node-1 is not ready.
+node-1 is not ready.
+node-1 is ready.
+node-2 is not ready.
+node-2 is not ready.
+node-2 is ready.
+node-3 is ready.
+</code></pre></div>
+
+<h2 id="provision-the-machines">供应机器</h2>
+<p>需要在每个微滴上运行以下任务...</p>
+<h3 id="set-addresses">设置地址</h3>
+<p>首先添加一个任务，在<code>hosts</code>环境变量中设置主机地址:</p>
+<div class="codehilite"><pre><span/><code><span class="o">@</span><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">get_addresses</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="nb">type</span><span class="p">):</span>
+    <span class="sd">"""Get IP address"""</span>
+    <span class="n">manager</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="s2">"master"</span><span class="p">:</span>
+        <span class="n">droplet</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_all_droplets</span><span class="p">(</span><span class="n">tag_name</span><span class="o">=</span><span class="s2">"node-1"</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">droplet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ip_address</span><span class="p">)</span>
+        <span class="n">hosts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">droplet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ip_address</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span> <span class="o">==</span> <span class="s2">"workers"</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"node-</span><span class="si">{</span><span class="n">num</span><span class="si">}</span><span class="s2">"</span>
+            <span class="n">droplet</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_all_droplets</span><span class="p">(</span><span class="n">tag_name</span><span class="o">=</span><span class="n">node</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">droplet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ip_address</span><span class="p">)</span>
+            <span class="n">hosts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">droplet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ip_address</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span> <span class="o">==</span> <span class="s2">"all"</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"node-</span><span class="si">{</span><span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
+            <span class="n">droplet</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_all_droplets</span><span class="p">(</span><span class="n">tag_name</span><span class="o">=</span><span class="n">node</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">droplet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ip_address</span><span class="p">)</span>
+            <span class="n">hosts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">droplet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ip_address</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">'The "type" should be either "master", "workers", or "all".'</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Host addresses - </span><span class="si">{</span><span class="n">hosts</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在顶部定义以下变量，就在<code>DIGITAL_OCEAN_ACCESS_TOKEN = os.getenv('DIGITAL_OCEAN_ACCESS_TOKEN')</code>下面:</p>
+
+
+<p>运行:</p>
+<div class="codehilite"><pre><span/><code>$ fab get-addresses --type<span class="o">=</span>all
+
+<span class="m">165</span>.227.96.238
+<span class="m">134</span>.122.8.106
+<span class="m">134</span>.122.8.204
+Host addresses - <span class="o">[</span><span class="s1">'165.227.96.238'</span>, <span class="s1">'134.122.8.106'</span>, <span class="s1">'134.122.8.204'</span><span class="o">]</span>
+</code></pre></div>
+
+<p>这样，我们就可以开始安装Docker和Kubernetes依赖项了。</p>
+<h3 id="install-dependencies">安装依赖项</h3>
+<p>安装Docker和-</p>
+<ol>
+<li>kubeadm  -引导一个Kubernetes集群</li>
+<li>配置容器在主机上运行</li>
+<li>用于管理集群的命令行工具</li>
+</ol>
+<p>添加一个将Docker安装到fabfile的任务:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">install_docker</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""Install Docker"""</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Installing Docker on </span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">host</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"apt-get update &amp;&amp; apt-get install -qy docker.io"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"docker --version"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"systemctl enable docker.service"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>让我们禁用交换文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">disable_selinux_swap</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Disable SELinux so kubernetes can communicate with other hosts</span>
+<span class="sd">    Disable Swap https://github.com/kubernetes/kubernetes/issues/53533</span>
+<span class="sd">    """</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s1">'sed -i "/ swap / s/^/#/" /etc/fstab'</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"swapoff -a"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>安装库:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">install_kubernetes</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""Install Kubernetes"""</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Installing Kubernetes on </span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">host</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"apt-get update &amp;&amp; apt-get install -y apt-transport-https"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span>
+        <span class="s2">"curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -"</span>
+    <span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span>
+        <span class="s1">'echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" | </span><span class="se">\</span>
+<span class="s1">          tee -a /etc/apt/sources.list.d/kubernetes.list &amp;&amp; apt-get update'</span>
+    <span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span>
+        <span class="s2">"apt-get update &amp;&amp; apt-get install -y kubelet=1.21.1-00 kubeadm=1.21.1-00 kubectl=1.21.1-00"</span>
+    <span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"apt-mark hold kubelet kubeadm kubectl"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>与其分别运行这些任务，不如创建一个主<code>provision_machines</code>任务:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">provision_machines</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">conn</span> <span class="ow">in</span> <span class="n">get_connections</span><span class="p">(</span><span class="n">hosts</span><span class="p">):</span>
+        <span class="n">install_docker</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+        <span class="n">disable_selinux_swap</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+        <span class="n">install_kubernetes</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加<code>get_connections</code>辅助函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">get_connections</span><span class="p">(</span><span class="n">hosts</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">host</span> <span class="ow">in</span> <span class="n">hosts</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">Connection</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">user</span><span class="si">}</span><span class="s2">@</span><span class="si">{</span><span class="n">host</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+        <span class="p">)</span>
+</code></pre></div>
+
+<p>更新导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fabric</span> <span class="kn">import</span> <span class="n">Connection</span><span class="p">,</span> <span class="n">task</span>
+</code></pre></div>
+
+<p>运行:</p>
+<div class="codehilite"><pre><span/><code>$ fab get-addresses --type<span class="o">=</span>all provision-machines
+</code></pre></div>
+
+<p>安装所需的软件包需要几分钟时间。</p>
+<h2 id="configure-the-master-node">配置主节点</h2>
+<p>初始化Kubernetes集群并部署<a href="https://github.com/coreos/flannel">法兰绒</a>网络:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">configure_master</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Init Kubernetes</span>
+<span class="sd">    Set up the Kubernetes Config</span>
+<span class="sd">    Deploy flannel network to the cluster</span>
+<span class="sd">    """</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"kubeadm init"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"mkdir -p $HOME/.kube"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"chown $(id -u):$(id -g) $HOME/.kube/config"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span>
+        <span class="s2">"kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<p>保存加入令牌:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">get_join_key</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="n">sudo_command_res</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"kubeadm token create --print-join-command"</span><span class="p">)</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s2">"^kubeadm.*$"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">sudo_command_res</span><span class="p">),</span> <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"join.txt"</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">stdout_redirected</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加以下导入内容:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+</code></pre></div>
+
+<p>创建<code>stdout_redirected</code>上下文管理器:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@contextmanager</span>
+<span class="k">def</span> <span class="nf">stdout_redirected</span><span class="p">(</span><span class="n">new_stdout</span><span class="p">):</span>
+    <span class="n">save_stdout</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">new_stdout</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="kc">None</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">save_stdout</span>
+</code></pre></div>
+
+<p>再次添加一个父任务来运行这些任务:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">create_cluster</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">conn</span> <span class="ow">in</span> <span class="n">get_connections</span><span class="p">(</span><span class="n">hosts</span><span class="p">):</span>
+        <span class="n">configure_master</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+        <span class="n">get_join_key</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+</code></pre></div>
+
+<p>运行它:</p>
+<div class="codehilite"><pre><span/><code>$ fab get-addresses --type<span class="o">=</span>master create-cluster
+</code></pre></div>
+
+<p>这将需要一两分钟来运行。一旦完成，join token命令应该输出到屏幕并保存到一个<em> join.txt </em>文件:</p>
+<div class="codehilite"><pre><span/><code>kubeadm join <span class="m">165</span>.227.96.238:6443 --token mvk32y.7z7i5x3viga4f4kn --discovery-token-ca-cert-hash sha256:f358dfc00ae7160fff3cb8fa3e3a3c8865f3c5b83c1f242fc9e51efe94108960
+</code></pre></div>
+
+<h2 id="configure-the-worker-nodes">配置工作节点</h2>
+<p>使用上面保存的join命令，添加一个任务，将workers“加入”到master:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">configure_worker_node</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="sd">"""Join a worker to the cluster"""</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"join.txt"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">join_command</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">conn</span> <span class="ow">in</span> <span class="n">get_connections</span><span class="p">(</span><span class="n">hosts</span><span class="p">):</span>
+            <span class="n">conn</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">join_command</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在两个工作节点上运行此命令:</p>
+<div class="codehilite"><pre><span/><code>$ fab get-addresses --type<span class="o">=</span>workers configure-worker-node
+</code></pre></div>
+
+<h2 id="sanity-check">健全性检查</h2>
+<p>最后，为了确保集群启动并运行，添加一个任务来查看节点:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">get_nodes</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">conn</span> <span class="ow">in</span> <span class="n">get_connections</span><span class="p">(</span><span class="n">hosts</span><span class="p">):</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">sudo</span><span class="p">(</span><span class="s2">"kubectl get nodes"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>运行:</p>
+<div class="codehilite"><pre><span/><code>$ fab get-addresses --type<span class="o">=</span>master get-nodes
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>NAME     STATUS   ROLES                  AGE    VERSION
+node-1   Ready    control-plane,master   3m6s   v1.21.1
+node-2   Ready    &lt;none&gt;                 84s    v1.21.1
+node-3   Ready    &lt;none&gt;                 77s    v1.21.1
+</code></pre></div>
+
+<p>完成后清除水滴:</p>
+<div class="codehilite"><pre><span/><code>$ fab destroy-droplets
+
+node-1 has been destroyed.
+node-2 has been destroyed.
+node-3 has been destroyed.
+</code></pre></div>
+
+<h2 id="automation-script">自动化脚本</h2>
+<p>最后一件事:添加一个<em> create.sh </em>脚本来自动化整个过程:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/bash</span>
+
+
+<span class="nb">echo</span> <span class="s2">"Creating droplets..."</span>
+fab create-droplets
+fab wait-for-droplets
+sleep <span class="m">20</span>
+
+<span class="nb">echo</span> <span class="s2">"Provision the droplets..."</span>
+fab get-addresses --type<span class="o">=</span>all provision-machines
+
+
+<span class="nb">echo</span> <span class="s2">"Configure the master..."</span>
+fab get-addresses --type<span class="o">=</span>master create-cluster
+
+
+<span class="nb">echo</span> <span class="s2">"Configure the workers..."</span>
+fab get-addresses --type<span class="o">=</span>workers configure-worker-node
+sleep <span class="m">20</span>
+
+<span class="nb">echo</span> <span class="s2">"Running a sanity check..."</span>
+fab get-addresses --type<span class="o">=</span>master get-nodes
+</code></pre></div>
+
+<p>尝试一下:</p>
+
+
+<p>就是这样！</p>
+<hr/>
+
+<p>您可以在GitHub上的<a href="https://github.com/testdrivenio/kubernetes-fabric"> kubernetes-fabric </a> repo中找到这些脚本。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

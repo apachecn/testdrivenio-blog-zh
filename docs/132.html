@@ -1,0 +1,257 @@
+<html>
+<head>
+<title>OAuth2 in Python </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Python中的OAuth2</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/oauth-python/#0001-01-01">https://testdriven.io/blog/oauth-python/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本文中，我们将首先看看什么是<a href="https://oauth.net/"> OAuth </a>。然后，我们将使用<a href="https://github.com/oauthlib/oauthlib"> OAuthLib </a>和<a href="https://requests.readthedocs.io/">请求</a>库来实现<a href="https://oauth.net/2/"> OAuth2 </a>。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本文后，您将能够:</p>
+<ol>
+<li>解释什么是OAuth和OAuth2，以及如何使用它们</li>
+<li>描述web客户端和服务器之间的OAuth2流</li>
+<li>通过Web应用程序流实现OAuth2(也称为授权码授予)</li>
+</ol>
+<h2 id="what-is-oauth">OAuth是什么？</h2>
+<p>OAuth是一个安全的开放协议，用于在不相关的服务之间授权用户。换句话说，它使一个服务能够访问托管在其他服务上的资源，而不必共享用户凭证，如用户名和密码。</p>
+<p>这都是关于授权的:</p>
+<ol>
+<li>一个服务(客户端)代表用户从另一个服务(资源服务器)访问资源。</li>
+<li>用户不必与客户端共享他们的凭证。</li>
+</ol>
+<p>参与方:</p>
+<ol>
+<li><strong>资源所有者/用户</strong> -允许访问由第三方提供商托管的受保护资源的人</li>
+<li><strong>客户端</strong> -代表用户访问由第三方提供商托管的资源的web应用程序</li>
+<li><strong>授权服务器</strong> -客户端联系的第三方服务器，显示提示用户授权客户端代表用户行事</li>
+<li><strong>资源服务器</strong> -托管用户受保护资源的第三方服务器</li>
+</ol>
+<blockquote>
+<p>授权服务器和资源服务器可以是同一个实体。</p>
+</blockquote>
+<p>OAuth2是OAuth协议的最新版本，由谷歌、Spotify、Trello和Vimeo等<a href="https://en.wikipedia.org/wiki/List_of_OAuth_providers">服务</a>使用。</p>
+<h2 id="oauth2-web-application-flow">OAuth2 Web应用程序流</h2>
+<p>OAuth2协议可用于不同类型的应用程序，但它最常用于web、移动和桌面应用程序。本节将介绍OAuth2在web应用程序中的部署，也称为<a href="https://aaronparecki.com/oauth-2-simplified/#web-server-apps"> Web应用程序流</a>(或<a href="https://oauth.net/2/grant-types/authorization-code/">授权码授予</a>)。</p>
+<p>下图显示了一个简化的Web应用程序流程:</p>
+<p><img data-src="/static/images/blog/oauth-python/web_auth_flow.png" loading="lazy" class="lazyload" alt="Simplified Web Application Flow" src="../Images/2664ad61d96707d281a7316616af5f3b.png" data-original-src="https://testdriven.io/static/images/blog/oauth-python/web_auth_flow.png"/></p>
+<p>这个流程基本上是客户机(web应用程序)和服务器(OAuth2提供者)之间的通信和信息交换，它由三个步骤组成:</p>
+<ol>
+<li>批准</li>
+<li>获取访问令牌</li>
+<li>获取用户信息</li>
+</ol>
+<p>在实现这个流程之前，web开发人员通常必须向OAuth2提供者注册他们的web应用程序，并提供以下信息:</p>
+<ul>
+<li>应用程序的名称</li>
+<li>托管应用程序的位置</li>
+<li>URI端点(也称为重定向URI或回叫URL)</li>
+</ul>
+<p>注册后，OAuth2提供商将向注册人提供以下信息:</p>
+<ul>
+<li><strong>客户端ID </strong> -唯一标识web应用程序的公共凭证，类似于用户名</li>
+<li><strong>客户端秘密</strong> -传递给服务器的私有凭证，类似于密码</li>
+<li><strong>授权服务器URL </strong> -客户端请求授权的URL</li>
+<li><strong>访问令牌URL </strong> -客户端用授权码交换访问令牌的URL</li>
+<li><strong>资源服务器URL </strong> -客户端使用访问令牌访问受保护资源的URL，该令牌也可以与授权服务器相同</li>
+</ul>
+<p>我们现在将更深入地研究Web应用程序流中涉及的三个步骤。</p>
+<blockquote>
+<p>请注意，术语“客户端”将与“web应用程序”互换使用。</p>
+</blockquote>
+<h3 id="step-1-authorize">第一步:授权</h3>
+<p>第一步authorize通常在登录过程开始时调用。在此步骤中，web应用程序向用户请求权限，以授权访问他们在第三方OAuth2提供商处托管的帐户。</p>
+<h4 id="client-request-permission">客户端-请求权限</h4>
+<p>首先，web应用程序使用以下信息构建一个URL:</p>
+<ul>
+<li><strong>响应类型</strong> -告知授权服务器使用哪个流程或<a href="https://oauth.net/2/grant-types/">授予</a>(网络应用流程使用<code>code</code></li>
+<li><strong>客户端ID </strong> -标识网络应用</li>
+<li><strong>重定向URI </strong> -将用户重定向回哪里</li>
+<li><strong> Scope </strong> -指定web应用程序希望访问用户配置文件的哪一部分</li>
+<li><strong> State </strong> -是web应用程序提供的随机生成的字符串，授权服务器将简单地将该字符串传递回去，以便web应用程序可以验证该字符串以减少欺诈</li>
+</ul>
+<p>以下是一个示例URL:</p>
+<div class="codehilite"><pre><span/><code>https://api.authorization-server.com/authorize
+  ?response_type=code
+  &amp;client_id=123
+  &amp;redirect_uri=https://your-web-app.com/redirect
+  &amp;scope=photos
+  &amp;state=1234-zyxa-9134-wpst
+</code></pre></div>
+
+<p>然后，用户被重定向到该URL，授权服务器将提示他们是否要授权该应用程序的请求:</p>
+<p><img data-src="/static/images/blog/oauth-python/oauth_authorization_prompt.png" loading="lazy" class="lazyload" alt="Authorization Dialog" src="../Images/438b25e698c11070a6f3c397e3577d66.png" data-original-src="https://testdriven.io/static/images/blog/oauth-python/oauth_authorization_prompt.png"/></p>
+<h4 id="authorization-server-redirect-back">授权服务器-重定向回</h4>
+<p>在用户授权web应用程序访问其第三方帐户后，授权服务器将通过包含以下信息的重定向URL将用户重定向回web应用程序:</p>
+<ul>
+<li><strong>Code</strong>——web应用程序期望从服务器获得的短期授权代码</li>
+<li><strong>状态</strong>——先前从客户端传递的状态凭证</li>
+</ul>
+<p>下面是一个重定向URL示例:</p>
+<div class="codehilite"><pre><span/><code>https://your-web-app.com/redirect
+  ?code=123456
+  &amp;state=1234-zyxa-9134-wpst
+</code></pre></div>
+
+<p>在这一步中，web应用程序应该验证状态值是否与之前发送给授权服务器的值相匹配。这样做将有助于防止黑客的任何恶意企图和CSRF的攻击。</p>
+<h3 id="step-2-fetch-access-token">步骤2:获取访问令牌</h3>
+<p>第二步是用授权码交换访问令牌。</p>
+<h4 id="client-exchange">客户交换</h4>
+<p>web应用程序向授权服务器的令牌端点发送一个HTTP POST请求，包含以下内容:</p>
+<ul>
+<li><strong>授权类型</strong>——再次告诉授权服务器使用哪个流或授权(使用<code>authorization_code</code>用于Web应用程序流)</li>
+<li><strong>代码</strong>-web应用从授权服务器接收的授权代码</li>
+<li><strong>重定向URI </strong> -将用户重定向回哪里</li>
+<li><strong>客户端ID </strong> -与授权步骤中使用的客户端标识符相同</li>
+<li><strong>客户端密码</strong> -注册期间由OAuth2提供者提供的密码等价物</li>
+</ul>
+<p>下面是一个请求URL示例:</p>
+<div class="codehilite"><pre><span/><code>https://api.authorization-server.com/token
+  grant_type=authorization_code
+  &amp;code=123456
+  &amp;redirect_uri=https://your-web-app.com/redirect
+  &amp;client_id=123
+  &amp;client_secret=456
+</code></pre></div>
+
+<h4 id="authorization-server-grant-token">授权服务器-授权令牌</h4>
+<p>令牌端点将验证请求中的所有参数，确保代码没有过期，并且客户端ID和密码匹配。如果一切正常，它将生成一个访问令牌并在响应中返回它！</p>
+<p>假设授权码有效，授权服务器将生成一个访问令牌，并将其返回给客户端。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"access_token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"KtsgPkCR7Y9b8F3fHo8MKg83ECKbJq31clcB"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"expires_in"</span><span class="p">:</span><span class="w"> </span><span class="mi">3600</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"token_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bearer"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>附加的<a href="https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/">属性</a>(如<code>scope</code>和<code>refresh_token</code>)可能会在响应中返回，这取决于OAuth2提供者。</p>
+<h3 id="step-3-obtain-user-info">步骤3:获取用户信息</h3>
+<p>最后，web应用程序可以使用访问令牌代表用户访问受保护的资源。</p>
+<h4 id="client-request-resources">客户端请求资源</h4>
+<p>web应用程序通常使用以下凭证向资源服务器发送HTTP GET请求，这些凭证在<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization"> HTTP Authorization header </a>中带有访问令牌。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="nf">GET</span> <span class="nn">/user</span> <span class="kr">HTTP</span><span class="o">/</span><span class="m">1.1</span>
+<span class="na">Host</span><span class="o">:</span> <span class="l">api.resource-server.com</span>
+<span class="na">Authorization</span><span class="o">:</span> <span class="l">Bearer access_token</span>
+</code></pre></div>
+
+<p>头类型(上例中的<code>Bearer</code>)根据OAuth2提供者的不同而不同。</p>
+<h4 id="resource-server-send-resources">资源服务器-发送资源</h4>
+<p>资源服务器(有时与授权服务器相同)验证访问令牌。如果有效，资源服务器发送回请求的数据。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">   </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Aaron Smith"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"bio"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Software Engineer"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"avatar_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://api.resource-server.com/image/aaron_smith"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="implementation">履行</h2>
+<p>OAuthLib是一个流行的Python框架，它实现了OAuth1和OAuth2的通用的、符合规范的和全面的接口。<a href="https://github.com/psf/requests"> Requests </a>是一个流行的Python HTTP库，它使得发送HTTP/1.1请求变得相当简单。它们可以一起用于实现OAuth2 Web应用程序流。</p>
+<h3 id="step-1-authorize_1">第一步:授权</h3>
+<p>OAuthLib提供了一个<a href="https://oauthlib.readthedocs.io/en/latest/oauth2/clients/webapplicationclient.html#webapplicationclient"> WebApplicationClient </a>类来实现上面描述的Web应用程序流。在向OAuth2提供者注册并获得客户机ID之后，在web应用程序中创建一个新的<code>WebApplicationClient</code>实例。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">oauthlib.oauth2</span> <span class="kn">import</span> <span class="n">WebApplicationClient</span>
+
+<span class="n">client_id</span> <span class="o">=</span> <span class="s1">'xxxxx'</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">WebApplicationClient</span><span class="p">(</span><span class="n">client_id</span><span class="p">)</span>
+</code></pre></div>
+
+<p>为了方便Web应用程序流中的授权步骤，<code>WebApplicationClient</code>类提供了一个<a href="https://oauthlib.readthedocs.io/en/latest/oauth2/clients/webapplicationclient.html#oauthlib.oauth2.WebApplicationClient.parse_request_uri_response"> prepare_request_uri() </a>方法，该方法采用授权服务器URL及其相应的凭证来形成一个完整的URL。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="n">authorization_url</span> <span class="o">=</span> <span class="s1">'https://api.authorization-server.com/authorize'</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">prepare_request_uri</span><span class="p">(</span>
+  <span class="n">authorization_url</span><span class="p">,</span>
+  <span class="n">redirect_uri</span> <span class="o">=</span> <span class="s1">'https://your-web-app.com/redirect'</span><span class="p">,</span>
+  <span class="n">scope</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'read:user'</span><span class="p">],</span>
+  <span class="n">state</span> <span class="o">=</span> <span class="s1">'D8VAo311AAl_49LAtM51HA'</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>打印时，<code>url</code>将返回:</p>
+<div class="codehilite"><pre><span/><code>https://api.authorization-server.com/authorize
+  ?response_type=code
+  &amp;client_id=xxxxx
+  &amp;redirect_uri=https://your-web-app.com/redirect
+  &amp;scope=read:user
+  &amp;state=D8VAo311AAl_49LAtM51HA
+</code></pre></div>
+
+<p>web应用程序可以将用户重定向到该URL。此时，授权服务器将显示一个提示，要求用户授权该请求。</p>
+<h3 id="step-2-fetch-access-token_1">步骤2:获取访问令牌</h3>
+<p>同样，在这个步骤中，在用户批准请求后，他们会被重定向回客户端，并得到一个包含授权代码和状态的响应。</p>
+<p>在提取并验证状态值的准确性之后，web应用程序可以利用<code>WebApplicationClient</code>的<a href="https://oauthlib.readthedocs.io/en/latest/oauth2/clients/webapplicationclient.html#oauthlib.oauth2.WebApplicationClient.prepare_request_body"> prepare_request_body() </a>方法来构造从授权服务器获取访问令牌所需的URL。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="n">data</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">prepare_request_body</span><span class="p">(</span>
+  <span class="n">code</span> <span class="o">=</span> <span class="s1">'yyyyyyy'</span><span class="p">,</span>
+  <span class="n">redirect_uri</span> <span class="o">=</span> <span class="s1">'https://your-web-app.com/redirect'</span><span class="p">,</span>
+  <span class="n">client_id</span> <span class="o">=</span> <span class="s1">'xxxxx'</span><span class="p">,</span>
+  <span class="n">client_secret</span> <span class="o">=</span> <span class="s1">'zzzzzzz'</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>打印时，<code>data</code>将返回:</p>
+<div class="codehilite"><pre><span/><code>grant_type=authorization_code
+  &amp;client_id=xxxxx
+  &amp;client_secret=zzzzzzz
+  &amp;code=yyyyyyy
+  &amp;redirect_uri=https//your-web-app.com/redirect
+</code></pre></div>
+
+<p>注意，<code>grant_type=authorization_code</code>的键值对被<code>prepare_request_body()</code>方便地前置。</p>
+<p>此时，我们可以利用请求库向OAuth2提供者提供的令牌URL发送一个HTTP POST请求。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="n">token_url</span> <span class="o">=</span> <span class="s1">'https://api.authorization-server.com/token'</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">token_url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>OAuthLib的<code>WebApplicationClient</code>类还提供了一个<a href="https://oauthlib.readthedocs.io/en/latest/_modules/oauthlib/oauth2/rfc6749/clients/base.html#Client.parse_request_body_response">parse _ request _ body _ response()</a>方法来帮助我们将响应数据作为Python字典进行管理。例如，我们可以将<code>response.text</code>传递给这个方法，它会将字典保存在<code>client.token</code>中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">client</span><span class="o">.</span><span class="n">parse_request_body_response</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+</code></pre></div>
+
+<p><code>client.token</code>的值可能如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span>
+   <span class="s1">'access_token'</span><span class="p">:</span> <span class="s1">'KtsgPkCR7Y9b8F3fHo8MKg83ECKbJq31clcB'</span><span class="p">,</span>
+   <span class="s1">'scope'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'read:user'</span><span class="p">],</span>
+   <span class="s1">'expires_at'</span><span class="p">:</span> <span class="mf">1619473575.641959</span><span class="p">,</span>
+   <span class="s1">'expires_in'</span><span class="p">:</span> <span class="mi">3599</span><span class="p">,</span>
+   <span class="s1">'token_type'</span><span class="p">:</span> <span class="s1">'bearer'</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="step-3-obtain-user-info_1">步骤3:获取用户信息</h3>
+<p>Web应用程序流的最后一步是从资源服务器检索所需的受保护资源。我们需要准备一个具有正确类型和值的HTTP授权头。根据OAuth2提供者的实现，授权头类型可以是<code>Token</code>或<code>Bearer</code>。我们可以使用请求库中的<code>get()</code>方法向资源服务器发送一个带有正确格式的<code>Authorization</code>头的HTTP GET请求。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="n">header</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'Authorization'</span><span class="p">:</span> <span class="s1">'Bearer </span><span class="si">{}</span><span class="s1">'</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">token</span><span class="p">[</span><span class="s1">'access_token'</span><span class="p">])</span>
+<span class="p">}</span>
+
+<span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'https://api.resource-server.com/user'</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+</code></pre></div>
+
+<p>通过<code>response.json()</code>，JSON格式的响应可能如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">   </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Aaron Smith"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"bio"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Software Engineer"</span><span class="p">,</span><span class="w"/>
+<span class="w">   </span><span class="nt">"avatar_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://api.resource-server.com/user/images/aaron_smith/"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="example">例子</h2>
+<p>在这个使用GitHub作为OAuth2提供者的<a href="https://aws.djangodemo.com/auth"> Django应用程序</a>中可以找到一个使用OAuthLib和请求的OAuth2实现的真实例子。你可以在这里探索它的实现<a href="https://github.com/mchesler613/OAuth2-Integration-with-OAuthlib-and-GitHub">。</a></p>
+<p><img data-src="/static/images/gifs/blog/oauth-python/oauth_python.gif" loading="lazy" class="lazyload" alt="OAuth Demo" src="../Images/32bcb40f2e12f1be606c9a87fdaf4020.png" data-original-src="https://testdriven.io/static/images/gifs/blog/oauth-python/oauth_python.gif"/></p>
+<p>要了解更多关于将OAuth2集成到您的web应用程序中的信息，请访问以下链接:</p>
+
+<h2 id="conclusion">结论</h2>
+<p>OAuth2集成可能首先显得具有挑战性，但是本文以及使用友好的库(如OAuthLib和Requests)将帮助您巩固对OAuth2的理解。尝试使用GitHub作为第一个提供者来实现一个简单的例子。慢慢地，但肯定地，当你添加更多的提供者到你的清单中时，你会在这方面做得更好。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

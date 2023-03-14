@@ -1,0 +1,680 @@
+<html>
+<head>
+<title>Accepting Payments with Stripe, Vue.js, and Flask </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>接受Stripe、Vue.js和Flask支付</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/accepting-payments-with-stripe-vuejs-and-flask/#0001-01-01">https://testdriven.io/blog/accepting-payments-with-stripe-vuejs-and-flask/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将使用<a href="https://stripe.com/"> Stripe </a>(用于支付处理)<a href="https://vuejs.org/"> Vue.js </a>(客户端应用)和<a href="http://flask.pocoo.org/"> Flask </a>(服务器端API)开发一个销售图书的web应用。</p>
+<blockquote>
+<p>这是一个中级教程。它假设你有Vue和Flask的基本工作知识。查看以下资源以了解更多信息:</p>
+<ol>
+<li>Flask:Flask、测试驱动开发(TDD)和JavaScript简介</li>
+<li><a href="/developing-a-single-page-app-with-flask-and-vuejs">用Flask和Vue.js开发单页应用</a></li>
+<li><a href="/courses/learn-vue/">通过构建和部署CRUD应用程序学习Vue</a></li>
+</ol>
+</blockquote>
+<p><em>最终应用</em>:</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue-stripe/final.gif" loading="lazy" class="lazyload" alt="final app" src="../Images/86d3239e5ce63304daba077fa5a26e40.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue-stripe/final.gif"/></p>
+<p><em>主要依赖:</em></p>
+<ul>
+<li>视图v2.6.11</li>
+<li>CLI视图v4.5.11</li>
+<li>节点v15.7.0</li>
+<li>国家预防机制7.4.3版</li>
+<li>烧瓶v1.1.2</li>
+<li>python 3 . 9 . 1版</li>
+</ul>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>使用现有的CRUD应用，由Vue和Flask提供支持</li>
+<li>创建订单结帐Vue组件</li>
+<li>验证信用卡信息，并通过Stripe Checkout处理支付</li>
+</ol>
+<h2 id="project-setup">项目设置</h2>
+<p>从<a href="https://github.com/testdrivenio/flask-vue-crud"> flask-vue-crud </a> repo中克隆基础Flask和Vue项目:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/flask-vue-crud flask-vue-stripe
+$ <span class="nb">cd</span> flask-vue-stripe
+</code></pre></div>
+
+<p>创建并激活虚拟环境，然后启动Flask应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">cd</span> server
+$ python3.9 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+<span class="o">(</span>env<span class="o">)</span>$
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>env<span class="o">)</span>$ python app.py
+</code></pre></div>
+
+<blockquote>
+<p>上述用于创建和激活虚拟环境的命令可能会因您的环境和操作系统而异。</p>
+</blockquote>
+<p>将您选择的浏览器指向<a href="http://localhost:5000/ping">http://localhost:5000/ping</a>。您应该看到:</p>
+
+
+<p>然后，安装依赖项并在不同的终端选项卡中运行Vue应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">cd</span> client
+$ npm install
+$ npm run serve
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8080"> http://localhost:8080 </a>。确保基本CRUD功能按预期工作:</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue/final.gif" loading="lazy" class="lazyload" alt="base app" src="../Images/140bda66d4c96397cf6bf9d8234b0c78.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue/final.gif"/></p>
+<blockquote>
+<p>想学习如何构建这个项目吗？查看<a href="/developing-a-single-page-app-with-flask-and-vuejs">用Flask和Vue.js开发单页应用</a>的博文。</p>
+</blockquote>
+<h2 id="what-are-we-building">我们在建造什么？</h2>
+<p>我们的目标是建立一个允许最终用户购买书籍的web应用程序。</p>
+<p>客户端Vue应用程序将显示可供购买的书籍，并通过<a href="https://stripe.com/docs/stripe-js"> Stripe.js </a>和<a href="https://stripe.com/payments/checkout"> Stripe Checkout </a>将最终用户重定向到结帐表单。支付过程完成后，用户将被重定向到同样由Vue管理的成功或失败页面。</p>
+<p>与此同时，Flask应用程序使用<a href="https://github.com/stripe/stripe-python"> Stripe Python库</a>与Stripe API进行交互，以创建一个结帐会话。</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue-stripe/final.gif" loading="lazy" class="lazyload" alt="final app" src="../Images/86d3239e5ce63304daba077fa5a26e40.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue-stripe/final.gif"/></p>
+<blockquote>
+<p>像之前的教程一样，<a href="/developing-a-single-page-app-with-flask-and-vuejs">用Flask和Vue.js开发单页应用程序</a>，我们将只处理应用程序中的快乐之路。通过加入适当的错误处理来检查你的理解。</p>
+</blockquote>
+<h2 id="books-crud">书籍垃圾</h2>
+<p>首先，让我们在服务器端的现有图书列表中添加购买价格，并在客户端更新适当的CRUD函数——GET、POST和PUT。</p>
+<h3 id="get">得到</h3>
+<p>首先将<code>price</code>添加到<em> server/app.py </em>中<code>BOOKS</code>列表的每个字典中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">BOOKS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'On the Road'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'Jack Kerouac'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">'price'</span><span class="p">:</span> <span class="s1">'19.99'</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Harry Potter and the Philosopher</span><span class="se">\'</span><span class="s1">s Stone'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'J. K. Rowling'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">'price'</span><span class="p">:</span> <span class="s1">'9.99'</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+        <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Green Eggs and Ham'</span><span class="p">,</span>
+        <span class="s1">'author'</span><span class="p">:</span> <span class="s1">'Dr. Seuss'</span><span class="p">,</span>
+        <span class="s1">'read'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">'price'</span><span class="p">:</span> <span class="s1">'3.99'</span>
+    <span class="p">}</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>然后，更新<code>Books</code>组件中的表，<em>client/src/components/books . vue</em>，以显示购买价格:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">table</span> <span class="na">class</span><span class="o">=</span><span class="s">"table table-hover"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">thead</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Title<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Author<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">th</span> <span class="na">scope</span><span class="o">=</span><span class="s">"col"</span><span class="p">&gt;</span>Purchase Price<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">thead</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">tbody</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">tr</span> <span class="na">v-for</span><span class="o">=</span><span class="s">"(book, index) in books"</span> <span class="na">:key</span><span class="o">=</span><span class="s">"index"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ book.title }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ book.author }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-if</span><span class="o">=</span><span class="s">"book.read"</span><span class="p">&gt;</span>Yes<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-else</span><span class="p">&gt;</span>No<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>${{ book.price }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn-group"</span> <span class="na">role</span><span class="o">=</span><span class="s">"group"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span>
+                  <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-warning btn-sm"</span>
+                  <span class="na">v-b-modal</span><span class="err">.</span><span class="na">book-update-modal</span>
+                  <span class="err">@</span><span class="na">click</span><span class="o">=</span><span class="s">"editBook(book)"</span><span class="p">&gt;</span>
+              Update
+          <span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span>
+                  <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-danger btn-sm"</span>
+                  <span class="err">@</span><span class="na">click</span><span class="o">=</span><span class="s">"onDeleteBook(book)"</span><span class="p">&gt;</span>
+              Delete
+          <span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">tbody</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">table</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>您现在应该看到:</p>
+<p><img data-src="/static/images/blog/flask-vue-stripe/price.png" loading="lazy" class="lazyload" alt="add purchase price to Books component" src="../Images/e87966423a96f6352a71ef4cdef10dfc.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue-stripe/price.png"/></p>
+<h3 id="post">邮政</h3>
+<p>在<code>addBookModal</code>中增加一个新的<code>b-form-group</code>，介于作者和读者<code>b-form-group</code>之间s:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-price-group"</span>
+              <span class="na">label</span><span class="o">=</span><span class="s">"Purchase price:"</span>
+              <span class="na">label-for</span><span class="o">=</span><span class="s">"form-price-input"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-price-input"</span>
+                <span class="na">type</span><span class="o">=</span><span class="s">"number"</span>
+                <span class="na">step</span><span class="o">=</span><span class="s">"0.01"</span>
+                <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.price"</span>
+                <span class="na">required</span>
+                <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter price"</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>模式现在应该看起来像这样:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- add book modal --&gt;</span>
+<span class="p">&lt;</span><span class="nt">b-modal</span> <span class="na">ref</span><span class="o">=</span><span class="s">"addBookModal"</span>
+        <span class="na">id</span><span class="o">=</span><span class="s">"book-modal"</span>
+        <span class="na">title</span><span class="o">=</span><span class="s">"Add a new book"</span>
+        <span class="na">hide-footer</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">b-form</span> <span class="err">@</span><span class="na">submit</span><span class="o">=</span><span class="s">"onSubmit"</span> <span class="err">@</span><span class="na">reset</span><span class="o">=</span><span class="s">"onReset"</span> <span class="na">class</span><span class="o">=</span><span class="s">"w-100"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-group"</span>
+                  <span class="na">label</span><span class="o">=</span><span class="s">"Title:"</span>
+                  <span class="na">label-for</span><span class="o">=</span><span class="s">"form-title-input"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-title-input"</span>
+                      <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                      <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.title"</span>
+                      <span class="na">required</span>
+                      <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter title"</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-group"</span>
+                  <span class="na">label</span><span class="o">=</span><span class="s">"Author:"</span>
+                  <span class="na">label-for</span><span class="o">=</span><span class="s">"form-author-input"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-author-input"</span>
+                    <span class="na">type</span><span class="o">=</span><span class="s">"text"</span>
+                    <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.author"</span>
+                    <span class="na">required</span>
+                    <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter author"</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-price-group"</span>
+                  <span class="na">label</span><span class="o">=</span><span class="s">"Purchase price:"</span>
+                  <span class="na">label-for</span><span class="o">=</span><span class="s">"form-price-input"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-form-input</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-price-input"</span>
+                    <span class="na">type</span><span class="o">=</span><span class="s">"number"</span>
+                    <span class="na">step</span><span class="o">=</span><span class="s">"0.01"</span>
+                    <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.price"</span>
+                    <span class="na">required</span>
+                    <span class="na">placeholder</span><span class="o">=</span><span class="s">"Enter price"</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">b-form-input</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-form-group</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-read-group"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">b-form-checkbox-group</span> <span class="na">v-model</span><span class="o">=</span><span class="s">"addBookForm.read"</span> <span class="na">id</span><span class="o">=</span><span class="s">"form-checks"</span><span class="p">&gt;</span>
+          <span class="p">&lt;</span><span class="nt">b-form-checkbox</span> <span class="na">value</span><span class="o">=</span><span class="s">"true"</span><span class="p">&gt;</span>Read?<span class="p">&lt;/</span><span class="nt">b-form-checkbox</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">b-form-checkbox-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-form-group</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">b-button-group</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"primary"</span><span class="p">&gt;</span>Submit<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">b-button</span> <span class="na">type</span><span class="o">=</span><span class="s">"reset"</span> <span class="na">variant</span><span class="o">=</span><span class="s">"danger"</span><span class="p">&gt;</span>Reset<span class="p">&lt;/</span><span class="nt">b-button</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">b-button-group</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">b-form</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">b-modal</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>然后，将<code>price</code>添加到状态:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">addBookForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">  </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>状态现在被绑定到表单的输入值。想想这意味着什么。当状态被更新时，表单输入也将被更新，反之亦然。下面是一个使用<a href="https://github.com/vuejs/vue-devtools"> vue-devtools </a>浏览器扩展的例子:</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue-stripe/state_model_bind.gif" loading="lazy" class="lazyload" alt="state model bind" src="../Images/21a9b691d8077e0cfd785c8a67587069.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue-stripe/state_model_bind.gif"/></p>
+<p>将<code>price</code>添加到<code>onSubmit</code>方法中的<code>payload</code>中，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">onSubmit</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">evt</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">$refs</span><span class="p">.</span><span class="nx">addBookModal</span><span class="p">.</span><span class="nx">hide</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">read</span><span class="p">[</span><span class="mf">0</span><span class="p">])</span><span class="w"> </span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">author</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">read</span><span class="p">,</span><span class="w"> </span><span class="c1">// property shorthand</span><span class="w"/>
+<span class="w">    </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">price</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBook</span><span class="p">(</span><span class="nx">payload</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">initForm</span><span class="p">();</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>在最终用户提交表单或点击“重置”按钮后，更新<code>initForm</code>以清除值:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">initForm</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">addBookForm</span><span class="p">.</span><span class="nx">price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">''</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">editForm</span><span class="p">.</span><span class="nx">read</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>最后，更新<em> server/app.py </em>中的路线:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/books'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">all_books</span><span class="p">():</span>
+    <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">:</span> <span class="s1">'success'</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+        <span class="n">post_data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
+        <span class="n">BOOKS</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s1">'id'</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+            <span class="s1">'title'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'title'</span><span class="p">),</span>
+            <span class="s1">'author'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'author'</span><span class="p">),</span>
+            <span class="s1">'read'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'read'</span><span class="p">),</span>
+            <span class="s1">'price'</span><span class="p">:</span> <span class="n">post_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'price'</span><span class="p">)</span>
+        <span class="p">})</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Book added!'</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">response_object</span><span class="p">[</span><span class="s1">'books'</span><span class="p">]</span> <span class="o">=</span> <span class="n">BOOKS</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">response_object</span><span class="p">)</span>
+</code></pre></div>
+
+<p>测试一下！</p>
+<p><img data-src="/static/images/gifs/blog/flask-vue-stripe/add_book.gif" loading="lazy" class="lazyload" alt="add book" src="../Images/67117f86bd6123daefe916f856913955.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue-stripe/add_book.gif"/></p>
+<blockquote>
+<p>不要忘记处理客户端和服务器端的错误！</p>
+</blockquote>
+<h3 id="put">放</h3>
+<p>编辑一本书时，自己做同样的事情:</p>
+<ol>
+<li>向模式添加新的表单输入</li>
+<li>状态更新<code>editForm</code></li>
+<li>在<code>onSubmitUpdate</code>方法中，将<code>price</code>添加到<code>payload</code>中</li>
+<li>更新<code>initForm</code></li>
+<li>更新服务器端路由</li>
+</ol>
+<blockquote>
+<p>需要帮助吗？再次回顾前一节。你也可以从<a href="https://github.com/testdrivenio/flask-vue-stripe"> flask-vue-stripe </a> repo中抓取最终代码。</p>
+</blockquote>
+<h2 id="purchase-button">购买按钮</h2>
+<p>在<code>Books</code>组件中添加一个“购买”按钮，就在“删除”按钮的下面:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn-group"</span> <span class="na">role</span><span class="o">=</span><span class="s">"group"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span>
+            <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-warning btn-sm"</span>
+            <span class="na">v-b-modal</span><span class="err">.</span><span class="na">book-update-modal</span>
+            <span class="err">@</span><span class="na">click</span><span class="o">=</span><span class="s">"editBook(book)"</span><span class="p">&gt;</span>
+        Update
+    <span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span>
+            <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-danger btn-sm"</span>
+            <span class="err">@</span><span class="na">click</span><span class="o">=</span><span class="s">"onDeleteBook(book)"</span><span class="p">&gt;</span>
+        Delete
+    <span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"button"</span>
+            <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary btn-sm"</span>
+            <span class="err">@</span><span class="na">click</span><span class="o">=</span><span class="s">"purchaseBook(book.id)"</span><span class="p">&gt;</span>
+        Purchase
+    <span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>接下来，将<code>purchaseBook</code>添加到组件的<code>methods</code>中:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">purchaseBook</span><span class="p">(</span><span class="nx">bookId</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">bookId</span><span class="p">);</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>测试一下:</p>
+<p><img data-src="/static/images/blog/flask-vue-stripe/purchase_button.png" loading="lazy" class="lazyload" alt="purchase button" src="../Images/bcab44612e67f4921d9df955b8a8db78.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue-stripe/purchase_button.png"/></p>
+<h2 id="stripe-keys">条纹钥匙</h2>
+<p>注册一个<a href="https://stripe.com"> Stripe </a>账户，如果你还没有的话。</p>
+<h3 id="server">计算机网络服务器</h3>
+<p>安装条带Python库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">stripe</span><span class="o">==</span><span class="m">2</span>.55.1
+</code></pre></div>
+
+<p>从Stripe仪表盘中抓取<em>测试模式</em> <a href="https://stripe.com/docs/keys"> API键</a>:</p>
+<p><img data-src="/static/images/blog/flask-vue-stripe/stripe_dashboard_keys.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/3af4b98fcf0a1169484a7bc2372d97a0.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue-stripe/stripe_dashboard_keys.png"/></p>
+<p>在运行服务器的终端窗口中将它们设置为环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ <span class="nb">export</span> <span class="nv">STRIPE_PUBLISHABLE_KEY</span><span class="o">=</span>&lt;YOUR_STRIPE_PUBLISHABLE_KEY&gt;
+<span class="o">(</span>env<span class="o">)</span>$ <span class="nb">export</span> <span class="nv">STRIPE_SECRET_KEY</span><span class="o">=</span>&lt;YOUR_STRIPE_SECRET_KEY&gt;
+</code></pre></div>
+
+<p>将条带库导入到<em> server/app.py </em>中，并将密钥分配给<code>stripe.api_key</code>，以便在与API交互时自动使用它们:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+
+<span class="kn">import</span> <span class="nn">stripe</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">request</span>
+<span class="kn">from</span> <span class="nn">flask_cors</span> <span class="kn">import</span> <span class="n">CORS</span>
+
+
+<span class="o">...</span>
+
+
+<span class="c1"># configuration</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="c1"># instantiate the app</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">from_object</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># configure stripe</span>
+<span class="n">stripe_keys</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'secret_key'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'STRIPE_SECRET_KEY'</span><span class="p">],</span>
+    <span class="s1">'publishable_key'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'STRIPE_PUBLISHABLE_KEY'</span><span class="p">],</span>
+<span class="p">}</span>
+
+<span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">stripe_keys</span><span class="p">[</span><span class="s1">'secret_key'</span><span class="p">]</span>
+
+<span class="c1"># enable CORS</span>
+<span class="n">CORS</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="sa">r</span><span class="s1">'/*'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'origins'</span><span class="p">:</span> <span class="s1">'*'</span><span class="p">}})</span>
+
+
+<span class="o">...</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>接下来，添加一个返回可发布密钥的新路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/config'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_publishable_key</span><span class="p">():</span>
+    <span class="n">stripe_config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'publicKey'</span><span class="p">:</span> <span class="n">stripe_keys</span><span class="p">[</span><span class="s1">'publishable_key'</span><span class="p">]}</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">stripe_config</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这将在客户端用于配置Stripe.js库。</p>
+<h3 id="client">客户</h3>
+<p>转向客户端，将<a href="https://stripe.com/docs/js"> Stripe.js </a>添加到<em> client/public/index.html </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">""</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">http-equiv</span><span class="o">=</span><span class="s">"X-UA-Compatible"</span> <span class="na">content</span><span class="o">=</span><span class="s">"IE=edge"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width,initial-scale=1.0"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"icon"</span> <span class="na">href</span><span class="o">=</span><span class="s">"&lt;%= BASE_URL %&gt;favicon.ico"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span><span class="err">&lt;</span>%= htmlWebpackPlugin.options.title %&gt;<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://js.stripe.com/v3/"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">noscript</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">strong</span><span class="p">&gt;</span>We're sorry but <span class="err">&lt;</span>%= htmlWebpackPlugin.options.title %&gt; doesn't work properly without JavaScript enabled. Please enable it to continue.<span class="p">&lt;/</span><span class="nt">strong</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">noscript</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">id</span><span class="o">=</span><span class="s">"app"</span><span class="p">&gt;&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="cm">&lt;!-- built files will be auto injected --&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>接下来，向名为<code>getStripePublishableKey</code>的<code>Books</code>组件添加一个新方法:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">getStripePublishableKey</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">fetch</span><span class="p">(</span><span class="s1">'http://localhost:5000/config'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// Initialize Stripe.js</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">stripe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">Stripe</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">publicKey</span><span class="p">);</span><span class="w"> </span><span class="c1">// eslint-disable-line no-undef</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>在<code>created</code>钩子中调用这个方法:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">created</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">getBooks</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="k">this</span><span class="p">.</span><span class="nx">getStripePublishableKey</span><span class="p">();</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，在创建实例之后，将调用<code>http://localhost:5000/config</code>，它将使用Stripe publish key进行响应。然后，我们将使用这个键创建Stripe.js的新实例。</p>
+<blockquote>
+<p>发货到生产？您将希望使用一个环境变量来动态设置基本的服务器端URL(当前是<code>http://localhost:5000</code>)。查看<a href="https://vuejs-templates.github.io/webpack/env.html">文档</a>了解更多信息。</p>
+</blockquote>
+<p>将<code>stripe</code>添加到“状态:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">data</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">books</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">    </span><span class="nx">addBookForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">showMessage</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">editForm</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">author</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">read</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"/>
+<span class="w">      </span><span class="nx">price</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">stripe</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="stripe-checkout">条带检验</h2>
+<p>接下来，我们需要在服务器端生成一个新的签出会话ID。单击购买按钮后，一个AJAX请求将被发送到服务器以生成这个ID。服务器将发送回ID，用户将被重定向到收银台。</p>
+<h3 id="server_1">计算机网络服务器</h3>
+<p>添加以下路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/create-checkout-session'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">create_checkout_session</span><span class="p">():</span>
+    <span class="n">domain_url</span> <span class="o">=</span> <span class="s1">'http://localhost:8080'</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="c1"># get book</span>
+        <span class="n">book_to_purchase</span> <span class="o">=</span> <span class="s1">''</span>
+        <span class="k">for</span> <span class="n">book</span> <span class="ow">in</span> <span class="n">BOOKS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]</span> <span class="o">==</span> <span class="n">data</span><span class="p">[</span><span class="s1">'book_id'</span><span class="p">]:</span>
+                <span class="n">book_to_purchase</span> <span class="o">=</span> <span class="n">book</span>
+
+        <span class="c1"># create new checkout session</span>
+        <span class="n">checkout_session</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">checkout</span><span class="o">.</span><span class="n">Session</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">success_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span>
+            <span class="s1">'/success?session_id=</span><span class="si">{CHECKOUT_SESSION_ID}</span><span class="s1">'</span><span class="p">,</span>
+            <span class="n">cancel_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s1">'/canceled'</span><span class="p">,</span>
+            <span class="n">payment_method_types</span><span class="o">=</span><span class="p">[</span><span class="s1">'card'</span><span class="p">],</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s1">'payment'</span><span class="p">,</span>
+            <span class="n">line_items</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s1">'name'</span><span class="p">:</span> <span class="n">book_to_purchase</span><span class="p">[</span><span class="s1">'title'</span><span class="p">],</span>
+                    <span class="s1">'quantity'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="s1">'currency'</span><span class="p">:</span> <span class="s1">'usd'</span><span class="p">,</span>
+                    <span class="s1">'amount'</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">book_to_purchase</span><span class="p">[</span><span class="s1">'price'</span><span class="p">])</span> <span class="o">*</span> <span class="mi">100</span><span class="p">),</span>
+                <span class="p">}</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">'sessionId'</span><span class="p">:</span> <span class="n">checkout_session</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]})</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)),</span> <span class="mi">403</span>
+</code></pre></div>
+
+<p>在这里，我们-</p>
+<ol>
+<li>定义了一个<code>domain_url</code>，用于在购买完成后将用户重定向回客户端</li>
+<li>获得图书信息</li>
+<li>创建了签出会话</li>
+<li>在响应中发回了ID</li>
+</ol>
+<p>记下<code>success_url</code>和<code>cancel_url</code>。在成功支付或取消的情况下，用户将分别被重定向回这些URL。我们将很快在客户端设置<code>/success</code>和<code>/cancelled</code>路线。</p>
+<p>另外，你注意到我们通过<code>round(float(book_to_purchase['price']) * 100)</code>把浮点数转换成整数了吗？Stripe只允许价格的整数值。对于生产代码，您可能希望将价格作为整数值存储在数据库中——例如，$3.99应该存储为<code>399</code>。</p>
+<p>将导入添加到顶部:</p>
+
+
+<h3 id="client_1">客户</h3>
+<p>在客户端，更新<code>purchaseBook</code>方法:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">purchaseBook</span><span class="p">(</span><span class="nx">bookId</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Get Checkout Session ID</span><span class="w"/>
+<span class="w">  </span><span class="nx">fetch</span><span class="p">(</span><span class="s1">'http://localhost:5000/create-checkout-session'</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">'POST'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="s1">'Content-Type'</span><span class="o">:</span><span class="w"> </span><span class="s1">'application/json'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">book_id</span><span class="o">:</span><span class="w"> </span><span class="nx">bookId</span><span class="w"> </span><span class="p">}),</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="c1">// Redirect to Stripe Checkout</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">stripe</span><span class="p">.</span><span class="nx">redirectToCheckout</span><span class="p">({</span><span class="w"> </span><span class="nx">sessionId</span><span class="o">:</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">sessionId</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">res</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，在解析了<code>result.json()</code>承诺之后，我们调用了<a href="https://stripe.com/docs/js/checkout/redirect_to_checkout"> redirectToCheckout </a>方法，该方法带有来自已解析承诺的结帐会话ID。</p>
+<p>让我们来测试一下。导航到<a href="http://localhost:8080"> http://localhost:8080 </a>。单击其中一个购买按钮。您将被重定向到一个Stripe Checkout实例(一个Stripe托管页面，用于安全收集支付信息),其中包含基本产品信息:</p>
+<p><img data-src="/static/images/blog/flask-vue-stripe/checkout.png" loading="lazy" class="lazyload" alt="stripe checkout" src="../Images/11b9b15e628301bff04877c9da275d8c.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue-stripe/checkout.png"/></p>
+<p>您可以使用Stripe提供的几个<a href="https://stripe.com/docs/testing#cards">测试卡号</a>中的一个来测试表单。还是用<code>4242 4242 4242 4242</code>吧。</p>
+<ul>
+<li>电子邮件:有效的电子邮件</li>
+<li>卡号:<code>4242 4242 4242 4242</code></li>
+<li>到期日:未来的任何日期</li>
+<li>CVC:任何三个数字</li>
+<li>名称:任何东西</li>
+<li>邮政编码:任意五个数字</li>
+</ul>
+<p>应该可以成功处理支付，但是重定向会失败，因为我们还没有设置<code>/success</code>路线。</p>
+<p>您应该会在<a href="https://dashboard.stripe.com/">条纹仪表盘</a>中看到购买信息:</p>
+<p><img data-src="/static/images/blog/flask-vue-stripe/stripe_dashboard_payments.png" loading="lazy" class="lazyload" alt="stripe dashboard" src="../Images/152d011335d24b02ece6db86ab1bcdd7.png" data-original-src="https://testdriven.io/static/images/blog/flask-vue-stripe/stripe_dashboard_payments.png"/></p>
+<h2 id="redirect-pages">重定向页面</h2>
+<p>最后，让我们设置用于处理成功支付或取消的路由和组件。</p>
+<h3 id="success">成功</h3>
+<p>当支付成功时，我们会将用户重定向到订单完成页面，感谢他们进行购买。</p>
+<p>将名为<em> OrderSuccess.vue </em>的新组件文件添加到“client/src/components”中:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"row"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-sm-10"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Thanks for purchasing!<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">hr</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">router-link</span> <span class="na">to</span><span class="o">=</span><span class="s">"/"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary btn-sm"</span><span class="p">&gt;</span>Back Home<span class="p">&lt;/</span><span class="nt">router-link</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>更新<em>客户端/src/路由器</em>中的路由器:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Vue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Router</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue-router'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Books</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/Books.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">OrderSuccess</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/OrderSuccess.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Ping</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/Ping.vue'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">Vue</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span><span class="nx">Router</span><span class="p">);</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Router</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">mode</span><span class="o">:</span><span class="w"> </span><span class="s1">'history'</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">base</span><span class="o">:</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">BASE_URL</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">routes</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Books'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">Books</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">Ping</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/success'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'OrderSuccess'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">OrderSuccess</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">],</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p><img data-src="/static/images/gifs/blog/flask-vue-stripe/final.gif" loading="lazy" class="lazyload" alt="final app" src="../Images/86d3239e5ce63304daba077fa5a26e40.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-vue-stripe/final.gif"/></p>
+<p>最后，您可以使用<code>session_id</code>查询参数显示关于购买的信息:</p>
+<div class="codehilite"><pre><span/><code>http://localhost:8080/success?session_id=cs_test_a1qw4pxWK9mF2SDvbiQXqg5quq4yZYUvjNkqPq1H3wbUclXOue0hES6lWl
+</code></pre></div>
+
+<p>您可以像这样访问它:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span><span class="w"/>
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">mounted</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">$route</span><span class="p">.</span><span class="nx">query</span><span class="p">.</span><span class="nx">session_id</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>从这里开始，您需要在服务器端设置一个路由处理器，通过<code>stripe.checkout.Session.retrieve(id)</code>查找会话信息。自己尝试一下。</p>
+<h3 id="cancellation">取消</h3>
+<p>对于<code>/canceled</code>重定向，添加一个名为<em>client/src/components/order canceled . vue</em>的新组件:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"row"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"col-sm-10"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Your payment was cancelled.<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">hr</span><span class="p">&gt;&lt;</span><span class="nt">br</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">router-link</span> <span class="na">to</span><span class="o">=</span><span class="s">"/"</span> <span class="na">class</span><span class="o">=</span><span class="s">"btn btn-primary btn-sm"</span><span class="p">&gt;</span>Back Home<span class="p">&lt;/</span><span class="nt">router-link</span><span class="p">&gt;</span>
+      <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>然后，更新路由器:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Vue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Router</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vue-router'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Books</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/Books.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">OrderCanceled</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/OrderCanceled.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">OrderSuccess</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/OrderSuccess.vue'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Ping</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../components/Ping.vue'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">Vue</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span><span class="nx">Router</span><span class="p">);</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Router</span><span class="p">({</span><span class="w"/>
+<span class="w">  </span><span class="nx">mode</span><span class="o">:</span><span class="w"> </span><span class="s1">'history'</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">base</span><span class="o">:</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">BASE_URL</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">routes</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Books'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">Books</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'Ping'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">Ping</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/success'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'OrderSuccess'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">OrderSuccess</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">'/canceled'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'OrderCanceled'</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="nx">OrderCanceled</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">],</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>最后一次测试。</p>
+<h2 id="conclusion">结论</h2>
+<p>就是这样！确保从头开始回顾目标。你可以在GitHub上的<a href="https://github.com/testdrivenio/flask-vue-stripe"> flask-vue-stripe </a> repo中找到最终代码。</p>
+<p>想要更多吗？</p>
+<ol>
+<li>添加客户端和服务器端单元和集成测试。</li>
+<li>创建一个购物车，以便客户可以一次购买多本书。</li>
+<li>添加Postgres来存储书籍和订单。</li>
+<li>用Docker将Vue和Flask(以及Postgres，如果你添加的话)容器化，以简化开发工作流程。</li>
+<li>将图片添加到书籍中，并创建一个更强大的产品页面。</li>
+<li>捕获电子邮件并发送电子邮件确认(查看<a href="/sending-confirmation-emails-with-flask-rq-and-ses">使用Flask、Redis Queue和Amazon SES发送确认电子邮件</a>)。</li>
+<li>将客户端静态文件部署到AWS S3，将服务器端应用程序部署到EC2实例。</li>
+<li>投产？思考更新条带键的最佳方式，以便它们可以根据环境动态变化。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

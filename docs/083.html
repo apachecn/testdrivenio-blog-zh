@@ -1,0 +1,181 @@
+<html>
+<head>
+<title>Automatically Retrying Failed Celery Tasks </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>自动重试失败的芹菜任务</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/retrying-failed-celery-tasks/#0001-01-01">https://testdriven.io/blog/retrying-failed-celery-tasks/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本文中，我们将看看如何自动重试失败的芹菜任务。</p>
+<blockquote>
+<p>姜戈+芹菜系列:</p>
+<ol>
+<li>与Django和Celery的异步任务</li>
+<li><a href="/blog/django-celery-periodic-tasks/">在Django用芹菜和码头工人处理定期任务</a></li>
+<li><a href="/blog/retrying-failed-celery-tasks/">自动重试失败的芹菜任务</a>(本文！)</li>
+<li><a href="/blog/celery-database-transactions/">处理芹菜和数据库事务</a></li>
+</ol>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>阅读后，您应该能够:</p>
+<ol>
+<li>使用<code>retry</code>方法和装饰器参数重试失败的芹菜任务</li>
+<li>重试失败的任务时使用指数补偿</li>
+<li>使用基于类的任务来重用重试参数</li>
+</ol>
+<h2 id="celery-task">芹菜任务</h2>
+<blockquote>
+<p>你可以在<a href="https://github.com/testdrivenio/django-celery-project"> GitHub </a>上找到这篇文章的源代码。</p>
+</blockquote>
+<p>假设我们有这样一个芹菜任务:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span>
+<span class="k">def</span> <span class="nf">task_process_notification</span><span class="p">():</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]):</span>
+        <span class="c1"># mimic random error</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+
+    <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'https://httpbin.org/delay/5'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在现实世界中，这可能会调用内部或外部的第三方服务。不考虑服务，假设它是非常不可靠的，尤其是在高峰期。我们如何处理失败？</p>
+<blockquote>
+<p>值得注意的是，许多芹菜初学者对为什么有些文章使用<code>app.task</code>而有些文章使用<code>shared_task</code>感到困惑。嗯，<code>shared_task</code>让您定义Celery任务，而不必导入Celery实例，这样可以使您的任务代码更加可重用。</p>
+</blockquote>
+<h2 id="solution-1-use-a-tryexcept-block">解决方案1:使用Try/Except块</h2>
+<p>我们可以使用try/except块来捕捉异常并引发<code>retry</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">task_process_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]):</span>
+            <span class="c1"># mimic random error</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+
+        <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'https://httpbin.org/delay/5'</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">'exception raised, it would be retry after 5 seconds'</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="bp">self</span><span class="o">.</span><span class="n">retry</span><span class="p">(</span><span class="n">exc</span><span class="o">=</span><span class="n">e</span><span class="p">,</span> <span class="n">countdown</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>由于我们将<code>bind</code>设置为<code>True</code>，这是一个<a href="https://docs.celeryq.dev/en/latest/userguide/tasks.html#bound-tasks">绑定的</a>任务，因此任务的第一个参数将始终是当前任务实例(<code>self</code>)。正因为如此，我们可以调用<code>self.retry</code>来重试失败的任务。</li>
+<li>请记住<code>raise</code>由<code>self.retry</code>方法返回的异常以使其工作。</li>
+<li>通过将<code>countdown</code>参数设置为5，任务将在延迟5秒后重试。</li>
+</ol>
+<p>让我们在Python shell中运行下面的代码:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span> <span class="nn">polls.tasks</span> <span class="kn">import</span> <span class="n">task_process_notification</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">task_process_notification</span><span class="o">.</span><span class="n">delay</span><span class="p">()</span>
+</code></pre></div>
+
+<p>您应该会在Celery worker终端输出中看到如下输出:</p>
+<div class="codehilite"><pre><span/><code>Task polls.tasks.task_process_notification<span class="o">[</span>06e1f985-90d4-4453-9870-fab57c5885c4<span class="o">]</span> retry: Retry <span class="k">in</span> 5s: Exception<span class="o">()</span>
+Task polls.tasks.task_process_notification<span class="o">[</span>06e1f985-90d4-4453-9870-fab57c5885c4<span class="o">]</span> retry: Retry <span class="k">in</span> 5s: Exception<span class="o">()</span>
+Task polls.tasks.task_process_notification<span class="o">[</span>06e1f985-90d4-4453-9870-fab57c5885c4<span class="o">]</span> succeeded <span class="k">in</span> <span class="m">3</span>.3638455480104312s: None
+</code></pre></div>
+
+<p>可以看到，芹菜任务失败了两次，第三次成功了。</p>
+<h2 id="solution-2-task-retry-decorator">解决方案2:任务重试装饰器</h2>
+<p>Celery <a href="https://docs.celeryq.dev/en/latest/history/whatsnew-4.0.html#task-auto-retry-decorator"> 4.0 </a>增加了对重试的内置支持，因此您可以让异常冒泡并在装饰器中指定如何处理它:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">autoretry_for</span><span class="o">=</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,),</span> <span class="n">retry_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'max_retries'</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s1">'countdown'</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">task_process_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]):</span>
+        <span class="c1"># mimic random error</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+
+    <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'https://httpbin.org/delay/5'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li><code>autoretry_for</code>获取您想要重试的异常类型的列表/元组。</li>
+<li><code>retry_kwargs</code>获取附加<a href="https://docs.celeryq.dev/en/latest/userguide/tasks.html#list-of-options">选项</a>的字典，用于指定如何执行自动重试。在上面的例子中，任务将在5秒钟的延迟后重试(通过<code>countdown</code>)，并且最多允许7次重试尝试(通过<code>max_retries</code>)。芹菜将在7次尝试失败后停止重试，并引发异常。</li>
+</ol>
+<h2 id="exponential-backoff">指数后退</h2>
+<p>如果您的芹菜任务需要向第三方服务发送请求，那么使用<a href="https://en.wikipedia.org/wiki/Exponential_backoff">指数回退</a>来避免服务不堪重负是个好主意。</p>
+<p>Celery默认支持这一点:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">autoretry_for</span><span class="o">=</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,),</span> <span class="n">retry_backoff</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">retry_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'max_retries'</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">task_process_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]):</span>
+        <span class="c1"># mimic random error</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+
+    <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'https://httpbin.org/delay/5'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在此示例中，第一次重试应该在1秒后运行，第二次在2秒后运行，第三次在4秒后运行，第四次在8秒后运行，依此类推:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span><span class="m">02</span>:09:59,014: INFO/ForkPoolWorker-8<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>fbe041b6-e6c1-453d-9cc9-cb99236df6ff<span class="o">]</span> retry: Retry <span class="k">in</span> 1s: Exception<span class="o">()</span>
+<span class="o">[</span><span class="m">02</span>:10:00,210: INFO/ForkPoolWorker-2<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>fbe041b6-e6c1-453d-9cc9-cb99236df6ff<span class="o">]</span> retry: Retry <span class="k">in</span> 2s: Exception<span class="o">()</span>
+<span class="o">[</span><span class="m">02</span>:10:02,291: INFO/ForkPoolWorker-4<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>fbe041b6-e6c1-453d-9cc9-cb99236df6ff<span class="o">]</span> retry: Retry <span class="k">in</span> 4s: Exception<span class="o">()</span>
+</code></pre></div>
+
+<p>您也可以将<code>retry_backoff</code>设置为一个数字，用作延迟因子:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">autoretry_for</span><span class="o">=</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,),</span> <span class="n">retry_backoff</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">retry_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'max_retries'</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">task_process_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]):</span>
+        <span class="c1"># mimic random error</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+
+    <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'https://httpbin.org/delay/5'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span><span class="m">02</span>:21:45,887: INFO/ForkPoolWorker-8<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>6a0b2682-74f5-410b-af1e-352069238f3d<span class="o">]</span> retry: Retry <span class="k">in</span> 5s: Exception<span class="o">()</span>
+<span class="o">[</span><span class="m">02</span>:21:55,170: INFO/ForkPoolWorker-2<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>6a0b2682-74f5-410b-af1e-352069238f3d<span class="o">]</span> retry: Retry <span class="k">in</span> 10s: Exception<span class="o">()</span>
+<span class="o">[</span><span class="m">02</span>:22:15,706: INFO/ForkPoolWorker-4<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>6a0b2682-74f5-410b-af1e-352069238f3d<span class="o">]</span> retry: Retry <span class="k">in</span> 20s: Exception<span class="o">()</span>
+<span class="o">[</span><span class="m">02</span>:22:55,450: INFO/ForkPoolWorker-6<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>6a0b2682-74f5-410b-af1e-352069238f3d<span class="o">]</span> retry: Retry <span class="k">in</span> 40s: Exception<span class="o">()</span>
+</code></pre></div>
+
+<p>默认情况下，指数补偿还会引入<a href="https://docs.celeryq.dev/en/stable/userguide/tasks.html#Task.retry_jitter">随机抖动</a>，以避免所有任务同时运行。</p>
+<h2 id="randomness">随机性</h2>
+<p>当您为Celery任务(需要向另一个服务发送请求)构建自定义重试策略时，您应该在延迟计算中添加一些随机性，以防止所有任务同时执行导致<a href="https://en.wikipedia.org/wiki/Thundering_herd_problem">蜂拥</a>。</p>
+<p>芹菜也给你盖上了<code>retry_jitter</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@shared_task</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">autoretry_for</span><span class="o">=</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,),</span> <span class="n">retry_backoff</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">retry_jitter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">retry_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'max_retries'</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+<span class="k">def</span> <span class="nf">task_process_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]):</span>
+        <span class="c1"># mimic random error</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+
+    <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'https://httpbin.org/delay/5'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>该选项默认设置为<code>True</code>，这有助于防止当您使用Celery的内置<code>retry_backoff</code>时出现雷群问题。</p>
+<h2 id="task-base-class">任务基类</h2>
+<p>如果您发现自己在Celery任务装饰器中编写了相同的重试参数，您可以(从Celery <a href="https://docs.celeryq.dev/en/v4.4.4/whatsnew-4.4.html#task-class-definitions-can-now-have-retry-attributes"> 4.4 </a>开始)在一个基类中定义重试参数，然后您可以将它用作Celery任务中的基类:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">BaseTaskWithRetry</span><span class="p">(</span><span class="n">celery</span><span class="o">.</span><span class="n">Task</span><span class="p">):</span>
+    <span class="n">autoretry_for</span> <span class="o">=</span> <span class="p">(</span><span class="ne">Exception</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">)</span>
+    <span class="n">retry_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'max_retries'</span><span class="p">:</span> <span class="mi">5</span><span class="p">}</span>
+    <span class="n">retry_backoff</span> <span class="o">=</span> <span class="kc">True</span>
+
+
+<span class="nd">@shared_task</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="n">BaseTaskWithRetry</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">task_process_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+</code></pre></div>
+
+<p>因此，如果您在Python shell中运行该任务，您将看到以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span><span class="m">03</span>:12:29,002: INFO/ForkPoolWorker-8<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>3231ef9b-00c7-4ab1-bf0b-2fdea6fa8348<span class="o">]</span> retry: Retry <span class="k">in</span> 1s: Exception<span class="o">()</span>
+<span class="o">[</span><span class="m">03</span>:12:30,445: INFO/ForkPoolWorker-8<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>3231ef9b-00c7-4ab1-bf0b-2fdea6fa8348<span class="o">]</span> retry: Retry <span class="k">in</span> 2s: Exception<span class="o">()</span>
+<span class="o">[</span><span class="m">03</span>:12:33,080: INFO/ForkPoolWorker-8<span class="o">]</span> Task polls.tasks.task_process_notification<span class="o">[</span>3231ef9b-00c7-4ab1-bf0b-2fdea6fa8348<span class="o">]</span> retry: Retry <span class="k">in</span> 3s: Exception<span class="o">()</span>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>在这篇芹菜文章中，我们研究了如何自动重试失败的芹菜任务。</p>
+<p>同样，本文的源代码可以在<a href="https://github.com/testdrivenio/django-celery-project"> GitHub </a>上找到。</p>
+<p>感谢您的阅读。如果您有任何问题，请随时<a href="/authors/yin/">联系我</a>。</p>
+<blockquote>
+<p>姜戈+芹菜系列:</p>
+<ol>
+<li>与Django和Celery的异步任务</li>
+<li><a href="/blog/django-celery-periodic-tasks/">在Django用芹菜和码头工人处理定期任务</a></li>
+<li><a href="/blog/retrying-failed-celery-tasks/">自动重试失败的芹菜任务</a>(本文！)</li>
+<li><a href="/blog/celery-database-transactions/">处理芹菜和数据库事务</a></li>
+</ol>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

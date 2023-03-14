@@ -1,0 +1,656 @@
+<html>
+<head>
+<title>Documenting Python Code and Projects </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>记录Python代码和项目</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/documenting-python/#0001-01-01">https://testdriven.io/blog/documenting-python/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>为什么您需要记录您的Python代码？你的项目文档应该包括什么？你如何编写和生成文档？</p>
+<p>文档是软件开发的重要组成部分。没有适当的文档，内部和外部的涉众很难或者不可能使用和/或维护您的代码。这也使得招募新的开发者变得更加困难。更进一步说，如果没有一种记录和学习的文化，你将会一次又一次地犯同样的错误。不幸的是，许多开发人员将文档视为事后的想法——就像黑胡椒一样，没有经过太多的考虑。</p>
+<p>本文着眼于为什么您应该记录您的Python代码，以及如何着手去做。</p>
+<blockquote>
+<p><a href="/guides/complete-python/">完整Python </a>指南:</p>
+<ol>
+<li><a href="/blog/python-environments/">现代Python环境——依赖性和工作空间管理</a></li>
+<li><a href="/blog/testing-python/">Python中的测试</a></li>
+<li><a href="/blog/modern-tdd/">Python中的现代测试驱动开发</a></li>
+<li><a href="/blog/python-code-quality/"> Python代码质量</a></li>
+<li><a href="/blog/python-type-checking/"> Python类型检查</a></li>
+<li><a href="/blog/documenting-python/">记录Python代码和项目</a>(本文！)</li>
+<li><a href="/blog/python-project-workflow/"> Python项目工作流程</a></li>
+</ol>
+</blockquote>
+
+
+
+
+<p>代码注释和文档有什么区别？</p>
+<p>文档是一个独立的资源，可以帮助其他人使用你的API、包、库或框架，而不必阅读源代码。另一方面，注释是为阅读你的源代码的开发者准备的。文档是应该一直存在的东西，但是注释就不一样了。拥有它们很好，但不是必须的。文档应该告诉其他人<em>如何</em>和<em>何时</em>使用某物，而注释应该回答<em>为什么</em>的问题:</p>
+<ol>
+<li>为什么要这样做？</li>
+<li>为什么这是这里而不是那里？</li>
+</ol>
+<p>哪些问题应该由你的干净代码来回答:</p>
+<ol>
+<li>这是什么？</li>
+<li>这个方法是做什么的？</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>答案</th>
+<th>利益相关者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>证明文件</td>
+<td>何时和如何</td>
+<td>用户</td>
+</tr>
+<tr>
+<td>代码注释</td>
+<td>为什么</td>
+<td>开发商</td>
+</tr>
+<tr>
+<td>干净的代码</td>
+<td>什么</td>
+<td>开发商</td>
+</tr>
+</tbody>
+</table>
+<h2 id="docstrings">文档字符串</h2>
+<p>正如<a href="https://www.python.org/dev/peps/pep-0257/"> PEP-257 </a>所规定的，Python <a href="https://docs.python.org/3/tutorial/controlflow.html#documentation-strings">文档字符串</a>(或docstring)是一种特殊的“作为模块、函数、类或方法定义中的第一条语句出现的字符串文字”来形成给定对象的<code>__doc__</code>属性。它允许您将文档直接嵌入到源代码中。</p>
+<p>例如，假设您有一个名为<em> temperature.py </em>的模块，它有一个计算日平均温度的函数。使用docstrings，您可以像这样记录它:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""</span>
+<span class="sd">The temperature module: Manipulate your temperature easily</span>
+
+<span class="sd">Easily calculate daily average temperature</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+
+<span class="k">class</span> <span class="nc">HighTemperature</span><span class="p">:</span>
+    <span class="sd">"""Class representing very high temperatures"""</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        :param value: value of temperature</span>
+<span class="sd">        """</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+
+<span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    Get average daily temperature</span>
+
+<span class="sd">    Calculate average temperature from multiple measurements</span>
+
+<span class="sd">    :param temperatures: list of temperatures</span>
+<span class="sd">    :return: average temperature</span>
+<span class="sd">    """</span>
+
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>您可以通过访问<code>__doc__</code>属性来查看为<code>daily_average</code>函数指定的文档字符串:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span> <span class="nn">temperature</span> <span class="kn">import</span> <span class="n">daily_average</span>
+<span class="o">&gt;&gt;&gt;</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="nb">print</span><span class="p">(</span><span class="n">daily_average</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+
+    <span class="n">Get</span> <span class="n">average</span> <span class="n">daily</span> <span class="n">temperature</span>
+
+    <span class="p">:</span><span class="n">param</span> <span class="n">temperatures</span><span class="p">:</span> <span class="nb">list</span> <span class="n">of</span> <span class="n">temperatures</span>
+    <span class="p">:</span><span class="k">return</span><span class="p">:</span> <span class="n">average</span> <span class="n">temperature</span>
+</code></pre></div>
+
+<p>您还可以通过使用内置的<a href="https://docs.python.org/3/library/functions.html#help"> help </a>函数来查看完整的模块级文档字符串:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span> <span class="nn">temperature</span>
+<span class="o">&gt;&gt;&gt;</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">help</span><span class="p">(</span><span class="n">temperature</span><span class="p">)</span>
+</code></pre></div>
+
+<p>值得注意的是，您可以使用带有内置关键字(int、float、def等等)、类、函数和模块的<code>help</code>函数。</p>
+<h3 id="single-vs-multi-line">单线与多线</h3>
+<p>文档字符串可以是单行或多行。无论哪种方式，第一行总是被视为摘要。<a href="https://www.python.org/dev/peps/pep-0257/#multi-line-docstrings">摘要行</a>可能会被自动索引工具使用，所以它适合一行是很重要的。当使用单行文档字符串时，所有内容都应该在同一行:开始引号、摘要和结束引号。</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">HighTemperature</span><span class="p">:</span>
+    <span class="sd">"""Class representing very high temperatures"""</span>
+
+    <span class="c1"># code starts here</span>
+</code></pre></div>
+
+<p>当使用多行文档字符串时，结构是这样的:开始引号、摘要、空行、更详细的描述和结束引号。</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    Get average daily temperature</span>
+
+<span class="sd">    Calculate average temperature from multiple measurements</span>
+
+<span class="sd">    :param temperatures: list of temperatures</span>
+<span class="sd">    :return: average temperature</span>
+<span class="sd">    """</span>
+
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>除了描述特定函数、类、方法或模块的作用，您还可以指定:</p>
+<ol>
+<li>函数参数</li>
+<li>函数返回</li>
+<li>类别属性</li>
+<li>引发的错误</li>
+<li>限制</li>
+<li>代码示例</li>
+</ol>
+<h3 id="formats">格式</h3>
+<p>四种最常见的格式是:</p>
+<ol>
+<li>谷歌</li>
+<li><a href="https://docutils.sourceforge.io/rst.html">重组文本</a></li>
+<li><a href="https://numpydoc.readthedocs.io/en/latest/format.html"> NumPy </a></li>
+<li><a href="http://epydoc.sourceforge.net/epytext.html"> Epytext </a></li>
+</ol>
+<p>选择一个最适合你的，并在整个项目中保持一致。</p>
+<p>通过使用docstrings，你可以用口语明确地表达你的意图来帮助别人(和你未来的自己！)更好地理解何时、何地以及如何使用某些代码。</p>
+<h3 id="linting">林挺</h3>
+<p>您可以像处理代码一样处理文档字符串。Linters确保文档字符串格式良好，并且与实际实现相匹配，这有助于保持文档的新鲜。</p>
+<p>Darglint是一个流行的Python文档linter。</p>
+
+
+<p>让我们对<em> temperature.py </em>模块进行lint处理:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    Get average daily temperature</span>
+
+<span class="sd">    Calculate average temperature from multiple measurements</span>
+
+<span class="sd">    :param temperatures: list of temperatures</span>
+<span class="sd">    :return: average temperature</span>
+<span class="sd">    """</span>
+
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>棉绒:</p>
+<div class="codehilite"><pre><span/><code>$ darglint --docstring-style sphinx temperature.py
+</code></pre></div>
+
+<p>如果把参数名从<code>temperatures</code>改成<code>temperatures_list</code>会怎么样？</p>
+<div class="codehilite"><pre><span/><code>$ darglint --docstring-style sphinx temperature.py
+
+temperature.py:daily_average:27: DAR102: + temperatures
+temperature.py:daily_average:27: DAR101: - temperatures_list
+</code></pre></div>
+
+<h3 id="code-examples">代码示例</h3>
+<p>还可以向docstrings添加代码示例，显示函数、方法或类的示例用法。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">new_param</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    Get average daily temperature</span>
+
+<span class="sd">    Calculate average temperature from multiple measurements</span>
+
+<span class="sd">    &gt;&gt;&gt; daily_average([10.0, 12.0, 14.0])</span>
+<span class="sd">    12.0</span>
+
+<span class="sd">    :param temperatures: list of temperatures</span>
+<span class="sd">    :return: Average temperature</span>
+<span class="sd">    """</span>
+
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>代码示例也可以由<a href="https://docs.pytest.org/"> pytest </a>通过<a href="https://docs.python.org/3/library/doctest.html"> doctest </a>像任何其他测试一样执行。与林挺一起，这也有助于确保您的文档保持最新，与代码同步。</p>
+<blockquote>
+<p>查看<a href="https://pymotw.com/3/doctest/"> doctest —通过文档进行测试</a>，了解更多关于<code>doctest</code>的信息。</p>
+</blockquote>
+<p>因此，在上面的例子中，pytest将断言<code>daily_average([10.0, 12.0, 14.0])</code>等于<code>12.0</code>。要将这个代码示例作为测试运行，您只需使用<a href="https://docs.pytest.org/en/stable/doctest.html"> doctest-modules </a>选项运行pytest:</p>
+<div class="codehilite"><pre><span/><code>$ python -m pytest --doctest-modules temperature.py
+
+<span class="o">===============================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">===============================</span>
+platform darwin -- Python <span class="m">3</span>.11.0, pytest-7.2.1, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/documenting-python
+collected <span class="m">1</span> item
+
+temperature.py .                                                            <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">================================</span> <span class="m">1</span> passed <span class="k">in</span> <span class="m">0</span>.01s <span class="o">================================</span>
+</code></pre></div>
+
+<p>如果将代码示例更改为:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="n">daily_average</span><span class="p">([</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">12.0</span><span class="p">,</span> <span class="mf">14.0</span><span class="p">])</span>
+<span class="mf">13.0</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code>$ python -m pytest --doctest-modules temperature.py
+
+<span class="o">===============================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">===============================</span>
+platform darwin -- Python <span class="m">3</span>.11.0, pytest-7.2.1, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/documenting-python
+collected <span class="m">1</span> item
+
+temperature.py F                                                            <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">====================================</span> <span class="nv">FAILURES</span> <span class="o">=====================================</span>
+_______________________ <span class="o">[</span>doctest<span class="o">]</span> temperature.daily_average _______________________
+<span class="m">022</span>
+<span class="m">023</span>     Get average daily temperature
+<span class="m">024</span>
+<span class="m">025</span>     Calculate average temperature from multiple measurements
+<span class="m">026</span>
+<span class="m">027</span>     &gt;&gt;&gt; daily_average<span class="o">([</span><span class="m">10</span>.0, <span class="m">12</span>.0, <span class="m">14</span>.0<span class="o">])</span>
+Expected:
+    <span class="m">13</span>.0
+Got:
+    <span class="m">12</span>.0
+
+/Users/michael/repos/testdriven/documenting-python/temperature.py:27: <span class="nv">DocTestFailure</span>
+<span class="o">=============================</span> short <span class="nb">test</span> summary <span class="nv">info</span> <span class="o">=============================</span>
+FAILED temperature.py::temperature.daily_average
+<span class="o">================================</span> <span class="m">1</span> failed <span class="k">in</span> <span class="m">0</span>.01s <span class="o">================================</span>
+</code></pre></div>
+
+<blockquote>
+<p>关于pytest的更多信息，请查看Python 文章中的<a href="/blog/testing-python/">测试。</a></p>
+</blockquote>
+<h2 id="sphinx">狮身人面像</h2>
+<p>将docstrings添加到代码中很好，但是您仍然需要将它呈现给用户。</p>
+<p>这就是像<a href="https://www.sphinx-doc.org/"> Sphinx </a>、<a href="http://epydoc.sourceforge.net/"> Epydoc </a>和<a href="https://www.mkdocs.org/"> MKDocs </a>这样的工具发挥作用的地方，它们将把你的项目的文档字符串转换成HTML和CSS。</p>
+<p>斯芬克斯是迄今为止最受欢迎的。它用于为许多开源项目生成文档，如<a href="https://docs.python.org/3/"> Python </a>和<a href="https://flask.palletsprojects.com/"> Flask </a>。它也是由<a href="https://docs.readthedocs.io/en/stable/intro/getting-started-with-sphinx.html">Read Docs</a>支持的文档工具之一，被数以千计的开源项目使用，例如<a href="https://requests.readthedocs.io/"> Requests </a>、<a href="https://flake8.pycqa.org/"> Flake8 </a>和<a href="https://docs.pytest.org/"> pytest </a>等等。</p>
+<p>让我们看看它的实际效果。首先按照官方<a href="https://www.sphinx-doc.org/en/master/usage/installation.html">指南</a>下载并安装Sphinx。</p>
+<div class="codehilite"><pre><span/><code>$ sphinx-quickstart --version
+
+sphinx-quickstart <span class="m">6</span>.1.3
+</code></pre></div>
+
+<p>创建新的项目目录:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir sphinx_example
+$ <span class="nb">cd</span> sphinx_example
+</code></pre></div>
+
+<p>接下来，添加一个名为<em> temperature.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""</span>
+<span class="sd">The temperature module: Manipulate your temperature easily</span>
+
+<span class="sd">Easily calculate daily average temperature</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+
+<span class="k">class</span> <span class="nc">HighTemperature</span><span class="p">:</span>
+    <span class="sd">"""Class representing very high temperatures"""</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        :param value: value of temperature</span>
+<span class="sd">        """</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+
+<span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    Get average daily temperature</span>
+
+<span class="sd">    :param temperatures: list of temperatures</span>
+<span class="sd">    :return: average temperature</span>
+<span class="sd">    """</span>
+
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>要为Sphinx搭建文件和文件夹，以便在项目根目录中为<em> temperature.py </em>创建文档，请运行:</p>
+
+
+<p>你会被提升几个问题:</p>
+<div class="codehilite"><pre><span/><code>&gt; Separate <span class="nb">source</span> and build directories <span class="o">(</span>y/n<span class="o">)</span> <span class="o">[</span>n<span class="o">]</span>: n
+&gt; Project name: Temperature
+&gt; Author name<span class="o">(</span>s<span class="o">)</span>: Your Name
+&gt; Project release <span class="o">[]</span>: <span class="m">1</span>.0.0
+&gt; Project language <span class="o">[</span>en<span class="o">]</span>: en
+</code></pre></div>
+
+<p>完成后,“docs”目录应该包含以下文件和文件夹:</p>
+<div class="codehilite"><pre><span/><code>docs
+├── Makefile
+├── _build
+├── _static
+├── _templates
+├── conf.py
+├── index.rst
+└── make.bat
+</code></pre></div>
+
+<p>接下来，让我们更新项目配置。打开<em> docs/conf.py </em>，在顶部添加以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="s1">'..'</span><span class="p">))</span>
+</code></pre></div>
+
+<p>现在，<a href="https://www.sphinx-doc.org/en/master/usage/quickstart.html#autodoc"> autodoc </a>，用于从docstrings中拉入文档，会在“docs”的父文件夹中搜索模块。</p>
+<p>将以下扩展名添加到<code>extensions</code>列表中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">extensions</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'sphinx.ext.autodoc'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>打开<em> docs/index.rst </em>并编辑它，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="gh">Welcome to Temperature documentation!</span>
+<span class="gh">=====================================</span>
+
+<span class="p">..</span> <span class="ow">automodule</span><span class="p">::</span> temperature
+    <span class="nc">:members:</span>
+
+
+
+<span class="gh">Indices and tables</span>
+<span class="gh">==================</span>
+
+<span class="m">*</span> <span class="na">:ref:</span><span class="nv">`genindex`</span>
+<span class="m">*</span> <span class="na">:ref:</span><span class="nv">`modindex`</span>
+<span class="m">*</span> <span class="na">:ref:</span><span class="nv">`search`</span>
+</code></pre></div>
+
+<p><em> index.rst </em>的内容写在<a href="https://www.sphinx-doc.org/en/master/usage/restructuredtext/"> reStructuredText </a>中，这是一种类似于<a href="https://en.wikipedia.org/wiki/Markdown"> Markdown </a>的文本数据文件格式，但功能更强大，因为它是为编写技术文档而设计的。</p>
+<p>注意事项:</p>
+<ol>
+<li><a href="https://devguide.python.org/documenting/#sections">标题</a>是通过在标题下加一个<code>=</code>字符(至少和文本一样长)来创建的:</li>
+<li><a href="https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#directive-automodule"> automodule </a>指令用于从Python模块中收集文档字符串。因此，<code>.. automodule:: temperature</code>告诉Sphinx从<em> temperature.py </em>模块收集文档字符串。</li>
+<li><code>genindex</code>、<code>modindex</code>和<code>search</code>指令被<a href="https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#special-names">用于</a>分别生成通用索引、文档模块索引和搜索页面。</li>
+</ol>
+<p>从“docs”目录中，构建文档:</p>
+
+
+<p>在浏览器中打开<em>docs/_ build/html/index . html</em>。您应该看到:</p>
+<p><img data-src="/static/images/blog/documenting-python/spinx_docs.png" loading="lazy" class="lazyload" alt="Sphinx docs" src="../Images/2204c509f739b3c4574a8cb904c7e563.png" data-original-src="https://testdriven.io/static/images/blog/documenting-python/spinx_docs.png"/></p>
+<p>现在，你可以使用类似于<a href="https://www.netlify.com/"> Netlify </a>的工具或者通过类似于<a href="https://readthedocs.org/">Read Docs</a>的服务自己提供文件。</p>
+<h2 id="api-documentation">API文档</h2>
+<p>当谈到文档时，不要忘记API的文档。您拥有端点及其URL、URL参数、查询参数、状态代码、请求正文和响应正文。即使一个简单的API也可能有许多难以记忆的参数。</p>
+<p>OpenAPI规范(以前的Swagger规范)提供了一种描述、生产、消费和可视化RESTful APIs的标准格式。该规范用于使用<a href="https://swagger.io/tools/swagger-ui/"> Swagger UI </a>或<a href="https://github.com/Redocly/redoc"> ReDoc </a>生成文档。也可以导入到<a href="https://learning.postman.com/docs/integrations/available-integrations/working-with-openAPI/"> Postman </a>之类的工具中。您可以使用像<a href="https://swagger.io/tools/swagger-codegen/"> Swagger Codegen </a>和<a href="https://openapi-generator.tech/"> OpenAPI Generator </a>这样的工具生成服务器存根和客户端SDK。</p>
+<blockquote>
+<p>要获得OpenAPI的编辑器、linters、解析器、代码生成器、文档、测试和模式/数据验证工具的完整列表，请查看<a href="https://openapi.tools/"> OpenAPI工具</a>。</p>
+</blockquote>
+<p>规范本身必须用YAML或JSON编写。例如:</p>
+<div class="codehilite"><pre><span/><code><span class="nn">---</span><span class="w"/>
+<span class="nt">openapi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0.2</span><span class="w"/>
+<span class="nt">info</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Swagger Petstore - OpenAPI 3.0</span><span class="w"/>
+<span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|-</span><span class="w"/>
+<span class="w">    </span><span class="no">This is a sample Open API</span><span class="w"/>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0.0</span><span class="w"/>
+<span class="nt">servers</span><span class="p">:</span><span class="w"/>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="s">"/api/v3"</span><span class="w"/>
+<span class="nt">paths</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="s">"/pet"</span><span class="p p-Indicator">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">post</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">summary</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Add a new pet to the store</span><span class="w"/>
+<span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Add a new pet to the store</span><span class="w"/>
+<span class="w">      </span><span class="nt">operationId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">addPet</span><span class="w"/>
+<span class="w">      </span><span class="nt">requestBody</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Create a new pet in the store</span><span class="w"/>
+<span class="w">        </span><span class="nt">content</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">application/json</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">schema</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="s">"$ref"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">"#/components/schemas/Pet"</span><span class="w"/>
+<span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"/>
+<span class="w">      </span><span class="nt">responses</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="s">'200'</span><span class="p p-Indicator">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Successful operation</span><span class="w"/>
+<span class="w">          </span><span class="nt">content</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">application/json</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">schema</span><span class="p">:</span><span class="w"/>
+<span class="w">                </span><span class="s">"$ref"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">"#/components/schemas/Pet"</span><span class="w"/>
+<span class="w">        </span><span class="s">'405'</span><span class="p p-Indicator">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Invalid input</span><span class="w"/>
+<span class="nt">components</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">schemas</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">Pet</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">name</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">photoUrls</span><span class="w"/>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">object</span><span class="w"/>
+<span class="w">      </span><span class="nt">properties</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">id</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span><span class="w"/>
+<span class="w">          </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int64</span><span class="w"/>
+<span class="w">          </span><span class="nt">example</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w"/>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w"/>
+<span class="w">          </span><span class="nt">example</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">doggie</span><span class="w"/>
+<span class="w">        </span><span class="nt">photoUrls</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">array</span><span class="w"/>
+<span class="w">          </span><span class="nt">items</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w"/>
+<span class="w">        </span><span class="nt">status</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w"/>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pet status in the store</span><span class="w"/>
+<span class="w">          </span><span class="nt">enum</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">available</span><span class="w"/>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pending</span><span class="w"/>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sold</span><span class="w"/>
+<span class="w">  </span><span class="nt">requestBodies</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">Pet</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pet object that needs to be added to the store</span><span class="w"/>
+<span class="w">      </span><span class="nt">content</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">application/json</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">schema</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="s">"$ref"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">"#/components/schemas/Pet"</span><span class="w"/>
+</code></pre></div>
+
+<p>手工编写这样的模式非常枯燥，而且容易出错。幸运的是，有许多工具可以帮助自动化这一过程:</p>
+
+<h2 id="tests-as-documentation">作为文档的测试</h2>
+<p>到目前为止，我们已经讨论了用户文档(项目文档)和开发人员文档(代码注释)。开发人员的另一种文档来自测试本身。</p>
+<p>作为一名项目开发人员，你需要知道的不仅仅是如何使用一个方法。你需要知道它是否像预期的那样工作，以及如何使用它来进一步开发。虽然在docstrings中添加代码示例会有所帮助，但是这些示例只是简单的示例。您需要添加测试来覆盖不仅仅是函数的快乐路径。</p>
+<p>测试记录了三件事:</p>
+<ol>
+<li>给定输入的预期输出是什么</li>
+<li>如何处理异常路径</li>
+<li>如何使用给定的函数、方法或类</li>
+</ol>
+<p>当你编写测试时，一定要使用正确的命名，并清楚地说明你要测试的是什么。这将使开发人员更容易审查测试套件，以便找出应该如何使用特定的功能或方法。</p>
+<p>更重要的是，在编写测试时，您基本上定义了应该在您的文档字符串中包含什么。将<a href="https://martinfowler.com/bliki/GivenWhenThen.html">给定，WHEN，THEN </a>结构可以很容易地转换成函数的docstrings。</p>
+<p>例如:</p>
+<ul>
+<li>给定温度测量列表-&gt; <code>:param temperatures: list of temperatures</code></li>
+<li>当调用“每日平均”时-&gt; <code>&gt;&gt;&gt; daily_average([10.0, 12.0, 14.0])</code></li>
+<li>然后返回平均温度-&gt; <code>Get average temperature, :return: Average temperature</code></li>
+</ul>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    Get average temperature</span>
+
+<span class="sd">    Calculate average temperature from multiple measurements</span>
+
+<span class="sd">    &gt;&gt;&gt; daily_average([10.0, 12.0, 14.0])</span>
+<span class="sd">    12.0</span>
+
+<span class="sd">    :param temperatures: list of temperatures</span>
+<span class="sd">    :return: Average temperature</span>
+<span class="sd">    """</span>
+
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>因此，您可以将<a href="/test-driven-development/">测试驱动开发</a> (TDD)视为文档驱动开发的一种形式，方法是将您的文档字符串创建为代码:</p>
+<ol>
+<li>写一个测试</li>
+<li>确保测试失败</li>
+<li>写代码</li>
+<li>确保测试通过</li>
+<li>重构并添加文档字符串</li>
+</ol>
+<blockquote>
+<p>关于TDD的更多信息，请查看Python中的<a href="/blog/modern-tdd/">现代测试驱动开发</a>文章。</p>
+</blockquote>
+<h2 id="documenting-a-flask-rest-api">记录Flask REST API</h2>
+<p>到目前为止，我们已经讨论了理论，所以让我们来看一个真实的例子。我们将用Flask创建一个RESTful API来测量温度。每次测量都有以下属性:时间戳、温度、注释。<a href="https://flask-restx.readthedocs.io/"> Flask-RESTX </a>将用于自动生成OpenAPI规范。</p>
+<p>那么，我们开始吧。首先，创建一个新文件夹:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir flask_temperature
+$ <span class="nb">cd</span> flask_temperature
+</code></pre></div>
+
+<p>接下来，用<a href="https://python-poetry.org">诗歌</a>初始化你的项目:</p>
+<div class="codehilite"><pre><span/><code>$ poetry init
+Package name <span class="o">[</span>flask_temperature<span class="o">]</span>:
+Version <span class="o">[</span><span class="m">0</span>.1.0<span class="o">]</span>:
+Description <span class="o">[]</span>:
+Author <span class="o">[</span>Your name &lt;<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e39a8c9691a3868e828a8fcd808c8e">[email protected]</a>&gt;, n to skip<span class="o">]</span>:
+License <span class="o">[]</span>:
+Compatible Python versions <span class="o">[</span>^3.11<span class="o">]</span>:
+
+Would you like to define your main dependencies interactively? <span class="o">(</span>yes/no<span class="o">)</span> <span class="o">[</span>yes<span class="o">]</span> no
+Would you like to define your development dependencies interactively? <span class="o">(</span>yes/no<span class="o">)</span> <span class="o">[</span>yes<span class="o">]</span> no
+Do you confirm generation? <span class="o">(</span>yes/no<span class="o">)</span> <span class="o">[</span>yes<span class="o">]</span>
+</code></pre></div>
+
+<p>之后，添加Flask和Flask-RESTX:</p>
+<div class="codehilite"><pre><span/><code>$ poetry add flask flask-restx
+</code></pre></div>
+
+<p>现在，让我们创建文档化的API。为Flask应用程序添加一个名为<em> app.py </em>的文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">uuid</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">request</span>
+<span class="kn">from</span> <span class="nn">flask_restx</span> <span class="kn">import</span> <span class="n">Api</span><span class="p">,</span> <span class="n">Resource</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">api</span> <span class="o">=</span> <span class="n">Api</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="n">measurements</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<span class="nd">@api</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/measurements'</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">Measurement</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">measurements</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">measurement</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">'id'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span>
+            <span class="s1">'timestamp'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">json</span><span class="p">[</span><span class="s1">'timestamp'</span><span class="p">],</span>
+            <span class="s1">'temperature'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">json</span><span class="p">[</span><span class="s1">'temperature'</span><span class="p">],</span>
+            <span class="s1">'notes'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'notes'</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="n">measurements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">measurement</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">measurement</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>Flask-RESTX使用基于类的视图来组织资源、路由和HTTP方法。在上面的例子中，<code>Measurement</code>类支持HTTP GET和POST方法。其他方法，会返回一个<code>MethodNotAllowed</code>错误。当应用程序运行时，Flask-RESTX还将生成OpenAPI模式。</p>
+
+
+<p>可以在<a href="http://localhost:5000/swagger.json">http://localhost:5000/swagger . JSON</a>看到模式。您还可以在<a href="http://localhost:5000"> http://localhost:5000 </a>查看可浏览的API。</p>
+<p><img data-src="/static/images/blog/documenting-python/swagger_ui.png" loading="lazy" class="lazyload" alt="SwaggerUI" src="../Images/121a02c5f02bbdf31b9c8dc6b7cafa4f.png" data-original-src="https://testdriven.io/static/images/blog/documenting-python/swagger_ui.png"/></p>
+<p>目前，该架构仅包含端点。我们可以定义请求和响应主体来告诉用户对他们的期望以及将返回的内容。</p>
+<p>更新<em> app.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">uuid</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">request</span>
+<span class="kn">from</span> <span class="nn">flask_restx</span> <span class="kn">import</span> <span class="n">Api</span><span class="p">,</span> <span class="n">Resource</span><span class="p">,</span> <span class="n">fields</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">api</span> <span class="o">=</span> <span class="n">Api</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="n">measurements</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="n">add_measurement_request_body</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">model</span><span class="p">(</span>
+    <span class="s1">'AddMeasurementRequestBody'</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'timestamp'</span><span class="p">:</span> <span class="n">fields</span><span class="o">.</span><span class="n">Integer</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">'Timestamp of measurement'</span><span class="p">,</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">example</span><span class="o">=</span><span class="mi">1606509272</span>
+        <span class="p">),</span>
+        <span class="s1">'temperature'</span><span class="p">:</span> <span class="n">fields</span><span class="o">.</span><span class="n">Float</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">'Measured temperature'</span><span class="p">,</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">example</span><span class="o">=</span><span class="mf">22.3</span><span class="p">),</span>
+        <span class="s1">'notes'</span><span class="p">:</span> <span class="n">fields</span><span class="o">.</span><span class="n">String</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">'Additional notes'</span><span class="p">,</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">example</span><span class="o">=</span><span class="s1">'Strange day'</span><span class="p">),</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="n">measurement_model</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">model</span><span class="p">(</span>
+    <span class="s1">'Measurement'</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'id'</span><span class="p">:</span> <span class="n">fields</span><span class="o">.</span><span class="n">String</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">'Unique ID'</span><span class="p">,</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">example</span><span class="o">=</span><span class="s1">'354e405c-136f-4e03-b5ce-5f92e3ed3ff8'</span>
+        <span class="p">),</span>
+        <span class="s1">'timestamp'</span><span class="p">:</span> <span class="n">fields</span><span class="o">.</span><span class="n">Integer</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">'Timestamp of measurement'</span><span class="p">,</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">example</span><span class="o">=</span><span class="mi">1606509272</span>
+        <span class="p">),</span>
+        <span class="s1">'temperature'</span><span class="p">:</span> <span class="n">fields</span><span class="o">.</span><span class="n">Float</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">'Measured temperature'</span><span class="p">,</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">example</span><span class="o">=</span><span class="mf">22.3</span>
+        <span class="p">),</span>
+        <span class="s1">'notes'</span><span class="p">:</span> <span class="n">fields</span><span class="o">.</span><span class="n">String</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">'Additional notes'</span><span class="p">,</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">example</span><span class="o">=</span><span class="s1">'Strange day'</span>
+        <span class="p">),</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+
+<span class="nd">@api</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/measurements'</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">Measurement</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="nd">@api</span><span class="o">.</span><span class="n">doc</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="p">[</span><span class="n">measurement_model</span><span class="p">])</span>
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">measurements</span>
+
+    <span class="nd">@api</span><span class="o">.</span><span class="n">doc</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="p">[</span><span class="n">measurement_model</span><span class="p">],</span> <span class="n">body</span><span class="o">=</span><span class="n">add_measurement_request_body</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">measurement</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">'id'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span>
+            <span class="s1">'timestamp'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">json</span><span class="p">[</span><span class="s1">'timestamp'</span><span class="p">],</span>
+            <span class="s1">'temperature'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">json</span><span class="p">[</span><span class="s1">'temperature'</span><span class="p">],</span>
+            <span class="s1">'notes'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'notes'</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="n">measurements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">measurement</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">measurement</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>为了定义我们的响应和请求体的模型，我们使用了<code>api.model</code>。我们定义了名称和适当的字段。对于每个字段，我们定义了类型、描述、示例以及是否需要。</p>
+<p><img data-src="/static/images/blog/documenting-python/swagger_ui_3.png" loading="lazy" class="lazyload" alt="Swagger UI models" src="../Images/d816e2a289d21a4c1ec79cef47d5803d.png" data-original-src="https://testdriven.io/static/images/blog/documenting-python/swagger_ui_3.png"/></p>
+<p>为了将模型添加到端点，我们使用了<code>@api.doc</code>装饰器。参数<code>body</code>定义请求体，而<code>model</code>定义响应体。</p>
+<p><img data-src="/static/images/blog/documenting-python/swagger_ui_2.png" loading="lazy" class="lazyload" alt="Swagger UI models" src="../Images/a5fffb9775f40a2af3c68fd8173e4a30.png" data-original-src="https://testdriven.io/static/images/blog/documenting-python/swagger_ui_2.png"/></p>
+<p>现在你应该对如何用Flask-RestX编写Flask RESTful API有了基本的了解。这只是触及了表面。查看<a href="https://flask-restx.readthedocs.io/en/latest/swagger.html"> Swagger文档</a>,了解如何定义认证信息、URL参数、状态代码等更多细节。</p>
+<h2 id="conclusion">结论</h2>
+<p>我们中的大多数人，如果不是所有人，都可以在编写文档方面做得更好。幸运的是，有很多工具可以简化编写过程。编写包和库时，使用Sphinx来组织和帮助从docstrings生成文档。当使用RESTful API时，使用生成OpenAPI模式的工具，因为该模式可以被大量工具使用——从数据验证器到代码生成器。寻找灵感？<a href="https://stripe.com/docs/api">条纹</a>、<a href="https://flask.palletsprojects.com/en/2.2.x/">烧瓶</a>、<a href="https://docs.cypress.io/guides/overview/why-cypress.html#In-a-nutshell">柏树</a>和<a href="https://fastapi.tiangolo.com/"> FastAPI </a>都是做好文档的优秀例子。</p>
+<blockquote>
+<p><a href="/guides/complete-python/">完整Python </a>指南:</p>
+<ol>
+<li><a href="/blog/python-environments/">现代Python环境——依赖性和工作空间管理</a></li>
+<li><a href="/blog/testing-python/">Python中的测试</a></li>
+<li><a href="/blog/modern-tdd/">Python中的现代测试驱动开发</a></li>
+<li><a href="/blog/python-code-quality/"> Python代码质量</a></li>
+<li><a href="/blog/python-type-checking/"> Python类型检查</a></li>
+<li><a href="/blog/documenting-python/">记录Python代码和项目</a>(本文！)</li>
+<li><a href="/blog/python-project-workflow/"> Python项目工作流程</a></li>
+</ol>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

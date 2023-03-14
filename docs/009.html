@@ -1,0 +1,562 @@
+<html>
+<head>
+<title>Deploying a Django App to Google App Engine </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将Django应用程序部署到Google应用程序引擎</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-gae/#0001-01-01">https://testdriven.io/blog/django-gae/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将看看如何将一个<a href="https://www.djangoproject.com/"> Django </a>应用安全地部署到<a href="https://cloud.google.com/appengine">谷歌应用引擎</a>。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释什么是谷歌应用引擎，它是如何工作的。</li>
+<li>将Django应用程序部署到Google App Engine。</li>
+<li>在<a href="https://cloud.google.com/sql/">云SQL </a>上运行Postgres实例。</li>
+<li>利用<a href="https://cloud.google.com/secret-manager">秘密管理器</a>处理环境变量和秘密。</li>
+<li>使用<a href="https://cloud.google.com/storage">云存储</a>为静态和媒体文件设置持久存储。</li>
+<li>将域名链接到您的应用程序，并在HTTPS上提供您的应用程序。</li>
+</ol>
+<h2 id="what-is-google-app-engine">什么是谷歌应用引擎？</h2>
+<p>Google App Engine  (GAE)是一个完全托管的无服务器平台，用于大规模开发和托管网络应用。它具有强大的内置自动扩展功能，可以根据需求自动分配更多/更少的资源。GAE原生支持用Python、Node.js、Java、Ruby、C#、Go和PHP编写的应用程序。或者，它通过<a href="https://cloud.google.com/appengine/docs/flexible/custom-runtimes">定制运行时</a>或Dockerfiles提供对其他语言的支持。</p>
+<p>它具有强大的应用程序诊断功能，您可以将它与<a href="https://cloud.google.com/monitoring">云监控</a>和<a href="https://cloud.google.com/logging">日志记录</a>相结合，以监控您的应用程序的健康状况和性能。此外，GAE允许你的应用扩展到零，这意味着如果没有人使用你的服务，你不用支付任何费用。</p>
+<p>在撰写本文时，谷歌<a href="https://cloud.google.com/free">为新用户提供了</a>300美元的免费积分来试用他们的平台。积分将在90天后到期。</p>
+<h2 id="project-setup">项目设置</h2>
+<p>在本教程中，我们将部署一个简单的图像托管应用程序，名为<a href="https://github.com/duplxey/django-images"> django-images </a>。</p>
+<blockquote>
+<p>在学习教程的过程中，通过部署您自己的Django应用程序来检查您的理解。</p>
+</blockquote>
+<p>首先，从GitHub上的<a href="https://github.com/duplxey/django-images">库</a>中获取代码:</p>
+
+
+<p>创建新的虚拟环境并激活它:</p>
+<div class="codehilite"><pre><span/><code>$ python3 -m venv venv <span class="o">&amp;&amp;</span> <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装需求并迁移数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>打开您最喜欢的网络浏览器，导航到<a href="http://localhost:8000"> http://localhost:8000 </a>。使用右边的表格上传图像，确保一切正常。上传图像后，您应该会看到它显示在表格中:</p>
+<p><img data-src="/static/images/blog/django/django-gae/django-images-preview.png" loading="lazy" class="lazyload" alt="django-images Application Preview" src="../Images/88771f42d782008ae0c84689b4971be6.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gae/django-images-preview.png"/></p>
+<h2 id="install-google-cloud-cli">安装Google Cloud CLI</h2>
+<p>要使用<a href="https://cloud.google.com/">谷歌云平台</a> (GCP)，首先安装<a href="https://cloud.google.com/sdk/gcloud">谷歌云CLI </a> (gcloud CLI)。gcloud CLI允许您创建和管理您的Google云资源和服务。</p>
+<p>根据您的操作系统和处理器架构，安装过程会有所不同。继续按照<a href="https://cloud.google.com/sdk/docs/install#installation_instructions">官方安装指南</a>为您的操作系统和CPU安装。</p>
+<p>要验证安装是否成功，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud version
+
+Google Cloud SDK <span class="m">415</span>.0.0
+bq <span class="m">2</span>.0.84
+core <span class="m">2023</span>.01.20
+gcloud-crc32c <span class="m">1</span>.0.0
+gsutil <span class="m">5</span>.18
+</code></pre></div>
+
+<h2 id="configure-django-project">配置Django项目</h2>
+<p>在教程的这一部分，我们将配置Django项目，以便与GAE一起工作。</p>
+<h3 id="environment-variables">环境变量</h3>
+<p>我们不应该在源代码中存储秘密，所以让我们利用环境变量。最简单的方法是使用名为<a href="https://django-environ.readthedocs.io/en/latest/"> django-environ </a>的第三方Python包。首先将其添加到<em> requirements.txt </em>:</p>
+
+
+<blockquote>
+<p>我建议您继续使用django-environ，因为它是专门针对django的，并且支持数据库URL中的Unix套接字路径。</p>
+</blockquote>
+<p>对于Django来说，要初始化环境更改，请更新<em> settings.py </em>的顶部，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">environ</span>
+
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="c1"># Build paths inside the project like this: BASE_DIR / 'subdir'.</span>
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">Env</span><span class="p">(</span><span class="n">DEBUG</span><span class="o">=</span><span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+<span class="n">env_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">,</span> <span class="s1">'.env'</span><span class="p">)</span>
+<span class="n">env</span><span class="o">.</span><span class="n">read_env</span><span class="p">(</span><span class="n">env_file</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，从环境中加载<code>SECRET_KEY</code>和<code>DEBUG</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="c1"># SECURITY WARNING: keep the secret key used in production secret!</span>
+<span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">env</span><span class="p">(</span><span class="s1">'SECRET_KEY'</span><span class="p">)</span>
+
+<span class="c1"># SECURITY WARNING: don't run with debug turned on in production!</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">env</span><span class="p">(</span><span class="s1">'DEBUG'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>为了设置<code>ALLOWED_HOSTS</code>和<code>CSRF_TRUSTED_ORIGINS</code>，我们可以使用来自GAE文档的以下<a href="https://cloud.google.com/python/django/appengine#csrf_configurations">代码片段</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">APPENGINE_URL</span> <span class="o">=</span> <span class="n">env</span><span class="p">(</span><span class="s1">'APPENGINE_URL'</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">APPENGINE_URL</span><span class="p">:</span>
+    <span class="c1"># ensure a scheme is present in the URL before it's processed.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">APPENGINE_URL</span><span class="p">)</span><span class="o">.</span><span class="n">scheme</span><span class="p">:</span>
+        <span class="n">APPENGINE_URL</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'https://</span><span class="si">{</span><span class="n">APPENGINE_URL</span><span class="si">}</span><span class="s1">'</span>
+
+    <span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="p">[</span><span class="n">urlparse</span><span class="p">(</span><span class="n">APPENGINE_URL</span><span class="p">)</span><span class="o">.</span><span class="n">netloc</span><span class="p">]</span>
+    <span class="n">CSRF_TRUSTED_ORIGINS</span> <span class="o">=</span> <span class="p">[</span><span class="n">APPENGINE_URL</span><span class="p">]</span>
+    <span class="n">SECURE_SSL_REDIRECT</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'*'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这段代码从环境中获取<code>APPENGINE_URL</code>，并自动配置<code>ALLOWED_HOSTS</code>和<code>CSRF_TRUSTED_ORIGINS</code>。此外，它使<code>SECURE_SSL_REDIRECT</code>能够执行HTTPS。</p>
+<p>不要忘记在文件顶部添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="kn">import</span> <span class="n">urlparse</span>
+</code></pre></div>
+
+<h3 id="database">数据库ˌ资料库</h3>
+<p>要使用Postgres代替SQLite，我们首先需要安装数据库适配器。</p>
+<p>将下面一行添加到<em> requirements.txt </em>中:</p>
+
+
+<p>在本教程的后面，我们将创建一个Postgres实例，为我们提供形成一个受<a href="https://12factor.net/">十二因素应用</a>启发的数据库URL所需的细节。<code>DATABASE_URL</code>将采用以下格式:</p>
+<div class="codehilite"><pre><span/><code>postgres://USER:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4212031111150d100602">[email protected]</a>//cloudsql/PROJECT_ID:REGION:INSTANCE_NAME/DATABASE_NAME
+</code></pre></div>
+
+<p>为了将<code>DATABASE_URL</code>用于Django，我们可以像这样使用django-environ的<code>db()</code>方法:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'default'</span><span class="p">:</span> <span class="n">env</span><span class="o">.</span><span class="n">db</span><span class="p">()}</span>
+</code></pre></div>
+
+<h3 id="gunicorn">格尼科恩</h3>
+<p>接下来，让我们安装<a href="https://gunicorn.org/"> Gunicorn </a>，这是一个生产级的WSGI服务器，将用于生产，而不是Django的开发服务器。</p>
+<p>添加到<em> requirements.txt </em>:</p>
+
+
+<h3 id="appyaml">app.yaml</h3>
+<p>Google App Engine的<a href="https://cloud.google.com/appengine/docs/standard/python3/configuring-your-app-with-app-yaml"> app.yaml </a>配置文件用于配置web应用程序的运行时环境。<em> app.yaml </em>文件包含运行时、URL处理程序和环境变量等信息。</p>
+<p>首先在项目根目录下创建一个名为<em> app.yaml </em>的新文件，包含以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.yaml</span><span class="w"/>
+
+<span class="nt">runtime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python39</span><span class="w"/>
+<span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w"/>
+<span class="nt">entrypoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gunicorn -b :$PORT core.wsgi:application</span><span class="w"/>
+
+<span class="nt">handlers</span><span class="p">:</span><span class="w"/>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/.*</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span><span class="w"/>
+
+<span class="nt">runtime_config</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">python_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span><span class="w"/>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>我们定义了启动WSGI服务器的<code>entrypoint</code>命令。</li>
+<li><a href="https://cloud.google.com/appengine/docs/the-appengine-environments#app-engine-environments"> env </a>有两个选项:<code>standard</code>和<code>flexible</code>。我们选择了standard，因为它更容易启动和运行，适用于较小的应用程序，并且支持Python 3.9开箱即用。</li>
+<li>最后，<code>handlers</code>定义不同的URL是如何路由的。我们将在教程的后面定义静态和媒体文件的处理程序。</li>
+</ol>
+<blockquote>
+<p>有关<em> app.yaml </em>的更多信息，请查看<a href="https://cloud.google.com/appengine/docs/flexible/reference/app-yaml?tab=python">文档</a>。</p>
+</blockquote>
+<h3 id="gcloudignore">。gcloudnignore</h3>
+<p>一个<a href="https://cloud.google.com/sdk/gcloud/reference/topic/gcloudignore">。gcloudnignore</a>file允许您在部署应用程序时指定不想上传到GAE的文件。它的工作原理类似于<em>。gitignore </em>文件。</p>
+<p>继续创建一个<em>。项目根中的gcloudnignore</em>文件包含以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .gcloudignore</span><span class="w"/>
+
+<span class="o">.</span><span class="n">gcloudignore</span><span class="w"/>
+
+<span class="c1"># Ignore local .env file</span><span class="w"/>
+<span class="o">.</span><span class="n">env</span><span class="w"/>
+
+<span class="c1"># If you would like to upload your .git directory, .gitignore file, or files</span><span class="w"/>
+<span class="c1"># from your .gitignore file, remove the corresponding line</span><span class="w"/>
+<span class="c1"># below:</span><span class="w"/>
+<span class="o">.</span><span class="n">git</span><span class="w"/>
+<span class="o">.</span><span class="n">gitignore</span><span class="w"/>
+
+<span class="c1"># Python pycache:</span><span class="w"/>
+<span class="n">__pycache__</span><span class="o">/</span><span class="w"/>
+
+<span class="c1"># Ignore collected static and media files</span><span class="w"/>
+<span class="n">mediafiles</span><span class="o">/</span><span class="w"/>
+<span class="n">staticfiles</span><span class="o">/</span><span class="w"/>
+
+<span class="c1"># Ignore the local DB</span><span class="w"/>
+<span class="n">db</span><span class="o">.</span><span class="n">sqlite3</span><span class="w"/>
+
+<span class="c1"># Ignored by the build system</span><span class="w"/>
+<span class="o">/</span><span class="n">setup</span><span class="o">.</span><span class="n">cfg</span><span class="w"/>
+<span class="n">venv</span><span class="o">/</span><span class="w"/>
+
+<span class="c1"># Ignore IDE files</span><span class="w"/>
+<span class="o">.</span><span class="n">idea</span><span class="o">/</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="deploy-app">部署应用程序</h2>
+<p>在本节教程中，我们将把应用程序部署到Google App Engine。</p>
+<h3 id="project-initialization">项目初始化</h3>
+<p>如果您尚未初始化gcloud CLI，请继续操作:</p>
+
+
+<p>CLI将打开您的浏览器，要求您登录并接受一些权限。</p>
+<p>之后，你必须选择你的项目。我建议您创建一个新项目，因为删除一个项目比单独删除所有服务和资源更容易。</p>
+<p>对于该地区，选择离您最近的地区。</p>
+<h3 id="create-app">创建应用程序</h3>
+<p>要创建App Engine应用程序，请转到项目根目录并运行:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud app create
+
+You are creating an app <span class="k">for</span> project <span class="o">[</span>indigo-griffin-376011<span class="o">]</span>.
+WARNING: Creating an App Engine application <span class="k">for</span> a project is irreversible and the region
+cannot be changed.
+
+Please choose the region where you want your App Engine application located:
+
+ ...
+ <span class="o">[</span><span class="m">13</span><span class="o">]</span> europe-west3  <span class="o">(</span>supports standard and flexible and search_api<span class="o">)</span>
+ <span class="o">[</span><span class="m">14</span><span class="o">]</span> europe-west6  <span class="o">(</span>supports standard and flexible and search_api<span class="o">)</span>
+ <span class="o">[</span><span class="m">15</span><span class="o">]</span> northamerica-northeast1 <span class="o">(</span>supports standard and flexible and search_api<span class="o">)</span>
+ <span class="o">[</span><span class="m">16</span><span class="o">]</span> southamerica-east1 <span class="o">(</span>supports standard and flexible and search_api<span class="o">)</span>
+ <span class="o">[</span><span class="m">17</span><span class="o">]</span> us-central    <span class="o">(</span>supports standard and flexible and search_api<span class="o">)</span>
+ <span class="o">[</span><span class="m">18</span><span class="o">]</span> us-east1      <span class="o">(</span>supports standard and flexible and search_api<span class="o">)</span>
+ ...
+ <span class="o">[</span><span class="m">24</span><span class="o">]</span> cancel
+Please enter your numeric choice:  <span class="m">13</span>
+
+Creating App Engine application <span class="k">in</span> project <span class="o">[</span>indigo-griffin-376011<span class="o">]</span> and region <span class="o">[</span>europe-west3<span class="o">]</span>....done.
+Success! The app is now created. Please use <span class="sb">`</span>gcloud app deploy<span class="sb">`</span> to deploy your first app.
+</code></pre></div>
+
+<p>同样，选择离你最近的地区。</p>
+<h3 id="database_1">数据库ˌ资料库</h3>
+<h4 id="provision">规定</h4>
+<p>导航到<a href="https://console.cloud.google.com/sql/">云SQL仪表板</a>并使用以下参数创建一个新的Postgres实例:</p>
+<ul>
+<li>实例ID:<strong>mydb-实例</strong></li>
+<li>密码:<strong>输入自定义密码或生成密码</strong></li>
+<li>数据库版本:<strong> PostgreSQL 14 </strong></li>
+<li>配置:<strong>由你决定</strong></li>
+<li>地区:<strong>与您的应用相同的地区</strong></li>
+<li>区域可用性:<strong>由您决定</strong></li>
+</ul>
+<blockquote>
+<p>您可能还需要启用“计算引擎API”来创建SQL实例。</p>
+</blockquote>
+<p>设置数据库需要几分钟时间。同时，通过搜索“云SQL管理API”并点击“启用”，继续启用<a href="https://console.cloud.google.com/marketplace/product/google/sqladmin.googleapis.com">云SQL管理API </a>。我们需要启用它来测试数据库连接。</p>
+<p>一旦提供了数据库，您应该会被重定向到数据库详细信息。记下“连接名称”:</p>
+<p><img data-src="/static/images/blog/django/django-gae/sql-connection-name.png" loading="lazy" class="lazyload" alt="SQL Connection Name" src="../Images/908026a618bcdd040b15ac9738f0ac89.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gae/sql-connection-name.png"/></p>
+<p>接下来，选择侧边栏上的“Databases”并创建一个新的数据库。</p>
+<p>最后，选择侧边栏上的“Users”并创建一个新用户。生成一个密码并记下它。</p>
+<p>就是这样。数据库现在已经准备好了！</p>
+<h4 id="cloud-sql-proxy">云SQL代理</h4>
+<p>为了测试数据库连接和迁移数据库，我们将使用<a href="https://cloud.google.com/sql/docs/postgres/connect-instance-auth-proxy">云SQL身份验证代理</a>。云SQL身份验证代理提供对云SQL实例的安全访问，无需授权网络或配置SSL。</p>
+<p>首先，验证并获取API的凭证:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud auth application-default login
+</code></pre></div>
+
+<p>接下来，下载云SQL身份验证代理并使其可执行:</p>
+<div class="codehilite"><pre><span/><code>$ wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
+$ chmod +x cloud_sql_proxy
+</code></pre></div>
+
+<blockquote>
+<p>如果您不在Linux上，请遵循<a href="https://cloud.google.com/sql/docs/postgres/connect-instance-auth-proxy#install-proxy">安装指南</a>来安装云SQL代理。</p>
+</blockquote>
+<p>安装完成后，打开一个新的终端窗口，使用您的连接详细信息启动代理，如下所示:</p>
+<div class="codehilite"><pre><span/><code>$ ./cloud_sql_proxy.exe -instances<span class="o">=</span><span class="s2">"PROJECT_ID:REGION:INSTANCE_NAME"</span><span class="o">=</span>tcp:5432
+
+<span class="c1"># Example:</span>
+<span class="c1"># cloud_sql_proxy.exe -instances="indigo-35:europe-west3:mydb-instance"=tcp:5432</span>
+
+<span class="m">2023</span>/01/30 <span class="m">13</span>:45:22 Listening on <span class="m">127</span>.0.0.1:5432 <span class="k">for</span> indigo-35:europe-west3:mydb-instance
+<span class="m">2023</span>/01/30 <span class="m">13</span>:45:22 Ready <span class="k">for</span> new connections
+<span class="m">2023</span>/01/30 <span class="m">13</span>:45:22 Generated RSA key <span class="k">in</span> <span class="m">110</span>.0168ms
+</code></pre></div>
+
+<p>现在您可以像在本地机器上运行Postgres一样连接到<code>localhost:5432</code>。</p>
+<h4 id="migrate-the-database">迁移数据库</h4>
+<p>因为GAE不允许我们在服务器上执行命令，所以我们必须从本地机器上迁移数据库。</p>
+<p>如果您还没有安装，请继续安装这些要求:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>接下来，创建一个<em>。项目根目录中的env </em>文件，带有所需的环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .env</span><span class="w"/>
+
+<span class="n">DEBUG</span><span class="o">=</span><span class="mi">1</span><span class="w"/>
+<span class="n">SECRET_KEY</span><span class="o">=+</span><span class="n">an</span><span class="nv">@of0zh</span><span class="o">--</span><span class="n">q</span><span class="o">%</span><span class="n">vypb</span><span class="o">^</span><span class="n">9x</span><span class="nv">@vgecoda5o</span><span class="o">!</span><span class="n">m</span><span class="o">!</span><span class="n">l9sqno</span><span class="p">)</span><span class="n">vz</span><span class="o">^</span><span class="n">n</span><span class="o">!</span><span class="n">euncl</span><span class="w"/>
+<span class="n">DATABASE_URL</span><span class="o">=</span><span class="n">postgres</span><span class="o">://</span><span class="n">DB_USER</span><span class="o">:</span><span class="n">DB_PASS</span><span class="nv">@localhost</span><span class="o">/</span><span class="n">DB_NAME</span><span class="w"/>
+
+<span class="c1"># Example `DATABASE_URL`:</span><span class="w"/>
+<span class="c1"># DATABASE_URL=postgres://django-images:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="98e8f9ebebeff7eafcd8f4f7fbf9f4f0f7ebec">[email protected]</a>/mydb</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保用您的实际凭证替换<code>DB_USER</code>、<code>DB_PASS</code>和<code>DB_NAME</code>。</p>
+</blockquote>
+<p>最后，迁移数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, images, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  ...
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying images.0001_initial... OK
+  Applying sessions.0001_initial... OK
+</code></pre></div>
+
+<h4 id="create-superuser">创建超级用户</h4>
+<p>要创建超级用户，请运行:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py createsuperuser
+</code></pre></div>
+
+<p>并按照提示进行操作。</p>
+<h3 id="secret-manager">秘密经理</h3>
+<p>为了安全地管理我们的秘密和环境文件，我们将使用<a href="https://console.cloud.google.com/security/secret-manager"> Secret Manager </a>。</p>
+<p>导航到<a href="https://console.cloud.google.com/security/secret-manager">秘密管理器仪表板</a>并启用API，如果你还没有的话。接下来，创建一个名为<code>django_settings</code>的秘密，内容如下:</p>
+<div class="codehilite"><pre><span/><code><span class="n">DEBUG</span><span class="o">=</span><span class="mi">1</span><span class="w"/>
+<span class="n">SECRET_KEY</span><span class="o">=+</span><span class="n">an</span><span class="nv">@of0zh</span><span class="o">--</span><span class="n">q</span><span class="o">%</span><span class="n">vypb</span><span class="o">^</span><span class="n">9x</span><span class="nv">@vgecoda5o</span><span class="o">!</span><span class="n">m</span><span class="o">!</span><span class="n">l9sqno</span><span class="p">)</span><span class="n">vz</span><span class="o">^</span><span class="n">n</span><span class="o">!</span><span class="n">euncl</span><span class="w"/>
+<span class="n">DATABASE_URL</span><span class="o">=</span><span class="n">postgres</span><span class="o">://</span><span class="n">DB_USER</span><span class="o">:</span><span class="n">DB_PASS</span><span class="err">@</span><span class="o">//</span><span class="n">cloudsql</span><span class="o">/</span><span class="n">PROJECT_ID</span><span class="o">:</span><span class="n">REGION</span><span class="o">:</span><span class="n">INSTANCE_NAME</span><span class="o">/</span><span class="n">DB_NAME</span><span class="w"/>
+<span class="n">GS_BUCKET_NAME</span><span class="o">=</span><span class="n">django</span><span class="o">-</span><span class="n">images</span><span class="o">-</span><span class="n">bucket</span><span class="w"/>
+
+<span class="c1"># Example `DATABASE_URL`:</span><span class="w"/>
+<span class="c1"># postgres://django-images:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ccbcadbfbfbba3bea88c">[email protected]</a>//cloudsql/indigo-35:europe-west3:mydb-instance/mydb</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保相应地更改<code>DATABASE_URL</code>。<code>PROJECT_ID:REGION:INSTANCE_NAME</code>等于您的数据库连接细节。</p>
+<p>你不用担心<code>GS_BUCKET_NAME</code>。这只是我们稍后要创建和使用的一个存储桶的名称。</p>
+</blockquote>
+<p>回到您的项目，将以下内容添加到<em> requirements.txt </em>:</p>
+<div class="codehilite"><pre><span/><code>google-cloud-secret-manager==2.15.1
+</code></pre></div>
+
+<p>要从Secret Manager加载环境变量，我们可以使用下面的<a href="https://cloud.google.com/python/django/appengine#understanding-secrets">官方代码片段</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="c1"># Build paths inside the project like this: BASE_DIR / 'subdir'.</span>
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">Env</span><span class="p">(</span><span class="n">DEBUG</span><span class="o">=</span><span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+<span class="n">env_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">,</span> <span class="s1">'.env'</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">env_file</span><span class="p">):</span>
+    <span class="c1"># read a local .env file</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">read_env</span><span class="p">(</span><span class="n">env_file</span><span class="p">)</span>
+<span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GOOGLE_CLOUD_PROJECT'</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="c1"># pull .env file from Secret Manager</span>
+    <span class="n">project_id</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GOOGLE_CLOUD_PROJECT'</span><span class="p">)</span>
+
+    <span class="n">client</span> <span class="o">=</span> <span class="n">secretmanager</span><span class="o">.</span><span class="n">SecretManagerServiceClient</span><span class="p">()</span>
+    <span class="n">settings_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'SETTINGS_NAME'</span><span class="p">,</span> <span class="s1">'django_settings'</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'projects/</span><span class="si">{</span><span class="n">project_id</span><span class="si">}</span><span class="s1">/secrets/</span><span class="si">{</span><span class="n">settings_name</span><span class="si">}</span><span class="s1">/versions/latest'</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">access_secret_version</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">payload</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">'UTF-8'</span><span class="p">)</span>
+
+    <span class="n">env</span><span class="o">.</span><span class="n">read_env</span><span class="p">(</span><span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">(</span><span class="n">payload</span><span class="p">))</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">'No local .env or GOOGLE_CLOUD_PROJECT detected. No secrets found.'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>不要忘记导入文件顶部的<code>io</code>和<code>secretmanager</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">from</span> <span class="nn">google.cloud</span> <span class="kn">import</span> <span class="n">secretmanager</span>
+</code></pre></div>
+
+<p>太好了！终于到了部署我们应用的时候了。为此，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud app deploy
+
+Services to deploy:
+
+descriptor:                  <span class="o">[</span>C:<span class="se">\U</span>sers<span class="se">\N</span>ik<span class="se">\P</span>ycharmProjects<span class="se">\d</span>jango-images-new<span class="se">\a</span>pp.yaml<span class="o">]</span>
+source:                      <span class="o">[</span>C:<span class="se">\U</span>sers<span class="se">\N</span>ik<span class="se">\P</span>ycharmProjects<span class="se">\d</span>jango-images-new<span class="o">]</span>
+target project:              <span class="o">[</span>indigo-griffin-376011<span class="o">]</span>
+target service:              <span class="o">[</span>default<span class="o">]</span>
+target version:              <span class="o">[</span>20230130t135926<span class="o">]</span>
+target url:                  <span class="o">[</span>https://indigo-griffin-376011.ey.r.appspot.com<span class="o">]</span>
+
+
+Do you want to <span class="k">continue</span> <span class="o">(</span>Y/n<span class="o">)</span>?  y
+
+Beginning deployment of service <span class="o">[</span>default<span class="o">]</span>...
+<span class="c1">#============================================================#</span>
+<span class="c1">#= Uploading 21 files to Google Cloud Storage               =#</span>
+<span class="c1">#============================================================#</span>
+File upload <span class="k">done</span>.
+Updating service <span class="o">[</span>default<span class="o">]</span>...done.
+Setting traffic split <span class="k">for</span> service <span class="o">[</span>default<span class="o">]</span>...done.
+Deployed service <span class="o">[</span>default<span class="o">]</span> to <span class="o">[</span>https://indigo-griffin-376011.ey.r.appspot.com<span class="o">]</span>
+
+You can stream logs from the <span class="nb">command</span> line by running:
+  $ gcloud app logs tail -s default
+</code></pre></div>
+
+<p>在浏览器中打开您的web应用程序，并测试它是否正常工作:</p>
+
+
+<blockquote>
+<p>如果你得到一个<code>502 Bad Gateway</code>错误，你可以导航到<a href="https://console.cloud.google.com/logs/">日志浏览器</a>来查看你的日志。</p>
+<p>如果有一个<code>403 Permission 'secretmanager.versions.access' denied</code>错误，导航到<code>django_settings</code> secret permissions并确保默认的App Engine服务帐户可以访问此机密。参见<a href="https://stackoverflow.com/a/67331344/13058252">栈顶溢出</a>的解决方案。</p>
+</blockquote>
+<p>如果您尝试上传图像，您应该会看到以下错误:</p>
+<div class="codehilite"><pre><span/><code>[Errno 30] Read-only file system: '/workspace/mediafiles'
+</code></pre></div>
+
+<p>这是因为GAE文件是只读的。别担心。我们将在下一节中解决它。</p>
+<h2 id="persistent-storage">持久存储</h2>
+<p>Google App Engine(以及许多其他类似的服务，如Heroku)提供了一个短暂的文件系统。这意味着您的数据不是持久的，可能会在应用程序关闭或重新部署时消失。此外，GAE文件是只读的，这使得您无法将媒体文件直接上传到GAE。</p>
+<p>正因为如此，我们将使用<a href="https://cloud.google.com/storage">云存储</a>来设置持久存储。</p>
+<h3 id="service-account">服务帐户</h3>
+<p>要使用云存储，我们首先需要创建一个专用的服务帐户，该帐户具有足够的权限来读/写和签署云存储中的文件。</p>
+<p>导航至<a href="https://console.cloud.google.com/iam-admin/serviceaccounts">服务账户仪表板</a>并点击“创建服务账户”。将其命名为“django-images-bucket ”,并将其他内容保留为默认值。提交表单后，您应该会在表格中看到一个新的服务帐户。记下您的新服务帐户的电子邮件。</p>
+<p>接下来，单击您的服务帐户旁边的三个点，然后单击“管理详细信息”:</p>
+<p><img data-src="/static/images/blog/django/django-gae/service-account-details.png" loading="lazy" class="lazyload" alt="Service Account Details" src="../Images/f27b8075390d2806758ed7acee81070a.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gae/service-account-details.png"/></p>
+<p>在导航中选择“Keys”和“Create a new key”。将其导出为JSON。</p>
+<p><img data-src="/static/images/blog/django/django-gae/create-new-key.png" loading="lazy" class="lazyload" alt="Create New Service Account Key" src="../Images/e0dfd442bcd8d1688f3b9f3ad85d6c08.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gae/create-new-key.png"/></p>
+<p>一旦JSON密匙被下载，给它一个更易读的名字，比如<em> gcpCredentials.json </em>，并把它放在您的项目根目录中。</p>
+<blockquote>
+<p>确保将该文件添加到您的<em>中。gitignore </em>以防止您的服务帐户凭证意外泄露给版本控制。</p>
+</blockquote>
+<h3 id="bucket">水桶</h3>
+<p>导航到您的<a href="https://console.cloud.google.com/storage/">云存储桶</a>，并使用以下详细信息创建一个新桶:</p>
+<ul>
+<li>名称:<strong>姜戈-图像-桶</strong></li>
+<li>位置类型:<strong>地区</strong></li>
+<li>位置:<strong>与您的应用程序相同的地区</strong></li>
+</ul>
+<p>将其他内容保留为默认值，然后单击“创建”。</p>
+<p>如果您收到一条消息说“公共访问将被阻止”，请取消选中“在此桶上实施公共访问阻止”和“确认”。我们必须允许公众访问，因为我们正在部署一个图像托管网站，并希望上传的图像可以被每个人访问。</p>
+<blockquote>
+<p>有关更多信息，请查看<a href="https://cloud.google.com/storage/docs/public-access-prevention">公共访问防护</a>。</p>
+</blockquote>
+<p>要授予我们的新服务帐户对存储桶的权限，请查看您的存储桶详细信息，然后在导航中选择“权限”。之后，点击“授权访问”:</p>
+<p><img data-src="/static/images/blog/django/django-gae/buckets-permissions.png" loading="lazy" class="lazyload" alt="Bucket Permissions" src="../Images/277a2e4f6bf6c4c980f338ce2a23057c.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gae/buckets-permissions.png"/></p>
+<p>添加新主体:</p>
+<ul>
+<li>电子邮件:<strong>您的服务帐户电子邮件</strong></li>
+<li>角色:<strong>云存储&gt;存储管理员</strong></li>
+</ul>
+<p>太好了！我们现在有了一个存储桶和一个可以使用该存储桶的服务帐户。</p>
+<h3 id="configure-django">配置Django</h3>
+<p>为了利用Django的云存储，我们将使用一个名为<a href="https://django-storages.readthedocs.io/"> django-storages </a>的第三方包。</p>
+<p>在本地安装软件包，并将下面两行添加到<em> requirements.txt </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="n">django</span><span class="o">-</span><span class="n">storages</span><span class="o">[</span><span class="n">google</span><span class="o">]==</span><span class="mf">1.13.2</span><span class="w"/>
+<span class="n">google</span><span class="o">-</span><span class="n">cloud</span><span class="o">-</span><span class="n">storage</span><span class="o">==</span><span class="mf">2.7.0</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来，配置django-storages以使用云存储和您的服务帐户:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">GS_CREDENTIALS</span> <span class="o">=</span> <span class="n">service_account</span><span class="o">.</span><span class="n">Credentials</span><span class="o">.</span><span class="n">from_service_account_file</span><span class="p">(</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">,</span> <span class="s1">'gcpCredentials.json'</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">DEFAULT_FILE_STORAGE</span> <span class="o">=</span> <span class="s1">'storages.backends.gcloud.GoogleCloudStorage'</span>
+<span class="n">STATICFILES_STORAGE</span> <span class="o">=</span> <span class="s1">'storages.backends.gcloud.GoogleCloudStorage'</span>
+<span class="n">GS_BUCKET_NAME</span> <span class="o">=</span> <span class="n">env</span><span class="p">(</span><span class="s1">'GS_BUCKET_NAME'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">google.oauth2</span> <span class="kn">import</span> <span class="n">service_account</span>
+</code></pre></div>
+
+<p>使用<em> app.yaml </em>中的处理程序使App Engine服务于静态和媒体文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.yaml</span><span class="w"/>
+
+<span class="nt">handlers</span><span class="p">:</span><span class="w"/>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/static</span><span class="w">              </span><span class="c1"># new</span><span class="w"/>
+<span class="w">  </span><span class="nt">static_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">staticfiles/</span><span class="w">  </span><span class="c1"># new</span><span class="w"/>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/media</span><span class="w">               </span><span class="c1"># new</span><span class="w"/>
+<span class="w">  </span><span class="nt">static_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mediafiles/</span><span class="w">   </span><span class="c1"># new</span><span class="w"/>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/.*</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span><span class="w"/>
+</code></pre></div>
+
+<p>确保它们被放置在<code>/.*</code>之前。</p>
+<blockquote>
+<p>如果你正在部署自己的应用程序，确保你的<code>STATIC_URL</code>、<code>STATIC_ROOT</code>、<code>MEDIA_URL</code>和<code>MEDIA_ROOT</code>设置正确(<a href="https://github.com/duplxey/django-images/blob/889062793da0a7ccca7f88836f22244d574fb368/core/settings.py#L130">示例</a>)。</p>
+</blockquote>
+<p>收集静态文件到GAE:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py collectstatic
+
+You have requested to collect static files at the destination
+location as specified <span class="k">in</span> your settings.
+
+This will overwrite existing files!
+Are you sure you want to <span class="k">do</span> this?
+
+Type <span class="s1">'yes'</span> to <span class="k">continue</span>, or <span class="s1">'no'</span> to cancel: yes
+
+<span class="m">141</span> static files copied.
+</code></pre></div>
+
+<p>重新部署你的应用程序:</p>
+
+
+<p>在浏览器中打开应用程序:</p>
+
+
+<p>导航到<code>/admin</code>并确保静态文件已被收集和加载。</p>
+<h2 id="custom-domain">自定义域</h2>
+<p>要将自定义域链接到您的web应用，首先导航到<a href="https://console.cloud.google.com/appengine">应用引擎仪表板</a>。在边栏中选择“设置”，然后选择“自定义域”。最后，单击“添加自定义域”。</p>
+<p>选择您想要使用的域，或者添加并验证新域。如果您添加一个新域，请确保输入裸域名。示例:</p>
+<div class="codehilite"><pre><span/><code>testdriven.io       &lt;-- good
+app.testdriven.io   &lt;-- bad
+</code></pre></div>
+
+<p>单击“继续”,然后输入要映射到你的GAE应用的域名和子域名。然后单击“保存映射”。</p>
+<p>接下来，转到您的域名注册商的DNS设置，添加一个指向<code>ghs.googlehosted.com</code>的新“CNAME记录”,如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                      | TTL       |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| CNAME    | </span><span class="nv">&lt;</span><span class="c">some host</span><span class="nv">&gt;</span><span class="c">  | ghs</span><span class="nt">.</span><span class="c">googlehosted</span><span class="nt">.</span><span class="c">co        | Automatic |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                      | TTL       |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| CNAME    | app          | ghs</span><span class="nt">.</span><span class="c">googlehosted</span><span class="nt">.</span><span class="c">com       | Automatic |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<p>返回到您的自定义域设置，然后单击“完成”。</p>
+<p>您已成功添加了自定义域名。等待DNS更改传播，等待Google发布SSL证书。要耐心...有时需要24小时。</p>
+<p>在您验证您的应用程序可通过HTTPS访问后，将以下内容添加到<em> app.yaml </em>的末尾:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.yaml</span><span class="w"/>
+
+<span class="nt">env_variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">APPENGINE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;the domain you mapped&gt;</span><span class="w"/>
+
+<span class="c1"># Example:</span><span class="w"/>
+<span class="c1"># env_variables:</span><span class="w"/>
+<span class="c1">#   APPENGINE_URL: app.testdriven.io</span><span class="w"/>
+</code></pre></div>
+
+<p>这添加了一个新的环境变量，由<em> settings.py </em>用来配置<code>ALLOWED_HOSTS</code>、<code>CSRF_TRUSTED_ORIGINS</code>，并强制SSL重定向。</p>
+<p>最后，再次重新部署您的应用:</p>
+
+
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们已经成功地将Django应用程序部署到Google App Engine。我们已经处理了Postgres数据库、静态和媒体文件，添加了自定义域名，并启用了HTTPS。现在，您应该能够将自己的应用程序部署到App Engine。</p>
+<p>从<a href="https://github.com/duplxey/django-app-engine"> django-app-engine </a> repo中获取最终的源代码。</p>
+<blockquote>
+<p>如果您希望删除我们在整个教程中创建的所有服务和资源，请查看文档中的<a href="https://cloud.google.com/appengine/docs/standard/python3/building-app/cleaning-up">清理</a>资源。</p>
+</blockquote>
+<h3 id="future-steps">未来的步骤</h3>
+<ol>
+<li>设置<a href="https://console.cloud.google.com/security/secret-manager">秘密管理器</a>中的<code>DEBUG=0</code>禁用调试模式。</li>
+<li>看看<a href="https://cloud.google.com/appengine/docs/legacy/standard/python/how-instances-are-managed">如何管理实例</a>以更好地理解GAE伸缩。</li>
+<li>了解如何使用<a href="https://cloud.google.com/logging/docs/view/logs-explorer-interface">日志浏览器</a>。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

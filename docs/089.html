@@ -1,0 +1,187 @@
+<html>
+<head>
+<title>Dynamic Secret Generation with Vault and Flask </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>基于金库和烧瓶的动态秘密生成</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/dynamic-secret-generation-with-vault-and-flask/#0001-01-01">https://testdriven.io/blog/dynamic-secret-generation-with-vault-and-flask/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将查看一个快速的真实示例，使用哈希公司的<a href="https://www.vaultproject.io/"> Vault </a>和<a href="https://www.consul.io/">consult</a>为Flask web应用程序创建动态Postgres凭证。</p>
+
+
+
+<h2 id="prerequisites">先决条件</h2>
+<p>开始之前，您应该:</p>
+<ol>
+<li>对金库和顾问的秘密管理有基本的工作知识。请参考<a href="/managing-secrets-with-vault-and-consul">用Vault管理秘密和咨询</a>博客帖子了解更多信息。</li>
+<li>使用<a href="https://www.vaultproject.io/docs/configuration/storage/index.html">存储后端</a>部署的Vault实例。查看<a href="/deploying-vault-and-consul">部署金库和领事</a>的帖子，了解如何通过Docker Swarm将金库和领事部署到数字海洋。保险存储也应该初始化和解封。</li>
+<li>部署了Postgres服务器。如果您没有运行Postgres，请使用<a href="https://aws.amazon.com/rds/free/"> AWS RDS自由层</a>。</li>
+<li>以前和Flask和Docker合作过。查看<a href="/courses/tdd-flask/">使用Python、Flask和Docker的测试驱动开发</a>课程，了解更多信息。</li>
+</ol>
+<h2 id="getting-started">入门指南</h2>
+<p>让我们从一个基本的Flask web应用程序开始。</p>
+<p>如果你想继续，复制下<a href="https://github.com/testdrivenio/vault-consul-flask">金库-领事-烧瓶</a>回购，然后查看<a href="https://github.com/testdrivenio/vault-consul-flask/tree/v1"> v1 </a>分支:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/vault-consul-flask --branch v1 --single-branch
+$ <span class="nb">cd</span> vault-consul-flask
+</code></pre></div>
+
+<p>快速浏览一下代码:</p>
+<div class="codehilite"><pre><span/><code>├── .gitignore
+├── Dockerfile
+├── README.md
+├── docker-compose.yml
+├── manage.py
+├── project
+│   ├── __init__.py
+│   ├── api
+│   │   ├── __init__.py
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   └── users.py
+│   └── config.py
+└── requirements.txt
+</code></pre></div>
+
+<p>本质上，为了让这个应用程序工作，我们需要向一个<a href="https://docs.docker.com/compose/environment-variables/#the-env-file">添加以下环境变量。env </a>文件(我们将很快完成):</p>
+<ol>
+<li><code>DB_USER</code></li>
+<li><code>DB_PASSWORD</code></li>
+<li><code>DB_SERVER</code></li>
+</ol>
+<p><em>项目/配置文件</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+
+<span class="n">USER</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DB_USER'</span><span class="p">)</span>
+<span class="n">PASSWORD</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DB_PASSWORD'</span><span class="p">)</span>
+<span class="n">SERVER</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DB_SERVER'</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ProductionConfig</span><span class="p">():</span>
+    <span class="sd">"""Production configuration"""</span>
+    <span class="n">SQLALCHEMY_TRACK_MODIFICATIONS</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">SQLALCHEMY_DATABASE_URI</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'postgresql://</span><span class="si">{</span><span class="n">USER</span><span class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="n">PASSWORD</span><span class="si">}</span><span class="s1">@</span><span class="si">{</span><span class="n">SERVER</span><span class="si">}</span><span class="s1">:5432/users_db'</span>
+</code></pre></div>
+
+<h2 id="configuring-vault">配置保管库</h2>
+<blockquote>
+<p>同样，如果您想跟进，您应该有一个部署了<a href="https://www.vaultproject.io/docs/configuration/storage/index.html">存储后端</a>的Vault实例。这个实例也应该被初始化和解封。想要快速启动并运行集群吗？从<a href="https://github.com/testdrivenio/vault-consul-swarm"> vault-consul-swarm </a>运行<em> deploy.sh </em>脚本，将vault和consul集群部署到三个DigitalOcean droplets。调配和部署只需不到五分钟的时间！</p>
+</blockquote>
+<p>首先，登录Vault(如有必要)，然后从Vault <a href="https://www.vaultproject.io/docs/commands/index.html"> CLI </a>启用数据库<a href="https://www.vaultproject.io/docs/secrets/databases/index.html">秘密后端</a>:</p>
+<div class="codehilite"><pre><span/><code>$ vault secrets <span class="nb">enable</span> database
+
+Success! Enabled the database secrets engine at: database/
+</code></pre></div>
+
+<p>添加Postgres连接以及数据库引擎<a href="https://www.vaultproject.io/docs/secrets/databases/postgresql.html">插件</a>信息:</p>
+<div class="codehilite"><pre><span/><code>$ vault write database/config/users_db <span class="se">\</span>
+    <span class="nv">plugin_name</span><span class="o">=</span><span class="s2">"postgresql-database-plugin"</span> <span class="se">\</span>
+    <span class="nv">connection_url</span><span class="o">=</span><span class="s2">"postgresql://{{username}}:{{password}}@&lt;ENDPOINT&gt;:5432/users_db"</span> <span class="se">\</span>
+    <span class="nv">allowed_roles</span><span class="o">=</span><span class="s2">"mynewrole"</span> <span class="se">\</span>
+    <span class="nv">username</span><span class="o">=</span><span class="s2">"&lt;USERNAME&gt;"</span> <span class="se">\</span>
+    <span class="nv">password</span><span class="o">=</span><span class="s2">"&lt;PASSWORD&gt;"</span>
+</code></pre></div>
+
+<blockquote>
+<p>您是否注意到URL中有<code>username</code>和<code>password</code>的模板？这用于防止对密码的直接读取访问，并启用凭据轮换。</p>
+</blockquote>
+<p>确保更新数据库端点以及用户名和密码。例如:</p>
+<div class="codehilite"><pre><span/><code>$ vault write database/config/users_db <span class="se">\</span>
+    <span class="nv">plugin_name</span><span class="o">=</span><span class="s2">"postgresql-database-plugin"</span> <span class="se">\</span>
+    <span class="nv">connection_url</span><span class="o">=</span><span class="s2">"postgresql://{{username}}:{{password}}@users-db.c7vzuyfvhlgz.us-east-1.rds.amazonaws.com:5432/users_db"</span> <span class="se">\</span>
+    <span class="nv">allowed_roles</span><span class="o">=</span><span class="s2">"mynewrole"</span> <span class="se">\</span>
+    <span class="nv">username</span><span class="o">=</span><span class="s2">"vault"</span> <span class="se">\</span>
+    <span class="nv">password</span><span class="o">=</span><span class="s2">"lOfon7BA3uzZzxGGv36j"</span>
+</code></pre></div>
+
+<p>这在“database/config/users_db”中创建了一个新的机密路径:</p>
+<div class="codehilite"><pre><span/><code>$ vault list database/config
+
+Keys
+----
+users_db
+</code></pre></div>
+
+<p>接下来，创建一个名为<code>mynewrole</code>的新角色:</p>
+<div class="codehilite"><pre><span/><code>$ vault write database/roles/mynewrole <span class="se">\</span>
+    <span class="nv">db_name</span><span class="o">=</span>users_db <span class="se">\</span>
+    <span class="nv">creation_statements</span><span class="o">=</span><span class="s2">"CREATE ROLE \"{{name}}\" \</span>
+<span class="s2">        WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; \</span>
+<span class="s2">        GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"</span> <span class="se">\</span>
+    <span class="nv">default_ttl</span><span class="o">=</span><span class="s2">"1h"</span> <span class="se">\</span>
+    <span class="nv">max_ttl</span><span class="o">=</span><span class="s2">"24h"</span>
+
+Success! Data written to: database/roles/mynewrole
+</code></pre></div>
+
+<p>这里，我们将Vault中的<code>mynewrole</code>名称映射到一个SQL语句，该语句在运行时将创建一个拥有数据库中所有权限的新用户。请记住，这实际上还没有创建新用户。记下默认值和最大TTL。</p>
+<p>现在我们准备创建新用户。</p>
+<h2 id="creating-the-credentials">创建凭据</h2>
+<p>快速查看一下<code>psql</code>中有哪些用户:</p>
+
+
+<p>在项目根目录下创建一个名为<em> run.sh </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+rm -f .env
+
+<span class="nb">echo</span> <span class="nv">DB_SERVER</span><span class="o">=</span>&lt;DB_ENDPOINT&gt; &gt;&gt; .env
+
+<span class="nv">user</span><span class="o">=</span><span class="k">$(</span>curl  -H <span class="s2">"X-Vault-Token: </span><span class="nv">$VAULT_TOKEN</span><span class="s2">"</span> <span class="se">\</span>
+        -X GET http://&lt;VAULT_ENDPOINT&gt;:8200/v1/database/creds/mynewrole<span class="k">)</span>
+<span class="nb">echo</span> <span class="nv">DB_USER</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span> <span class="nv">$user</span> <span class="p">|</span> jq -r .data.username<span class="k">)</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">DB_PASSWORD</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span> <span class="nv">$user</span> <span class="p">|</span> jq -r .data.password<span class="k">)</span> &gt;&gt; .env
+
+docker-compose up -d --build
+</code></pre></div>
+
+<p>因此，这将调用Vault API从<code>/creds</code>端点生成一组新的凭证。随后的响应通过JQ进行解析，并且凭证被添加到一个<em>中。env </em>文件。确保更新数据库(<code>DB_ENDPOINT</code>)和Vault ( <code>VAULT_ENDPOINT</code>)端点。</p>
+<p>添加<code>VAULT_TOKEN</code>环境变量:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">VAULT_TOKEN</span><span class="o">=</span>&lt;YOUR_VAULT_TOKEN&gt;
+</code></pre></div>
+
+<p>构建映像并旋转容器:</p>
+
+
+<p>验证环境变量是否已成功添加:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web env
+</code></pre></div>
+
+<p>您还应该在数据库中看到该用户:</p>
+<div class="codehilite"><pre><span/><code>Role name                                   <span class="p">|</span> Attributes                                  <span class="p">|</span> Member of
+--------------------------------------------+---------------------------------------------+----------
+ v-root-mynewrol-jC8Imdx2sMTZj03-1533704364 <span class="p">|</span> Password valid <span class="k">until</span> <span class="m">2018</span>-08-08 <span class="m">05</span>:59:29+00 <span class="p">|</span> <span class="o">{}</span>
+</code></pre></div>
+
+<p>创建并植入数据库<code>users</code>表:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose run web python manage.py recreate-db
+$ docker-compose run web python manage.py seed-db
+</code></pre></div>
+
+<p>在浏览器中进行测试，网址为<a href="http://localhost:5000/users">http://localhost:5000/users</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"success"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"users"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"admin"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"email"</span><span class="p">:</span><span class="w"> </span><span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="107d79737871757c507e7f646275717c3e737f7d">[email protected]</a>"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"michael"</span><span class="w"/>
+<span class="w">  </span><span class="p">}]</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>完成后取下容器:</p>
+
+
+<h2 id="conclusion">结论</h2>
+<p>就是这样！</p>
+<p>请记住，在这个示例中，凭据仅在一个小时内有效。这非常适合短暂的、动态的、一次性的任务。如果您有更长的任务，您可以设置一个cron作业来每小时触发一次run.sh脚本来获取新的凭证。请记住，最大TTL设置为24小时。</p>
+<blockquote>
+<p>您可能还想看看如何使用<a href="https://github.com/hashicorp/envconsul"> envconsul </a>将凭证放入Flask的环境中。它甚至可以在凭证更新时重启Flask。</p>
+</blockquote>
+<p>你可以在<a href="https://github.com/testdrivenio/vault-consul-flask">金库-领事-烧瓶</a>回购中找到最终代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

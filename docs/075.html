@@ -1,0 +1,684 @@
+<html>
+<head>
+<title>Flask Stripe Tutorial </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>烧瓶条纹教程</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/flask-stripe-tutorial/#0001-01-01">https://testdriven.io/blog/flask-stripe-tutorial/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程展示了如何将<a href="https://stripe.com/"> Stripe </a>添加到Flask应用程序中，以接受一次性付款。</p>
+<blockquote>
+<p>需要处理订阅付款？查看<a href="/blog/flask-stripe-subscriptions/">烧瓶条纹订阅</a>。</p>
+</blockquote>
+
+
+
+<h2 id="stripe-payment-strategies">条纹支付策略</h2>
+<p>Stripe目前有三种接受一次性付款的策略:</p>
+<ol>
+<li><a href="https://stripe.com/docs/payments/charges-api">收费API </a>(遗留)</li>
+<li><a href="https://stripe.com/payments/checkout">条纹检测</a>(本教程的重点)</li>
+<li><a href="https://stripe.com/docs/payments/payment-intents">支付意向API </a>(通常与<a href="https://stripe.com/payments/elements">条纹元素</a>相结合)</li>
+</ol>
+<p>你应该使用哪种策略？</p>
+<ol>
+<li>如果您想快速启动并运行，请使用条带检出。如果您已经使用了Checkout的旧的<a href="/static/images/blog/django/django-stripe/legacy_stripe_checkout.png">模态版本</a>，并且正在寻找一种类似的方法，那么这是一条可行之路。它提供了许多开箱即用的强大功能，支持多种语言，甚至可以用于<a href="https://stripe.com/docs/payments/checkout/set-up-a-subscription">定期支付</a>。最重要的是，Checkout为您管理整个付款过程，因此您甚至无需添加任何表单就可以开始接受付款！</li>
+<li>如果您希望为最终用户定制付款体验，请使用付款意向API(以及元素)。</li>
+</ol>
+<blockquote>
+<p>收费API呢？</p>
+<ol>
+<li>虽然您仍然可以使用Charges API，但是如果您是Stripe的新手，请不要使用它，因为它不支持最新的银行法规(如<a href="https://stripe.com/docs/strong-customer-authentication"> SCA </a>)。如果使用的话，你会看到很高的下降率。如需了解更多信息，请查看官方Stripe文档中的<a href="https://stripe.com/docs/payments/payment-intents/migration/charges">费用与付款意向API</a>页面。</li>
+<li>还在用收费API？如果你的大多数客户都在美国或加拿大，你还不需要迁移。查看<a href="https://stripe.com/docs/payments/checkout/migration">结帐迁移指南</a>指南了解更多信息。</li>
+</ol>
+</blockquote>
+<h2 id="initial-setup">初始设置</h2>
+<p>第一步是设置一个基本的Python环境并安装Flask。</p>
+<p>创建一个新的项目文件夹，创建并激活一个虚拟环境，并安装Flask:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir flask-stripe-checkout <span class="o">&amp;&amp;</span> <span class="nb">cd</span> flask-stripe-checkout
+$ python3.10 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+<span class="o">(</span>env<span class="o">)</span>$ pip install flask
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>接下来，创建一个名为<em> app.py </em>的文件，并添加一个基本的“Hello World”应用程序的代码:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/hello"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">hello_world</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="s2">"hello, world!"</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>启动服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ <span class="nv">FLASK_ENV</span><span class="o">=</span>development python app.py
+</code></pre></div>
+
+<p>你应该在你的浏览器中看到<code>"hello, world!"</code>在<a href="http://127.0.0.1:5000/hello">http://127 . 0 . 0 . 1:5000/hello</a>。</p>
+<h2 id="add-stripe">添加条纹</h2>
+<p>条纹时间到了。从安装开始:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install stripe
+</code></pre></div>
+
+<p>接下来，<a href="https://dashboard.stripe.com/register">注册一个新的Stripe账户</a>(如果你还没有的话)，然后导航到<a href="https://dashboard.stripe.com/test/dashboard">仪表盘</a>。点击“开发者”:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/developers.png" loading="lazy" class="lazyload" alt="Stripe Developers" src="../Images/08e01e52fcafc6feeda55b6f12d7ebb1.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/developers.png"/></p>
+<p>然后在左侧栏中点击“API keys”:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/developerskey.png" loading="lazy" class="lazyload" alt="Stripe Developers Key" src="../Images/050c22290ec2b5711d0d19cf4259cdc8.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/developerskey.png"/></p>
+<p>每个Stripe帐户有四个<a href="https://stripe.com/docs/keys"> API密钥</a>:两个用于测试，两个用于生产。每一对都有一个“秘密密钥”和一个“可公开密钥”。不要向任何人透露密钥；可发布的密钥将被嵌入到任何人都可以看到的页面上的JavaScript中。</p>
+<p>目前右上角的“查看测试数据”开关表示我们正在使用测试键。这就是我们想要的。</p>
+<p>将您的<a href="https://stripe.com/docs/keys#test-live-modes">测试API键</a>存储为环境变量，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ <span class="nb">export</span> <span class="nv">STRIPE_PUBLISHABLE_KEY</span><span class="o">=</span>&lt;YOUR_STRIPE_PUBLISHABLE_KEY&gt;
+<span class="o">(</span>env<span class="o">)</span>$ <span class="nb">export</span> <span class="nv">STRIPE_SECRET_KEY</span><span class="o">=</span>&lt;YOUR_STRIPE_SECRET_KEY&gt;
+</code></pre></div>
+
+<p>接下来，将条带密钥添加到您的应用程序中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">import</span> <span class="nn">stripe</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">stripe_keys</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"secret_key"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"STRIPE_SECRET_KEY"</span><span class="p">],</span>
+    <span class="s2">"publishable_key"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"STRIPE_PUBLISHABLE_KEY"</span><span class="p">],</span>
+<span class="p">}</span>
+
+<span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">stripe_keys</span><span class="p">[</span><span class="s2">"secret_key"</span><span class="p">]</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/hello"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">hello_world</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="s2">"hello, world!"</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>最后，您需要在<a href="https://dashboard.stripe.com/settings/account">https://dashboard.stripe.com/settings/account</a>的“帐户设置”中指定一个“帐户名称”:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/accountname.png" loading="lazy" class="lazyload" alt="Stripe Account Name" src="../Images/ebd3e982acf3ae1aabd3aeb16f7a98ed.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/accountname.png"/></p>
+<h2 id="create-a-product">创造产品</h2>
+<p>接下来，我们需要创造一个产品来销售。</p>
+<p>单击顶部导航栏中的“产品”，然后单击“添加产品”:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/addproduct1.png" loading="lazy" class="lazyload" alt="Stripe Add Product" src="../Images/eac3e2a0a1102beb3dc3a2d49b5356e3.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/addproduct1.png"/></p>
+<p>添加产品名称，输入价格，然后选择“一次性”:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/addproduct2.png" loading="lazy" class="lazyload" alt="Stripe Add Product" src="../Images/84be924fa159afd182069aea35ae9810.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/addproduct2.png"/></p>
+<p>点击“保存产品”。</p>
+<p>有了API密钥和产品设置，我们现在可以开始添加<a href="https://stripe.com/checkout"> Stripe Checkout </a>来处理支付。</p>
+<h2 id="workflow">工作流程</h2>
+<p>在用户点击购买按钮后，我们需要做以下事情:</p>
+<ol>
+<li>
+<p>获取可发布密钥</p>
+<ul>
+<li>从客户端向服务器发送AJAX请求，请求可发布的密钥</li>
+<li>用键回应</li>
+<li>使用键创建Stripe.js的新实例</li>
+</ul>
+</li>
+<li>
+<p>创建签出会话</p>
+<ul>
+<li>向服务器发送另一个AJAX请求，请求一个新的结帐会话ID</li>
+<li>生成新的签出会话并发回ID</li>
+<li>重定向到用户完成购买的结帐页面</li>
+</ul>
+</li>
+<li>
+<p>适当地重定向用户</p>
+<ul>
+<li>成功付款后重定向到成功页面</li>
+<li>取消付款后重定向到取消页面</li>
+</ul>
+</li>
+<li>
+<p>用条纹网钩确认付款</p>
+<ul>
+<li>设置webhook端点</li>
+<li>使用条带CLI测试端点</li>
+<li>用条带注册端点</li>
+</ul>
+</li>
+</ol>
+<h2 id="get-publishable-key">获取可发布密钥</h2>
+<h3 id="javascript-static-file">JavaScript静态文件</h3>
+<p>让我们首先创建一个新的静态文件来保存我们所有的JavaScript。</p>
+<p>添加一个名为“static”的新文件夹，然后向该文件夹添加一个名为<em> main.js </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// static/main.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check!"</span><span class="p">);</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来，向<em> app.py </em>添加一条新路线，该路线提供了一个【index.html】模板<em>:</em></p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">index</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">"index.html"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>确保也导入<code>render_template</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">render_template</span>
+</code></pre></div>
+
+<p>对于模板，首先添加一个名为“templates”的新文件夹，然后添加一个名为<em>base.html</em>的基础模板，其中包含了提供<em> main.js </em>静态文件的脚本标签:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/base.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Flask + Stripe Checkout<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e381968f8e82a3d3cddacdd3">[email protected]</a>/css/bulma.min.css"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"{{ url_for('static', filename='main.js') }}"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">defer</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://use.fontawesome.com/releases/v5.14.0/js/all.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    {% block content %}{% endblock %}
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>接下来，向名为<em>index.html</em>的新模板添加一个支付按钮:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/index.html --&gt;</span>
+
+{% extends "base.html" %}
+
+{% block content %}
+  <span class="p">&lt;</span><span class="nt">section</span> <span class="na">class</span><span class="o">=</span><span class="s">"section"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">button</span> <span class="na">class</span><span class="o">=</span><span class="s">"button is-primary"</span> <span class="na">id</span><span class="o">=</span><span class="s">"submitBtn"</span><span class="p">&gt;</span>Purchase!<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">section</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<p>再次运行开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ <span class="nv">FLASK_ENV</span><span class="o">=</span>development python app.py
+</code></pre></div>
+
+<p>导航到<a href="http://127.0.0.1:5000"> http://127.0.0.1:5000 </a>，打开JavaScript控制台。您应该看到健全性检查:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/sanitycheck.png" loading="lazy" class="lazyload" alt="JavaScript Sanity Check" src="../Images/78bf65a6e9d42dfa7dc506f00992f2b8.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/sanitycheck.png"/></p>
+<h3 id="route">途径</h3>
+<p>接下来，向<em> app.py </em>添加一个新的路由来处理AJAX请求:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/config"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_publishable_key</span><span class="p">():</span>
+    <span class="n">stripe_config</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"publicKey"</span><span class="p">:</span> <span class="n">stripe_keys</span><span class="p">[</span><span class="s2">"publishable_key"</span><span class="p">]}</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">stripe_config</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="ajax-request">AJAX请求</h3>
+<p>接下来，使用<a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API">获取API </a>向<em> static/main.js </em>中的新<code>/config</code>端点发出AJAX请求:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// static/main.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check!"</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// new</span><span class="w"/>
+<span class="c1">// Get Stripe publishable key</span><span class="w"/>
+<span class="nx">fetch</span><span class="p">(</span><span class="s2">"/config"</span><span class="p">)</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Initialize Stripe.js</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">stripe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">Stripe</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">publicKey</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>来自<code>fetch</code>请求的响应是一个<a href="https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream">可读流</a>。<code>result.json()</code>返回一个承诺，我们将它解析为一个JavaScript对象——即<code>data</code>。然后我们使用点符号来访问<code>publicKey</code>以获得可发布的密钥。</p>
+<p>将<a href="https://stripe.com/docs/js"> Stripe.js </a>包含在<em> templates/base.html </em>中，就像这样:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/base.html --&gt;</span>
+
+<span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Flask + Stripe Checkout<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cdafb8a1a0ac8dfde3f4e3fd">[email protected]</a>/css/bulma.min.css"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://js.stripe.com/v3/"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>  <span class="cm">&lt;!-- new --&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">"{{ url_for('static', filename='main.js') }}"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">script</span> <span class="na">defer</span> <span class="na">src</span><span class="o">=</span><span class="s">"https://use.fontawesome.com/releases/v5.14.0/js/all.js"</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    {% block content %}{% endblock %}
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>现在，在页面加载之后，将调用<code>/config</code>，它将使用Stripe publish key进行响应。然后，我们将使用这个键创建Stripe.js的新实例。</p>
+<p>工作流程:</p>
+<ol>
+  <li>
+  <p><s>获取可发布密钥</s></p>
+  <ul>
+    <li><s>从客户端向服务器发送AJAX请求，请求可发布密钥</s></li>
+    <li><s>用</s>键响应</li>
+    <li><s>使用键创建Stripe.js的新实例</s></li>
+  </ul>
+  </li>
+  <li>
+  <p>创建签出会话</p>
+  <ul>
+    <li>向服务器发送另一个AJAX请求，请求一个新的结帐会话ID</li>
+    <li>生成新的签出会话并发回ID</li>
+    <li>重定向到用户完成购买的结帐页面</li>
+  </ul>
+  </li>
+  <li>
+  <p>适当地重定向用户</p>
+  <ul>
+    <li>成功付款后重定向到成功页面</li>
+    <li>取消付款后重定向到取消页面</li>
+  </ul>
+  </li>
+  <li>
+  <p>用条纹网钩确认付款</p>
+  <ul>
+    <li>设置webhook端点</li>
+    <li>使用条带CLI测试端点</li>
+    <li>用条带注册端点</li>
+  </ul>
+  </li>
+</ol>
+
+<h2 id="create-checkout-session">创建签出会话</h2>
+<p>接下来，我们需要将一个事件处理程序附加到按钮的click事件，该事件将向服务器发送另一个AJAX请求，以生成一个新的结帐会话ID。</p>
+<h3 id="route_1">途径</h3>
+<p>首先，添加新路由:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/create-checkout-session"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">create_checkout_session</span><span class="p">():</span>
+    <span class="n">domain_url</span> <span class="o">=</span> <span class="s2">"http://127.0.0.1:5000/"</span>
+    <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">stripe_keys</span><span class="p">[</span><span class="s2">"secret_key"</span><span class="p">]</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Create new Checkout Session for the order</span>
+        <span class="c1"># Other optional params include:</span>
+        <span class="c1"># [billing_address_collection] - to display billing address details on the page</span>
+        <span class="c1"># [customer] - if you have an existing Stripe Customer ID</span>
+        <span class="c1"># [payment_intent_data] - capture the payment later</span>
+        <span class="c1"># [customer_email] - prefill the email input in the form</span>
+        <span class="c1"># For full details see https://stripe.com/docs/api/checkout/sessions/create</span>
+
+        <span class="c1"># ?session_id={CHECKOUT_SESSION_ID} means the redirect will have the session ID set as a query param</span>
+        <span class="n">checkout_session</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">checkout</span><span class="o">.</span><span class="n">Session</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">success_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s2">"success?session_id=</span><span class="si">{CHECKOUT_SESSION_ID}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">cancel_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s2">"cancelled"</span><span class="p">,</span>
+            <span class="n">payment_method_types</span><span class="o">=</span><span class="p">[</span><span class="s2">"card"</span><span class="p">],</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s2">"payment"</span><span class="p">,</span>
+            <span class="n">line_items</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"T-shirt"</span><span class="p">,</span>
+                    <span class="s2">"quantity"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="s2">"currency"</span><span class="p">:</span> <span class="s2">"usd"</span><span class="p">,</span>
+                    <span class="s2">"amount"</span><span class="p">:</span> <span class="s2">"2000"</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s2">"sessionId"</span><span class="p">:</span> <span class="n">checkout_session</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]})</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)),</span> <span class="mi">403</span>
+</code></pre></div>
+
+<p>在这里，我们-</p>
+<ol>
+<li>定义了一个<code>domain_url</code>(用于重定向)</li>
+<li>将条带密钥分配给<code>stripe.api_key</code>(因此当我们请求创建新的结帐会话时，它将被自动发送)</li>
+<li>创建了签出会话</li>
+<li>在响应中发回了ID</li>
+</ol>
+<p>注意使用了<code>domain_url</code>的<code>success_url</code>和<code>cancel_url</code>。在成功支付或取消的情况下，用户将分别被重定向回这些URL。我们将很快设立<code>/success</code>和<code>/cancelled</code>路线。</p>
+<h3 id="ajax-request_1">AJAX请求</h3>
+<p>将事件处理程序和后续AJAX请求添加到<em> static/main.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// static/main.js</span><span class="w"/>
+
+<span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s2">"Sanity check!"</span><span class="p">);</span><span class="w"/>
+
+<span class="c1">// Get Stripe publishable key</span><span class="w"/>
+<span class="nx">fetch</span><span class="p">(</span><span class="s2">"/config"</span><span class="p">)</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Initialize Stripe.js</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">stripe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">Stripe</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">publicKey</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// new</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Event handler</span><span class="w"/>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"#submitBtn"</span><span class="p">).</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Get Checkout Session ID</span><span class="w"/>
+<span class="w">    </span><span class="nx">fetch</span><span class="p">(</span><span class="s2">"/create-checkout-session"</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="c1">// Redirect to Stripe Checkout</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nx">stripe</span><span class="p">.</span><span class="nx">redirectToCheckout</span><span class="p">({</span><span class="nx">sessionId</span><span class="o">:</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">sessionId</span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">res</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，在解析了<code>result.json()</code>承诺之后，我们调用了<a href="https://stripe.com/docs/js/checkout/redirect_to_checkout"> redirectToCheckout </a>方法，该方法带有来自已解析承诺的结帐会话ID。</p>
+<p>导航到<a href="http://127.0.0.1:5000"> http://127.0.0.1:5000 </a>。点击按钮后，您将被重定向到Stripe Checkout实例(一个Stripe托管页面，用于安全收集支付信息),其中包含t恤产品信息:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/checkout.png" loading="lazy" class="lazyload" alt="Stripe Checkout" src="../Images/b1ac67573de79d3b6c27b3b882007bc7.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/checkout.png"/></p>
+<p>我们可以使用Stripe提供的几个<a href="https://stripe.com/docs/testing#cards">测试卡号</a>中的一个来测试表单。还是用<code>4242 4242 4242 4242</code>吧。</p>
+<ul>
+<li>电子邮件:有效的电子邮件</li>
+<li>卡号:<code>4242 4242 4242 4242</code></li>
+<li>到期日:未来的任何日期</li>
+<li>CVC:任何三个数字</li>
+<li>名称:任何东西</li>
+<li>邮政编码:任意五个数字</li>
+</ul>
+<p>如果一切顺利，付款应该被处理，但重定向将失败，因为我们还没有设置<code>/success</code> URL。</p>
+<p>工作流程:</p>
+<ol>
+  <li>
+  <p><s>获取可发布密钥</s></p>
+  <ul>
+    <li><s>从客户端向服务器发送AJAX请求，请求可发布密钥</s></li>
+    <li><s>用</s>键响应</li>
+    <li><s>使用键创建Stripe.js的新实例</s></li>
+  </ul>
+  </li>
+  <li>
+  <p><s>创建结账会话</s></p>
+  <ul>
+    <li><s>向服务器发送另一个AJAX请求，请求一个新的结帐会话ID </s></li>
+    <li><s>生成新的结账会话并发回ID </s></li>
+    <li><s>重定向到用户完成购买的结账页面</s></li>
+  </ul>
+  </li>
+  <li>
+  <p>适当地重定向用户</p>
+  <ul>
+    <li>成功付款后重定向到成功页面</li>
+    <li>取消付款后重定向到取消页面</li>
+  </ul>
+  </li>
+  <li>
+  <p>用条纹网钩确认付款</p>
+  <ul>
+    <li>设置webhook端点</li>
+    <li>使用条带CLI测试端点</li>
+    <li>用条带注册端点</li>
+  </ul>
+  </li>
+</ol>
+
+<h2 id="redirect-the-user-appropriately">适当地重定向用户</h2>
+<p>最后，让我们连接用于处理成功和取消重定向的模板和路由。</p>
+<p>成功模板:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/success.html --&gt;</span>
+
+{% extends "base.html" %}
+
+{% block content %}
+  <span class="p">&lt;</span><span class="nt">section</span> <span class="na">class</span><span class="o">=</span><span class="s">"section"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Your payment succeeded.<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">section</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<p>已取消的模板:</p>
+<div class="codehilite"><pre><span/><code><span class="cm">&lt;!-- templates/cancelled.html --&gt;</span>
+
+{% extends "base.html" %}
+
+{% block content %}
+  <span class="p">&lt;</span><span class="nt">section</span> <span class="na">class</span><span class="o">=</span><span class="s">"section"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Your payment was cancelled.<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">section</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<p>路线:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/success"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">success</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">"success.html"</span><span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/cancelled"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">cancelled</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">"cancelled.html"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>回到<a href="http://127.0.0.1:5000"> http://127.0.0.1:5000 </a>，点击支付按钮，再次使用信用卡号<code>4242 4242 4242 4242</code>以及其余的虚拟信用卡信息。提交付款。你应该被重定向回<a href="http://127.0.0.1:5000/success">http://127 . 0 . 0 . 1:5000/success</a>。</p>
+<p>要确认实际收费，请点击Stripe仪表盘上的“支付”返回:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/payment.png" loading="lazy" class="lazyload" alt="Stripe Payments" src="../Images/915d5ccd23bfc5a604a5d8c343681ae1.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/payment.png"/></p>
+<p>回顾一下，我们使用密钥在服务器上创建一个惟一的签出会话ID。这个ID随后被用来创建一个结帐实例，最终用户在点击支付按钮后被重定向到这个实例。收费发生后，他们会被重定向回成功页面。</p>
+<p>一定要测试出一个被取消的付款。</p>
+<p>工作流程:</p>
+<ol>
+  <li>
+  <p><s>获取可发布密钥</s></p>
+  <ul>
+    <li><s>从客户端向服务器发送AJAX请求，请求可发布密钥</s></li>
+    <li><s>用</s>键响应</li>
+    <li><s>使用键创建Stripe.js的新实例</s></li>
+  </ul>
+  </li>
+  <li>
+  <p><s>创建结账会话</s></p>
+  <ul>
+    <li><s>向服务器发送另一个AJAX请求，请求一个新的结帐会话ID </s></li>
+    <li><s>生成新的结账会话并发回ID </s></li>
+    <li><s>重定向到用户完成购买的结账页面</s></li>
+  </ul>
+  </li>
+  <li>
+  <p><s>适当地重定向用户</s></p>
+  <ul>
+    <li><s>支付成功后重定向至成功页面</s></li>
+    <li><s>取消付款后重定向至取消页面</s></li>
+  </ul>
+  </li>
+  <li>
+  <p>用条纹网钩确认付款</p>
+  <ul>
+    <li>设置webhook端点</li>
+    <li>使用条带CLI测试端点</li>
+    <li>用条带注册端点</li>
+  </ul>
+  </li>
+</ol>
+
+<h2 id="confirm-payment-with-stripe-webhooks">用条纹网钩确认付款</h2>
+<p>我们的应用程序在这一点上工作得很好，但我们仍然不能以编程方式确认支付，或者在支付成功时运行一些代码。我们已经在用户结帐后将他们重定向到成功页面，但是我们不能只依赖那个页面，因为付款确认是异步发生的。</p>
+<blockquote>
+<p>Stripe和一般编程中有两种类型的事件:同步事件，具有即时效果和结果(例如，创建一个客户)，异步事件，没有即时结果(例如，确认付款)。因为支付确认是异步完成的，用户可能会在他们的支付被确认之前<em>和</em>我们收到他们的资金之前<em>被重定向到成功页面。</em></p>
+</blockquote>
+<p>当支付完成时，获得通知的最简单的方法之一是使用回调或所谓的<a href="https://stripe.com/docs/webhooks"> Stripe webhook </a>。我们需要在应用程序中创建一个简单的端点，每当事件发生时(例如，当用户购买T恤衫时)，Stripe就会调用这个端点。通过使用webhooks，我们可以绝对肯定支付成功。</p>
+<p>为了使用webhooks，我们需要:</p>
+<ol>
+<li>设置webhook端点</li>
+<li>使用<a href="https://stripe.com/docs/stripe-cli">条带CLI </a>测试端点</li>
+<li>用条带注册端点</li>
+</ol>
+<blockquote>
+<p>这一部分由尼克·托马兹奇撰写。</p>
+</blockquote>
+<h3 id="endpoint">端点</h3>
+<p>创建一个名为<code>stripe_webhook</code>的新路径，它会在每次支付成功时打印一条消息:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/webhook"</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">"POST"</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">stripe_webhook</span><span class="p">():</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">as_text</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">sig_header</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"Stripe-Signature"</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">Webhook</span><span class="o">.</span><span class="n">construct_event</span><span class="p">(</span>
+            <span class="n">payload</span><span class="p">,</span> <span class="n">sig_header</span><span class="p">,</span> <span class="n">stripe_keys</span><span class="p">[</span><span class="s2">"endpoint_secret"</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># Invalid payload</span>
+        <span class="k">return</span> <span class="s2">"Invalid payload"</span><span class="p">,</span> <span class="mi">400</span>
+    <span class="k">except</span> <span class="n">stripe</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">SignatureVerificationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># Invalid signature</span>
+        <span class="k">return</span> <span class="s2">"Invalid signature"</span><span class="p">,</span> <span class="mi">400</span>
+
+    <span class="c1"># Handle the checkout.session.completed event</span>
+    <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"checkout.session.completed"</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Payment was successful."</span><span class="p">)</span>
+        <span class="c1"># TODO: run some custom code here</span>
+
+    <span class="k">return</span> <span class="s2">"Success"</span><span class="p">,</span> <span class="mi">200</span>
+</code></pre></div>
+
+<p><code>stripe_webhook</code>现在作为我们的webhook端点。这里，我们只寻找每当结帐成功时调用的<code>checkout.session.completed</code>事件，但是您可以对其他<a href="https://stripe.com/docs/api/events">条带事件</a>使用相同的模式。</p>
+<p>确保将<code>request</code>导入添加到顶部:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">render_template</span><span class="p">,</span> <span class="n">request</span>
+</code></pre></div>
+
+<h3 id="testing-the-webhook">测试webhook</h3>
+<p>我们将使用<a href="https://stripe.com/docs/stripe-cli"> Stripe CLI </a>来测试webhook。</p>
+<p>一旦<a href="https://stripe.com/docs/stripe-cli#install">下载并安装了</a>，在新的终端窗口中运行以下命令，登录到您的Stripe帐户:</p>
+
+
+<p>此命令应生成一个配对代码:</p>
+<div class="codehilite"><pre><span/><code>Your pairing code is: peach-loves-classy-cozy
+This pairing code verifies your authentication with Stripe.
+Press Enter to open the browser <span class="o">(</span>^C to quit<span class="o">)</span>
+</code></pre></div>
+
+<p>通过按Enter，CLI将打开您的默认web浏览器，并请求访问您的帐户信息的权限。请继续并允许访问。回到您的终端，您应该看到类似于以下内容的内容:</p>
+<div class="codehilite"><pre><span/><code>&gt; Done! The Stripe CLI is configured <span class="k">for</span> Flask Stripe Test with account id acct_&lt;ACCOUNT_ID&gt;
+
+Please note: this key will expire after <span class="m">90</span> days, at which point you<span class="err">'</span>ll need to re-authenticate.
+</code></pre></div>
+
+<p>接下来，我们可以开始侦听条带事件，并使用以下命令将它们转发到我们的端点:</p>
+<div class="codehilite"><pre><span/><code>$ stripe listen --forward-to <span class="m">127</span>.0.0.1:5000/webhook
+</code></pre></div>
+
+<p>这也将生成一个webhook签名密码:</p>
+<div class="codehilite"><pre><span/><code>&gt; Ready! Your webhook signing secret is whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx <span class="o">(</span>^C to quit<span class="o">)</span>
+</code></pre></div>
+
+<p>为了初始化端点，将密码保存为另一个环境变量，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ <span class="nb">export</span> <span class="nv">STRIPE_ENDPOINT_SECRET</span><span class="o">=</span>&lt;YOUR_STRIPE_ENDPOINT_SECRET&gt;
+</code></pre></div>
+
+<p>接下来，像这样将它添加到<code>stripe_keys</code>字典中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app.py</span>
+
+<span class="n">stripe_keys</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"secret_key"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"STRIPE_SECRET_KEY"</span><span class="p">],</span>
+    <span class="s2">"publishable_key"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"STRIPE_PUBLISHABLE_KEY"</span><span class="p">],</span>
+    <span class="s2">"endpoint_secret"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"STRIPE_ENDPOINT_SECRET"</span><span class="p">],</span> <span class="c1"># new</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Stripe现在会将事件转发到我们的端点。要测试，通过<code>4242 4242 4242 4242</code>运行另一个测试支付。在您的终端中，您应该会看到<code>Payment was successful.</code>消息。</p>
+<p>一旦完成，停止<code>stripe listen --forward-to 127.0.0.1:5000/webhook</code>过程。</p>
+<blockquote>
+<p>如果您想识别进行购买的用户，可以使用<a href="https://stripe.com/docs/api/checkout/sessions/object"> client_reference_id </a>将某种用户标识符附加到条带会话。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/create-checkout-session"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">create_checkout_session</span><span class="p">():</span>
+    <span class="n">domain_url</span> <span class="o">=</span> <span class="s2">"http://127.0.0.1:5000/"</span>
+    <span class="n">stripe</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="n">stripe_keys</span><span class="p">[</span><span class="s2">"secret_key"</span><span class="p">]</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">checkout_session</span> <span class="o">=</span> <span class="n">stripe</span><span class="o">.</span><span class="n">checkout</span><span class="o">.</span><span class="n">Session</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="c1"># new</span>
+            <span class="n">client_reference_id</span><span class="o">=</span><span class="n">current_user</span><span class="o">.</span><span class="n">id</span> <span class="k">if</span> <span class="n">current_user</span><span class="o">.</span><span class="n">is_authenticated</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">success_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s2">"success?session_id=</span><span class="si">{CHECKOUT_SESSION_ID}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">cancel_url</span><span class="o">=</span><span class="n">domain_url</span> <span class="o">+</span> <span class="s2">"cancelled"</span><span class="p">,</span>
+            <span class="n">payment_method_types</span><span class="o">=</span><span class="p">[</span><span class="s2">"card"</span><span class="p">],</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s2">"payment"</span><span class="p">,</span>
+            <span class="n">line_items</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"T-shirt"</span><span class="p">,</span>
+                    <span class="s2">"quantity"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="s2">"currency"</span><span class="p">:</span> <span class="s2">"usd"</span><span class="p">,</span>
+                    <span class="s2">"amount"</span><span class="p">:</span> <span class="s2">"2000"</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s2">"sessionId"</span><span class="p">:</span> <span class="n">checkout_session</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]})</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)),</span> <span class="mi">403</span>
+</pre></div></blockquote>
+
+<h3 id="register-the-endpoint">注册端点</h3>
+<p>最后，在部署你的应用程序后，你可以在Stripe仪表板中注册端点，在<a href="https://dashboard.stripe.com/test/webhooks">开发者&gt; Webhooks </a>下。这将生成一个webhook签名密码，用于您的生产应用程序。</p>
+<p>例如:</p>
+<p><img data-src="/static/images/blog/flask/flask-stripe/webhook.png" loading="lazy" class="lazyload" alt="Flask webhook" src="../Images/65ec2ec3585ae4a33a365cd72100601b.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-stripe/webhook.png"/></p>
+<p>工作流程:</p>
+<ol>
+  <li>
+  <p><s>获取可发布密钥</s></p>
+  <ul>
+    <li><s>从客户端向服务器发送AJAX请求，请求可发布密钥</s></li>
+    <li><s>用</s>键响应</li>
+    <li><s>使用键创建Stripe.js的新实例</s></li>
+  </ul>
+  </li>
+  <li>
+  <p><s>创建结账会话</s></p>
+  <ul>
+    <li><s>向服务器发送另一个AJAX请求，请求一个新的结帐会话ID </s></li>
+    <li><s>生成新的结账会话并发回ID </s></li>
+    <li><s>重定向到用户完成购买的结账页面</s></li>
+  </ul>
+  </li>
+  <li>
+  <p><s>适当地重定向用户</s></p>
+  <ul>
+    <li><s>支付成功后重定向至成功页面</s></li>
+    <li><s>取消付款后重定向至取消页面</s></li>
+  </ul>
+  </li>
+  <li>
+  <p><s>用条纹网钩确认付款</s></p>
+  <ul>
+    <li><s>设置webhook端点</s></li>
+    <li><s>使用条带CLI测试端点</s></li>
+    <li><s>用条带注册端点</s></li>
+  </ul>
+  </li>
+</ol>
+
+<h2 id="next-steps">后续步骤</h2>
+<p>在生产中，你需要有HTTPS，这样你的连接是安全的。您可能还想将<code>domain_url</code>存储为一个环境变量。最后，在创建结帐会话之前，最好确认在<code>/create-checkout-session</code>路线中使用了正确的产品和价格。为此，您可以:</p>
+<ol>
+<li>将您的每个产品添加到数据库中。</li>
+<li>然后，当您动态创建产品页面时，将产品数据库ID和价格存储在purchase按钮的数据属性中。</li>
+<li>更新<code>/create-checkout-session</code>路由以仅允许POST请求。</li>
+<li>更新JavaScript事件监听器，从数据属性中获取产品信息，并将它们与AJAX POST请求一起发送到<code>/create-checkout-session</code>路由。</li>
+<li>在创建结帐会话之前，解析路由处理程序中的JSON有效负载，并确认产品存在且价格正确。</li>
+</ol>
+<p>干杯！</p>
+<p>--</p>
+<p>从GitHub上的<a href="https://github.com/testdrivenio/flask-stripe-checkout">flask-strip-check out</a>repo中抓取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

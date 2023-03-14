@@ -1,0 +1,583 @@
+<html>
+<head>
+<title>Django REST Framework Views - Generic Views </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django REST框架视图-通用视图</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/drf-views-part-2/#0001-01-01">https://testdriven.io/blog/drf-views-part-2/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>与数据库模型密切相关的常用视图(比如创建一个模型实例、删除它、列出实例等。)已经预先构建在Django REST框架视图(DRF)中。这些可重用的行为被称为<a href="https://www.django-rest-framework.org/api-guide/generic-views/">通用视图</a>。</p>
+<p>您可以使用通用视图作为构建块- <code>GenericAPIView</code>和mixins -来创建您自己的视图。或者您可以使用已经结合了<code>GenericAPIView</code>和适当的mixins的即插即用具体视图。</p>
+<p>--</p>
+<p><strong> Django REST框架视图系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-views-part-1/">观点</a></li>
+<li><a href="/blog/drf-views-part-2/">通用观点</a>(本文！)</li>
+<li><a href="/blog/drf-views-part-3/">视图集</a></li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>在本文结束时，你应该能够解释:</p>
+<ol>
+<li>什么是混合，以及它们是如何一起创建具体视图的</li>
+<li>你使用哪种混音，它们能做什么</li>
+<li>如何创建自定义mixin以及如何使用它</li>
+<li>您可以使用哪些通用视图以及它们的作用</li>
+</ol>
+<h2 id="generic-views">通用视图</h2>
+<p>通用视图是一组常用的模式。</p>
+<p>它们构建在<code>APIView</code>类的基础上，我们在本系列的<a href="/blog/drf-views-part-1/">上一篇</a>文章中介绍过这个类。</p>
+<p>它们的目的是让您快速构建与您的数据库模型紧密对应的API视图，而无需重复自己的工作。</p>
+<p>它们由<code>GenericAPIView</code>、混合和具体视图组成:</p>
+<ol>
+<li><code>GenericAPIView</code>是<code>APIView</code>的更加载版本。它本身并不真正有用，但是可以用来创建可重用的动作。</li>
+<li>混合是一些常见的行为。没有<code>GenericAPIView</code>他们就没用了。</li>
+<li>具体视图将<code>GenericAPIView</code>与适当的mixins结合起来，创建API中经常使用的视图。</li>
+</ol>
+<blockquote>
+<p>DRF对具体观点使用不同的名称。在文档和代码注释中，它们可以被发现为<em>具体视图类</em>、<em>具体通用视图</em>或<em>具体视图</em>。</p>
+<p>由于名字如此相似，很容易把它们混淆。通用视图是一个既代表混合视图又代表具体视图的词。当使用通用视图时，<strong>具体视图</strong>可能是您将要使用的级别。</p>
+</blockquote>
+<h2 id="genericapiview">genericapixivw</h2>
+<p><a href="https://www.django-rest-framework.org/api-guide/generic-views/#genericapiview">generic piview</a>是所有其他通用视图的基类。它提供了<a href="https://www.django-rest-framework.org/api-guide/generic-views/#methods">方法</a>，如<code>get_object</code> / <code>get_queryset</code>和<code>get_serializer</code>。尽管它被设计为与mixins结合使用(因为它是在通用视图中使用的)，但它也可以单独使用:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">GenericAPIView</span>
+<span class="kn">from</span> <span class="nn">rest_framework.response</span> <span class="kn">import</span> <span class="n">Response</span>
+
+<span class="k">class</span> <span class="nc">RetrieveDeleteItem</span><span class="p">(</span><span class="n">GenericAPIView</span><span class="p">):</span>
+
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">()</span>
+        <span class="n">serializer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_serializer</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">serializer</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">()</span>
+        <span class="n">instance</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_204_NO_CONTENT</span><span class="p">)</span>
+</code></pre></div>
+
+<p>延伸<code>GenericAPIView</code>时，必须设置<code>queryset</code>和<code>serializer_class</code>。或者，你可以覆盖<code>get_queryset()</code> / <code>get_serializer_class()</code>。</p>
+<p>因为有几个mixins可以和<code>GenericAPIView</code>一起使用，所以我不建议单独使用它来重新发明轮子。</p>
+<h2 id="mixins">混合蛋白</h2>
+<p><a href="https://www.django-rest-framework.org/api-guide/generic-views/#mixins"> Mixins </a>提供了一些常见的行为。它们不能单独使用；它们必须与<code>GenericAPIView</code>成对出现，以构成功能视图。虽然mixin类提供了创建/检索/更新/删除动作，但是您仍然需要将适当的动作绑定到方法上。</p>
+<p>可用混音:</p>
+<table>
+<thead>
+<tr>
+<th>米欣</th>
+<th>使用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CreateModelMixin</code></td>
+<td>创建模型实例</td>
+</tr>
+<tr>
+<td><code>ListModelMixin</code></td>
+<td>列出查询集</td>
+</tr>
+<tr>
+<td><code>RetrieveModelMixin</code></td>
+<td>检索模型实例</td>
+</tr>
+<tr>
+<td><code>UpdateModelMixin</code></td>
+<td>更新模型实例</td>
+</tr>
+<tr>
+<td><code>DestroyModelMixin</code></td>
+<td>删除模型实例</td>
+</tr>
+</tbody>
+</table>
+<p>您可以只使用其中的一种，也可以将它们组合起来以达到预期的效果。</p>
+<p>下面是一个mixin看起来像什么的例子:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">RetrieveModelMixin</span><span class="p">:</span>
+    <span class="sd">"""</span>
+<span class="sd">    Retrieve a model instance.</span>
+<span class="sd">    """</span>
+    <span class="k">def</span> <span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">()</span>
+        <span class="n">serializer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_serializer</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">serializer</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>如您所见，<code>RetrieveModelMixin</code>提供了一个名为<code>retrieve</code>的函数(一个动作),它从数据库中检索一个对象，并以序列化的形式返回它。</p>
+<h3 id="listmodelmixin-and-createmodelmixin">ListModelMixin和CreateModelMixin</h3>
+<p><a href="https://www.django-rest-framework.org/api-guide/generic-views/#listmodelmixin"> ListModelMixin </a>实现一个动作，返回queryset的序列化表示(可选分页)。</p>
+<p><a href="https://www.django-rest-framework.org/api-guide/generic-views/#createmodelmixin"> CreateModelMixin </a>实现了一个创建并保存新模型实例的动作。</p>
+<p>通常，它们一起用于创建一个列表创建API端点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">mixins</span>
+<span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">GenericAPIView</span>
+
+<span class="k">class</span> <span class="nc">CreateListItems</span><span class="p">(</span><span class="n">mixins</span><span class="o">.</span><span class="n">ListModelMixin</span><span class="p">,</span> <span class="n">mixins</span><span class="o">.</span><span class="n">CreateModelMixin</span><span class="p">,</span> <span class="n">GenericAPIView</span><span class="p">):</span>
+
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在<code>CreateListItems</code>中，我们使用了<code>GenericAPIView</code>提供的<code>serializer_class</code>和<code>queryset</code>。</p>
+<p>我们自己定义了<code>get</code>和<code>post</code>方法，它们使用了mixins提供的<code>list</code>和<code>create</code>动作:</p>
+<ul>
+<li><code>CreateModelMixin</code>提供了一个<code>create</code>动作</li>
+<li><code>ListModelMixin</code>提供了一个<code>list</code>动作</li>
+</ul>
+<h4 id="binding-actions-to-methods">将操作绑定到方法</h4>
+<p>你负责将动作绑定到方法上。</p>
+<p>理论上来说，这意味着你可以将POST方法与list动作绑定，将GET方法与create动作绑定，这样事情就“有点”正常了。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">mixins</span>
+<span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">GenericAPIView</span>
+
+<span class="k">class</span> <span class="nc">CreateList</span><span class="p">(</span><span class="n">mixins</span><span class="o">.</span><span class="n">ListModelMixin</span><span class="p">,</span> <span class="n">mixins</span><span class="o">.</span><span class="n">CreateModelMixin</span><span class="p">,</span> <span class="n">GenericAPIView</span><span class="p">):</span>
+
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+       <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这将产生以下结果...</p>
+<p>使用GET方法:</p>
+<p><img data-src="/static/images/blog/django/drf-views/switch_get_method.png" loading="lazy" class="lazyload" alt="DRF Browsable API" src="../Images/2c3fb213ba536c8ebf5dad47c221c5b4.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-views/switch_get_method.png"/></p>
+<p>使用POST方法:</p>
+<p><img data-src="/static/images/blog/django/drf-views/switch_post_method.png" loading="lazy" class="lazyload" alt="DRF Browsable API" src="../Images/a54f1168b158a1cab9e839230f27935c.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-views/switch_post_method.png"/></p>
+<p><strong>免责声明</strong>:仅仅因为这是可能的，并不意味着我建议你这么做。这样做的唯一目的是向您展示绑定方法和操作是如何工作的。</p>
+<h3 id="retrievemodelmixin-updatemodelmixin-and-destroymodelmixin">RetrieveModelMixin、UpdateModelMixin和DestroyModelMixin</h3>
+<p><a href="https://www.django-rest-framework.org/api-guide/generic-views/#retrievemodelmixin"> RetrieveModelMixin </a>、<a href="https://www.django-rest-framework.org/api-guide/generic-views/#updatemodelmixin"> UpdateModelMixin </a>和<a href="https://www.django-rest-framework.org/api-guide/generic-views/#destroymodelmixin"> DestroyModelMixin </a>都处理单个模型实例。</p>
+<p><code>RetrieveModelMixin</code>和<code>UpdateModelMixin</code>都返回对象的序列化表示，而<code>DestroyModelMixin</code>在成功的情况下返回<code>HTTP_204_NO_CONTENT</code>。</p>
+<p>你可以使用其中的一种，也可以根据自己的需要组合使用。</p>
+<p>在本例中，我们将所有三者结合成一个端点，用于详细视图的每个可能的操作:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">mixins</span>
+<span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">GenericAPIView</span>
+
+<span class="k">class</span> <span class="nc">RetrieveUpdateDeleteItem</span><span class="p">(</span>
+    <span class="n">mixins</span><span class="o">.</span><span class="n">RetrieveModelMixin</span><span class="p">,</span>
+    <span class="n">mixins</span><span class="o">.</span><span class="n">UpdateModelMixin</span><span class="p">,</span>
+    <span class="n">mixins</span><span class="o">.</span><span class="n">DestroyModelMixin</span><span class="p">,</span>
+    <span class="n">GenericAPIView</span>
+<span class="p">):</span>
+
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">patch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">partial_update</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">destroy</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>提供的行动:</p>
+<ul>
+<li><code>RetrieveModelMixin</code>提供了一个<code>retrieve</code>动作</li>
+<li><code>UpdateModelMixin</code>提供<code>update</code>和<code>partial_update</code>动作</li>
+<li><code>DestroyModelMixin</code>提供了一个<code>destroy</code>动作</li>
+</ul>
+<p>因此，使用<code>RetrieveUpdateDeleteItem</code>端点，用户可以检索、更新或删除单个项目。</p>
+<p>您还可以将视图限制为特定操作:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">mixins</span>
+<span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">GenericAPIView</span>
+
+<span class="k">class</span> <span class="nc">RetrieveUpdateItem</span><span class="p">(</span><span class="n">mixins</span><span class="o">.</span><span class="n">RetrieveModelMixin</span><span class="p">,</span> <span class="n">mixins</span><span class="o">.</span><span class="n">UpdateModelMixin</span><span class="p">,</span> <span class="n">GenericAPIView</span><span class="p">):</span>
+
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在这个例子中，我们省略了<code>DestroyModelMixin</code>，只使用了来自<code>UpdateModelMixin</code>的<code>update</code>动作。</p>
+<h4 id="grouping-mixins">分组混合</h4>
+<p>最好用一个视图来处理所有实例——列出所有实例并添加一个新实例——用另一个视图来处理单个实例——检索、更新和删除单个实例。</p>
+<p>也就是说，你可以按照你认为合适的方式组合混音。例如，你<em>可以</em>组合<code>RetrieveModelMixin</code>和<code>CreateModelMixin</code>混音:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">mixins</span>
+<span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">GenericAPIView</span>
+
+<span class="k">class</span> <span class="nc">RetrieveCreate</span><span class="p">(</span><span class="n">mixins</span><span class="o">.</span><span class="n">RetrieveModelMixin</span><span class="p">,</span> <span class="n">mixins</span><span class="o">.</span><span class="n">CreateModelMixin</span><span class="p">,</span> <span class="n">GenericAPIView</span><span class="p">):</span>
+
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这会产生一个端点，用于检索单个实例和添加新实例:</p>
+<p><img data-src="/static/images/blog/django/drf-views/retrieve_create.png" loading="lazy" class="lazyload" alt="DRF Browsable API" src="../Images/1142c13aec6344fab5eba493becc7359.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-views/retrieve_create.png"/></p>
+<p><strong>免责声明</strong>:同样，仅仅因为这是可能的，并不意味着这是一个好主意。上述示例仅用于教育目的。我不建议在生产代码中使用它。</p>
+<h3 id="custom-mixins">自定义混音</h3>
+<p>在现实生活中的应用程序中，您很可能需要一些自定义行为，并且您会希望它出现在不止一个地方。您可以创建一个定制的mixin，这样您就不需要重复您的代码并将其包含在您的视图类中。</p>
+<p>假设您希望根据请求方法使用不同的序列化程序。您可以向视图中添加一些if语句，但是这很快就会引起混乱。此外，两个月后，您将添加另一个模型，您需要再次做类似的事情。</p>
+<p>在这种情况下，创建一个<a href="https://www.django-rest-framework.org/api-guide/generic-views/#creating-custom-mixins">自定义mixin </a>来将序列化器映射到请求方法是一个好主意:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SerializerByMethodMixin</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">get_serializer_class</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">serializer_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">serializer_class</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们重写了来自<code>GenericAPIView</code>类的<code>get_serializer_class</code>方法。</p>
+<p>也许你想覆盖其他方法，比如<code>get_queryset</code>或<code>get_object</code>？看一看<a href="https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/generics.py#L24">generic piview</a>类中的代码，DRF的创建者在那里指定了您可能想要覆盖的方法。</p>
+<p>现在您只需要将<code>SerializerByMethodMixin</code>添加到您的视图中，并设置<code>serializer_map</code>属性:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">ListCreateItems</span><span class="p">(</span><span class="n">SerializerByMethodMixin</span><span class="p">,</span> <span class="n">ListCreateAPIView</span><span class="p">):</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_map</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'GET'</span><span class="p">:</span> <span class="n">GetItemSerializer</span><span class="p">,</span>
+        <span class="s1">'POST'</span><span class="p">:</span> <span class="n">PostItemSerializer</span><span class="p">,</span>
+    <span class="p">}</span>
+</code></pre></div>
+
+<blockquote>
+<p>确保将mixin作为第一个参数，这样它的方法就不会被覆盖(高优先级优先)。</p>
+</blockquote>
+<h3 id="custom-base-class">自定义基类</h3>
+<p>如果您多次对同一类型的视图使用mixin，您甚至可以创建一个<a href="https://www.django-rest-framework.org/api-guide/generic-views/#creating-custom-base-classes">自定义基类</a>。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">BaseCreateListView</span><span class="p">((</span><span class="n">MixinSingleOrListSerializer</span><span class="p">,</span> <span class="n">ListCreateAPIView</span><span class="p">)):</span>
+    <span class="k">pass</span>
+</code></pre></div>
+
+<h2 id="concrete-views">具体的观点</h2>
+<p><a href="https://www.django-rest-framework.org/api-guide/generic-views/#concrete-view-classes">具体观点</a>使用<code>APIView</code>完成了大部分我们需要自己完成的工作。他们使用mixins作为基本的构建模块，将构建模块与<code>GenericAPIView</code>结合起来，并将动作绑定到方法上。</p>
+<p>快速看一下其中一个具体视图类的代码，<code>ListCreateAPIView</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/generics.py#L232</span>
+
+<span class="k">class</span> <span class="nc">ListCreateAPIView</span><span class="p">(</span><span class="n">mixins</span><span class="o">.</span><span class="n">ListModelMixin</span><span class="p">,</span>
+                        <span class="n">mixins</span><span class="o">.</span><span class="n">CreateModelMixin</span><span class="p">,</span>
+                        <span class="n">GenericAPIView</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>正如您所看到的，它相当简单，看起来非常类似于我们在使用mixins时自己创建的东西。它们扩展了适当的mixins和<code>GenericAPIView</code>。它们还定义了每个相关的方法，并将适当的操作绑定到这些方法上。</p>
+<p>除非你需要高度定制的行为，否则如果你使用的是通用视图，这是一个合适的视图。</p>
+<p>共有九个类，每个类都提供了您可能需要的行为组合:</p>
+<table>
+<thead>
+<tr>
+<th>班级</th>
+<th>使用</th>
+<th>方法处理程序</th>
+<th>扩展混合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CreateAPIView</code></td>
+<td>仅创建</td>
+<td><code>post</code></td>
+<td><code>CreateModelMixin</code></td>
+</tr>
+<tr>
+<td><code>ListAPIView</code></td>
+<td>对于多个实例为只读</td>
+<td><code>get</code></td>
+<td><code>ListModelMixin</code></td>
+</tr>
+<tr>
+<td><code>RetrieveAPIView</code></td>
+<td>对于单个实例为只读</td>
+<td><code>get</code></td>
+<td><code>RetrieveModelMixin</code></td>
+</tr>
+<tr>
+<td><code>DestroyAPIView</code></td>
+<td>删除-仅用于单个实例</td>
+<td><code>delete</code></td>
+<td><code>DestroyModelMixin</code></td>
+</tr>
+<tr>
+<td><code>UpdateAPIView</code></td>
+<td>仅更新单个实例</td>
+<td><code>put</code>，<code>patch</code></td>
+<td><code>UpdateModelMixin</code></td>
+</tr>
+<tr>
+<td><code>ListCreateAPIView</code></td>
+<td>多个实例的读写</td>
+<td><code>get</code>，<code>post</code></td>
+<td><code>CreateModelMixin</code>，<code>ListModelMixin</code></td>
+</tr>
+<tr>
+<td><code>RetrieveUpdateAPIView</code></td>
+<td>单个实例的读取-更新</td>
+<td><code>get</code>、<code>put</code>、<code>patch</code></td>
+<td><code>RetrieveModelMixin</code>，<code>UpdateModelMixin</code></td>
+</tr>
+<tr>
+<td><code>RetrieveDestroyAPIView</code></td>
+<td>单个实例的读-删除</td>
+<td><code>get</code>，<code>delete</code></td>
+<td><code>RetrieveModelMixin</code>，<code>DestroyModelMixin</code></td>
+</tr>
+<tr>
+<td><code>RetrieveUpdateDestroyAPIView</code></td>
+<td>单个实例的读取-更新-删除</td>
+<td><code>get</code>、<code>put</code>、<code>patch</code>、<code>delete</code></td>
+<td><code>RetrieveModelMixin</code>、<code>UpdateModelMixin</code>、<code>DestroyModelMixin</code></td>
+</tr>
+</tbody>
+</table>
+<p>下面是另一个有用的表格，显示了特定的方法处理程序映射回哪个类:</p>
+<table>
+<thead>
+<tr>
+<th>班级</th>
+<th><code>get</code></th>
+<th><code>post</code></th>
+<th><code>put</code> / <code>patch</code></th>
+<th><code>delete</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CreateAPIView</code></td>
+<td/>
+<td>✓</td>
+<td/>
+<td/>
+</tr>
+<tr>
+<td><code>ListAPIView</code></td>
+<td>✓</td>
+<td/>
+<td/>
+<td/>
+</tr>
+<tr>
+<td><code>RetrieveAPIView</code></td>
+<td>✓</td>
+<td/>
+<td/>
+<td/>
+</tr>
+<tr>
+<td><code>DestroyAPIView</code></td>
+<td/>
+<td/>
+<td/>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>UpdateAPIView</code></td>
+<td/>
+<td/>
+<td>✓</td>
+<td/>
+</tr>
+<tr>
+<td><code>ListCreateAPIView</code></td>
+<td>✓</td>
+<td>✓</td>
+<td/>
+<td/>
+</tr>
+<tr>
+<td><code>RetrieveUpdateAPIView</code></td>
+<td>✓</td>
+<td/>
+<td>✓</td>
+<td/>
+</tr>
+<tr>
+<td><code>RetrieveDestroyAPIView</code></td>
+<td>✓</td>
+<td/>
+<td/>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>RetrieveUpdateDestroyAPIView</code></td>
+<td>✓</td>
+<td/>
+<td>✓</td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<p>所有从具体视图扩展的类都需要:</p>
+<ul>
+<li>查询集</li>
+<li>序列化类</li>
+</ul>
+<p>此外，您可以提供策略属性，如本系列的第一篇<a href="/blog/drf-views-part-1/">文章</a>中所述。</p>
+<p>接下来，我们将看看9个具体视图中每一个的实例。</p>
+<h3 id="createapiview">CreateAPIView</h3>
+<p>在这里，通过扩展<code>CreateAPIView</code>，我们创建了一个端点，用户可以在这里创建一个新项目:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">CreateAPIView</span>
+<span class="kn">from</span> <span class="nn">rest_framework.permissions</span> <span class="kn">import</span> <span class="n">IsAdminUser</span>
+
+<span class="k">class</span> <span class="nc">CreateItem</span><span class="p">(</span><span class="n">CreateAPIView</span><span class="p">):</span>
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAdminUser</span><span class="p">]</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<p>我们添加了一个策略属性，以便只有管理员才能访问端点。</p>
+<h3 id="listapiview">listapixivw</h3>
+<p>这里，我们扩展了<code>ListAPIView</code>来创建一个端点，其中列出了所有“未完成”的项目:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">ListAPIView</span>
+
+<span class="k">class</span> <span class="nc">ItemsNotDone</span><span class="p">(</span><span class="n">ListAPIView</span><span class="p">):</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<p>我们的queryset是基于<code>done</code>字段过滤的。它不包含任何附加策略，因此任何用户都可以访问它。</p>
+<p>请记住，这些视图中的每一个都需要单独包含在URL中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">.views</span> <span class="kn">import</span> <span class="n">ListItems</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+   <span class="n">path</span><span class="p">(</span><span class="s1">'all-items'</span><span class="p">,</span> <span class="n">ListItems</span><span class="o">.</span><span class="n">as_view</span><span class="p">())</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="retrieveapiview">retrieveapixivw</h3>
+<p>当<code>ListAPIView</code>返回所有项目的列表时，<code>RetrieveAPIView</code>用于检索单个项目:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">RetrieveAPIView</span>
+
+<span class="k">class</span> <span class="nc">SingleItem</span><span class="p">(</span><span class="n">RetrieveAPIView</span><span class="p">):</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<p><code>RetrieveAPIView</code>的示例<em> urls.py </em>(以及单个实例的其他视图):</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">.views</span> <span class="kn">import</span> <span class="n">SingleItem</span>
+<span class="o">&gt;</span>
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+   <span class="n">path</span><span class="p">(</span><span class="s1">'items/&lt;pk&gt;'</span><span class="p">,</span> <span class="n">SingleItem</span><span class="o">.</span><span class="n">as_view</span><span class="p">())</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="destroyapiview">毁灭视图</h3>
+<p>扩展<code>DestroyAPIView</code>创建一个端点，唯一的目的是删除一个条目:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">DestroyAPIView</span>
+<span class="kn">from</span> <span class="nn">rest_framework.permissions</span> <span class="kn">import</span> <span class="n">IsAuthenticated</span>
+
+
+<span class="k">class</span> <span class="nc">DeleteItem</span><span class="p">(</span><span class="n">DestroyAPIView</span><span class="p">):</span>
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">]</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<p>只有经过认证的用户才能访问。</p>
+<h3 id="updateapiview">updateapixivw</h3>
+<p>用于更新单个项目的端点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">UpdateAPIView</span>
+<span class="kn">from</span> <span class="nn">rest_framework.permissions</span> <span class="kn">import</span> <span class="n">IsAuthenticated</span>
+<span class="kn">from</span> <span class="nn">rest_framework.throttling</span> <span class="kn">import</span> <span class="n">UserRateThrottle</span>
+
+
+<span class="k">class</span> <span class="nc">UpdateItem</span><span class="p">(</span><span class="n">UpdateAPIView</span><span class="p">):</span>
+
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">]</span>
+    <span class="n">throttle_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">UserRateThrottle</span><span class="p">]</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<p>这里，使用策略属性，我们限制了请求的数量，并将端点限制为经过身份验证的用户。</p>
+<h3 id="listcreateapiview">listcreateapixivw</h3>
+<p><code>ListCreateAPIView</code>是第一个具有多个责任的具体视图类，列出了所有项目<strong>和</strong>创建一个新项目:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">ListCreateAPIView</span>
+
+<span class="k">class</span> <span class="nc">ListCreateItems</span><span class="p">(</span><span class="n">ListCreateAPIView</span><span class="p">):</span>
+
+    <span class="n">authentication_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">TokenAuthentication</span><span class="p">]</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<p>在本例中，用户使用令牌进行身份验证。</p>
+<h3 id="retrieveupdateapiview">retrieveupdateapixivw</h3>
+<p>扩展<code>RetrieveUpdateAPIView</code>为检索<strong>和更新单个项目的</strong>创建一个端点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">RetrieveUpdateAPIView</span>
+
+<span class="k">class</span> <span class="nc">RetrieveUpdateItem</span><span class="p">(</span><span class="n">RetrieveUpdateAPIView</span><span class="p">):</span>
+    <span class="n">renderer_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">JSONRenderer</span><span class="p">]</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<p>这里，我们使用策略属性以JSON格式返回数据。</p>
+<h3 id="retrievedestroyapiview">检索DestroyAPIView</h3>
+<p>在这里，通过扩展<code>RetrieveDestroyAPIView</code>，我们创建了一个端点来检索<strong>和删除单个项目的</strong>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">RetrieveDestroyAPIView</span>
+
+<span class="k">class</span> <span class="nc">RetrieveDeleteItem</span><span class="p">(</span><span class="n">RetrieveDestroyAPIView</span><span class="p">):</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<h3 id="retrieveupdatedestroyapiview">RetrieveUpdateDestroyAPIView</h3>
+<p>这里，通过扩展<code>RetrieveUpdateDestroyAPIView</code>，我们创建了一个端点，在这里可以访问单个项目的所有可能的操作:检索、(部分)更新和删除。</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.generics</span> <span class="kn">import</span> <span class="n">RetrieveUpdateDestroyAPIView</span>
+
+<span class="k">class</span> <span class="nc">RetrieveUpdateDeleteItem</span><span class="p">(</span><span class="n">RetrieveUpdateDestroyAPIView</span><span class="p">):</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">ItemSerializer</span>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>通用视图提供了各种预构建的解决方案。</p>
+<p>如果你没有特别的要求，具体的观点(即<code>RetrieveDestroyAPIView</code>)是一个很好的方法。如果您需要不太严格的东西，您可以使用具体的类作为构建块- <code>GenericAPIView</code>和mixins(例如，<code>UpdateModelMixin</code>)。这仍然会比仅仅使用<code>APIView</code>类节省一些工作。</p>
+<p><img data-src="/static/images/blog/django/drf-views/generic_views.png" loading="lazy" class="lazyload" alt="DRF Generic Views Overview" src="../Images/94461badfcf23907c6abd998889e165a.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-views/generic_views.png"/></p>
+<p><strong> Django REST框架视图系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-views-part-1/">观点</a></li>
+<li><a href="/blog/drf-views-part-2/">通用观点</a>(本文！)</li>
+<li><a href="/blog/drf-views-part-3/">视图集</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

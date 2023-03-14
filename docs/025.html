@@ -1,0 +1,622 @@
+<html>
+<head>
+<title>Deploying a Django App to Fly.io </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将Django应用程序部署到Fly.io</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-fly/#0001-01-01">https://testdriven.io/blog/django-fly/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将看看如何部署一个<a href="https://www.djangoproject.com/"> Django </a>应用程序到<a href="https://fly.io"> Fly.io </a>。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释什么是Fly.io，它是如何工作的。</li>
+<li>将Django应用程序部署到Fly.io。</li>
+<li>在Fly.io上运行一个<a href="https://www.postgresql.org/"> PostgreSQL </a>实例。</li>
+<li>通过<a href="https://fly.io/docs/reference/volumes/"> Fly Volumes </a>设置持久存储。</li>
+<li>将域名链接到您的web应用程序。</li>
+<li>用<a href="https://letsencrypt.org/">获得一个SSL证书，让我们加密</a>并在HTTPS上提供您的应用程序。</li>
+</ol>
+<h2 id="what-is-flyio">Fly.io是什么？</h2>
+<p>Fly.io是一个流行的平台即服务(PaaS)平台，为web应用程序提供托管服务。与许多其他PaaS托管提供商不同，他们不是转售<a href="https://aws.amazon.com/"> AWS </a>或<a href="https://cloud.google.com/"> GCP </a>服务，而是在运行<a href="https://fly.io/docs/reference/regions/">于世界各地</a>的物理专用服务器上托管你的应用。正因为如此，他们能够提供比其他PaaS更便宜的主机服务，比如Heroku。他们的主要关注点是尽可能靠近他们的客户部署应用程序(在撰写本文时，你可以在24个地区中挑选)。Fly.io支持三种构建器:Dockerfile、<a href="https://buildpacks.io/"> Buildpacks </a>，或者预构建的Docker映像。</p>
+<p>它们提供了强大的<a href="https://fly.io/docs/reference/scaling/">缩放和自动缩放功能</a>。</p>
+<p>与其他PaaS提供商相比，Fly.io采用不同的方法来管理您的资源。它没有花哨的管理仪表板；相反，所有的工作都是通过他们名为<a href="https://fly.io/docs/hands-on/install-flyctl/"> flyctl </a>的CLI来完成的。</p>
+<p>他们的免费计划包括:</p>
+<ul>
+<li>多达3个共享cpu-1x 256 MB虚拟机</li>
+<li>3GB永久卷存储(总计)</li>
+<li>160GB出站数据传输</li>
+</ul>
+<p>这应该足够运行一些小应用程序来测试他们的平台了。</p>
+<h3 id="why-flyio">为什么要Fly.io？</h3>
+<ul>
+<li>小型项目的免费计划</li>
+<li>巨大的<a href="https://fly.io/docs/reference/regions/">地区支持</a></li>
+<li>出色的文档和完整的API文档</li>
+<li>轻松实现水平和垂直缩放</li>
+<li>相对便宜</li>
+</ul>
+<h2 id="project-setup">项目设置</h2>
+<p>在本教程中，我们将部署一个简单的图像托管应用程序，名为<a href="https://github.com/duplxey/django-images"> django-images </a>。</p>
+<blockquote>
+<p>在学习教程的过程中，通过部署您自己的Django应用程序来检查您的理解。</p>
+</blockquote>
+<p>首先，从GitHub上的<a href="https://github.com/duplxey/django-images">库</a>中获取代码:</p>
+
+
+<p>创建新的虚拟环境并激活它:</p>
+<div class="codehilite"><pre><span/><code>$ python3 -m venv venv <span class="o">&amp;&amp;</span> <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装需求并迁移数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>打开您最喜欢的网络浏览器，导航到<a href="http://localhost:8000"> http://localhost:8000 </a>。使用右边的表格上传图像，确保一切正常。上传图像后，您应该会看到它显示在表格中:</p>
+<p><img data-src="/static/images/blog/django/django-fly/django-images-preview.png" loading="lazy" class="lazyload" alt="django-images Application Preview" src="../Images/841a1885ad9f230b72a4000cd391d99a.png" data-original-src="https://testdriven.io/static/images/blog/django/django-fly/django-images-preview.png"/></p>
+<h2 id="install-flyctl">安装Flyctl</h2>
+<p>要使用Fly平台，你首先需要安装<a href="https://fly.io/docs/flyctl/"> Flyctl </a>，这是一个命令行界面，允许你做从创建帐户到将应用程序部署到Fly的所有事情。</p>
+<p>要在Linux上安装它，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ curl -L https://fly.io/install.sh <span class="p">|</span> sh
+</code></pre></div>
+
+<blockquote>
+<p>对于其他操作系统，请看一下<a href="https://fly.io/docs/hands-on/install-flyctl/">安装指南</a>。</p>
+</blockquote>
+<p>安装完成后，将<code>flyctl</code>添加到<code>PATH</code>:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">FLYCTL_INSTALL</span><span class="o">=</span><span class="s2">"/home/</span><span class="nv">$USER</span><span class="s2">/.fly"</span>
+$ <span class="nb">export</span> <span class="nv">PATH</span><span class="o">=</span><span class="s2">"</span><span class="nv">$FLYCTL_INSTALL</span><span class="s2">/bin:</span><span class="nv">$PATH</span><span class="s2">"</span>
+</code></pre></div>
+
+<p>接下来，使用您的Fly.io帐户进行身份验证:</p>
+<div class="codehilite"><pre><span/><code>$ fly auth login
+
+<span class="c1"># In case you don't have an account yet:</span>
+<span class="c1"># fly auth signup</span>
+</code></pre></div>
+
+<p>该命令将打开您的默认web浏览器，并要求您登录。登录后，单击“继续”登录Fly CLI。</p>
+<p>为确保一切正常，请尝试列出应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ fly apps list
+
+NAME         OWNER           STATUS          PLATFORM        LATEST DEPLOY
+</code></pre></div>
+
+<p>您应该会看到一个空表，因为您还没有任何应用程序。</p>
+<h2 id="configure-django-project">配置Django项目</h2>
+<p>在教程的这一部分，我们将准备并对接Django应用程序，以便部署到Fly.io。</p>
+<h3 id="environment-variables">环境变量</h3>
+<p>我们不应该在源代码中存储秘密，所以让我们利用环境变量。最简单的方法是使用名为<a href="https://saurabh-kumar.com/python-dotenv/"> python-dotenv </a>的第三方Python包。首先将其添加到<em> requirements.txt </em>:</p>
+
+
+<blockquote>
+<p>随意使用不同的包来处理环境变量，如<a href="https://github.com/joke2k/django-environ"> django-environ </a>或<a href="https://github.com/henriquebastos/python-decouple/"> python-decouple </a>。</p>
+</blockquote>
+<p>然后，在<em> core/settings.py </em>的顶部导入并初始化python-dotenv，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span> <span class="nn">dotenv</span> <span class="kn">import</span> <span class="n">load_dotenv</span>
+
+<span class="c1"># Build paths inside the project like this: BASE_DIR / 'subdir'.</span>
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+
+<span class="n">load_dotenv</span><span class="p">(</span><span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'.env'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，从环境中加载<code>SECRET_KEY</code>、<code>DEBUG</code>、<code>ALLOWED_HOSTS</code>和<code>CSRF_TRUSTED_ORIGINS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="c1"># SECURITY WARNING: keep the secret key used in production secret!</span>
+<span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'SECRET_KEY'</span><span class="p">)</span>
+
+<span class="c1"># SECURITY WARNING: don't run with debug turned on in production!</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'DEBUG'</span><span class="p">,</span> <span class="s1">'0'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">'true'</span><span class="p">,</span> <span class="s1">'t'</span><span class="p">,</span> <span class="s1">'1'</span><span class="p">]</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'ALLOWED_HOSTS'</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">' '</span><span class="p">)</span>
+<span class="n">CSRF_TRUSTED_ORIGINS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'CSRF_TRUSTED_ORIGINS'</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">' '</span><span class="p">)</span>
+</code></pre></div>
+
+<p>不要忘记在文件顶部导入<code>os</code>:</p>
+
+
+<h3 id="database">数据库ˌ资料库</h3>
+<p>要使用Postgres代替SQLite，我们首先需要安装数据库适配器。</p>
+<p>将下面一行添加到<em> requirements.txt </em>中:</p>
+
+
+<p>当我们在本教程的后面创建Postgres实例时，一个受<a href="https://12factor.net/">十二因素应用</a>启发的名为<code>DATABASE_URL</code>的环境变量将被设置并以如下格式传递给我们的web应用:</p>
+<div class="codehilite"><pre><span/><code><span class="nl">postgres</span><span class="p">:</span><span class="o">//</span><span class="k">USER</span><span class="err">:</span><span class="n">PASSWORD</span><span class="nv">@HOST</span><span class="err">:</span><span class="n">PORT</span><span class="o">/</span><span class="n">NAME</span><span class="w"/>
+</code></pre></div>
+
+<p>为了在Django中使用它，我们可以使用一个名为<a href="https://pypi.org/project/dj-database-url/"> dj-database-url </a>的包。这个包将URL转换成Django数据库参数。</p>
+<p>像这样添加到<em> requirements.txt </em>中:</p>
+
+
+<p>接下来，导航到<em> core/settings.py </em>，将<code>DATABASES</code>更改如下:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="n">dj_database_url</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DATABASE_URL'</span><span class="p">),</span> <span class="n">conn_max_age</span><span class="o">=</span><span class="mi">600</span><span class="p">),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+
+
+<h3 id="gunicorn">格尼科恩</h3>
+<p>接下来，让我们安装<a href="https://gunicorn.org/"> Gunicorn </a>，这是一个生产级的WSGI服务器，将用于生产，而不是Django的开发服务器。</p>
+<p>添加到<em> requirements.txt </em>:</p>
+
+
+<h3 id="dockerfile">Dockerfile</h3>
+<p>如简介中所述，有三种方式将应用部署到Fly.io:</p>
+<ol>
+<li>Dockerfile</li>
+<li><a href="https://buildpacks.io/">构建包</a></li>
+<li>预建的Docker图像</li>
+</ol>
+<p>在本教程中，我们将使用第一种方法，因为它是最灵活的，并且给了我们对web应用程序最大的控制权。它也很棒，因为它允许我们在未来轻松地切换到另一个托管服务(支持Docker)。</p>
+<p>首先，在项目根目录下创建一个名为<em> Dockerfile </em>的新文件，内容如下:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># pull official base image</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9.6-alpine</span>
+
+<span class="c"># set work directory</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/usr/src/app</span>
+
+<span class="c"># set environment variables</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+
+<span class="c"># create the app directory - and switch to it</span>
+<span class="k">RUN</span><span class="w"> </span>mkdir -p /app
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="c"># install dependencies</span>
+<span class="k">COPY</span><span class="w"> </span>requirements.txt /tmp/requirements.txt
+<span class="k">RUN</span><span class="w"> </span><span class="nb">set</span> -ex <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    pip install --upgrade pip <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    pip install -r /tmp/requirements.txt <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    rm -rf /root/.cache/
+
+<span class="c"># copy project</span>
+<span class="k">COPY</span><span class="w"> </span>. /app/
+
+<span class="c"># expose port 8000</span>
+<span class="k">EXPOSE</span><span class="w"> </span><span class="s">8000</span>
+
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"gunicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--bind"</span><span class="p">,</span><span class="w"> </span><span class="s2">":8000"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--workers"</span><span class="p">,</span><span class="w"> </span><span class="s2">"2"</span><span class="p">,</span><span class="w"> </span><span class="s2">"core.wsgi:application"</span><span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果您正在部署自己的Django应用程序，请确保相应地更改<code>CMD</code>。</p>
+</blockquote>
+<p>接下来，创建一个<em>。dockerignore </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="err">*</span><span class="na">.pyc</span><span class="w"/>
+<span class="err">*</span><span class="na">.pyo</span><span class="w"/>
+<span class="err">*</span><span class="na">.mo</span><span class="w"/>
+<span class="err">*</span><span class="na">.db</span><span class="w"/>
+<span class="err">*</span><span class="na">.css.map</span><span class="w"/>
+<span class="err">*</span><span class="na">.egg-info</span><span class="w"/>
+<span class="err">*</span><span class="na">.sql.gz</span><span class="w"/>
+<span class="na">.cache</span><span class="w"/>
+<span class="na">.project</span><span class="w"/>
+<span class="na">.idea</span><span class="w"/>
+<span class="na">.pydevproject</span><span class="w"/>
+<span class="na">.DS_Store</span><span class="w"/>
+<span class="na">.git</span><span class="err">/</span><span class="w"/>
+<span class="na">.sass-cache</span><span class="w"/>
+<span class="na">.vagrant</span><span class="err">/</span><span class="w"/>
+<span class="nf">__pycache__</span><span class="w"/>
+<span class="nf">dist</span><span class="w"/>
+<span class="nf">docs</span><span class="w"/>
+<span class="nf">env</span><span class="w"/>
+<span class="nf">logs</span><span class="w"/>
+<span class="nf">Dockerfile</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>这是一个通用的<em>。Django的dockerignore </em>模板。如果您想从图像中排除任何其他内容，请确保对其进行更改。</p>
+</blockquote>
+<h2 id="deploy-app">部署应用程序</h2>
+<p>在本节教程中，我们将启动一个Postgres实例，并将我们的Django应用程序部署到Fly.io。</p>
+<h3 id="launch">发动</h3>
+<p>要创建和配置新的应用程序，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ fly launch
+
+Creating app <span class="k">in</span> /dev/django-flyio
+Scanning <span class="nb">source</span> code
+Detected a Dockerfile app
+? Choose an app name <span class="o">(</span>leave blank to generate one<span class="o">)</span>: django-images
+automatically selected personal organization: Nik Tomazic
+? Choose a region <span class="k">for</span> deployment: Frankfurt, Germany <span class="o">(</span>fra<span class="o">)</span>
+Created app django-images <span class="k">in</span> organization personal
+Wrote config file fly.toml
+? Would you like to <span class="nb">set</span> up a Postgresql database now? Yes
+? Select configuration: Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk
+Creating postgres cluster <span class="k">in</span> organization personal
+Creating app...
+Setting secrets on app django-images-db...
+Provisioning <span class="m">1</span> of <span class="m">1</span> machines with image flyio/postgres:14.4
+Waiting <span class="k">for</span> machine to start...
+Machine 21781350b24d89 is <span class="nv">created</span>
+<span class="o">==</span>&gt; Monitoring health checks
+  Waiting <span class="k">for</span> 21781350b24d89 to become healthy <span class="o">(</span>started, <span class="m">3</span>/3<span class="o">)</span>
+Postgres cluster django-images-db created
+Postgres cluster django-images-db is now attached to django-images
+? Would you like to <span class="nb">set</span> up an Upstash Redis database now? No
+? Would you like to deploy now? No
+Your app is ready! Deploy with <span class="sb">`</span>flyctl deploy<span class="sb">`</span>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>选择一个应用名称:<strong>自定义名称或留空以生成一个随机名称</strong></li>
+<li>选择部署区域:<strong>离你最近的区域</strong></li>
+<li>是否要现在设置Postgresql数据库:<strong>是</strong></li>
+<li>数据库配置:<strong>开发</strong></li>
+<li>您想现在设置一个Upstash Redis数据库吗:<strong>否</strong></li>
+<li>是否要立即部署:<strong>否</strong></li>
+</ol>
+<p>该命令将在Fly.io上创建一个应用程序，启动一个Postgres实例，并在项目根目录中创建一个名为<em> fly.toml </em>的应用程序配置文件。</p>
+<p>确保应用程序已成功创建:</p>
+<div class="codehilite"><pre><span/><code>$ fly apps list
+
+NAME                            OWNER           STATUS          PLATFORM        LATEST DEPLOY
+django-images                   personal        pending
+django-images-db                personal        deployed        machines
+fly-builder-damp-wave-89        personal        deployed        machines
+</code></pre></div>
+
+<p>你会注意到三个应用程序。第一个是实际的web应用程序，然后是Postgres实例，最后是一个Fly builder。Fly builders用于构建您的Docker映像，将它们推送到容器注册表，并部署您的应用程序。</p>
+<p>检查你的应用程序的状态:</p>
+<div class="codehilite"><pre><span/><code>$ fly status
+
+App
+  <span class="nv">Name</span>     <span class="o">=</span> django-images
+  <span class="nv">Owner</span>    <span class="o">=</span> personal
+  <span class="nv">Version</span>  <span class="o">=</span> <span class="m">0</span>
+  <span class="nv">Status</span>   <span class="o">=</span> pending
+  <span class="nv">Hostname</span> <span class="o">=</span> django-images.fly.dev
+  <span class="nv">Platform</span> <span class="o">=</span>
+
+App has not been deployed yet.
+</code></pre></div>
+
+<p>主机名告诉您web应用程序可以访问哪个地址。记下它，因为我们需要在教程的后面将其添加到<code>ALLOWED_HOSTS</code>和<code>CSRF_TRUSTED_ORIGINS</code>中。</p>
+<h3 id="app-configuration">应用程序配置</h3>
+<p>让我们稍微修改一下<a href="https://fly.io/docs/reference/configuration/">应用配置</a>文件，使其能够很好地与Django配合使用。</p>
+<p>首先，将端口<code>8080</code>更改为Django的首选端口<code>8000</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># fly.toml</span><span class="w"/>
+
+<span class="n">app</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"django-images"</span><span class="w"/>
+<span class="n">kill_signal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"SIGINT"</span><span class="w"/>
+<span class="n">kill_timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5</span><span class="w"/>
+<span class="n">processes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span><span class="w"/>
+
+<span class="k">[env]</span><span class="w"/>
+<span class="w">  </span><span class="n">PORT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"8000"</span><span class="w">         </span><span class="c1"># new</span><span class="w"/>
+
+<span class="k">[experimental]</span><span class="w"/>
+<span class="w">  </span><span class="n">allowed_public_ports</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span><span class="w"/>
+<span class="w">  </span><span class="n">auto_rollback</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+
+<span class="k">[[services]]</span><span class="w"/>
+<span class="w">  </span><span class="n">http_checks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span><span class="w"/>
+<span class="w">  </span><span class="n">internal_port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">8000</span><span class="w">  </span><span class="c1"># changed</span><span class="w"/>
+<span class="w">  </span><span class="n">processes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s">"app"</span><span class="p">]</span><span class="w"/>
+<span class="w">  </span><span class="n">protocol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"tcp"</span><span class="w"/>
+<span class="w">  </span><span class="n">script_checks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span><span class="w"/>
+<span class="w">  </span><span class="k">[services.concurrency]</span><span class="w"/>
+<span class="w">    </span><span class="n">hard_limit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">25</span><span class="w"/>
+<span class="w">    </span><span class="n">soft_limit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">20</span><span class="w"/>
+<span class="w">    </span><span class="n">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"connections"</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来，为了确保数据库得到迁移，添加一个<a href="https://fly.io/docs/reference/configuration/#the-deploy-section">部署</a>部分，并在新创建的部分中定义一个<code>release_command</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># fly.toml</span><span class="w"/>
+
+<span class="k">[deploy]</span><span class="w"/>
+<span class="w">  </span><span class="n">release_command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"python manage.py migrate --noinput"</span><span class="w"/>
+</code></pre></div>
+
+<p>在这个版本部署之前,<code>release_command</code>运行在一个临时的VM中——使用成功构建的版本。这对于运行数据库迁移等一次性命令非常有用。</p>
+<blockquote>
+<p>如果将来需要运行多个命令，可以在项目文件中创建一个bash脚本，然后像这样执行它:</p><div class="codehilite"><pre><span/><code><span class="c1"># fly.toml</span><span class="w"/>
+
+<span class="k">[deploy]</span><span class="w"/>
+<span class="w">  </span><span class="n">release_command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"sh /path/to/your/script"</span><span class="w"/>
+</code></pre></div>
+</blockquote>
+
+<h3 id="secrets">秘密</h3>
+<p>设置我们在Django的<em> settings.py </em>中使用的秘密:</p>
+<div class="codehilite"><pre><span/><code>$ fly secrets <span class="nb">set</span> <span class="nv">DEBUG</span><span class="o">=</span><span class="s2">"1"</span>
+$ fly secrets <span class="nb">set</span> <span class="nv">ALLOWED_HOSTS</span><span class="o">=</span><span class="s2">"localhost 127.0.0.1 [::1] &lt;your_app_hostname&gt;"</span>
+$ fly secrets <span class="nb">set</span> <span class="nv">CSRF_TRUSTED_ORIGINS</span><span class="o">=</span><span class="s2">"https://&lt;your_app_hostname&gt;"</span>
+$ fly secrets <span class="nb">set</span> <span class="nv">SECRET_KEY</span><span class="o">=</span><span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c1b6f6a0f9a081adabf9afa0b9f6b5a4acf1a2a0a0f3a7f3b3abacf3a0a9b2a0b2a2b8a7f9f2b2a0f4a0adb8b7f7f9b7a4a0">[email protected]</a>"</span>
+</code></pre></div>
+
+<p>确保将<code>&lt;your_app_hostname&gt;</code>替换为您实际的应用程序主机名。例如:</p>
+<div class="codehilite"><pre><span/><code>$ fly secrets <span class="nb">set</span> <span class="nv">ALLOWED_HOSTS</span><span class="o">=</span><span class="s2">"localhost 127.0.0.1 [::1] django-images.fly.dev"</span>
+$ fly secrets <span class="nb">set</span> <span class="nv">CSRF_TRUSTED_ORIGINS</span><span class="o">=</span><span class="s2">"https://django-images.fly.dev"</span>
+</code></pre></div>
+
+<p>为了使调试更容易，我们临时启用了调试模式。不要担心，因为我们将在教程的后面更改它。</p>
+<p>确保密码设置成功:</p>
+<div class="codehilite"><pre><span/><code>$ fly secrets list
+
+NAME                    DIGEST                  CREATED AT
+ALLOWED_HOSTS           06d92bcb15cf7eb1        30s ago
+CSRF_TRUSTED_ORIGINS    06d92bcb15cf7eb1        21s ago
+DATABASE_URL            e63c286f83782cf3        5m31s ago
+DEBUG                   3baf154b33091aa0        45s ago
+SECRET_KEY              62ac51c770a436f9        10s ago
+</code></pre></div>
+
+<blockquote>
+<p>部署Fly应用程序后，每个秘密修改都会触发重新部署。如果您需要一次设置多个密码，并且不希望您的应用程序多次重新部署，您可以在一个命令中连接这些密码，如下所示:</p><div class="codehilite"><pre><span/><code>$ fly secrets <span class="nb">set</span> <span class="nv">NAME1</span><span class="o">=</span><span class="s2">"VALUE1"</span> <span class="nv">NAME2</span><span class="o">=</span><span class="s2">"VALUE2"</span>
+</code></pre></div>
+</blockquote>
+
+<h3 id="deploy">部署</h3>
+<p>要将应用程序部署到Fly平台，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ fly <span class="nv">deploy</span>
+
+<span class="o">==</span>&gt; Verifying app config
+--&gt; Verified app <span class="nv">config</span>
+<span class="o">==</span>&gt; Building image
+Remote builder fly-builder-damp-wave-89 <span class="nv">ready</span>
+<span class="o">==</span>&gt; Creating build context
+--&gt; Creating build context <span class="k">done</span>
+<span class="o">==</span>&gt; Building image with Docker
+--&gt; docker host: <span class="m">20</span>.10.12 linux x86_64
+<span class="o">[</span>+<span class="o">]</span> Building <span class="m">24</span>.3s <span class="o">(</span><span class="m">11</span>/11<span class="o">)</span> FINISHED                                                             <span class="m">0</span>.0s
+--&gt; Building image <span class="k">done</span>
+<span class="o">==</span>&gt; Pushing image to fly
+The push refers to repository <span class="o">[</span>registry.fly.io/django-images<span class="o">]</span>
+bee487f02b7f: Pushed
+deployment-01GH4AGWQEZ607T7F93RB9G4NB: digest: sha256:85309cd5c7fe58f3a59b13d50576d8568525012bc6e665ba7b5cc1df3da16a9e size: <span class="m">2619</span>
+--&gt; Pushing image <span class="k">done</span>
+image: registry.fly.io/django-images:deployment-01GH4AGWQEZ607T7F93RB9G4NB
+image size: <span class="m">152</span> <span class="nv">MB</span>
+<span class="o">==</span>&gt; Creating release
+--&gt; release v2 <span class="nv">created</span>
+<span class="o">==</span>&gt; Monitoring deployment
+
+ <span class="m">1</span> desired, <span class="m">1</span> placed, <span class="m">1</span> healthy, <span class="m">0</span> unhealthy <span class="o">[</span>health checks: <span class="m">1</span> total, <span class="m">1</span> passing<span class="o">]</span>
+--&gt; v1 deployed successfully
+</code></pre></div>
+
+<p>该命令将使用Fly builder构建Docker映像，将其推送到容器注册表，并使用它来部署您的应用程序。在部署您的应用程序之前，<code>release_command</code>将在一个临时虚拟机上运行。</p>
+<p>第一次部署你的应用大约需要五分钟，所以你可以在等待的时候喝杯咖啡。</p>
+<p>部署应用程序后，检查其状态:</p>
+<div class="codehilite"><pre><span/><code>$ fly status
+
+App
+  <span class="nv">Name</span>     <span class="o">=</span> django-images
+  <span class="nv">Owner</span>    <span class="o">=</span> personal
+  <span class="nv">Version</span>  <span class="o">=</span> <span class="m">0</span>
+  <span class="nv">Status</span>   <span class="o">=</span> running
+  <span class="nv">Hostname</span> <span class="o">=</span> django-images.fly.dev
+  <span class="nv">Platform</span> <span class="o">=</span> nomad
+
+Deployment Status
+  <span class="nv">ID</span>          <span class="o">=</span> 563c84b4-bf10-874c-e0e9-9820cbdd6725
+  <span class="nv">Version</span>     <span class="o">=</span> v1
+  <span class="nv">Status</span>      <span class="o">=</span> successful
+  <span class="nv">Description</span> <span class="o">=</span> Deployment completed successfully
+  <span class="nv">Instances</span>   <span class="o">=</span> <span class="m">1</span> desired, <span class="m">1</span> placed, <span class="m">1</span> healthy, <span class="m">0</span> unhealthy
+
+Instances
+ID              PROCESS VERSION REGION  DESIRED STATUS  HEALTH CHECKS           RESTARTS        CREATED
+c009e8b0        app     <span class="m">1</span>       fra     run     running <span class="m">1</span> total, <span class="m">1</span> passing      <span class="m">0</span>               1m8s ago
+</code></pre></div>
+
+<p>检查日志:</p>
+<div class="codehilite"><pre><span/><code>$ fly logs
+
+<span class="o">[</span>info<span class="o">]</span>Starting init <span class="o">(</span>commit: 81d5330<span class="o">)</span>...
+<span class="o">[</span>info<span class="o">]</span>Mounting /dev/vdc at /app/data w/ uid: <span class="m">0</span>, gid: <span class="m">0</span> and chmod <span class="m">0755</span>
+<span class="o">[</span>info<span class="o">]</span>Preparing to run: <span class="sb">`</span>gunicorn --bind :8000 --workers <span class="m">2</span> core.wsgi:application<span class="sb">`</span> as root
+<span class="o">[</span>info<span class="o">]</span><span class="m">2022</span>/11/05 <span class="m">17</span>:09:36 listening on <span class="o">[</span>fdaa:0:c65c:a7b:86:2:bd43:2<span class="o">]</span>:22 <span class="o">(</span>DNS: <span class="o">[</span>fdaa::3<span class="o">]</span>:53<span class="o">)</span>
+<span class="o">[</span>info<span class="o">][</span><span class="m">2022</span>-11-05 <span class="m">17</span>:09:36 +0000<span class="o">]</span> <span class="o">[</span><span class="m">529</span><span class="o">]</span> <span class="o">[</span>INFO<span class="o">]</span> Starting gunicorn <span class="m">20</span>.1.0
+<span class="o">[</span>info<span class="o">][</span><span class="m">2022</span>-11-05 <span class="m">17</span>:09:36 +0000<span class="o">]</span> <span class="o">[</span><span class="m">529</span><span class="o">]</span> <span class="o">[</span>INFO<span class="o">]</span> Listening at: http://0.0.0.0:8000 <span class="o">(</span><span class="m">529</span><span class="o">)</span>
+<span class="o">[</span>info<span class="o">][</span><span class="m">2022</span>-11-05 <span class="m">17</span>:09:36 +0000<span class="o">]</span> <span class="o">[</span><span class="m">529</span><span class="o">]</span> <span class="o">[</span>INFO<span class="o">]</span> Using worker: sync
+<span class="o">[</span>info<span class="o">][</span><span class="m">2022</span>-11-05 <span class="m">17</span>:09:36 +0000<span class="o">]</span> <span class="o">[</span><span class="m">534</span><span class="o">]</span> <span class="o">[</span>INFO<span class="o">]</span> Booting worker with pid: <span class="m">534</span>
+<span class="o">[</span>info<span class="o">][</span><span class="m">2022</span>-11-05 <span class="m">17</span>:09:36 +0000<span class="o">]</span> <span class="o">[</span><span class="m">535</span><span class="o">]</span> <span class="o">[</span>INFO<span class="o">]</span> Booting worker with pid: <span class="m">535</span>
+</code></pre></div>
+
+<p>一切看起来都很棒。让我们在浏览器中打开应用程序，确保它能够正常工作:</p>
+
+
+<p>通过上传图像进行测试。</p>
+<h2 id="persistent-storage">持久存储</h2>
+<p>Fly.io(以及许多其他类似的服务，如Heroku)提供了一个短暂的文件系统。这意味着您的数据不是持久的，可能会在应用程序关闭或重新部署时消失。如果你的应用程序需要保留文件，这是非常糟糕的。</p>
+<p>为了解决这个问题，Fly.io为Fly应用程序提供了<a href="https://fly.io/docs/reference/volumes/">卷</a>、持久存储。这听起来很棒，但它不是生产的最佳解决方案，因为卷被绑定到一个区域和一个服务器-这限制了您的应用程序的可伸缩性和跨不同区域的分布。</p>
+<p>此外，Django本身并不是为生产中的静态/媒体文件服务的。</p>
+<p>我强烈建议你使用AWS S3或类似的服务，而不是Volumes。如果您的应用程序不需要处理媒体文件，您仍然可以使用卷和<a href="http://whitenoise.evans.io/en/stable/">白化</a>来处理静态文件。</p>
+<blockquote>
+<p>要了解如何使用Django设置AWS S3，请看一下在亚马逊S3 上存储Django静态和媒体文件的<a href="/blog/storing-django-static-and-media-files-on-amazon-s3/">。</a></p>
+</blockquote>
+<p>为了本教程的简单性和完整性，我们仍将使用飞卷。</p>
+<p>首先，在与您的应用程序相同的区域创建一个宗卷:</p>
+<div class="codehilite"><pre><span/><code>$ fly volumes create &lt;volume_name&gt; --region &lt;region&gt; --size &lt;in_gigabytes&gt;
+
+<span class="c1"># For example:</span>
+<span class="c1"># fly volumes create django_images_data --region fra --size 1</span>
+
+        ID: vol_53q80vdd16xvgzy6
+      Name: django_images_data
+       App: django-images
+    Region: fra
+      Zone: d7f9
+   Size GB: <span class="m">1</span>
+ Encrypted: <span class="nb">true</span>
+Created at: <span class="m">04</span> Nov <span class="m">22</span> <span class="m">13</span>:20 UTC
+</code></pre></div>
+
+<p>在我的例子中，我在法兰克福地区创建了一个1 GB的卷。</p>
+<p>接下来，进入<em> core/settings.py </em>，修改<code>STATIC_ROOT</code>和<code>MEDIA_ROOT</code>如下:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">STATIC_URL</span> <span class="o">=</span> <span class="s1">'/static/'</span>
+<span class="n">STATIC_ROOT</span> <span class="o">=</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'data/staticfiles'</span>
+
+<span class="n">MEDIA_URL</span> <span class="o">=</span> <span class="s1">'/media/'</span>
+<span class="n">MEDIA_ROOT</span> <span class="o">=</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'data/mediafiles'</span>
+</code></pre></div>
+
+<p>我们必须将静态和媒体文件放在一个子文件夹中，因为Fly volume只允许我们挂载一个目录。</p>
+<p>要将目录挂载到Fly卷，请转到您的<em> fly.toml </em>并添加以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># fly.toml</span><span class="w"/>
+
+<span class="k">[mounts]</span><span class="w"/>
+<span class="w">  </span><span class="n">source</span><span class="o">=</span><span class="s">"django_images_data"</span><span class="w"/>
+<span class="w">  </span><span class="n">destination</span><span class="o">=</span><span class="s">"/app/data"</span><span class="w"/>
+</code></pre></div>
+
+<ol>
+<li><code>source</code>是您的Fly卷的名称</li>
+<li><code>destination</code>是您想要挂载的目录的绝对路径</li>
+</ol>
+<p>重新部署你的应用程序:</p>
+
+
+<p>最后，让我们收集静态文件。</p>
+<p>SSH进入Fly服务器，导航到“app”目录，运行<code>collectstatic</code>:</p>
+<div class="codehilite"><pre><span/><code>$ fly ssh console
+<span class="c1"># cd /app</span>
+<span class="c1"># python manage.py collectstatic --noinput</span>
+</code></pre></div>
+
+<p>为了确保文件收集成功，请查看一下<em> /app/data </em>文件夹:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># ls /app/data</span>
+
+lost+found   staticfiles
+</code></pre></div>
+
+<p>太好了！您可以通过<code>exit</code>退出SSH。</p>
+<p>通过检查管理面板，确保已经成功收集了静态文件:</p>
+<div class="codehilite"><pre><span/><code>http://&lt;your_app_hostname&gt;/admin
+</code></pre></div>
+
+<h2 id="django-admin-access">Django管理访问</h2>
+<p>要访问Django管理面板，我们需要创建一个超级用户。我们有两个选择:</p>
+<ol>
+<li>使用<code>fly ssh</code>执行命令。</li>
+<li>创建一个Django命令来创建一个超级用户，并将其添加到<em> fly.toml </em>中。</li>
+</ol>
+<p>由于这是一次性任务，我们将使用第一种方法。</p>
+<p>首先，使用Fly CLI SSH进入服务器:</p>
+<div class="codehilite"><pre><span/><code>$ fly ssh console
+
+Connecting to fdaa:0:e25c:a7b:8a:4:b5c5:2... <span class="nb">complete</span>
+</code></pre></div>
+
+<p>然后，导航到我们的应用程序文件所在的<em> /app </em>，运行<code>createsuperuser</code>命令:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># cd /app</span>
+<span class="c1"># python manage.py createsuperuser</span>
+</code></pre></div>
+
+<p>按照提示操作，然后运行<code>exit</code>关闭SSH连接。</p>
+<p>要确保已成功创建超级用户，请导航至管理控制面板并登录:</p>
+<div class="codehilite"><pre><span/><code>http://&lt;your_app_hostname&gt;/admin
+</code></pre></div>
+
+<p>或者使用:</p>
+
+
+<p>然后导航至<em>/管理</em>。</p>
+<h2 id="add-domain">添加域</h2>
+<p>教程的这一部分要求您有一个域名。</p>
+<blockquote>
+<p>需要一个便宜的域名来练习？几个域名注册商有特殊优惠。“xyz”域。或者，您可以在<a href="https://www.freenom.com/en/index.html?lang=en"> Freenom </a>创建一个免费域名。</p>
+</blockquote>
+<p>若要将域添加到您的应用程序，您首先需要获取一个证书:</p>
+<div class="codehilite"><pre><span/><code>$ fly certs add &lt;your_full_domain_name&gt;
+
+<span class="c1"># For example:</span>
+<span class="c1"># fly certs add fly.testdriven.io</span>
+</code></pre></div>
+
+<p>接下来，进入你的域名注册服务商DNS设置，添加一个新的“CNAME记录”指向你的应用程序的主机名，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                      | TTL       |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| A Record | </span><span class="nv">&lt;</span><span class="c">some host</span><span class="nv">&gt;</span><span class="c">  | </span><span class="nv">&lt;</span><span class="c">your_app_hostname</span><span class="nv">&gt;</span><span class="c">        | Automatic |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                      | TTL       |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| A Record | fly          | django</span><span class="nb">-</span><span class="c">images</span><span class="nt">.</span><span class="c">fly</span><span class="nt">.</span><span class="c">dev      | Automatic |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<blockquote>
+<p>如果您不想使用子域，您可以遵循相同的步骤，但只需将DNS主机更改为<code>@</code>，并相应地配置Fly.io证书。</p>
+</blockquote>
+<p>检查域是否已成功添加:</p>
+<div class="codehilite"><pre><span/><code>$ fly certs list
+
+Host Name                 Added                Status
+fly.testdriven.io         <span class="m">5</span> minutes ago        Awaiting configuration
+</code></pre></div>
+
+<p>检查证书是否已颁发:</p>
+<div class="codehilite"><pre><span/><code>$ fly certs check &lt;your_full_domain_name&gt;
+
+<span class="c1"># For example:</span>
+<span class="c1"># fly certs check fly.testdriven.io</span>
+
+The certificate <span class="k">for</span> fly.testdriven.io has not been issued yet.
+Your certificate <span class="k">for</span> fly.testdriven.io is being issued. Status is Awaiting certificates.
+</code></pre></div>
+
+<p>如果证书尚未颁发，请等待大约十分钟，然后重试:</p>
+<div class="codehilite"><pre><span/><code>$ fly certs check fly.testdriven.io
+
+The certificate <span class="k">for</span> fly.testdriven.io has been issued.
+<span class="nv">Hostname</span>                  <span class="o">=</span> fly.testdriven.io
+DNS <span class="nv">Provider</span>              <span class="o">=</span> enom
+Certificate <span class="nv">Authority</span>     <span class="o">=</span> Let<span class="err">'</span>s Encrypt
+<span class="nv">Issued</span>                    <span class="o">=</span> rsa,ecdsa
+Added to <span class="nv">App</span>              <span class="o">=</span> <span class="m">8</span> minutes ago
+<span class="nv">Source</span>                    <span class="o">=</span> fly
+</code></pre></div>
+
+<p>最后，将新的域添加到<code>ALLOWED_HOSTS</code>和<code>CSRF_TRUSTED_ORIGINS</code>:</p>
+<div class="codehilite"><pre><span/><code>$ fly secrets <span class="nb">set</span> <span class="nv">ALLOWED_HOSTS</span><span class="o">=</span><span class="s2">"localhost 127.0.0.1 [::1] &lt;your_app_hostname&gt; &lt;your_full_domain_name&gt;"</span>
+$ fly secrets <span class="nb">set</span> <span class="nv">CSRF_TRUSTED_ORIGINS</span><span class="o">=</span><span class="s2">"https://&lt;your_app_hostname&gt; https://&lt;your_full_domain_name&gt;"</span>
+
+<span class="c1"># For example:</span>
+<span class="c1"># fly secrets set ALLOWED_HOSTS="localhost 127.0.0.1 [::1] django-images.fly.dev fly.testdriven.io"</span>
+<span class="c1"># fly secrets set CSRF_TRUSTED_ORIGINS="https://django-images.fly.dev https://fly.testdriven.io"</span>
+</code></pre></div>
+
+<p>当你修改你的密码时，你的应用将重新启动。重新启动后，您的web应用程序应该可以在新添加的域中访问。</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们已经成功地将Django应用程序部署到Fly.io。我们已经处理了PostgreSQL数据库、通过<a href="https://fly.io/docs/reference/volumes/"> Fly Volumes </a>的持久存储，并添加了域名。现在，您应该对Fly平台的工作原理有了一个大致的了解，并且能够部署自己的应用程序。</p>
+<h3 id="whats-next">下一步是什么？</h3>
+<ol>
+<li>与<a href="https://aws.amazon.com/s3/"> AWS S3 </a>或类似的服务交换<a href="https://fly.io/docs/reference/volumes/"> Fly Volumes </a>，以更好、更安全的方式提供静态/媒体文件。</li>
+<li>设置<code>DEBUG=0</code>禁用调试模式。请记住，当启用调试模式时，应用程序仅提供静态/媒体文件。有关如何在生产中处理静态和媒体文件的更多信息，请参考<a href="/blog/django-static-files/">在Django </a>中处理静态和媒体文件。</li>
+<li>看看<a href="https://fly.io/docs/reference/scaling/">缩放和自动缩放</a>和<a href="https://fly.io/docs/reference/regions/">区域支持</a>。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

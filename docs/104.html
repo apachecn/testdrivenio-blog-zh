@@ -1,0 +1,820 @@
+<html>
+<head>
+<title>Docker Best Practices for Python Developers </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>面向Python开发者的Docker最佳实践</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/docker-best-practices/#0001-01-01">https://testdriven.io/blog/docker-best-practices/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文着眼于编写Docker文件和使用Docker时需要遵循的一些最佳实践。虽然列出的大多数实践适用于所有开发人员，不管是哪种语言，但是有一些只适用于开发基于Python的应用程序的人员。</p>
+<p>--</p>
+<p><strong> Dockerfiles </strong>:</p>
+<ol>
+<li><a href="/blog/docker-best-practices/#use-multi-stage-builds">使用多阶段构建</a></li>
+<li><a href="/blog/docker-best-practices/#order-dockerfile-commands-appropriately">对Dockerfile命令进行适当排序</a></li>
+<li><a href="/blog/docker-best-practices/#use-small-docker-base-images">使用小型Docker基本图像</a></li>
+<li><a href="/blog/docker-best-practices/#minimize-the-number-of-layers">最小化层数</a></li>
+<li><a href="/blog/docker-best-practices/#use-unprivileged-containers">使用非特权容器</a></li>
+<li><a href="/blog/docker-best-practices/#prefer-copy-over-add">更喜欢复制而不是添加</a></li>
+<li><a href="/blog/docker-best-practices/#cache-python-packages-to-the-docker-host">将Python包缓存到Docker主机</a></li>
+<li><a href="/blog/docker-best-practices/#run-only-one-process-per-container">每个容器仅运行一个流程</a></li>
+<li><a href="/blog/docker-best-practices/#prefer-array-over-string-syntax">优先使用数组而不是字符串语法</a></li>
+<li><a href="/blog/docker-best-practices/#understand-the-difference-between-entrypoint-and-cmd">了解入口点和CMD的区别</a></li>
+<li><a href="/blog/docker-best-practices/#include-a-healthcheck-instruction">包含健康检查指令</a></li>
+</ol>
+<p><strong>图像</strong>:</p>
+<ol>
+<li><a href="/blog/docker-best-practices/#version-docker-images">版本Docker图片</a></li>
+<li><a href="/blog/docker-best-practices/#dont-store-secrets-in-images">不要在图像中存储秘密</a></li>
+<li><a href="/blog/docker-best-practices/#use-a-dockerignore-file">使用一个. dockerignore文件</a></li>
+<li><a href="/blog/docker-best-practices/#lint-and-scan-your-dockerfiles-and-images">扫描您的docker文件和图像</a></li>
+<li><a href="/blog/docker-best-practices/#sign-and-verify-images">签署并验证图像</a></li>
+</ol>
+<p><strong>奖励提示</strong></p>
+<ol>
+<li><a href="/blog/docker-best-practices/#using-python-virtual-environments">使用Python虚拟环境</a></li>
+<li><a href="/blog/docker-best-practices/#set-memory-and-cpu-limits">设置内存和CPU限制</a></li>
+<li><a href="/blog/docker-best-practices/#log-to-stdout-or-stderr">记录到标准输出或标准错误</a></li>
+<li><a href="/blog/docker-best-practices/#use-a-shared-memory-mount-for-gunicorn-heartbeat">为Gunicorn心跳使用共享内存挂载</a></li>
+</ol>
+
+
+
+<h2 id="dockerfiles">码头文件</h2>
+<h3 id="use-multi-stage-builds">使用多阶段构建</h3>
+<p><em>利用多阶段构建创建更精简、更安全的Docker映像。</em></p>
+<p>多阶段Docker构建允许你将你的Docker文件分成几个阶段。例如，您可以有一个用于编译和构建应用程序的阶段，然后可以将该阶段复制到后续阶段。因为只有最后一个阶段用于创建映像，所以与构建应用程序相关的依赖项和工具都被丢弃了，留下了一个精简的模块化生产就绪映像。</p>
+<p>Web开发示例:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># temp stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">builder</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+
+<span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get install -y --no-install-recommends gcc
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
+
+
+<span class="c"># final stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder /app/wheels /wheels
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder /app/requirements.txt .
+
+<span class="k">RUN</span><span class="w"> </span>pip install --no-cache /wheels/*
+</code></pre></div>
+
+<p>在这个例子中，<a href="https://gcc.gnu.org/"> GCC </a>编译器是安装某些Python包所必需的，所以我们添加了一个临时的构建时阶段来处理构建阶段。因为最终的运行时映像不包含GCC，所以它更轻便、更安全。</p>
+<p>尺寸比较:</p>
+<div class="codehilite"><pre><span/><code>REPOSITORY                 TAG                    IMAGE ID       CREATED          SIZE
+docker-single              latest                 8d6b6a4d7fb6   <span class="m">16</span> seconds ago   259MB
+docker-multi               latest                 813c2fa9b114   <span class="m">3</span> minutes ago    156MB
+</code></pre></div>
+
+<p>数据科学示例:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># temp stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">builder</span>
+
+<span class="k">RUN</span><span class="w"> </span>pip wheel --no-cache-dir --no-deps --wheel-dir /wheels jupyter pandas
+
+
+<span class="c"># final stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/notebooks</span>
+
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder /wheels /wheels
+<span class="k">RUN</span><span class="w"> </span>pip install --no-cache /wheels/*
+</code></pre></div>
+
+<p>尺寸比较:</p>
+<div class="codehilite"><pre><span/><code>REPOSITORY                  TAG                   IMAGE ID       CREATED         SIZE
+ds-multi                    latest                b4195deac742   <span class="m">2</span> minutes ago   357MB
+ds-single                   latest                7c23c43aeda6   <span class="m">6</span> minutes ago   969MB
+</code></pre></div>
+
+<p>总之，多阶段构建可以减小生产映像的大小，帮助您节省时间和金钱。此外，这将简化您的生产容器。此外，由于更小的尺寸和简单性，潜在的攻击面也更小。</p>
+<h3 id="order-dockerfile-commands-appropriately">正确排序Dockerfile命令</h3>
+<p>密切注意Dockerfile命令的顺序，以利用层缓存。</p>
+<p>Docker将每个步骤(或层)缓存在一个特定的docker文件中，以加速后续的构建。当一个步骤发生变化时，不仅该特定步骤的缓存会失效，所有后续步骤的缓存也会失效。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">COPY</span><span class="w"> </span>sample.py .
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+
+<span class="k">RUN</span><span class="w"> </span>pip install -r /requirements.txt
+</code></pre></div>
+
+<p>在这个over文件中，我们在安装需求之前复制了应用程序代码<em>。现在，每次我们改变<em> sample.py </em>，构建将重新安装软件包。这是非常低效的，尤其是当使用Docker容器作为开发环境时。因此，将频繁更改的文件放在docker文件的末尾是至关重要的。</em></p>
+<blockquote>
+<p>您还可以通过使用<em>来帮助防止不必要的缓存失效。dockerignore </em>文件来排除不必要的文件被添加到Docker构建上下文和最终映像中。稍后会有更多相关内容。</p>
+</blockquote>
+<p>因此，在上面的docker文件中，您应该将<code>COPY sample.py .</code>命令移到底部:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+
+<span class="k">RUN</span><span class="w"> </span>pip install -r /requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>sample.py .
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>始终将可能发生变化的层放在Dockerfile文件中尽可能低的位置。</li>
+<li>组合<code>RUN apt-get update</code>和<code>RUN apt-get install</code>命令。(这也有助于减小图像尺寸。我们很快会谈到这一点。)</li>
+<li>如果您想关闭特定Docker版本的缓存，添加<code>--no-cache=True</code>标志。</li>
+</ol>
+<h3 id="use-small-docker-base-images">使用小型Docker基本图像</h3>
+<p>较小的Docker映像更加模块化和安全。</p>
+<p>对于较小的图像，构建、推和拉图像会更快。它们也更安全，因为它们只包含运行应用程序所需的必要库和系统依赖项。</p>
+<p>您应该使用哪个Docker基础映像？</p>
+<p>不幸的是，这要看情况。</p>
+<p>下面是Python的各种Docker基本图像的大小比较:</p>
+<div class="codehilite"><pre><span/><code>REPOSITORY   TAG                 IMAGE ID       CREATED      SIZE
+python       <span class="m">3</span>.9.6-alpine3.14    f773016f760e   <span class="m">3</span> days ago   <span class="m">45</span>.1MB
+python       <span class="m">3</span>.9.6-slim          907fc13ca8e7   <span class="m">3</span> days ago   115MB
+python       <span class="m">3</span>.9.6-slim-buster   907fc13ca8e7   <span class="m">3</span> days ago   115MB
+python       <span class="m">3</span>.9.6               cba42c28d9b8   <span class="m">3</span> days ago   886MB
+python       <span class="m">3</span>.9.6-buster        cba42c28d9b8   <span class="m">3</span> days ago   886MB
+</code></pre></div>
+
+<p>虽然基于<a href="https://www.alpinelinux.org/"> Alpine Linux </a>的Alpine版本是最小的，但是如果你找不到可以使用它的编译过的二进制文件，它通常会导致编译时间的增加。结果，您可能不得不自己构建二进制文件，这会增加映像大小(取决于所需的系统级依赖项)和构建时间(由于必须从源代码编译)。</p>
+<blockquote>
+<p>请参考<a href="https://pythonspeed.com/articles/base-image-python-docker-images/">Python应用的最佳Docker基础映像</a>和<a href="https://pythonspeed.com/articles/alpine-docker-python/">使用Alpine会使Python Docker编译速度慢50倍</a>，了解为什么最好避免使用基于Alpine的基础映像。</p>
+</blockquote>
+<p>归根结底，这都是为了平衡。当你有疑问时，从一个<code>*-slim</code>风格开始，尤其是在开发模式下，当你构建你的应用程序时。当您添加新的Python包时，您希望避免不断更新Dockerfile文件来安装必要的系统级依赖项。当您强化您的应用程序和docker文件以用于生产时，您可能希望探索使用Alpine作为多阶段构建的最终映像。</p>
+<blockquote>
+<p>此外，不要忘记定期更新您的基本映像，以提高安全性和性能。当一个新版本的基础映像发布时——即<code>3.9.6-slim</code>-&gt;-<code>3.9.7-slim</code>——你应该拉新的映像并更新你的运行容器以获得所有最新的安全补丁。</p>
+</blockquote>
+<h3 id="minimize-the-number-of-layers">尽量减少层数</h3>
+<p>这是一个好主意，尽量结合使用<code>RUN</code>、<code>COPY</code>和<code>ADD</code>命令，因为它们可以创建图层。每一层都增加了图像的大小，因为它们被缓存。因此，随着层数的增加，尺寸也增加。</p>
+<p>您可以使用<code>docker history</code>命令对此进行测试:</p>
+<div class="codehilite"><pre><span/><code>$ docker images
+REPOSITORY   TAG       IMAGE ID       CREATED          SIZE
+dockerfile   latest    180f98132d02   <span class="m">51</span> seconds ago   259MB
+
+$ docker <span class="nb">history</span> 180f98132d02
+
+IMAGE          CREATED              CREATED BY                                      SIZE      COMMENT
+180f98132d02   <span class="m">58</span> seconds ago       COPY . . <span class="c1"># buildkit                             6.71kB    buildkit.dockerfile.v0</span>
+&lt;missing&gt;      <span class="m">58</span> seconds ago       RUN /bin/sh -c pip install -r requirements.t…   <span class="m">35</span>.5MB    buildkit.dockerfile.v0
+&lt;missing&gt;      About a minute ago   COPY requirements.txt . <span class="c1"># buildkit              58B       buildkit.dockerfile.v0</span>
+&lt;missing&gt;      About a minute ago   WORKDIR /app
+...
+</code></pre></div>
+
+<p>注意尺寸。只有<code>RUN</code>、<code>COPY</code>和<code>ADD</code>命令可以增加图像的大小。您可以通过尽可能组合命令来减小图像大小。例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">RUN</span><span class="w"> </span>apt-get update
+<span class="k">RUN</span><span class="w"> </span>apt-get install -y netcat
+</code></pre></div>
+
+<p>可以组合成一个单独的<code>RUN</code>命令:</p>
+<div class="codehilite"><pre><span/><code><span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> apt-get install -y netcat
+</code></pre></div>
+
+<p>因此，创建单个层而不是两个层，这减小了最终图像的大小。</p>
+<p>虽然减少层数是个好主意，但更重要的是，减少层数本身不是目标，而是减少图像大小和构建时间的副作用。换句话说，更多地关注前面的三个实践——多阶段构建、Dockerfile命令的顺序和使用小型基础映像——而不是试图优化每一个命令。</p>
+<p>注意事项:</p>
+<ol>
+<li><code>RUN</code>、<code>COPY</code>和<code>ADD</code>各自创建层。</li>
+<li>每一层都包含与前一层的不同之处。</li>
+<li>图层增加了最终图像的大小。</li>
+</ol>
+<p>小贴士:</p>
+<ol>
+<li>组合相关命令。</li>
+<li>在创建它们的同一个运行<code>step</code>中删除不必要的文件。</li>
+<li>尽量减少运行<code>apt-get upgrade</code>的次数，因为它会将所有包升级到最新版本。</li>
+<li>对于多阶段构建，不要太担心过度优化临时阶段中的命令。</li>
+</ol>
+<p>最后，为了提高可读性，最好按字母数字顺序对多行参数进行排序:</p>
+<div class="codehilite"><pre><span/><code><span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> apt-get install -y <span class="se">\</span>
+    git <span class="se">\</span>
+    gcc <span class="se">\</span>
+    matplotlib <span class="se">\</span>
+    pillow  <span class="se">\</span>
+    <span class="o">&amp;&amp;</span> rm -rf /var/lib/apt/lists/*
+</code></pre></div>
+
+<h3 id="use-unprivileged-containers">使用无特权的容器</h3>
+<p>默认情况下，Docker在容器内部以root用户身份运行容器进程。但是，这是一种不好的做法，因为在容器中作为根用户运行的进程在Docker主机中也是作为根用户运行的。因此，如果攻击者获得了对您的容器的访问权限，他们就可以访问所有的根权限，并可以对Docker主机执行多种攻击，比如-</p>
+<ol>
+<li>将敏感信息从主机的文件系统复制到容器</li>
+<li>执行远程命令</li>
+</ol>
+<p>为了防止这种情况，请确保使用非root用户运行容器进程:</p>
+<div class="codehilite"><pre><span/><code><span class="k">RUN</span><span class="w"> </span>addgroup --system app <span class="o">&amp;&amp;</span> adduser --system --group app
+
+<span class="k">USER</span><span class="w"> </span><span class="s">app</span>
+</code></pre></div>
+
+<p>您可以更进一步，删除shell访问，并确保没有主目录:</p>
+<div class="codehilite"><pre><span/><code><span class="k">RUN</span><span class="w"> </span>addgroup --gid <span class="m">1001</span> --system app <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    adduser --no-create-home --shell /bin/false --disabled-password --uid <span class="m">1001</span> --system --group app
+
+<span class="k">USER</span><span class="w"> </span><span class="s">app</span>
+</code></pre></div>
+
+<p>验证:</p>
+<div class="codehilite"><pre><span/><code>$ docker run -i sample id
+
+<span class="nv">uid</span><span class="o">=</span><span class="m">1001</span><span class="o">(</span>app<span class="o">)</span> <span class="nv">gid</span><span class="o">=</span><span class="m">1001</span><span class="o">(</span>app<span class="o">)</span> <span class="nv">groups</span><span class="o">=</span><span class="m">1001</span><span class="o">(</span>app<span class="o">)</span>
+</code></pre></div>
+
+<p>这里，容器中的应用程序在非root用户下运行。但是，请记住，Docker守护进程和容器本身仍然以root权限运行。请务必查看<a href="https://docs.docker.com/engine/security/rootless/">以非根用户身份运行Docker守护程序</a>，以获得以非根用户身份运行守护程序和容器的帮助。</p>
+<h3 id="prefer-copy-over-add">首选复制而非添加</h3>
+<p><em>使用<code>COPY</code>，除非你确定你需要<code>ADD</code>附带的额外功能。</em></p>
+<p><em><code>COPY</code>和<code>ADD</code>有什么区别？</em></p>
+<p>这两个命令都允许您将文件从特定位置复制到Docker映像中:</p>
+<div class="codehilite"><pre><span/><code><span class="k">ADD</span><span class="w"> </span>&lt;src&gt; &lt;dest&gt;
+<span class="k">COPY</span><span class="w"> </span>&lt;src&gt; &lt;dest&gt;
+</code></pre></div>
+
+<p>虽然它们看起来服务于相同的目的，但<code>ADD</code>还有一些额外的功能:</p>
+<ul>
+<li><code>COPY</code>用于将本地文件或目录从Docker主机复制到镜像。</li>
+<li><code>ADD</code>可用于下载外部文件。还有，如果你用的是压缩文件(tar，gzip，bzip2等。)作为<code>&lt;src&gt;</code>参数，<code>ADD</code>会自动将内容解压到给定的位置。</li>
+</ul>
+<div class="codehilite"><pre><span/><code><span class="c"># copy local files on the host to the destination</span>
+<span class="k">COPY</span><span class="w"> </span>/source/path  /destination/path
+<span class="k">ADD</span><span class="w"> </span>/source/path  /destination/path
+
+<span class="c"># download external file and copy to the destination</span>
+<span class="k">ADD</span><span class="w"> </span>http://external.file/url  /destination/path
+
+<span class="c"># copy and extract local compresses files</span>
+<span class="k">ADD</span><span class="w"> </span>source.file.tar.gz /destination/path
+</code></pre></div>
+
+<h3 id="cache-python-packages-to-the-docker-host">将Python包缓存到Docker主机</h3>
+<p>当需求文件发生变化时，需要重新构建映像来安装新的包。前面的步骤将被缓存，正如在<a href="/blog/docker-best-practices/#minimize-the-number-of-layers">中提到的最小化层数</a>。在重建映像时下载所有软件包会导致大量网络活动，并花费大量时间。每次重新构建花费相同的时间来跨构建下载公共包。</p>
+<p>您可以通过将pip缓存目录映射到主机上的一个目录来避免这种情况。因此，对于每次重新构建，缓存的版本会持续存在，并可以提高构建速度。</p>
+<p>将一个卷作为<code>-v $HOME/.cache/pip-docker/:/root/.cache/pip</code>添加到docker运行中，或者作为Docker编写文件中的一个映射。</p>
+<blockquote>
+<p>以上目录仅供参考。确保映射缓存目录，而不是站点包(构建包所在的位置)。</p>
+</blockquote>
+<p>将缓存从docker映像移动到主机可以节省最终映像中的空间。</p>
+<p>如果您正在利用<a href="https://docs.docker.com/develop/develop-images/build_enhancements/"> Docker BuildKit </a>，使用BuildKit缓存挂载来管理缓存:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># syntax = docker/dockerfile:1.2</span>
+
+...
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+
+<span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>cache,target<span class="o">=</span>/root/.cache/pip <span class="se">\</span>
+        pip install -r requirements.txt
+
+...
+</code></pre></div>
+
+<h3 id="run-only-one-process-per-container">每个容器仅运行一个流程</h3>
+<p><em>为什么建议每个容器只运行一个流程？</em></p>
+<p>让我们假设您的应用程序堆栈由两个web服务器和一个数据库组成。虽然您可以轻松地从一个容器中运行所有这三个服务，但是您应该在一个单独的容器中运行每个服务，以便于重用和扩展每个服务。</p>
+<ol>
+<li><strong>扩展</strong> -每个服务都在一个单独的容器中，你可以根据需要水平扩展你的一个web服务器来处理更多的流量。</li>
+<li><strong>可重用性</strong>——也许您有另一个需要容器化数据库的服务。您可以简单地重用同一个数据库容器，而不会带来两个不必要的服务。</li>
+<li><strong>日志</strong>——耦合容器使得日志更加复杂。我们将在本文后面更详细地讨论这个问题。</li>
+<li><strong>可移植性和可预测性</strong> -当可用的表面积减少时，制作安全补丁或调试问题就容易多了。</li>
+</ol>
+<h3 id="prefer-array-over-string-syntax">优先使用数组而不是字符串语法</h3>
+<p>您可以在docker文件中以数组(exec)或字符串(shell)格式编写<code>CMD</code>和<code>ENTRYPOINT</code>命令:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># array (exec)</span>
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"gunicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-w"</span><span class="p">,</span><span class="w"> </span><span class="s2">"4"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-k"</span><span class="p">,</span><span class="w"> </span><span class="s2">"uvicorn.workers.UvicornWorker"</span><span class="p">,</span><span class="w"> </span><span class="s2">"main:app"</span><span class="p">]</span>
+
+<span class="c"># string (shell)</span>
+<span class="k">CMD</span><span class="w"> </span><span class="s2">"gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app"</span>
+</code></pre></div>
+
+<p>两者都是正确的，并实现几乎相同的事情；但是，您应该尽可能使用exec格式。来自<a href="https://docs.docker.com/compose/faq/#why-do-my-services-take-10-seconds-to-recreate-or-stop"> Docker文档</a>:</p>
+<ol>
+<li>确保在docker文件中使用exec格式的<code>CMD</code>和<code>ENTRYPOINT</code>。</li>
+<li>例如，使用<code>["program", "arg1", "arg2"]</code>而不是<code>"program arg1 arg2"</code>。使用字符串形式会导致Docker使用bash运行您的进程，而bash不能正确处理信号。Compose总是使用JSON格式，所以如果您覆盖了Compose文件中的命令或入口点，也不用担心。</li>
+</ol>
+<p>因此，由于大多数shell不处理发送给子进程的信号，如果使用shell格式，<code>CTRL-C</code>(它生成一个<code>SIGTERM</code>)可能不会停止子进程。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">ubuntu:18.04</span>
+
+<span class="c"># BAD: shell format</span>
+<span class="k">ENTRYPOINT</span><span class="w"> </span>top -d
+
+<span class="c"># GOOD: exec format</span>
+<span class="k">ENTRYPOINT</span><span class="w"> </span><span class="p">[</span><span class="s2">"top"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-d"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这两个都试试。注意，使用shell格式时，<code>CTRL-C</code>不会终止进程。相反，你会看到<code>^C^C^C^C^C^C^C^C^C^C^C</code>。</p>
+<p>另一个警告是，shell格式携带shell的PID，而不是进程本身。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># array format</span>
+<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="03716c6c7743323b673b6567306567376731">[email protected]</a>:/app# ps ax
+  PID TTY      STAT   TIME COMMAND
+    <span class="m">1</span> ?        Ss     <span class="m">0</span>:00 python manage.py runserver <span class="m">0</span>.0.0.0:8000
+    <span class="m">7</span> ?        Sl     <span class="m">0</span>:02 /usr/local/bin/python manage.py runserver <span class="m">0</span>.0.0.0:8000
+   <span class="m">25</span> pts/0    Ss     <span class="m">0</span>:00 bash
+  <span class="m">356</span> pts/0    R+     <span class="m">0</span>:00 ps ax
+
+
+<span class="c1"># string format</span>
+<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3a4855554e7a5f5e5f080e5b0f5f5c0f090c">[email protected]</a>:/app# ps ax
+  PID TTY      STAT   TIME COMMAND
+    <span class="m">1</span> ?        Ss     <span class="m">0</span>:00 /bin/sh -c python manage.py runserver <span class="m">0</span>.0.0.0:8000
+    <span class="m">8</span> ?        S      <span class="m">0</span>:00 python manage.py runserver <span class="m">0</span>.0.0.0:8000
+    <span class="m">9</span> ?        Sl     <span class="m">0</span>:01 /usr/local/bin/python manage.py runserver <span class="m">0</span>.0.0.0:8000
+   <span class="m">13</span> pts/0    Ss     <span class="m">0</span>:00 bash
+  <span class="m">342</span> pts/0    R+     <span class="m">0</span>:00 ps ax
+</code></pre></div>
+
+<h3 id="understand-the-difference-between-entrypoint-and-cmd">理解入口点和CMD的区别</h3>
+<p>我应该使用ENTRYPOINT还是CMD来运行容器进程？</p>
+<p>在容器中运行命令有两种方式:</p>
+<div class="codehilite"><pre><span/><code><span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"gunicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"config.wsgi"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-b"</span><span class="p">,</span><span class="w"> </span><span class="s2">"0.0.0.0:8000"</span><span class="p">]</span>
+
+<span class="c"># and</span>
+
+<span class="k">ENTRYPOINT</span><span class="w"> </span><span class="p">[</span><span class="s2">"gunicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"config.wsgi"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-b"</span><span class="p">,</span><span class="w"> </span><span class="s2">"0.0.0.0:8000"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>两者本质上做同样的事情:用Gunicorn服务器在<code>config.wsgi</code>启动应用程序，并将其绑定到<code>0.0.0.0:8000</code>。</p>
+<p><code>CMD</code>很容易被覆盖。如果您运行<code>docker run &lt;image_name&gt; uvicorn config.asgi</code>，上面的CMD将被新的参数替换，例如<code>uvicorn config.asgi</code>。然而要覆盖<code>ENTRYPOINT</code>命令，必须指定<code>--entrypoint</code>选项:</p>
+<div class="codehilite"><pre><span/><code>docker run --entrypoint uvicorn config.asgi &lt;image_name&gt;
+</code></pre></div>
+
+<p>在这里，很明显我们覆盖了入口点。因此，建议使用<code>ENTRYPOINT</code>而不是<code>CMD</code>来防止意外覆盖命令。</p>
+<p>它们也可以一起使用。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">ENTRYPOINT</span><span class="w"> </span><span class="p">[</span><span class="s2">"gunicorn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"config.wsgi"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-w"</span><span class="p">]</span>
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"4"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>像这样一起使用时，运行来启动容器的命令是:</p>
+<div class="codehilite"><pre><span/><code>gunicorn config.wsgi -w <span class="m">4</span>
+</code></pre></div>
+
+<p>如上所述，<code>CMD</code>很容易被覆盖。因此，<code>CMD</code>可以用来将参数传递给<code>ENTRYPOINT</code>命令。工人的数量可以很容易地这样改变:</p>
+<div class="codehilite"><pre><span/><code>docker run &lt;image_name&gt; <span class="m">6</span>
+</code></pre></div>
+
+<p>这将启动六个Gunicorn工人的集装箱，而不是四个。</p>
+<h3 id="include-a-healthcheck-instruction">包括健康检查指令</h3>
+<p><em>使用一个<code>HEALTHCHECK</code>来确定在容器中运行的进程是否不仅启动并运行，而且还“健康”。</em></p>
+<p>Docker公开了一个API，用于检查容器中运行的进程的状态，这提供了比进程是否“正在运行”更多的信息，因为“正在运行”包括“它已启动并正在工作”、“仍在启动”，甚至“陷入了某种无限循环错误状态”。您可以通过<a href="https://docs.docker.com/engine/reference/builder/#healthcheck"> HEALTHCHECK </a>指令与该API进行交互。</p>
+<p>例如，如果您正在提供一个web应用程序，那么您可以使用下面的方法来确定<code>/</code>端点是否启动并可以处理服务请求:</p>
+<div class="codehilite"><pre><span/><code><span class="k">HEALTHCHECK</span><span class="w"> </span><span class="k">CMD</span><span class="w"> </span>curl --fail http://localhost:8000 <span class="o">||</span> <span class="nb">exit</span> <span class="m">1</span>
+</code></pre></div>
+
+<p>如果运行<code>docker ps</code>，可以看到<code>HEALTHCHECK</code>的状态。</p>
+<p>健康的例子:</p>
+<div class="codehilite"><pre><span/><code>CONTAINER ID   IMAGE         COMMAND                  CREATED          STATUS                            PORTS                                       NAMES
+09c2eb4970d4   healthcheck   <span class="s2">"python manage.py ru…"</span>   <span class="m">10</span> seconds ago   Up <span class="m">8</span> seconds <span class="o">(</span>health: starting<span class="o">)</span>   <span class="m">0</span>.0.0.0:8000-&gt;8000/tcp, :::8000-&gt;8000/tcp   xenodochial_clarke
+</code></pre></div>
+
+<p>不健康的例子:</p>
+<div class="codehilite"><pre><span/><code>CONTAINER ID   IMAGE         COMMAND                  CREATED              STATUS                          PORTS                                       NAMES
+09c2eb4970d4   healthcheck   <span class="s2">"python manage.py ru…"</span>   About a minute ago   Up About a minute <span class="o">(</span>unhealthy<span class="o">)</span>   <span class="m">0</span>.0.0.0:8000-&gt;8000/tcp, :::8000-&gt;8000/tcp   xenodochial_clarke
+</code></pre></div>
+
+<p>您可以更进一步，设置一个仅用于健康检查的自定义端点，然后配置<code>HEALTHCHECK</code>来测试返回的数据。例如，如果端点返回一个JSON响应<code>{"ping": "pong"}</code>，您可以指示<code>HEALTHCHECK</code>验证响应体。</p>
+<p>以下是使用<code>docker inspect</code>查看健康检查状态的方式:</p>
+<div class="codehilite"><pre><span/><code>❯ docker inspect --format <span class="s2">"{{json .State.Health }}"</span> ab94f2ac7889
+<span class="o">{</span>
+  <span class="s2">"Status"</span>: <span class="s2">"healthy"</span>,
+  <span class="s2">"FailingStreak"</span>: <span class="m">0</span>,
+  <span class="s2">"Log"</span>: <span class="o">[</span>
+    <span class="o">{</span>
+      <span class="s2">"Start"</span>: <span class="s2">"2021-09-28T15:22:57.5764644Z"</span>,
+      <span class="s2">"End"</span>: <span class="s2">"2021-09-28T15:22:57.7825527Z"</span>,
+      <span class="s2">"ExitCode"</span>: <span class="m">0</span>,
+      <span class="s2">"Output"</span>: <span class="s2">"..."</span>
+</code></pre></div>
+
+<blockquote>
+<p>这里，输出被裁剪，因为它包含整个HTML输出。</p>
+</blockquote>
+<p>您还可以将运行状况检查添加到Docker撰写文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">"3.8"</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">'8000:8000'</span><span class="w"/>
+<span class="w">    </span><span class="nt">healthcheck</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">test</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">curl --fail http://localhost:8000 || exit 1</span><span class="w"/>
+<span class="w">      </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span><span class="w"/>
+<span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span><span class="w"/>
+<span class="w">      </span><span class="nt">start_period</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span><span class="w"/>
+<span class="w">      </span><span class="nt">retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span><span class="w"/>
+</code></pre></div>
+
+<p>选项:</p>
+<ul>
+<li><code>test</code>:要测试的命令。</li>
+<li><code>interval</code>:测试的时间间隔，即每<code>x</code>个时间单位测试一次。</li>
+<li><code>timeout</code>:等待响应的最长时间。</li>
+<li><code>start_period</code>:何时开始健康检查。当在容器准备好之前执行附加任务时，如运行迁移，可以使用它。</li>
+<li><code>retries</code>:将测试指定为<code>failed</code>之前的最大重试次数。</li>
+</ul>
+<blockquote>
+<p>如果您使用的是Docker Swarm之外的编排工具，例如Kubernetes或AWS ECS，那么该工具很可能有自己的内部系统来处理健康检查。添加<code>HEALTHCHECK</code>指令前，请参考特定工具的文档。</p>
+</blockquote>
+<h2 id="images">形象</h2>
+<h3 id="version-docker-images">版本Docker图像</h3>
+<p>尽可能避免使用<code>latest</code>标签。</p>
+<p>如果你依赖于<code>latest</code>标签(它不是真正的“标签”，因为当一个图像没有被显式标记时，它被默认应用)，你不能根据图像标签来判断你的代码运行的是哪个版本。这使得回滚变得很困难，并且很容易被覆盖(无论是意外的还是恶意的)。标签，就像你的基础设施和部署，应该是不可变的T2。</p>
+<p>无论您如何处理您的内部映像，您都不应该对基本映像使用<code>latest</code>标记，因为您可能会无意中部署一个对生产环境有重大更改的新版本。</p>
+<p>对于内部映像，使用描述性标记可以更容易地判断代码运行的版本，处理回滚，并避免命名冲突。</p>
+<p>例如，您可以使用以下描述符来组成标签:</p>
+<ol>
+<li>时间戳</li>
+<li>Docker图像id</li>
+<li>Git提交哈希</li>
+<li>语义版本</li>
+</ol>
+<blockquote>
+<p>要了解更多选项，请查看“正确版本化Docker图像”堆栈溢出问题的答案。</p>
+</blockquote>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code>docker build -t web-prod-a072c4e5d94b5a769225f621f08af3d4bf820a07-0.1.4 .
+</code></pre></div>
+
+<p>这里，我们使用以下内容来构成标记:</p>
+<ol>
+<li>项目名称:<code>web</code></li>
+<li>环境名称:<code>prod</code></li>
+<li>Git提交哈希:<code>a072c4e5d94b5a769225f621f08af3d4bf820a07</code></li>
+<li>语义版本:<code>0.1.4</code></li>
+</ol>
+<p>选择一个标记方案并与之保持一致是很重要的。由于提交散列使得将图像标签快速绑定到代码变得容易，所以强烈建议将它们包含在您的标签方案中。</p>
+<h3 id="dont-store-secrets-in-images">不要在图像中存储秘密</h3>
+<p>秘密是敏感的信息片段，例如密码、数据库凭证、SSH密钥、令牌和TLS证书等等。这些不应该在没有加密的情况下放进你的图像中，因为获得图像访问权的未授权用户只能检查图层来提取秘密。</p>
+<p>不要以纯文本形式将秘密添加到Docker文件中，尤其是如果您将图像推送到像<a href="https://hub.docker.com/"> Docker Hub </a>这样的公共注册表中:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">ENV</span><span class="w"> </span>DATABASE_PASSWORD <span class="s2">"SuperSecretSauce"</span>
+</code></pre></div>
+
+<p>相反，应该通过以下途径注射:</p>
+<ol>
+<li>环境变量(运行时)</li>
+<li>构建时参数(在构建时)</li>
+<li>像Docker Swarm(通过Docker secrets)或Kubernetes(通过Kubernetes secrets)这样的编排工具</li>
+</ol>
+<p>此外，您还可以通过将常用机密文件和文件夹添加到您的<em>中来帮助防止泄密。dockerignore </em>文件:</p>
+
+
+<p>最后，明确哪些文件将被复制到映像，而不是递归地复制所有文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># BAD</span>
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="c"># GOOD</span>
+<span class="k">copy</span><span class="w"> </span>./app.py .
+</code></pre></div>
+
+<p>明确也有助于限制缓存破坏。</p>
+<h4 id="environment-variables">环境变量</h4>
+<p>您可以通过环境变量传递秘密，但是它们将在所有子进程、链接容器和日志中可见，也可以通过<code>docker inspect</code>传递。更新它们也很困难。</p>
+<div class="codehilite"><pre><span/><code>$ docker run --detach --env <span class="s2">"DATABASE_PASSWORD=SuperSecretSauce"</span> python:3.9-slim
+
+d92cf5cf870eb0fdbf03c666e7fcf18f9664314b79ad58bc7618ea3445e39239
+
+
+$ docker inspect --format<span class="o">=</span><span class="s1">'{{range .Config.Env}}{{println .}}{{end}}'</span> d92cf5cf870eb0fdbf03c666e7fcf18f9664314b79ad58bc7618ea3445e39239
+
+<span class="nv">DATABASE_PASSWORD</span><span class="o">=</span>SuperSecretSauce
+<span class="nv">PATH</span><span class="o">=</span>/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+<span class="nv">LANG</span><span class="o">=</span>C.UTF-8
+<span class="nv">GPG_KEY</span><span class="o">=</span>E3FF2839C048B25C084DEBE9B26995E310250568
+<span class="nv">PYTHON_VERSION</span><span class="o">=</span><span class="m">3</span>.9.7
+<span class="nv">PYTHON_PIP_VERSION</span><span class="o">=</span><span class="m">21</span>.2.4
+<span class="nv">PYTHON_SETUPTOOLS_VERSION</span><span class="o">=</span><span class="m">57</span>.5.0
+<span class="nv">PYTHON_GET_PIP_URL</span><span class="o">=</span>https://github.com/pypa/get-pip/raw/c20b0cfd643cd4a19246ccf204e2997af70f6b21/public/get-pip.py
+<span class="nv">PYTHON_GET_PIP_SHA256</span><span class="o">=</span>fa6f3fb93cce234cd4e8dd2beb54a51ab9c247653b52855a48dd44e6b21ff28b
+</code></pre></div>
+
+<p>这是最直接的秘密管理方法。虽然它不是最安全的，但它会让诚实的人保持诚实，因为它提供了一层薄薄的保护，有助于保持秘密不被好奇的眼睛发现。</p>
+<p>使用共享卷传递秘密是一个更好的解决方案，但它们应该通过<a href="https://www.vaultproject.io/"> Vault </a>或<a href="https://aws.amazon.com/kms/"> AWS密钥管理服务</a> (KMS)进行加密，因为它们保存在光盘上。</p>
+<h4 id="build-time-arguments">构建时参数</h4>
+<p>你可以在构建时使用<a href="https://docs.docker.com/engine/reference/commandline/build/#set-build-time-variables---build-arg">构建时参数</a>传递秘密，但是那些通过<code>docker history</code>访问映像的人可以看到它们。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">ARG</span><span class="w"> </span>DATABASE_PASSWORD
+</code></pre></div>
+
+<p>构建:</p>
+<div class="codehilite"><pre><span/><code>$ docker build --build-arg <span class="s2">"DATABASE_PASSWORD=SuperSecretSauce"</span> .
+</code></pre></div>
+
+<p>如果您只需要在构建过程中临时使用密码(例如，用于克隆私有回购或下载私有包的SSH密钥)，则应该使用多阶段构建，因为构建器历史记录在临时阶段会被忽略:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># temp stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">builder</span>
+
+<span class="c"># secret</span>
+<span class="k">ARG</span><span class="w"> </span>SSH_PRIVATE_KEY
+
+<span class="c"># install git</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get install -y --no-install-recommends git
+
+<span class="c"># use ssh key to clone repo</span>
+<span class="k">RUN</span><span class="w"> </span>mkdir -p /root/.ssh/ <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    <span class="nb">echo</span> <span class="s2">"</span><span class="si">${</span><span class="nv">PRIVATE_SSH_KEY</span><span class="si">}</span><span class="s2">"</span> &gt; /root/.ssh/id_rsa
+<span class="k">RUN</span><span class="w"> </span>touch /root/.ssh/known_hosts <span class="o">&amp;&amp;</span>
+    ssh-keyscan bitbucket.org &gt;&gt; /root/.ssh/known_hosts
+<span class="k">RUN</span><span class="w"> </span>git clone <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7d1a14093d1a140915081f531e1210">[email protected]</a>:testdrivenio/not-real.git
+
+
+<span class="c"># final stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="c"># copy the repository from the temp image</span>
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder /your-repo /app/your-repo
+
+<span class="c"># use the repo for something!</span>
+</code></pre></div>
+
+<p>多阶段构建仅保留最终图像的历史记录。请记住，您可以将此功能用于您的应用程序所需的永久机密，如数据库凭证。</p>
+<p>您还可以使用Docker build中新的<code>--secret</code>选项将秘密传递给Docker映像，这些秘密不会存储在映像中。</p>
+<div class="codehilite"><pre><span/><code><span class="c"># "docker_is_awesome" &gt; secrets.txt</span>
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">alpine</span>
+
+<span class="c"># shows secret from default secret location:</span>
+<span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>secret,id<span class="o">=</span>mysecret cat /run/secrets/mysecret
+</code></pre></div>
+
+<p>这将从<code>secrets.txt</code>文件中挂载秘密。</p>
+<p>建立形象:</p>
+<div class="codehilite"><pre><span/><code>docker build --no-cache --progress<span class="o">=</span>plain --secret <span class="nv">id</span><span class="o">=</span>mysecret,src<span class="o">=</span>secrets.txt .
+
+<span class="c1"># output</span>
+...
+<span class="c1">#4 [1/2] FROM docker.io/library/alpine</span>
+<span class="c1">#4 sha256:665ba8b2cdc0cb0200e2a42a6b3c0f8f684089f4cd1b81494fbb9805879120f7</span>
+<span class="c1">#4 CACHED</span>
+
+<span class="c1">#5 [2/2] RUN --mount=type=secret,id=mysecret cat /run/secrets/mysecret</span>
+<span class="c1">#5 sha256:75601a522ebe80ada66dedd9dd86772ca932d30d7e1b11bba94c04aa55c237de</span>
+<span class="c1">#5 0.635 docker_is_awesome#5 DONE 0.7s</span>
+
+<span class="c1">#6 exporting to image</span>
+</code></pre></div>
+
+<p>最后，查看历史记录，看看秘密是否泄露:</p>
+<div class="codehilite"><pre><span/><code>❯ docker <span class="nb">history</span> 49574a19241c
+IMAGE          CREATED         CREATED BY                                      SIZE      COMMENT
+49574a19241c   <span class="m">5</span> minutes ago   CMD <span class="o">[</span><span class="s2">"/bin/sh"</span><span class="o">]</span>                                 0B        buildkit.dockerfile.v0
+&lt;missing&gt;      <span class="m">5</span> minutes ago   RUN /bin/sh -c cat /run/secrets/mysecret <span class="c1"># b…   0B        buildkit.dockerfile.v0</span>
+&lt;missing&gt;      <span class="m">4</span> weeks ago     /bin/sh -c <span class="c1">#(nop)  CMD ["/bin/sh"]              0B</span>
+&lt;missing&gt;      <span class="m">4</span> weeks ago     /bin/sh -c <span class="c1">#(nop) ADD file:aad4290d27580cc1a…   5.6MB</span>
+</code></pre></div>
+
+<blockquote>
+<p>有关构建时秘密的更多信息，请查看<a href="https://pythonspeed.com/articles/docker-build-secrets/">不要泄露Docker映像的构建秘密</a>。</p>
+</blockquote>
+<h4 id="docker-secrets">码头工人的秘密</h4>
+<p>如果你正在使用<a href="https://docs.docker.com/engine/swarm/"> Docker Swarm </a>，你可以用<a href="https://docs.docker.com/engine/reference/commandline/secret/"> Docker secrets </a>来管理秘密。</p>
+<p>例如，初始化Docker群模式:</p>
+
+
+<p>创建docker机密:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">echo</span> <span class="s2">"supersecretpassword"</span> <span class="p">|</span> docker secret create postgres_password -
+qdqmbpizeef0lfhyttxqfbty0
+
+$ docker secret ls
+ID                          NAME                DRIVER    CREATED         UPDATED
+qdqmbpizeef0lfhyttxqfbty0   postgres_password             <span class="m">4</span> seconds ago   <span class="m">4</span> seconds ago
+</code></pre></div>
+
+<p>当一个容器被授予访问上述秘密的权限时，它将在<code>/run/secrets/postgres_password</code>挂载。这个文件将以明文形式包含秘密的实际值。</p>
+<p>使用不同的业务流程工具？</p>
+<ol>
+<li>AWS EKS - <a href="https://docs.aws.amazon.com/eks/latest/userguide/manage-secrets.html">通过Kubernetes使用AWS Secrets Manager secrets】</a></li>
+<li>数字海洋Kubernetes - <a href="https://www.digitalocean.com/community/tutorials/recommended-steps-to-secure-a-digitalocean-kubernetes-cluster">保护数字海洋Kubernetes集群的推荐步骤</a></li>
+<li>Google Kubernetes引擎- <a href="https://cloud.google.com/secret-manager/docs/using-other-products#google-kubernetes-engine">与其他产品一起使用Secret Manager】</a></li>
+<li>Nomad - <a href="https://learn.hashicorp.com/tutorials/nomad/vault-postgres?in=nomad/integrate-vault">保险库集成和检索动态机密</a></li>
+</ol>
+<h3 id="use-a-dockerignore-file">使用. dockerignore文件</h3>
+<p>我们已经提到使用一个<a href="https://docs.docker.com/engine/reference/builder/#dockerignore-file"> <em>。dockerignore </em>文件</a>已经好几次了。该文件用于指定您不希望添加到发送到Docker守护进程的初始构建上下文中的文件和文件夹，Docker守护进程随后将构建您的映像。换句话说，您可以使用它来定义您需要的构建上下文。</p>
+<p>构建Docker映像时，在评估<code>COPY</code>或<code>ADD</code>命令之前，整个Docker上下文——即项目的根——被发送到Docker守护进程<em>。这可能非常昂贵，尤其是如果您在项目中有许多依赖项、大型数据文件或构建工件的话。另外，Docker CLI和守护程序可能不在同一台机器上。因此，如果守护进程在远程机器上执行，您应该更加注意构建上下文的大小。</em></p>
+<p>你应该给<em>添加什么？dockerignore </em>文件？</p>
+<ol>
+<li>临时文件和文件夹</li>
+<li>构建日志</li>
+<li>地方机密</li>
+<li>本地开发文件，如<em> docker-compose.yml </em></li>
+<li>版本控制文件夹，如“.git“，”。hg”，和”。svn "</li>
+</ol>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code>**/.git
+**/.gitignore
+**/.vscode
+**/coverage
+**/.env
+**/.aws
+**/.ssh
+Dockerfile
+README.md
+docker-compose.yml
+**/.DS_Store
+**/venv
+**/env
+</code></pre></div>
+
+<p>总而言之，一个结构合理的<em>。dockerignore </em>可以帮助:</p>
+<ol>
+<li>减小Docker图像的大小</li>
+<li>加快构建过程</li>
+<li>防止不必要的缓存失效</li>
+<li>防止泄密</li>
+</ol>
+<h3 id="lint-and-scan-your-dockerfiles-and-images">Lint和扫描您的docker文件和图像</h3>
+<p>林挺是检查您的源代码的程序和风格错误以及可能导致潜在缺陷的不良实践的过程。就像编程语言一样，静态文件也可以被链接。特别是对于docker文件，linters有助于确保它们的可维护性，避免不推荐使用的语法，并遵循最佳实践。林挺:你的形象应该成为你CI渠道的一个标准部分。</p>
+<p>Hadolint是最受欢迎的Dockerfile linter:</p>
+<div class="codehilite"><pre><span/><code>$ hadolint Dockerfile
+
+Dockerfile:1 DL3006 warning: Always tag the version of an image explicitly
+Dockerfile:7 DL3042 warning: Avoid the use of cache directory with pip. Use <span class="sb">`</span>pip install --no-cache-dir &lt;package&gt;<span class="sb">`</span>
+Dockerfile:9 DL3059 info: Multiple consecutive <span class="sb">`</span>RUN<span class="sb">`</span> instructions. Consider consolidation.
+Dockerfile:17 DL3025 warning: Use arguments JSON notation <span class="k">for</span> CMD and ENTRYPOINT arguments
+</code></pre></div>
+
+<p>你可以在https://hadolint.github.io/hadolint/的<a href="https://hadolint.github.io/hadolint/">网站上看到它的运行。还有一个</a><a href="https://marketplace.visualstudio.com/items?itemName=exiasr.hadolint"> VS代码扩展</a>。</p>
+<p>您可以将林挺与扫描图像和容器的漏洞相结合。</p>
+<p>一些选项:</p>
+<ol>
+<li><a href="https://docs.docker.com/engine/scan/"> Snyk </a>是Docker本地漏洞扫描的独家提供商。您可以使用<code>docker scan</code> CLI命令扫描图像。</li>
+<li>Trivy可以用来扫描容器映像、文件系统、git库和其他配置文件。</li>
+<li>Clair是一个开源项目，用于静态分析应用程序容器中的漏洞。</li>
+<li>Anchore 是一个开源项目，为集装箱图像的检查、分析和认证提供集中服务。</li>
+</ol>
+<p>总之，lint和扫描您的docker文件和图像，找出任何偏离最佳实践的潜在问题。</p>
+<h3 id="sign-and-verify-images">签名并验证图像</h3>
+<p><em>您如何知道用于运行生产代码的图像没有被篡改？</em></p>
+<p>篡改可以通过<a href="https://en.wikipedia.org/wiki/Man-in-the-middle_attack">中间人</a> (MITM)攻击通过网络进行，也可以来自被完全破坏的注册表。</p>
+<p><a href="https://docs.docker.com/engine/security/trust/"> Docker内容信任</a> (DCT)支持来自远程注册中心的Docker图像的签名和验证。</p>
+<p>要验证图像的完整性和真实性，请设置以下环境变量:</p>
+
+
+<p>现在，如果您尝试提取未签名的图像，您将收到以下错误:</p>
+<div class="codehilite"><pre><span/><code>Error: remote trust data does not exist <span class="k">for</span> docker.io/namespace/unsigned-image:
+notary.docker.io does not have trust data <span class="k">for</span> docker.io/namespace/unsigned-image
+</code></pre></div>
+
+<p>您可以从<a href="https://docs.docker.com/engine/security/trust/#signing-images-with-docker-content-trust">使用Docker内容信任签名图像</a>文档中了解签名图像。</p>
+<p>从Docker Hub下载图像时，请确保使用<a href="https://docs.docker.com/docker-hub/official_images/">官方图像</a>或来自可信来源的验证图像。较大的团队应该考虑使用他们自己的内部<a href="https://docs.docker.com/registry/deploying/">私有容器注册中心</a>。</p>
+<h2 id="bonus-tips">额外提示</h2>
+<h3 id="using-python-virtual-environments">使用Python虚拟环境</h3>
+<p>是否应该在容器中使用虚拟环境？</p>
+<p>在大多数情况下，只要坚持每个容器只运行一个进程，虚拟环境就是不必要的。由于容器本身提供了隔离，包可以在系统范围内安装。也就是说，您可能希望在多阶段构建中使用虚拟环境，而不是构建wheel文件。</p>
+<p>带轮子的例子:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># temp stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">builder</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+
+<span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get install -y --no-install-recommends gcc
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
+
+
+<span class="c"># final stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder /app/wheels /wheels
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder /app/requirements.txt .
+
+<span class="k">RUN</span><span class="w"> </span>pip install --no-cache /wheels/*
+</code></pre></div>
+
+<p>virtualenv示例:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># temp stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">builder</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+
+<span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get install -y --no-install-recommends gcc
+
+<span class="k">RUN</span><span class="w"> </span>python -m venv /opt/venv
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">"/opt/venv/bin:</span><span class="nv">$PATH</span><span class="s2">"</span>
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+
+<span class="c"># final stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9-slim</span>
+
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder /opt/venv /opt/venv
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">"/opt/venv/bin:</span><span class="nv">$PATH</span><span class="s2">"</span>
+</code></pre></div>
+
+<h3 id="set-memory-and-cpu-limits">设置内存和CPU限制</h3>
+<p>限制Docker容器的内存使用是一个好主意，尤其是当您在一台机器上运行多个容器时。这可以防止任何容器使用所有可用的内存，从而降低其余容器的性能。</p>
+<p>限制内存使用的最简单方法是在Docker cli中使用<code>--memory</code>和<code>--cpu</code>选项:</p>
+<div class="codehilite"><pre><span/><code>$ docker run --cpus<span class="o">=</span><span class="m">2</span> -m 512m nginx
+</code></pre></div>
+
+<p>上面的命令将容器的使用限制为2个CPU和512兆的主内存。</p>
+<p>您可以在Docker合成文件中做同样的事情，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">"3.9"</span><span class="w"/>
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">redis</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis:alpine</span><span class="w"/>
+<span class="w">    </span><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">resources</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">limits</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">cpus</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w"/>
+<span class="w">          </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">512M</span><span class="w"/>
+<span class="w">        </span><span class="nt">reservations</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">cpus</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">          </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256M</span><span class="w"/>
+</code></pre></div>
+
+<p>记下<code>reservations</code>字段。它用于设置一个软限制，当主机内存或CPU资源不足时，该限制优先。</p>
+<p>其他资源:</p>
+<ol>
+<li><a href="https://docs.docker.com/config/containers/resource_constraints/">内存、CPU和GPU的运行时选项</a></li>
+<li><a href="https://docs.docker.com/compose/compose-file/compose-file-v3/#resources"> Docker编写资源约束</a></li>
+</ol>
+<h3 id="log-to-stdout-or-stderr">记录到stdout或stderr</h3>
+<p>在Docker容器中运行的应用程序应该将日志消息写入标准输出(stdout)和标准错误(stderr ),而不是文件。</p>
+<p>然后，您可以配置Docker守护进程将您的日志消息发送到一个集中的日志记录解决方案(如<a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html"> CloudWatch Logs </a>或<a href="https://www.papertrail.com/"> Papertrail </a>)。</p>
+<p>更多信息，请查看来自<a href="https://12factor.net/">的<a href="https://12factor.net/logs">将日志视为事件流</a>、来自<a href="https://docs.docker.com/config/containers/logging/configure/">的十二因素应用</a>以及来自Docker文档的</a>配置日志驱动程序。</p>
+<h3 id="use-a-shared-memory-mount-for-gunicorn-heartbeat">为Gunicorn Heartbeat使用共享内存挂载</h3>
+<p>Gunicorn使用基于文件的心跳系统来确保所有分叉的工作进程都是活动的。</p>
+<p>在大多数情况下，心跳文件位于“/tmp”中，通常通过<a href="https://en.wikipedia.org/wiki/Tmpfs"> tmpfs </a>存储在内存中。因为Docker默认情况下不利用tmpfs，所以文件将存储在磁盘支持的文件系统中。这会导致<a href="https://docs.gunicorn.org/en/20.1.0/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod">问题</a>，比如随机冻结，因为心跳系统使用<code>os.fchmod</code>，如果目录实际上在磁盘支持的文件系统上，这可能会阻塞一个工作进程。</p>
+<p>幸运的是，有一个简单的修复方法:通过<code>--worker-tmp-dir</code>标志将heartbeat目录更改为内存映射目录。</p>
+<div class="codehilite"><pre><span/><code>gunicorn --worker-tmp-dir /dev/shm config.wsgi -b <span class="m">0</span>.0.0.0:8000
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>本文研究了几个最佳实践，使您的docker文件和图像更干净、更精简、更安全。</p>
+<p>其他资源:</p>
+<ol>
+<li><a href="https://docs.docker.com/develop/dev-best-practices/"> Docker开发最佳实践</a></li>
+<li><a href="https://docs.docker.com/develop/develop-images/dockerfile_best-practices/">编写docker文件的最佳实践</a></li>
+</ol>
+<p>--</p>
+<p><strong> Dockerfiles </strong>:</p>
+<ol>
+<li><a href="/blog/docker-best-practices/#use-multi-stage-builds">使用多阶段构建</a></li>
+<li><a href="/blog/docker-best-practices/#order-dockerfile-commands-appropriately">对Dockerfile命令进行适当排序</a></li>
+<li><a href="/blog/docker-best-practices/#use-small-docker-base-images">使用小型Docker基本图像</a></li>
+<li><a href="/blog/docker-best-practices/#minimize-the-number-of-layers">最小化层数</a></li>
+<li><a href="/blog/docker-best-practices/#use-unprivileged-containers">使用非特权容器</a></li>
+<li><a href="/blog/docker-best-practices/#prefer-copy-over-add">更喜欢复制而不是添加</a></li>
+<li><a href="/blog/docker-best-practices/#cache-python-packages-to-the-docker-host">将Python包缓存到Docker主机</a></li>
+<li><a href="/blog/docker-best-practices/#run-only-one-process-per-container">每个容器仅运行一个流程</a></li>
+<li><a href="/blog/docker-best-practices/#prefer-array-over-string-syntax">优先使用数组而不是字符串语法</a></li>
+<li><a href="/blog/docker-best-practices/#understand-the-difference-between-entrypoint-and-cmd">了解入口点和CMD的区别</a></li>
+<li><a href="/blog/docker-best-practices/#include-a-healthcheck-instruction">包含健康检查指令</a></li>
+</ol>
+<p><strong>图像</strong>:</p>
+<ol>
+<li><a href="/blog/docker-best-practices/#version-docker-images">版本Docker图片</a></li>
+<li><a href="/blog/docker-best-practices/#dont-store-secrets-in-images">不要在图像中存储秘密</a></li>
+<li><a href="/blog/docker-best-practices/#use-a-dockerignore-file">使用一个. dockerignore文件</a></li>
+<li><a href="/blog/docker-best-practices/#lint-and-scan-your-dockerfiles-and-images">扫描您的docker文件和图像</a></li>
+<li><a href="/blog/docker-best-practices/#sign-and-verify-images">签署并验证图像</a></li>
+</ol>
+<p><strong>奖励提示</strong></p>
+<ol>
+<li><a href="/blog/docker-best-practices/#using-python-virtual-environments">使用Python虚拟环境</a></li>
+<li><a href="/blog/docker-best-practices/#set-memory-and-cpu-limits">设置内存和CPU限制</a></li>
+<li><a href="/blog/docker-best-practices/#log-to-stdout-or-stderr">记录到标准输出或标准错误</a></li>
+<li><a href="/blog/docker-best-practices/#use-a-shared-memory-mount-for-gunicorn-heartbeat">为Gunicorn心跳使用共享内存挂载</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

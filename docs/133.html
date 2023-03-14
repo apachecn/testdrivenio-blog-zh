@@ -1,0 +1,295 @@
+<html>
+<head>
+<title>Async in Flask 2.0 </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>烧瓶2.0中的异步</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/flask-async/#0001-01-01">https://testdriven.io/blog/flask-async/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>2021年5月11日发布的【Flask 2.0，增加了对异步路由、错误处理程序、前后请求函数、拆机回调的内置支持！</p>
+<p>本文着眼于Flask 2.0的新异步功能，以及如何在Flask项目中利用它。</p>
+<blockquote>
+<p>本文假设您之前有使用Flask的经验。如果您有兴趣了解有关Flask的更多信息，请查看我关于如何构建、测试和部署Flask应用程序的课程:</p>
+<p><a href="/courses/learn-flask/">用Python和Flask开发Web应用</a></p>
+</blockquote>
+
+
+
+<h2 id="flask-20-async">烧瓶2.0异步</h2>
+<p>从Flask 2.0开始，您可以使用<code>async</code> / <code>await</code>创建异步路由处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">asyncio</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">async_get_data</span><span class="p">():</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">'Done!'</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/data"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">get_data</span><span class="p">():</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">async_get_data</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">data</span>
+</code></pre></div>
+
+<p>创建异步路由与创建同步路由一样简单:</p>
+<ol>
+<li>你只需要通过<code>pip install "Flask[async]"</code>安装带有额外<code>async</code>的烧瓶。</li>
+<li>然后，您可以将关键字<code>async</code>添加到您的函数中，并使用<code>await</code>。</li>
+</ol>
+<h3 id="how-does-this-work">这是如何工作的？</h3>
+<p>下图说明了如何在Flask 2.0中执行异步代码:</p>
+<p><img data-src="/static/images/blog/flask/flask-async/flask_2_x_asynchronous_diagram.png" loading="lazy" class="lazyload" alt="Flask 2.x Asynchronous Diagram" src="../Images/0ca9232e00a21f72c58ac12040aa809b.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-async/flask_2_x_asynchronous_diagram.png"/></p>
+<p>为了在Python中运行异步代码，需要一个事件循环来运行<a href="https://docs.python.org/3/library/asyncio-task.html#coroutines">协程</a>。Flask 2.0负责创建asyncio事件循环——通常用<code>asyncio.run()</code>完成——以运行协程。</p>
+<blockquote>
+<p>如果您有兴趣了解更多关于Python中线程、多处理和异步的区别，请查看<a href="/blog/concurrency-parallelism-asyncio/">用并发、并行和异步加速Python的文章</a>。</p>
+</blockquote>
+<p>当处理一个<code>async</code> route函数时，将创建一个新的子线程。在这个子线程中，将执行一个asyncio事件循环来运行路由处理程序(协程)。</p>
+<p>这个实现利用Django使用的<code>asgiref</code>库(特别是<a href="https://github.com/django/asgiref/blob/main/asgiref/sync.py#L100"> AsyncToSync </a>功能)来运行异步代码。</p>
+<blockquote>
+<p>更多实现细节，请参考Flask源代码中的<a href="https://github.com/pallets/flask/blob/47f0e799db8d8e379a1fd9bf48ce3a8b7d5bfe73/src/flask/app.py#L1586"> <code>async_to_sync()</code> </a>。</p>
+</blockquote>
+<p>这个实现的伟大之处在于它允许Flask在任何工作类型(线程、gevent、eventlet等)下运行。).</p>
+<blockquote>
+<p>在Flask 2.0之前运行异步代码需要在每个路由处理程序中创建一个新的asyncio事件循环，这就需要使用基于线程的工作器来运行Flask应用程序。更多细节将在本文后面介绍...</p>
+</blockquote>
+<p>此外，异步路由处理程序的使用是<strong>向后兼容的</strong>。您可以在Flask应用程序中使用异步和同步路由处理程序的任意组合，而不会影响性能。这允许您在现有的Flask项目中立即开始原型化单个异步路由处理程序。</p>
+<h3 id="why-is-asgi-not-required">为什么不需要ASGI？</h3>
+<p>按照设计，Flask是一个实现WSGI (Web服务器网关接口)协议的<strong>同步</strong> web框架。</p>
+<blockquote>
+<p>WSGI是web服务器和基于Python的web应用程序之间的接口。WSGI (Web服务器网关接口)服务器(如Gunicorn或uWSGI)是Python web应用程序所必需的，因为Web服务器不能直接与Python通信。</p>
+<p>想了解更多关于WSGI的知识吗？</p>
+<p>看看<a href="https://www.quora.com/What-is-Gunicorn-in-Python/answer/Michael-Herman-3">‘Python中的Gunicorn是什么？’</a>看看<a href="https://testdriven.io/courses/python-web-framework/wsgi/">构建Python Web框架</a>课程。</p>
+</blockquote>
+<p>在Flask中处理请求时，每个请求都在一个worker中单独处理。添加到Flask 2.0的异步功能总是在被处理的单个请求中:</p>
+<p><img data-src="/static/images/blog/flask/flask-async/flask_2_workers_async_event_loop.png" loading="lazy" class="lazyload" alt="Flask 2.0 - Worker Running Async Event Loop" src="../Images/99f8e0459de3674e27eb11ac0d20a11e.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-async/flask_2_workers_async_event_loop.png"/></p>
+<p>请记住，尽管异步代码可以在Flask中执行，但它是在同步框架的上下文中执行的。换句话说，虽然您可以在单个请求中执行各种异步任务，但是每个异步任务必须在响应被发回之前完成。因此，在有限的情况下，异步路由实际上是有益的。还有其他Python web框架支持<a href="https://asgi.readthedocs.io/en/latest/"> ASGI(异步服务器网关接口)</a>，它支持异步调用栈，因此路由可以并发运行:</p>
+
+<h2 id="when-should-async-be-used">什么时候应该使用异步？</h2>
+<p>虽然异步执行往往会主导讨论并成为头条新闻，但它并不是每种情况下的最佳方法。</p>
+<p>当这两个条件都满足时，它是受<a href="/blog/python-concurrency-parallelism/#io-bound-operation"> I/O限制的</a>操作的理想选择:</p>
+<ol>
+<li>有很多手术</li>
+<li>每个操作不到几秒钟就能完成</li>
+</ol>
+<p>例如:</p>
+<ol>
+<li>进行HTTP或API调用</li>
+<li>与数据库交互</li>
+<li>使用文件系统</li>
+</ol>
+<p>不适合<a href="https://flask.palletsprojects.com/en/2.0.x/async-await/#background-tasks">后台</a>和长时间运行的任务以及<a href="https://testdriven.io/blog/python-concurrency-parallelism/#cpu-bound-operation"> cpu受限的</a>操作，比如:</p>
+<ol>
+<li>运行机器学习模型</li>
+<li>处理图像或pdf</li>
+<li>执行备份</li>
+</ol>
+<p>使用像<a href="/courses/flask-celery/"> Celery </a>这样的任务队列来管理单独的长时间运行的任务会更好地实现这样的任务。</p>
+<h3 id="asynchronous-http-calls">异步HTTP调用</h3>
+<p>当您需要向外部网站或API发出多个HTTP请求时，异步方法确实有好处。对于每一个请求，都需要很长时间才能收到响应。这种等待时间会让你的用户觉得你的web应用程序运行缓慢。</p>
+<p>通过利用<code>async</code> / <code>await</code>，您可以大大加快流程，而不是一次发出一个外部请求(通过<a href="https://requests.readthedocs.io/">请求</a>包)。</p>
+<p><img data-src="/static/images/blog/flask/flask-async/call_diagram_synchronous_vs_asynchronous.png" loading="lazy" class="lazyload" alt="Synchronous vs. Asynchronous Call Diagram" src="../Images/62e77087994b1d6ce8d5e7867157ab48.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-async/call_diagram_synchronous_vs_asynchronous.png"/></p>
+<p>在同步方法中，进行外部API调用(比如GET ),然后应用程序等待返回响应。获得响应所需的时间称为延迟，它因互联网连接和服务器响应时间而异。在这种情况下，每个请求的延迟可能在0.2 - 1.5秒的范围内。</p>
+<p>在异步方法中，进行外部API调用，然后处理继续进行下一个API调用。一旦收到来自外部服务器的响应，就会对其进行处理。这是一种更有效的资源利用方式。</p>
+<blockquote>
+<p>一般来说，异步编程非常适合这样的情况，在这种情况下，需要进行多个外部调用，并且需要等待大量的I/O响应。</p>
+</blockquote>
+<h2 id="async-route-handler">异步路由处理器</h2>
+<p><a href="https://docs.aiohttp.org/"> aiohttp </a>是一个使用asyncio创建异步http客户端和服务器的包。如果您熟悉用于同步执行http调用的<a href="https://requests.readthedocs.io/">请求</a>包，aiohttp是一个类似的包，它专注于异步HTTP调用。</p>
+<p>这是一个在烧瓶路线中使用的aiohttp的例子:</p>
+<div class="codehilite"><pre><span/><code><span class="n">urls</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'https://www.kennedyrecipes.com'</span><span class="p">,</span>
+        <span class="s1">'https://www.kennedyrecipes.com/breakfast/pancakes/'</span><span class="p">,</span>
+        <span class="s1">'https://www.kennedyrecipes.com/breakfast/honey_bran_muffins/'</span><span class="p">]</span>
+
+<span class="c1"># Helper Functions</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">fetch_url</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
+    <span class="sd">"""Fetch the specified URL using the aiohttp session specified."""</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'url'</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span><span class="p">}</span>
+
+
+<span class="c1"># Routes</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/async_get_urls_v2'</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">async_get_urls_v2</span><span class="p">():</span>
+    <span class="sd">"""Asynchronously retrieve the list of URLs."""</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+        <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">urls</span><span class="p">:</span>
+            <span class="n">task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">fetch_url</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">url</span><span class="p">))</span>
+            <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+        <span class="n">sites</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
+
+    <span class="c1"># Generate the HTML response</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="s1">'&lt;h1&gt;URLs:&lt;/h1&gt;'</span>
+    <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="n">sites</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"&lt;p&gt;URL: </span><span class="si">{</span><span class="n">site</span><span class="p">[</span><span class="s1">'url'</span><span class="p">]</span><span class="si">}</span><span class="s2"> --- Status Code: </span><span class="si">{</span><span class="n">site</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span><span class="si">}</span><span class="s2">&lt;/p&gt;"</span>
+
+    <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<blockquote>
+<p>你可以在GitLab上的<a href="https://gitlab.com/patkennedy79/flask-async"> flask-async </a> repo中找到这个例子的源代码。</p>
+</blockquote>
+<p><code>async_get_urls_v2()</code>协程使用一种常见的asyncio模式:</p>
+<ol>
+<li>创建多个异步任务(<code>asyncio.create_task()</code>)</li>
+<li>并发运行它们(<code>asyncio.gather()</code>)</li>
+</ol>
+<h2 id="testing-async-routes">测试异步路由</h2>
+<p>您可以像通常使用<a href="https://docs.pytest.org/"> pytest </a>一样测试异步路由处理程序，因为Flask处理所有的异步处理:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s1">'module'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">test_client</span><span class="p">():</span>
+    <span class="c1"># Create a test client using the Flask application</span>
+    <span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">test_client</span><span class="p">()</span> <span class="k">as</span> <span class="n">testing_client</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">testing_client</span>  <span class="c1"># this is where the testing happens!</span>
+
+
+<span class="k">def</span> <span class="nf">test_async_get_urls_v2</span><span class="p">(</span><span class="n">test_client</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    GIVEN a Flask test client</span>
+<span class="sd">    WHEN the '/async_get_urls_v2' page is requested (GET)</span>
+<span class="sd">    THEN check that the response is valid</span>
+<span class="sd">    """</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">test_client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'/async_get_urls_v2'</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+    <span class="k">assert</span> <span class="sa">b</span><span class="s1">'URLs'</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">data</span>
+</code></pre></div>
+
+<p>这是使用<code>test_client</code> fixture对来自<code>/async_get_urls_v2</code> URL的有效响应的基本检查。</p>
+<h2 id="more-async-examples">更多异步示例</h2>
+<p>在Flask 2.0中，请求回调也可以是异步的:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Helper Functions</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">load_user_from_database</span><span class="p">():</span>
+    <span class="sd">"""Mimics a long-running operation to load a user from an external database."""</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Loading user from database...'</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">log_request_status</span><span class="p">():</span>
+    <span class="sd">"""Mimics a long-running operation to log the request status."""</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Logging status of request...'</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="c1"># Request Callbacks</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">before_request</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">app_before_request</span><span class="p">():</span>
+    <span class="k">await</span> <span class="n">load_user_from_database</span><span class="p">()</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">after_request</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">app_after_request</span><span class="p">(</span><span class="n">response</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">log_request_status</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<p>错误处理程序还有:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Helper Functions</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">send_error_email</span><span class="p">(</span><span class="n">error</span><span class="p">):</span>
+    <span class="sd">"""Mimics a long-running operation to log the error."""</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Logging status of error...'</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="c1"># Error Handlers</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">errorhandler</span><span class="p">(</span><span class="mi">500</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">internal_error</span><span class="p">(</span><span class="n">error</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">send_error_email</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">'500 error'</span><span class="p">,</span> <span class="mi">500</span>
+</code></pre></div>
+
+<h2 id="flask-1x-async">烧瓶1.x异步</h2>
+<p>通过使用<code>asyncio.run()</code>管理asyncio事件循环，您可以在Flask 1.x中模拟Flask 2.0异步支持:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Helper Functions</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">fetch_url</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
+    <span class="sd">"""Fetch the specified URL using the aiohttp session specified."""</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'url'</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span><span class="p">}</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">get_all_urls</span><span class="p">():</span>
+    <span class="sd">"""Retrieve the list of URLs asynchronously using aiohttp."""</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+        <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">urls</span><span class="p">:</span>
+            <span class="n">task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">fetch_url</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">url</span><span class="p">))</span>
+            <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">results</span>
+
+
+<span class="c1"># Routes</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/async_get_urls_v1'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">async_get_urls_v1</span><span class="p">():</span>
+    <span class="sd">"""Asynchronously retrieve the list of URLs (works in Flask 1.1.x when using threads)."""</span>
+    <span class="n">sites</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">get_all_urls</span><span class="p">())</span>
+
+    <span class="c1"># Generate the HTML response</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="s1">'&lt;h1&gt;URLs:&lt;/h1&gt;'</span>
+    <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="n">sites</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"&lt;p&gt;URL: </span><span class="si">{</span><span class="n">site</span><span class="p">[</span><span class="s1">'url'</span><span class="p">]</span><span class="si">}</span><span class="s2"> --- Status Code: </span><span class="si">{</span><span class="n">site</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span><span class="si">}</span><span class="s2">&lt;/p&gt;"</span>
+    <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<p><code>get_all_urls()</code>协程实现了类似于<code>async_get_urls_v2()</code>路由处理程序的功能。</p>
+<h3 id="how-does-this-work_1">这是如何工作的？</h3>
+<p>为了让<a href="https://docs.python.org/3/library/asyncio-task.html#running-an-asyncio-program"> asyncio事件循环</a>在Flask 1.x中正确运行，Flask应用程序必须使用线程运行(Gunicorn、uWSGI和Flask开发服务器的默认工作类型):</p>
+<p><img data-src="/static/images/blog/flask/flask-async/flask_1_x_asynchronous_diagram.png" loading="lazy" class="lazyload" alt="Flask 1.x Asynchronous Diagram" src="../Images/1a623081f0762b3524c2998b0e0a344c.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-async/flask_1_x_asynchronous_diagram.png"/></p>
+<p>当请求被处理时，每个线程将运行Flask应用程序的一个实例。在每个线程中，为运行任何异步操作创建一个单独的asyncio事件循环。</p>
+<h3 id="testing-coroutines">测试协程</h3>
+<p>您可以使用<a href="https://github.com/pytest-dev/pytest-asyncio"> pytest-asyncio </a>来测试异步代码，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">asyncio</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">test_fetch_url</span><span class="p">():</span>
+    <span class="sd">"""</span>
+<span class="sd">    GIVEN an `asyncio` event loop</span>
+<span class="sd">    WHEN the `fetch_url()` coroutine is called</span>
+<span class="sd">    THEN check that the response is valid</span>
+<span class="sd">    """</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">fetch_url</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="s1">'https://www.kennedyrecipes.com/baked_goods/bagels/'</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'url'</span><span class="p">])</span> <span class="o">==</span> <span class="s1">'https://www.kennedyrecipes.com/baked_goods/bagels/'</span>
+    <span class="k">assert</span> <span class="nb">int</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'status'</span><span class="p">])</span> <span class="o">==</span> <span class="mi">200</span>
+</code></pre></div>
+
+<p>这个测试函数使用了<code>@pytest.mark.asyncio</code> decorator，它告诉pytest使用asyncio事件循环将协程作为asyncio任务执行。</p>
+<h2 id="conclusion">结论</h2>
+<p>Flask 2.0中添加的异步支持是一个惊人的特性！然而，只有当异步代码比等效的同步代码更有优势时，才应该使用异步代码。正如您所看到的，异步执行有意义的一个例子是当您必须在一个路由处理程序中进行多个HTTP调用时。</p>
+<p>--</p>
+<p>我使用Flask 2.0异步函数(<code>async_get_urls_v2()</code>)和等效的同步函数进行了一些计时测试。我给每条路线打了十个电话:</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>平均时间(秒)</th>
+<th>平均时间(秒)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>同步的</td>
+<td>4.071443</td>
+<td>3.419016</td>
+</tr>
+<tr>
+<td>异步的</td>
+<td>0.531841</td>
+<td>0.406068</td>
+</tr>
+</tbody>
+</table>
+<p>异步版本大约快8倍！因此，如果您必须在一个路由处理程序中进行多个外部HTTP调用，那么使用asyncio和aiohttp增加的复杂性肯定是合理的，因为执行时间显著减少了。</p>
+<p>如果你想了解更多关于Flask的知识，一定要看看我的课程- <a href="/courses/learn-flask/">用Python和Flask开发Web应用</a>。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

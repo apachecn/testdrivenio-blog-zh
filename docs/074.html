@@ -1,0 +1,710 @@
+<html>
+<head>
+<title>Speeding Up Python with Concurrency, Parallelism, and asyncio </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用并发、并行和异步加速Python</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/concurrency-parallelism-asyncio/#0001-01-01">https://testdriven.io/blog/concurrency-parallelism-asyncio/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p><em>什么是并发和并行，它们如何应用于Python？</em></p>
+<p>您的应用程序运行缓慢有许多原因。有时这是由于糟糕的算法设计或者数据结构的错误选择。然而，有时这是由于我们无法控制的力量，例如硬件限制或网络的怪癖。这就是并发性和并行性适合的地方。它们允许你的程序一次做多件事，要么同时做，要么尽可能不浪费时间等待繁忙的任务。</p>
+<p>无论您是处理外部web资源、读取和写入多个文件，还是需要使用不同参数多次使用计算密集型函数，本文都将帮助您最大限度地提高代码的效率和速度。</p>
+<p>首先，我们将使用标准库(如线程、多处理和asyncio)深入研究什么是并发和并行，以及它们如何适应Python领域。本文的最后一部分将比较Python对<code>async</code> / <code>await</code>的实现和其他语言是如何实现的。</p>
+<p>你可以在GitHub上的<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio">concurrency-parallelism-and-asyncio</a>repo中找到本文的所有代码示例。</p>
+<blockquote>
+<p>要完成本文中的示例，您应该已经知道如何处理HTTP请求。</p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>在本文结束时，您应该能够回答以下问题:</p>
+<ol>
+<li>什么是并发？</li>
+<li>什么是线程？</li>
+<li>当某个东西是非阻塞的时候是什么意思？</li>
+<li>什么是事件循环？</li>
+<li>什么是回调？</li>
+<li>为什么asyncio方法总是比线程方法快一点？</li>
+<li>什么时候应该使用线程，什么时候应该使用asyncio？</li>
+<li>什么是并行？</li>
+<li>并发和并行有什么区别？</li>
+<li>有没有可能将asyncio和多处理结合起来？</li>
+<li>什么时候应该使用多处理而不是异步或线程？</li>
+<li>多处理、异步和并发之间有什么区别？</li>
+<li>如何用pytest测试asyncio？</li>
+</ol>
+<h2 id="concurrency">并发</h2>
+<p><em>什么是并发？</em></p>
+<p>并发的一个有效定义是“能够同时执行多项任务”。不过这有点误导，因为任务可能会也可能不会在完全相同的时间执行。相反，一个进程可能会开始，然后一旦它在等待一个特定的指令完成，就切换到一个新的任务，只有当它不再等待时才返回。一旦一个任务完成，它再次切换到一个未完成的任务，直到它们都被执行。任务异步开始，异步执行，然后异步完成。</p>
+<p><img data-src="/static/images/blog/concurrency-parallelism-asyncio/concurrency_not_parallel.png" loading="lazy" class="lazyload" alt="concurrency, not parallel" src="../Images/066caccd7e7e39b6d4d300946e3c8ad7.png" data-original-src="https://testdriven.io/static/images/blog/concurrency-parallelism-asyncio/concurrency_not_parallel.png"/></p>
+<p>如果这让你感到困惑，让我们来打个比方:假设你想做一个<a href="https://en.wikipedia.org/wiki/BLT"> BLT </a>。首先，你要用中低火将培根放入锅中。<strong>在熏肉烹饪的时候，你可以拿出你的西红柿和生菜，开始准备(清洗和切)它们。与此同时，你继续检查，偶尔翻转你的培根。</strong></p>
+<p>此时，您已经开始了一项任务，然后同时开始并完成了另外两项任务，而此时您仍在等待第一项任务。</p>
+<p>最终你把面包放进了烤面包机。在烤面包的时候，你继续检查你的熏肉。当一块块完成后，你把它们拿出来放在盘子里。一旦你的面包烤好了，你就把你选择的三明治涂在上面，然后你可以开始在你的西红柿，生菜上分层，然后，一旦它烤好了，你的培根。只有当所有的东西都做好，准备好，分层后，你才能把最后一片吐司放到你的三明治上，切片(可选)，然后吃。</p>
+<p>因为它需要你同时执行多项任务，所以制作BLT本质上是一个并发的过程，即使你没有立刻将全部注意力放在每一项任务上。对于所有意图和目的，在下一节中，我们将把这种形式的并发称为“并发”我们将在本文后面区分它。</p>
+<p>由于这个原因，并发性对于I/O密集型进程非常有用——包括等待web请求或文件读/写操作的任务。</p>
+<p>在Python中，有几种不同的方法来实现并发性。我们首先要看的是线程库。</p>
+<blockquote>
+<p>对于本节中的示例，我们将构建一个小的Python程序，该程序从<a href="https://binaryjazz.us/genrenator-api/"> Binary Jazz的Genrenator API </a>中随机抓取一个音乐流派五次，将该流派打印到屏幕上，并将每个流派放入自己的文件中。</p>
+</blockquote>
+<p>要在Python中使用线程，您需要的唯一导入是<code>threading</code>，但是对于本例，我还导入了<code>urllib</code>来处理HTTP请求、<code>time</code>来确定函数完成需要多长时间，以及<code>json</code>来轻松转换从Genrenator API返回的json数据。</p>
+<blockquote>
+<p>你可以在这里找到这个例子<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/concurrency/threads.py">的代码。</a></p>
+</blockquote>
+<p>让我们从一个简单的函数开始:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">write_genre</span><span class="p">(</span><span class="n">file_name</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Uses genrenator from binaryjazz.us to write a random genre to the</span>
+<span class="sd">    name of the given file</span>
+<span class="sd">    """</span>
+
+    <span class="n">req</span> <span class="o">=</span> <span class="n">Request</span><span class="p">(</span><span class="s2">"https://binaryjazz.us/wp-json/genrenator/v1/genre/"</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"User-Agent"</span><span class="p">:</span> <span class="s2">"Mozilla/5.0"</span><span class="p">})</span>
+    <span class="n">genre</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">urlopen</span><span class="p">(</span><span class="n">req</span><span class="p">))</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">new_file</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Writing '</span><span class="si">{</span><span class="n">genre</span><span class="si">}</span><span class="s2">' to '</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2">'..."</span><span class="p">)</span>
+        <span class="n">new_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">genre</span><span class="p">)</span>
+</code></pre></div>
+
+<p>检查上面的代码，我们向Genrenator API发出请求，加载它的JSON响应(一种随机的音乐类型)，打印它，然后写入一个文件。</p>
+<blockquote>
+<p>如果没有“用户代理”标题，您将收到一个304。</p>
+</blockquote>
+<p>我们真正感兴趣的是下一部分，实际的线程处理发生在这里:</p>
+<div class="codehilite"><pre><span/><code><span class="n">threads</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+    <span class="n">thread</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span>
+        <span class="n">target</span><span class="o">=</span><span class="n">write_genre</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"./threading/new_file</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.txt"</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="n">threads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">thread</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">thread</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+    <span class="n">thread</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+</code></pre></div>
+
+<p>我们首先从一个列表开始。然后我们继续迭代五次，每次创建一个新线程。接下来，我们启动每个线程，将它添加到我们的“threads”列表中，然后最后一次迭代我们的列表以加入每个线程。</p>
+<p>说明:用Python创建线程很容易。</p>
+<p>要创建新线程，请使用<code>threading.Thread()</code>。您可以将kwarg (keyword argument) <code>target</code>与您希望在该线程上运行的任何函数的值一起传递给它。但是只传入函数的名称，而不是它的值(就我们的目的而言，意味着<code>write_genre</code>而不是<code>write_genre()</code>)。要传递参数，请传入“kwargs”(它接受您的kwargs的dict)或“args”(它接受包含您的args的iterable在本例中是一个列表)。</p>
+<p>然而，创建线程不同于启动线程。要启动线程，请使用<code>{the name of your thread}.start()</code>。启动一个线程意味着“开始它的执行”</p>
+<p>最后，当我们用<code>thread.join()</code>连接线程时，我们所做的就是确保线程在继续我们的代码之前已经完成。</p>
+<h2 id="threads">线</h2>
+<p>但是到底什么是线呢？</p>
+<p>线程是一种允许计算机将单个进程/程序分解成许多并行执行的轻量级程序的方式。有点令人困惑的是，Python的标准线程实现将线程限制为一次只能执行一个，这是由于一种叫做<a href="https://en.wikipedia.org/wiki/Global_interpreter_lock">全局解释器锁</a> (GIL)的东西。GIL是必要的，因为CPython(Python的默认实现)的内存管理不是线程安全的。由于这个限制，Python中的线程是并发的，而不是并行的。为了解决这个问题，Python有一个独立的<code>multiprocessing</code>模块，它不受GIL的限制，可以旋转独立的进程，实现代码的并行执行。使用<code>multiprocessing</code>模块几乎等同于使用<code>threading</code>模块。</p>
+<blockquote>
+<p>关于Python的GIL和线程安全的更多信息可以在<a href="https://realpython.com/python-gil/">真实Python </a>和Python的<a href="https://docs.python.org/2.0/api/threads.html">官方文档</a>中找到。</p>
+</blockquote>
+<p>我们将很快更深入地了解Python中的多处理。</p>
+<p>在我们展示非线程代码的潜在速度提升之前，我冒昧地创建了同一程序的非线程版本(同样，可在<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/concurrency/sync.py"> GitHub </a>上获得)。它不是创建一个新线程并加入每一个线程，而是在一个迭代五次的for循环中调用<code>write_genre</code>。</p>
+<p>为了比较速度基准，我还导入了<code>time</code>库来计时我们脚本的执行:</p>
+<div class="codehilite"><pre><span/><code>Starting...
+Writing <span class="s2">"binary indoremix"</span> to <span class="s2">"./sync/new_file0.txt"</span>...
+Writing <span class="s2">"slavic aggro polka fusion"</span> to <span class="s2">"./sync/new_file1.txt"</span>...
+Writing <span class="s2">"israeli new wave"</span> to <span class="s2">"./sync/new_file2.txt"</span>...
+Writing <span class="s2">"byzantine motown"</span> to <span class="s2">"./sync/new_file3.txt"</span>...
+Writing <span class="s2">"dutch hate industrialtune"</span> to <span class="s2">"./sync/new_file4.txt"</span>...
+Time to <span class="nb">complete</span> synchronous read/writes: <span class="m">1</span>.42 seconds
+</code></pre></div>
+
+<p>在运行脚本时，我们看到它花了我的电脑大约1.49秒(以及经典音乐流派，如“荷兰仇恨工业调”)。不算太坏。</p>
+<p>现在让我们运行使用线程的版本:</p>
+<div class="codehilite"><pre><span/><code>Starting...
+Writing <span class="s2">"college k-dubstep"</span> to <span class="s2">"./threading/new_file2.txt"</span>...
+Writing <span class="s2">"swiss dirt"</span> to <span class="s2">"./threading/new_file0.txt"</span>...
+Writing <span class="s2">"bop idol alternative"</span> to <span class="s2">"./threading/new_file4.txt"</span>...
+Writing <span class="s2">"ethertrio"</span> to <span class="s2">"./threading/new_file1.txt"</span>...
+Writing <span class="s2">"beach aust shanty français"</span> to <span class="s2">"./threading/new_file3.txt"</span>...
+Time to <span class="nb">complete</span> threading read/writes: <span class="m">0</span>.77 seconds
+</code></pre></div>
+
+<p>第一件事可能会引起你的注意，那就是函数没有按顺序完成:2 - 0 - 4 - 1 - 3</p>
+<p>这是因为线程的异步特性:当一个函数等待时，另一个函数开始，依此类推。因为我们能够在等待其他人完成任务的同时继续执行任务(由于网络或文件I/O操作)，所以您可能已经注意到我们将时间大约减少了一半:0.77秒。尽管这在现在看起来并不多，但很容易想象构建一个需要向文件写入更多数据或与更复杂的web服务交互的web应用程序的真实情况。</p>
+<p><em>那么，如果线程如此伟大，我们为什么不在这里结束文章呢？</em></p>
+<p>因为有更好的方法来同时执行任务。</p>
+<h2 id="asyncio">Asyncio</h2>
+<p>让我们看一个使用asyncio的例子。对于这种方法，我们将使用<code>pip</code>安装<a href="https://docs.aiohttp.org/"> aiohttp </a>。这将允许我们使用即将介绍的<code>async</code> / <code>await</code>语法发出非阻塞请求并接收响应。它还有一个额外的好处，即转换JSON响应的函数不需要导入<code>json</code>库。我们还将安装并导入<a href="https://github.com/Tinche/aiofiles"> aiofiles </a>，它允许非阻塞文件操作。除了<code>aiohttp</code>和<code>aiofiles</code>，导入<code>asyncio</code>，自带Python标准库。</p>
+<p><em>“非阻塞”是指一个程序在等待时允许其他线程继续运行。这与“阻塞”代码相反，后者完全停止程序的执行。正常的同步I/O操作受到这种限制。</em></p>
+<blockquote>
+<p>你可以在这里找到这个例子<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/concurrency/async.py">的代码。</a></p>
+</blockquote>
+<p>导入就绪后，让我们看看asyncio示例中的异步版本的<code>write_genre</code>函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">async</span> <span class="k">def</span> <span class="nf">write_genre</span><span class="p">(</span><span class="n">file_name</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Uses genrenator from binaryjazz.us to write a random genre to the</span>
+<span class="sd">    name of the given file</span>
+<span class="sd">    """</span>
+
+    <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://binaryjazz.us/wp-json/genrenator/v1/genre/"</span><span class="p">)</span> <span class="k">as</span> <span class="n">response</span><span class="p">:</span>
+            <span class="n">genre</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">async</span> <span class="k">with</span> <span class="n">aiofiles</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">new_file</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Writing "</span><span class="si">{</span><span class="n">genre</span><span class="si">}</span><span class="s1">" to "</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1">"...'</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">new_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">genre</span><span class="p">)</span>
+</code></pre></div>
+
+<p>对于那些不熟悉其他现代语言中常见的<code>async</code> / <code>await</code>语法的人来说，<code>async</code>声明函数、<code>for</code>循环或<code>with</code>语句<strong>必须</strong>异步使用。要调用一个异步函数，你必须从另一个异步函数中使用<code>await</code>关键字，或者直接从事件循环中调用<code>create_task()</code>，这个事件循环可以从<code>asyncio.get_event_loop()</code>中获取——例如<code>loop = asyncio.get_event_loop()</code>。</p>
+<p>此外:</p>
+<ol>
+<li><code>async with</code>允许等待异步响应和文件操作。</li>
+<li><code>async for</code>(此处未使用)迭代一个<a href="https://stackoverflow.com/questions/56161595/how-to-use-async-for-in-python">异步流</a>。</li>
+</ol>
+<h3 id="the-event-loop">事件循环</h3>
+<p>事件循环是异步编程固有的构造，允许异步执行任务。当你阅读这篇文章时，我可以有把握地假设你可能不太熟悉这个概念。然而，即使您从未编写过异步应用程序，您也会在每次使用计算机时体验到事件循环。无论您的计算机是在监听键盘输入，还是在玩在线多人游戏，或者在后台复制文件时浏览Reddit，事件循环都是保持一切顺利高效工作的驱动力。从本质上来说，事件循环是一个等待触发器的过程，一旦这些触发器被满足，就执行特定的(编程的)动作。它们通常返回某种“promise”(JavaScript语法)或“future”(Python语法)来表示任务已经被添加。一旦任务完成，promise或future返回一个从被调用的函数传回的值(假设函数确实返回值)。</p>
+<p>执行一个函数来响应另一个函数的想法被称为“回调”</p>
+<blockquote>
+<p>对于回调和事件的另一个例子，<a href="https://stackoverflow.com/questions/9596276/how-to-explain-callbacks-in-plain-english-how-are-they-different-from-calling-o/9652434#9652434">这里有一个关于堆栈溢出的很好的答案</a>。</p>
+</blockquote>
+<p>下面是我们函数的一个演练:</p>
+<p>我们使用<code>async with</code>来异步打开我们的客户端会话。<code>aiohttp.ClientSession()</code>类允许我们发出HTTP请求，并在不阻止代码执行的情况下保持与源的连接。然后，我们向Genrenator API发出一个异步请求，并等待JSON响应(一个随机的音乐流派)。在下一行中，我们再次使用<code>async with</code>和<code>aiofiles</code>库来异步打开一个新文件来写入我们的新流派。我们打印流派，然后写入文件。</p>
+<p>与常规的Python脚本不同，用asyncio编程使用某种“main”函数来强制执行*。</p>
+<blockquote>
+<p>*除非你在@asyncio.coroutine decorator中使用不推荐使用的“yield”语法，<a href="https://docs.python.org/3/library/asyncio-task.html">将在Python 3.10 </a>中被移除。</p>
+</blockquote>
+<p>这是因为为了使用“await”语法，您需要使用“async”关键字，而“await”语法是实际运行其他异步函数的唯一方法。</p>
+<p>这是我们的主要功能:</p>
+<div class="codehilite"><pre><span/><code><span class="k">async</span> <span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">write_genre</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./async/new_file</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.txt"</span><span class="p">))</span>
+
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
+</code></pre></div>
+
+<p>如你所见，我们已经用“async”声明了它然后我们创建一个名为“tasks”的空列表来存放我们的异步任务(调用Genrenator和我们的文件I/O)。我们将任务添加到列表中，但是它们还没有真正运行。在我们用<code>await asyncio.gather(*tasks)</code>安排好之前，这些电话实际上不会打出去。这将运行我们列表中的所有任务，并在继续程序的其余部分之前等待它们完成。最后，我们使用<code>asyncio.run(main())</code>来运行我们的“主”函数。<code>.run()</code>函数是我们程序的入口点，<a href="https://docs.python.org/3/library/asyncio-task.html#running-an-asyncio-program">，它应该<em>通常每个进程</em>只调用一次</a> <em>。</em></p>
+<blockquote>
+<p>对于那些不熟悉的人来说，任务前面的<code>*</code>叫做“参数解包”。顾名思义，它将我们的列表分解成函数的一系列参数。在这种情况下，我们的函数是<code>asyncio.gather()</code>。</p>
+</blockquote>
+<p>这就是我们需要做的。现在，运行我们的程序(其源代码包括同步和线程示例的相同计时功能)...</p>
+<div class="codehilite"><pre><span/><code>Writing <span class="s2">"albuquerque fiddlehaus"</span> to <span class="s2">"./async/new_file1.txt"</span>...
+Writing <span class="s2">"euroreggaebop"</span> to <span class="s2">"./async/new_file2.txt"</span>...
+Writing <span class="s2">"shoedisco"</span> to <span class="s2">"./async/new_file0.txt"</span>...
+Writing <span class="s2">"russiagaze"</span> to <span class="s2">"./async/new_file4.txt"</span>...
+Writing <span class="s2">"alternative xylophone"</span> to <span class="s2">"./async/new_file3.txt"</span>...
+Time to <span class="nb">complete</span> asyncio read/writes: <span class="m">0</span>.71 seconds
+</code></pre></div>
+
+<p>...我们看到它甚至更快了。而且，一般来说，asyncio方法总是比线程方法快一点。这是因为当我们使用“await”语法时，我们实际上是告诉我们的程序“稍等，我马上回来”，但是我们的程序跟踪我们完成我们正在做的事情需要多长时间。一旦我们完成了，我们的程序就会知道，并尽快恢复。Python中的线程允许异步，但我们的程序理论上可能会跳过可能还没有准备好的不同线程，如果有线程准备好继续运行，就会浪费时间。</p>
+<p>那么什么时候应该使用线程，什么时候应该使用asyncio呢？</p>
+<p>当你写新代码时，使用asyncio。如果您需要与较旧的库或不支持asyncio的库进行交互，那么使用线程可能会更好。</p>
+<h3 id="testing-asyncio-with-pytest">使用pytest测试asyncio</h3>
+<p>事实证明，用pytest测试异步函数和测试同步函数一样简单。只需用<code>pip</code>安装<a href="https://pypi.org/project/pytest-asyncio/"> pytest-asyncio </a>包，用<code>async</code>关键字标记您的测试，并应用一个装饰器让<code>pytest</code>知道它是异步的:<code>@pytest.mark.asyncio</code>。让我们看一个例子。</p>
+<p>首先，让我们在一个名为<em> hello_asyncio.py </em>的文件中编写一个任意的异步函数:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">asyncio</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="sd">""" Sleeps for two seconds, then prints 'Hello, {{ name }}!' """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"'name' must be a string"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">""</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"'name' cannot be empty"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">raise</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Sleeping..."</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Hello, </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">!"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>该函数采用单个字符串参数:<code>name</code>。在确保<code>name</code>是长度大于1的字符串后，我们的函数异步休眠两秒钟，然后将<code>"Hello, {name}!"</code>打印到控制台。</p>
+<blockquote>
+<p><code>asyncio.sleep()</code>和<code>time.sleep()</code>的区别在于<code>asyncio.sleep()</code>是非阻塞的。</p>
+</blockquote>
+<p>现在我们用pytest来测试一下。在与<em> hello_asyncio.py相同的目录中，</em>创建一个名为<em> test_hello_asyncio.py，</em>的文件，然后在您喜欢的文本编辑器中打开它。</p>
+<p>让我们从我们的进口开始:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">pytest</span> <span class="c1"># Note: pytest-asyncio does not require a separate import</span>
+
+<span class="kn">from</span> <span class="nn">hello_asyncio</span> <span class="kn">import</span> <span class="n">say_hello</span>
+</code></pre></div>
+
+<p>然后，我们将创建一个具有适当输入的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="p">[</span>
+    <span class="s2">"Robert Paulson"</span><span class="p">,</span>
+    <span class="s2">"Seven of Nine"</span><span class="p">,</span>
+    <span class="s2">"x Æ a-12"</span>
+<span class="p">])</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">asyncio</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">test_say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+<p>需要注意的事项:</p>
+<ul>
+<li>装饰器让pytest异步工作</li>
+<li>我们的测试使用了<code>async</code>语法</li>
+<li>我们正在调用我们的异步函数，就像我们在测试之外运行它一样</li>
+</ul>
+<p>现在让我们用详细的<code>-v</code>选项运行我们的测试:</p>
+<div class="codehilite"><pre><span/><code>pytest -v
+...
+collected <span class="m">3</span> items
+
+test_hello_asyncio.py::test_say_hello<span class="o">[</span>Robert Paulson<span class="o">]</span> PASSED    <span class="o">[</span> <span class="m">33</span>%<span class="o">]</span>
+test_hello_asyncio.py::test_say_hello<span class="o">[</span>Seven of Nine<span class="o">]</span> PASSED     <span class="o">[</span> <span class="m">66</span>%<span class="o">]</span>
+test_hello_asyncio.py::test_say_hello<span class="o">[</span>x <span class="se">\x</span>c6 a-12<span class="o">]</span> PASSED       <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+</code></pre></div>
+
+<p>看起来不错。接下来，我们将编写几个带有错误输入的测试。回到<em> test_hello_asyncio.py </em>的内部，让我们创建一个名为<code>TestSayHelloThrowsExceptions</code>的类:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">TestSayHelloThrowsExceptions</span><span class="p">:</span>
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="p">[</span>
+        <span class="s2">""</span><span class="p">,</span>
+    <span class="p">])</span>
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">asyncio</span>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">test_say_hello_value_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+            <span class="k">await</span> <span class="n">say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="p">[</span>
+        <span class="mi">19</span><span class="p">,</span>
+        <span class="p">{</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"Diane"</span><span class="p">},</span>
+        <span class="p">[]</span>
+    <span class="p">])</span>
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">asyncio</span>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">test_say_hello_type_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+            <span class="k">await</span> <span class="n">say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+<p>同样，我们用<code>@pytest.mark.asyncio</code>修饰我们的测试，用<code>async</code>语法标记我们的测试，然后用<code>await</code>调用我们的函数。</p>
+<p>再次运行测试:</p>
+<div class="codehilite"><pre><span/><code>pytest -v
+...
+collected <span class="m">7</span> items
+
+test_hello_asyncio.py::test_say_hello<span class="o">[</span>Robert Paulson<span class="o">]</span> PASSED                                    <span class="o">[</span> <span class="m">14</span>%<span class="o">]</span>
+test_hello_asyncio.py::test_say_hello<span class="o">[</span>Seven of Nine<span class="o">]</span> PASSED                                     <span class="o">[</span> <span class="m">28</span>%<span class="o">]</span>
+test_hello_asyncio.py::test_say_hello<span class="o">[</span>x <span class="se">\x</span>c6 a-12<span class="o">]</span> PASSED                                       <span class="o">[</span> <span class="m">42</span>%<span class="o">]</span>
+test_hello_asyncio.py::TestSayHelloThrowsExceptions::test_say_hello_value_error<span class="o">[]</span> PASSED        <span class="o">[</span> <span class="m">57</span>%<span class="o">]</span>
+test_hello_asyncio.py::TestSayHelloThrowsExceptions::test_say_hello_type_error<span class="o">[</span><span class="m">19</span><span class="o">]</span> PASSED       <span class="o">[</span> <span class="m">71</span>%<span class="o">]</span>
+test_hello_asyncio.py::TestSayHelloThrowsExceptions::test_say_hello_type_error<span class="o">[</span>name1<span class="o">]</span> PASSED    <span class="o">[</span> <span class="m">85</span>%<span class="o">]</span>
+test_hello_asyncio.py::TestSayHelloThrowsExceptions::test_say_hello_type_error<span class="o">[</span>name2<span class="o">]</span> PASSED    <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+</code></pre></div>
+
+<h3 id="without-pytest-asyncio">没有pytest-asyncio</h3>
+<p>除了pytest-asyncio，您还可以创建一个pytest fixture来产生一个asyncio事件循环:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">pytest</span>
+
+<span class="kn">from</span> <span class="nn">hello_asyncio</span> <span class="kn">import</span> <span class="n">say_hello</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span> <span class="nf">event_loop</span><span class="p">():</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+    <span class="k">yield</span> <span class="n">loop</span>
+</code></pre></div>
+
+<p>然后，不使用<code>async</code> / <code>await</code>语法，而是像普通的同步测试一样创建测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="p">[</span>
+    <span class="s2">"Robert Paulson"</span><span class="p">,</span>
+    <span class="s2">"Seven of Nine"</span><span class="p">,</span>
+    <span class="s2">"x Æ a-12"</span>
+<span class="p">])</span>
+<span class="k">def</span> <span class="nf">test_say_hello</span><span class="p">(</span><span class="n">event_loop</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+    <span class="n">event_loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">TestSayHelloThrowsExceptions</span><span class="p">:</span>
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="p">[</span>
+        <span class="s2">""</span><span class="p">,</span>
+    <span class="p">])</span>
+    <span class="k">def</span> <span class="nf">test_say_hello_value_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event_loop</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+            <span class="n">event_loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="p">[</span>
+        <span class="mi">19</span><span class="p">,</span>
+        <span class="p">{</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"Diane"</span><span class="p">},</span>
+        <span class="p">[]</span>
+    <span class="p">])</span>
+    <span class="k">def</span> <span class="nf">test_say_hello_type_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event_loop</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+            <span class="n">event_loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">say_hello</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果你感兴趣，这里有一个关于asyncio测试的更高级的教程。</p>
+</blockquote>
+<h3 id="further-reading">进一步阅读</h3>
+<p>如果你想了解更多关于Python的线程和异步实现的区别，这里有一篇来自Medium 的<a href="https://medium.com/@nhumrich/asynchronous-python-45df84b82434">好文章。</a></p>
+<p>对于Python中线程化的更好的例子和解释，这里有科里·斯查费的视频<a href="https://www.youtube.com/watch?v=IEEhzQoKtQU">，它更深入，包括使用<code>concurrent.futures</code>库。</a></p>
+<p>最后，为了深入了解asyncio本身，这里有一篇来自Real Python 的完全致力于此的文章。</p>
+<p><em>额外收获</em>:你可能会感兴趣的另一个库叫做<a href="https://medium.com/@MattGosden/tutorial-using-pythons-unsync-library-to-make-an-asynchronous-trading-bot-9ee2ae881272"> Unsync </a>，尤其是如果你想轻松地将你当前的同步代码转换成异步代码。要使用它，用pip安装这个库，用<code>from unsync import unsync</code>导入它，然后用<code>@unsync</code>修饰任何当前同步的函数，使它异步。为了等待它并得到它的返回值(你可以在任何地方做——不一定要在异步/非同步函数中),只需在函数调用后调用<code>.result()</code>。</p>
+<h2 id="parallelism">平行</h2>
+<p><em>什么是排比？</em></p>
+<p>并行性与并发性密切相关。事实上，并行性是并发性的一个子集:一个并发进程同时执行多个任务，不管它们是否被转移了全部注意力，而一个并行进程实际上是同时执行多个任务。一个很好的例子是一边开车，一边听音乐，同时吃我们在上一节做的三明治。</p>
+<p><img data-src="/static/images/blog/concurrency-parallelism-asyncio/concurrency_parallel.png" loading="lazy" class="lazyload" alt="concurrent and parallel" src="../Images/8b2a770f207a06e5067fa6afa320b500.png" data-original-src="https://testdriven.io/static/images/blog/concurrency-parallelism-asyncio/concurrency_parallel.png"/></p>
+<p>因为它们不需要太多的努力，你可以一次做完所有的事情，而不需要等待或转移你的注意力。</p>
+<p>现在让我们看看如何用Python实现这一点。我们可以使用<code>multiprocessing</code>库，但是让我们使用<code>concurrent.futures</code>库——它消除了手动管理进程数量的需要。因为多处理的主要好处发生在您执行多个cpu密集型任务时，所以我们将计算100万(1000000)到100万16 (1000016)的平方。</p>
+<blockquote>
+<p>你可以在这里找到这个例子<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/parallelism/multi.py">的代码。</a></p>
+</blockquote>
+<p>我们唯一需要的导入是<code>concurrent.futures</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">concurrent.futures</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">pow_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000000</span><span class="p">,</span> <span class="mi">1000016</span><span class="p">)]</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Starting..."</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">with</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">ProcessPoolExecutor</span><span class="p">()</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
+        <span class="n">futures</span> <span class="o">=</span> <span class="p">[</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="nb">pow</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pow_list</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"okay"</span><span class="p">)</span>
+
+    <span class="n">end</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Time to complete: </span><span class="si">{</span><span class="nb">round</span><span class="p">(</span><span class="n">end</span> <span class="o">-</span> <span class="n">start</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>因为我是在Windows机器上开发，所以用的是<code>if __name__ == "main"</code>。这是必要的，因为Windows没有Unix系统固有的<code>fork</code>系统调用<a href="https://stackoverflow.com/questions/57535979/concurrent-future-fails-on-windows">。因为Windows没有这种能力，它求助于为每个试图导入主模块的进程启动一个新的解释器。如果主模块不存在，它会重新运行整个程序，导致递归混乱。</a></p>
+</blockquote>
+<p>所以看看我们的主函数，我们使用list comprehension创建一个从100万到100万的列表，我们用concurrent.futures打开一个ProcessPoolExecutor，我们使用list comprehension和<code>ProcessPoolExecutor().submit()</code>开始执行我们的进程，并将它们放入一个名为“futures”的列表中</p>
+<blockquote>
+<p>如果我们想用线程代替，我们也可以用<code>ThreadPoolExecutor()</code>-concurrent。</p>
+</blockquote>
+<p>这就是异步性的来源:“结果”列表实际上并不包含运行我们函数的结果。相反，它包含“未来”，类似于JavaScript的“承诺”概念。为了让我们的程序继续运行，我们取回这些代表一个值的占位符的期货。如果我们试图打印未来，取决于它是否运行完毕，我们将返回一个“未决”或“完成”的状态。一旦完成，我们可以使用<code>var.result()</code>获得返回值(假设有一个)。在这种情况下，我们的var将是“结果”</p>
+<p>然后我们迭代我们的未来列表，但是不是打印我们的值，而是简单地打印出“好的”这仅仅是因为由此产生的计算量非常大。</p>
+<p>和以前一样，我构建了一个同步完成这项工作的比较脚本。而且，就像之前一样，<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/parallelism/sync.py">你可以在GitHub </a>上找到。</p>
+<p>运行我们的控制程序，其中也包括为我们的程序计时的功能，我们得到:</p>
+<div class="codehilite"><pre><span/><code>Starting...
+okay
+...
+okay
+Time to complete: <span class="m">54</span>.64
+</code></pre></div>
+
+<p>哇哦。54.64秒是相当长的一段时间。让我们看看我们的多处理版本是否做得更好:</p>
+<div class="codehilite"><pre><span/><code>Starting...
+okay
+...
+okay
+Time to complete: <span class="m">6</span>.24
+</code></pre></div>
+
+<p>我们的时间已经<em>大大</em>减少了。我们现在是原来时间的九分之一。</p>
+<p><em>那么，如果我们改用线程技术会怎么样呢？</em></p>
+<p>我相信你能猜到——这不会比同步做快多少。事实上，它可能会更慢，因为它仍然需要一点时间和精力来旋转新的线程。但是不要相信我的话，下面是我们用<code>ThreadPoolExecutor()</code>替换<code>ProcessPoolExecutor()</code>时得到的结果:</p>
+<div class="codehilite"><pre><span/><code>Starting...
+okay
+...
+okay
+Time to complete: <span class="m">53</span>.83
+</code></pre></div>
+
+<p>正如我前面提到的，线程化允许您的应用在其他应用等待的时候专注于新的任务。在这种情况下，我们绝不会袖手旁观。另一方面，多处理会产生全新的服务，通常在独立的CPU内核上，准备好做你要求它做的任何事情，完全与你的脚本正在做的任何事情协同工作。这就是为什么多处理版本花费大约1/9的时间是有意义的——我的CPU有8个内核。</p>
+<p>既然我们已经讨论了Python中的并发性和并行性，我们终于可以把这些术语说清楚了。如果您难以区分这两个术语，您可以放心而准确地将我们之前对“并行性”和“并发性”的定义分别理解为“并行并发性”和“非并行并发性”。</p>
+<h3 id="further-reading_1">进一步阅读</h3>
+<p>Real Python有一篇关于<a href="https://realpython.com/python-concurrency/">并发与并行</a>的很棒的文章。</p>
+<p>Engineer Man有一个很好的<a href="https://www.youtube.com/watch?v=ecKWiaHCEKs">线程与多处理</a>的视频对比。</p>
+<p>科里·斯查费也有一个很好的多处理视频，和他的线程视频一样。</p>
+<p>如果你只看一个视频，那就看雷蒙德·赫廷格的这个<a href="https://www.youtube.com/watch?time_continue=1&amp;v=9zinZmE3Ogk&amp;feature=emb_logo">精彩演讲。他出色地解释了多处理、线程和异步之间的区别。</a></p>
+<h2 id="combining-asyncio-with-multiprocessing">将异步与多处理相结合</h2>
+<p><em>如果我需要将许多I/O操作与繁重的计算结合起来怎么办？</em></p>
+<p>我们也能做到。假设您需要从100个网页中搜集一条特定的信息，然后您需要将这条信息保存在一个文件中以备后用。我们可以通过让每个进程抓取页面的一小部分来将计算能力分散到计算机的每个内核上。</p>
+<p>对于这个脚本，让我们安装<a href="https://www.crummy.com/software/BeautifulSoup/bs4/doc/">美汤</a>来帮助我们轻松地刮我们的页面:<code>pip install beautifulsoup4</code>。这次我们实际上有相当多的进口货。它们在这里，这就是我们使用它们的原因:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">asyncio</span>                         <span class="c1"># Gives us async/await</span>
+<span class="kn">import</span> <span class="nn">concurrent.futures</span>              <span class="c1"># Allows creating new processes</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">floor</span>                 <span class="c1"># Helps divide up our requests evenly across our CPU cores</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">cpu_count</span>  <span class="c1"># Returns our number of CPU cores</span>
+
+<span class="kn">import</span> <span class="nn">aiofiles</span>                        <span class="c1"># For asynchronously performing file I/O operations</span>
+<span class="kn">import</span> <span class="nn">aiohttp</span>                         <span class="c1"># For asynchronously making HTTP requests</span>
+<span class="kn">from</span> <span class="nn">bs4</span> <span class="kn">import</span> <span class="n">BeautifulSoup</span>          <span class="c1"># For easy webpage scraping</span>
+</code></pre></div>
+
+<blockquote>
+<p>你可以在这里找到这个例子<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/asyncio_with_multiprocessing.py">的代码。</a></p>
+</blockquote>
+<p>首先，我们将创建一个异步函数，向Wikipedia发出请求以获取随机页面。我们将使用<code>BeautifulSoup</code>抓取每一页的标题，然后将它附加到一个给定的文件中；我们将用制表符分隔每个标题。该函数将接受两个参数:</p>
+<ol>
+<li>num_pages -请求和抓取标题的页数</li>
+<li>output _ file——将标题附加到的文件</li>
+</ol>
+<div class="codehilite"><pre><span/><code><span class="k">async</span> <span class="k">def</span> <span class="nf">get_and_scrape_pages</span><span class="p">(</span><span class="n">num_pages</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">output_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Makes {{ num_pages }} requests to Wikipedia to receive {{ num_pages }} random</span>
+<span class="sd">    articles, then scrapes each page for its title and appends it to {{ output_file }},</span>
+<span class="sd">    separating each title with a tab: "\\t"</span>
+
+<span class="sd">    #### Arguments</span>
+<span class="sd">    ---</span>
+<span class="sd">    num_pages: int -</span>
+<span class="sd">        Number of random Wikipedia pages to request and scrape</span>
+
+<span class="sd">    output_file: str -</span>
+<span class="sd">        File to append titles to</span>
+<span class="sd">    """</span>
+    <span class="k">async</span> <span class="k">with</span> \
+    <span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">,</span> \
+    <span class="n">aiofiles</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">output_file</span><span class="p">,</span> <span class="s2">"a+"</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_pages</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">with</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://en.wikipedia.org/wiki/Special:Random"</span><span class="p">)</span> <span class="k">as</span> <span class="n">response</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">&gt;</span> <span class="mi">399</span><span class="p">:</span>
+                    <span class="c1"># I was getting a 429 Too Many Requests at a higher volume of requests</span>
+                    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+
+                <span class="n">page</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+                <span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">page</span><span class="p">,</span> <span class="n">features</span><span class="o">=</span><span class="s2">"html.parser"</span><span class="p">)</span>
+                <span class="n">title</span> <span class="o">=</span> <span class="n">soup</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">"h1"</span><span class="p">)</span><span class="o">.</span><span class="n">text</span>
+
+                <span class="k">await</span> <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">title</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\t</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="k">await</span> <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>我们都在异步打开一个aiohttp <code>ClientSession</code>和我们的输出文件。模式<code>a+</code>意味着追加到文件中，如果文件不存在，就创建它。将我们的字符串编码为utf-8可以确保我们的标题包含国际字符时不会出错。如果我们得到一个错误响应，我们将引发它而不是继续(在高请求量时，我得到一个429太多请求)。我们异步地从响应中获取文本，然后解析标题，异步地将它附加到我们的文件中。在我们添加了所有标题之后，我们添加了新的一行:" \n "。</p>
+<p>我们的下一个函数是我们将从每个新进程开始的函数，它允许异步运行它:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">start_scraping</span><span class="p">(</span><span class="n">num_pages</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">output_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="sd">""" Starts an async process for requesting and scraping Wikipedia pages """</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Process </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> starting..."</span><span class="p">)</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">get_and_scrape_pages</span><span class="p">(</span><span class="n">num_pages</span><span class="p">,</span> <span class="n">output_file</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Process </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> finished."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在我们的主要功能。让我们从一些常量(以及我们的函数声明)开始:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">NUM_PAGES</span> <span class="o">=</span> <span class="mi">100</span> <span class="c1"># Number of pages to scrape altogether</span>
+    <span class="n">NUM_CORES</span> <span class="o">=</span> <span class="n">cpu_count</span><span class="p">()</span> <span class="c1"># Our number of CPU cores (including logical cores)</span>
+    <span class="n">OUTPUT_FILE</span> <span class="o">=</span> <span class="s2">"./wiki_titles.tsv"</span> <span class="c1"># File to append our scraped titles to</span>
+
+    <span class="n">PAGES_PER_CORE</span> <span class="o">=</span> <span class="n">floor</span><span class="p">(</span><span class="n">NUM_PAGES</span> <span class="o">/</span> <span class="n">NUM_CORES</span><span class="p">)</span>
+    <span class="n">PAGES_FOR_FINAL_CORE</span> <span class="o">=</span> <span class="n">PAGES_PER_CORE</span> <span class="o">+</span> <span class="n">NUM_PAGES</span> <span class="o">%</span> <span class="n">PAGES_PER_CORE</span> <span class="c1"># For our final core</span>
+</code></pre></div>
+
+<p>现在的逻辑是:</p>
+<div class="codehilite"><pre><span/><code>    <span class="n">futures</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">with</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">ProcessPoolExecutor</span><span class="p">(</span><span class="n">NUM_CORES</span><span class="p">)</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">NUM_CORES</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">new_future</span> <span class="o">=</span> <span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span>
+                <span class="n">start_scraping</span><span class="p">,</span> <span class="c1"># Function to perform</span>
+                <span class="c1"># v Arguments v</span>
+                <span class="n">num_pages</span><span class="o">=</span><span class="n">PAGES_PER_CORE</span><span class="p">,</span>
+                <span class="n">output_file</span><span class="o">=</span><span class="n">OUTPUT_FILE</span><span class="p">,</span>
+                <span class="n">i</span><span class="o">=</span><span class="n">i</span>
+            <span class="p">)</span>
+            <span class="n">futures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_future</span><span class="p">)</span>
+
+        <span class="n">futures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span>
+                <span class="n">start_scraping</span><span class="p">,</span>
+                <span class="n">PAGES_FOR_FINAL_CORE</span><span class="p">,</span> <span class="n">OUTPUT_FILE</span><span class="p">,</span> <span class="n">NUM_CORES</span><span class="o">-</span><span class="mi">1</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">futures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>我们创建一个数组来存储我们的未来，然后我们创建一个<code>ProcessPoolExecutor</code>，设置它的<code>max_workers</code>等于我们的核心数。我们在等于内核数减1的范围内迭代，用我们的<code>start_scraping</code>函数运行一个新进程。然后我们把它添加到我们的未来列表中。我们的最终内核可能会有额外的工作要做，因为它将抓取与其他内核相同数量的页面，但还会抓取与我们将要抓取的页面总数除以cpu内核总数所得的余数相同数量的页面。</p>
+<p>确保实际运行您的主要功能:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Time to complete: </span><span class="si">{</span><span class="nb">round</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="si">}</span><span class="s2"> seconds."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在我的8核CPU上运行程序后(以及基准测试代码):</p>
+<p>这个版本(<a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/asyncio_with_multiprocessing.py"> asyncio多处理</a>):</p>
+<div class="codehilite"><pre><span/><code>Time to complete: <span class="m">5</span>.65 seconds.
+</code></pre></div>
+
+<p><a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/multiprocessing_only.py">仅多重处理</a>:</p>
+<div class="codehilite"><pre><span/><code>Time to complete: <span class="m">8</span>.87 seconds.
+</code></pre></div>
+
+<p><a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/asyncio_only.py">仅asyncio】:</a></p>
+<div class="codehilite"><pre><span/><code>Time to complete: <span class="m">47</span>.92 seconds.
+</code></pre></div>
+
+<p><a href="https://github.com/based-jace/concurrency-parallelism-and-asyncio/blob/master/code_examples/asyncio_and_multiprocessing/sync.py">完全同步</a>:</p>
+<div class="codehilite"><pre><span/><code>Time to complete: <span class="m">88</span>.86 seconds.
+</code></pre></div>
+
+<p>事实上，我很惊讶地发现，asyncio的多处理性能比单纯的多处理性能提升得并没有我想象的那么大。</p>
+<h2 id="recap-when-to-use-multiprocessing-vs-asyncio-or-threading">回顾:何时使用多处理，何时使用异步或线程</h2>
+<ol>
+<li>当你需要做许多繁重的计算时，使用多重处理，你可以把它们分开。</li>
+<li>在执行I/O操作时使用异步或线程——与外部资源通信或读写文件。</li>
+<li>多处理和asyncio可以一起使用，但是一个好的经验法则是在线程化/使用asyncio之前分叉一个进程，而不是相反——与进程相比，线程相对便宜。</li>
+</ol>
+<h2 id="asyncawait-in-other-languages">其他语言的异步/等待</h2>
+<p><code>async</code> / <code>await</code>和类似的语法也存在于其他语言中，在其中一些语言中，它的实现可能会有很大的不同。</p>
+<h3 id="net-f-to-c">。NET: F#到C</h3>
+<p>第一种使用<code>async</code>语法的编程语言(早在2007年)是微软的F#。然而，它并不完全使用<code>await</code>来等待函数调用，而是使用特定的语法，如<code>let!</code>和<code>do!</code>以及<code>System</code>模块中包含的专有<code>Async</code>函数。</p>
+<blockquote>
+<p>你可以在微软的F#文档中找到更多关于异步编程的内容。</p>
+</blockquote>
+<p>他们的C#团队随后建立了这个概念，这就是我们现在熟悉的<code>async</code> / <code>await</code>关键词的由来:</p>
+<div class="codehilite"><pre><span/><code><span class="k">using</span><span class="w"> </span><span class="nn">System</span><span class="p">;</span><span class="w"/>
+
+<span class="c1">// Allows the "Task" return type</span>
+<span class="k">using</span><span class="w"> </span><span class="nn">System.Threading.Tasks</span><span class="p">;</span><span class="w"/>
+
+<span class="k">public</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">Program</span><span class="w"/>
+<span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Declare an async function with "async"</span>
+<span class="w">    </span><span class="k">private</span><span class="w"> </span><span class="k">static</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span><span class="w"> </span><span class="n">ReturnHello</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="s">"hello world"</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// Main can be async -- no problem</span>
+<span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="k">static</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="n">Task</span><span class="w"> </span><span class="nf">Main</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="c1">// await an async string</span>
+<span class="w">        </span><span class="kt">string</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="n">ReturnHello</span><span class="p">();</span><span class="w"/>
+
+<span class="w">        </span><span class="c1">// Print the string we got asynchronously</span>
+<span class="w">        </span><span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">result</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p><em> <a href="https://dotnetfiddle.net/N9rO8Y">运行它。网虫</a>T3】</em></p>
+<p>我们确保我们是<code>using System.Threading.Tasks</code>,因为它包括了<code>Task</code>类型，并且，一般来说，等待的异步函数需要<code>Task</code>类型。C#最酷的一点是，只需用<code>async</code>声明主函数，就可以让它异步，而且不会有任何问题。</p>
+<blockquote>
+<p>如果你有兴趣了解更多关于C#中的<code>async</code> / <code>await</code>，<a href="https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/">微软的C#文档</a>有一个很好的页面。</p>
+</blockquote>
+<h3 id="javascript">Java Script语言</h3>
+<p>在ES6中首次引入的<code>async</code> / <code>await</code>语法本质上是对JavaScript承诺的抽象(类似于Python期货)。然而，与Python不同的是，只要你不等待，你就可以正常地调用一个异步函数，而不需要像Python的<code>asyncio.start()</code>那样的特定函数:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// Declare a function with async</span><span class="w"/>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">returnHello</span><span class="p">(){</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="s2">"hello world"</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">printSomething</span><span class="p">(){</span><span class="w"/>
+<span class="w">    </span><span class="c1">// await an async string</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">returnHello</span><span class="p">();</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// print the string we got asynchronously</span><span class="w"/>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">result</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c1">// Run our async code</span><span class="w"/>
+<span class="nx">printSomething</span><span class="p">();</span><span class="w"/>
+</code></pre></div>
+
+<p><em> <a href="https://jsfiddle.net/kyamcp1o/1/">在JSFiddle上运行</a> </em></p>
+<blockquote>
+<p>关于JavaScript 中<a href="https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Asynchronous/Async_await"> <code>async</code> / <code>await</code>的更多信息，请参见MDN。</a></p>
+</blockquote>
+<h3 id="rust">锈</h3>
+<p>Rust现在也允许使用<code>async</code> / <code>await</code>语法，它的工作方式类似于Python、C#和JavaScript:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// Allows blocking synchronous code to run async code</span>
+<span class="k">use</span><span class="w"> </span><span class="n">futures</span>::<span class="n">executor</span>::<span class="n">block_on</span><span class="p">;</span><span class="w"/>
+
+<span class="c1">// Declare an async function with "async"</span>
+<span class="k">async</span><span class="w"> </span><span class="k">fn</span> <span class="nf">return_hello</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nb">String</span> <span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="s">"hello world"</span><span class="p">.</span><span class="n">to_string</span><span class="p">()</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c1">// Code that awaits must also be declared with "async"</span>
+<span class="k">async</span><span class="w"> </span><span class="k">fn</span> <span class="nf">print_something</span><span class="p">(){</span><span class="w"/>
+<span class="w">    </span><span class="c1">// await an async String</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span>: <span class="nb">String</span> <span class="o">=</span><span class="w"> </span><span class="n">return_hello</span><span class="p">().</span><span class="k">await</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// Print the string we got asynchronously</span>
+<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">"{0}"</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Block the current synchronous execution to run our async code</span>
+<span class="w">    </span><span class="n">block_on</span><span class="p">(</span><span class="n">print_something</span><span class="p">());</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p><em> <a href="https://play.rust-lang.org/?version=stable&amp;mode=debug&amp;edition=2018&amp;code=%2F%2F%20Allows%20blocking%20synchronous%20code%20to%20run%20async%20code%0Ause%20futures%3A%3Aexecutor%3A%3Ablock_on%3B%0A%0A%2F%2F%20Declare%20an%20async%20function%20with%20%22async%22%0Aasync%20fn%20return_hello()%20-%3E%20String%20%7B%0A%20%20%20%20%22hello%20world%22.to_string()%0A%7D%0A%0A%2F%2F%20Code%20that%20awaits%20must%20also%20be%20declared%20with%20%22async%22%0Aasync%20fn%20print_something()%7B%0A%20%20%20%20%2F%2F%20await%20an%20async%20String%0A%20%20%20%20let%20result%3A%20String%20%3D%20return_hello().await%3B%0A%0A%20%20%20%20%2F%2F%20Print%20the%20string%20we%20got%20asynchronously%20%0A%20%20%20%20println!(%22%7B0%7D%22%2C%20result)%3B%20%0A%7D%0A%0Afn%20main()%20%7B%0A%20%20%20%20%2F%2F%20Block%20the%20current%20synchronous%20execution%20to%20run%20our%20async%20code%0A%20%20%20%20block_on(print_something())%3B%20%0A%7D">锈弹上跑</a> </em></p>
+<p>为了使用异步函数，我们必须首先将<code>futures = "0.3"</code>添加到我们的<em> Cargo.toml </em>中。然后我们导入带有<code>use futures::executor::block_on</code> - <code>block_on</code>的<code>block_on</code>函数，这是从我们的同步<code>main</code>函数运行我们的异步函数所必需的。</p>
+<blockquote>
+<p>你可以在Rust文档中找到Rust 中<a href="https://rust-lang.github.io/async-book/01_getting_started/01_chapter.html"> <code>async</code> / <code>await</code>的更多信息。</a></p>
+</blockquote>
+<h3 id="go">去</h3>
+<p>Go使用了“goroutines”和“channels”，而不是我们之前讨论过的所有语言固有的传统语法<code>async</code> / <code>await</code>您可以将通道想象成类似于Python的未来。在Go中，你通常发送一个通道作为函数的参数，然后使用<code>go</code>并发运行函数。每当你需要确保函数已经完成时，你使用<code>&lt;-</code>语法，你可以认为这是更常见的<code>await</code>语法。如果您的goroutine(您正在异步运行的函数)有一个返回值，就可以这样获取它。</p>
+<div class="codehilite"><pre><span/><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w"/>
+
+<span class="kn">import</span><span class="w"> </span><span class="s">"fmt"</span><span class="w"/>
+
+<span class="c1">// "chan" makes the return value a string channel instead of a string</span><span class="w"/>
+<span class="kd">func</span><span class="w"> </span><span class="nx">returnHello</span><span class="p">(</span><span class="nx">result</span><span class="w"> </span><span class="kd">chan</span><span class="w"> </span><span class="kt">string</span><span class="p">){</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Gives our channel a value</span><span class="w"/>
+<span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="s">"hello world"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Creates a string channel</span><span class="w"/>
+<span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="kd">chan</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// Starts execution of our goroutine</span><span class="w"/>
+<span class="w">    </span><span class="k">go</span><span class="w"> </span><span class="nx">returnHello</span><span class="p">(</span><span class="nx">result</span><span class="p">)</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// Awaits and prints our string</span><span class="w"/>
+<span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="o">&lt;-</span><span class="w"> </span><span class="nx">result</span><span class="p">)</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p><em> <a href="https://play.golang.org/p/4hkgIunl2-E">在围棋运动场跑起来</a> </em></p>
+<blockquote>
+<p>有关Go中并发性的更多信息，请参阅Caleb Doxsey的<a href="https://www.golang-book.com/books/intro/10">a Introduction to Programming in Go</a>。</p>
+</blockquote>
+<h3 id="ruby">红宝石</h3>
+<p>与Python类似，Ruby也有全局解释器锁限制。它所没有的是语言内置的并发性。然而，在Ruby中有一个社区创建的gem允许并发，你可以在GitHub 上找到它的<a href="https://github.com/ruby-concurrency/concurrent-ruby">源代码。</a></p>
+<h3 id="java">Java 语言(一种计算机语言，尤用于创建网站)</h3>
+<p>像Ruby一样，Java没有内置的<code>async</code> / <code>await</code>语法，但是它有使用<code>java.util.concurrent</code>模块的并发能力。然而，<a href="https://github.com/electronicarts/ea-async">电子艺界写了一个异步库</a>，允许使用<code>await</code>作为方法。它与Python/C#/JavaScript/Rust并不完全相同，但是如果您是一名Java开发人员并且对这种功能感兴趣，那么它是值得研究的。</p>
+<h3 id="c">C++</h3>
+<p>虽然C++也没有<code>async</code> / <code>await</code>语法，但是它有能力使用<code>futures</code>模块使用期货来并发运行代码:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;iostream&gt;</span><span class="cp"/>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span><span class="cp"/>
+
+<span class="c1">// Necessary for futures</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;future&gt;</span><span class="cp"/>
+
+<span class="c1">// No async declaration needed</span>
+<span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="nf">return_hello</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="s">"hello world"</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="w"> </span><span class="p">()</span><span class="w"/>
+<span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// Declares a string future</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">future</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="w"> </span><span class="n">fut</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">async</span><span class="p">(</span><span class="n">return_hello</span><span class="p">);</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// Awaits the result of the future</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fut</span><span class="p">.</span><span class="n">get</span><span class="p">();</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// Prints the string we got asynchronously</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="sc">'\n'</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p><em> <a href="http://www.cpp.sh/">在C++ Shell上运行它</a> </em></p>
+<p>没有必要用任何关键字来声明一个函数来表示它是否能够或者应该异步运行。相反，你可以在需要的时候用<code>std::future&lt;{{ function return type }}&gt;</code>声明你的初始未来，并将其设置为等于<code>std::async()</code>，包括你想要异步执行的函数名以及它所带的任何参数——例如<code>std::async(do_something, 1, 2, "string")</code>。为了等待未来的值，对它使用<code>.get()</code>语法。</p>
+<blockquote>
+<p>你可以在cplusplus.com上找到C++ 中关于<a href="https://www.cplusplus.com/reference/future/async/"> async的文档。</a></p>
+</blockquote>
+<h2 id="summary">摘要</h2>
+<p>无论您正在处理异步网络或文件操作，还是正在执行大量复杂的计算，都有几种不同的方法可以最大化代码的效率。</p>
+<p>如果你正在使用Python，你可以使用<code>asyncio</code>或<code>threading</code>来充分利用I/O操作或用于CPU密集型代码的<code>multiprocessing</code>模块。</p>
+<blockquote>
+<p>还要记住，<code>concurrent.futures</code>模块可以用来代替<code>threading</code>或<code>multiprocessing</code>。</p>
+</blockquote>
+<p>如果你使用的是另一种编程语言，很可能也有一个<code>async</code> / <code>await</code>的实现。</p>
+<blockquote>
+<p>想看更多并行、并发和异步的例子吗？查看Python中的<a href="/blog/python-concurrency-parallelism/">并行性、并发性和异步性——示例</a>文章。</p>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

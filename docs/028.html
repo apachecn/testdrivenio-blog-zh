@@ -1,0 +1,225 @@
+<html>
+<head>
+<title>Deploying a Flask App to Render </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>部署Flask应用程序进行渲染</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/flask-render-deployment/#0001-01-01">https://testdriven.io/blog/flask-render-deployment/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程演示了如何在<a href="https://render.com"> Render </a>上将带有PostgreSQL数据库的Flask应用程序部署到生产环境中。</p>
+<p>本教程中使用的技术:</p>
+<ol>
+<li><a href="https://flask.palletsprojects.com"> Flask </a> - Python web框架</li>
+<li>用于与关系数据库接口的Python包</li>
+<li><a href="https://www.postgresql.org"> PostgreSQL </a> -关系数据库</li>
+<li><a href="https://gunicorn.org"> Gunicorn </a> - Python WSGI HTTP服务器</li>
+<li><a href="https://render.com">渲染</a> -虚拟主机服务</li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>解释如何将Flask应用从部署过渡到生产</li>
+<li>描述Flask应用程序如何在Render上运行</li>
+<li>部署Flask应用程序进行渲染</li>
+<li>配置Flask应用程序以在渲染时与PostgreSQL数据库通信</li>
+</ol>
+<h2 id="why-render">为什么渲染？</h2>
+<p>Render是一个易于使用的<a href="https://en.wikipedia.org/wiki/Platform_as_a_service">平台即服务</a> (PaaS)解决方案，非常适合托管Flask应用。</p>
+<p>此外，他们有一个免费层，允许您轻松测试他们的平台。此外，他们有<a href="https://render.com/pricing">价格合理的选项</a>来托管应用和数据库。</p>
+<blockquote>
+<p>由于Heroku将于2022年11月28日停止它的自由层，我摆弄了一些<a href="/blog/heroku-alternatives/"> Heroku的替代品</a>，发现Render是最好的。Render的开发者体验很好，设置web服务和数据库的配置步骤非常直观。</p>
+</blockquote>
+<h3 id="free-tier-limitations">自由层限制</h3>
+<p>在渲染时使用自由层服务有一些限制:</p>
+<ol>
+<li>PostgreSQL数据库的90天限制</li>
+<li>更慢的构建和部署时间</li>
+<li>“Web服务”没有外壳访问权限</li>
+</ol>
+<p>较慢的构建和部署时间是意料之中的，因为您正在与其他用户共享资源。</p>
+<blockquote>
+<p>值得注意的是，付费计划中web服务的构建和部署时间很快。</p>
+</blockquote>
+<h2 id="flask-production-setup">烧瓶生产设置</h2>
+<h3 id="flask-in-development">发展中的烧瓶</h3>
+<p>在项目的开发阶段，<a href="https://flask.palletsprojects.com/en/2.2.x/server/">开发服务器</a>通常用于本地运行应用程序:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/flask_development_server_diagram.png" loading="lazy" class="lazyload" alt="Flask Development Server" src="../Images/2c417d7c1ff757f1f66db4ef71921f24.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/flask_development_server_diagram.png"/></p>
+<p>Flask development服务器运行时使用:</p>
+<div class="codehilite"><pre><span/><code>$ flask --app app --debug run
+</code></pre></div>
+
+<p>其中<code>--app</code>指定Flask app的文件(<em> app.py </em>)，而<code>--debug</code>启用调试模式(交互式调试器和代码更改时自动重新加载)。</p>
+<p>您可以在选择的浏览器中导航至<code>http://127.0.0.1:5000/</code>来查看应用程序。</p>
+<h3 id="flask-in-production">生产中的烧瓶</h3>
+<p>在开发Flask应用程序的某个时候，您会希望将it应用程序部署到生产环境中，以便其他人可以访问它。</p>
+<p>Flask开发服务器非常适合在本地提供Flask应用程序。顾名思义,“开发”服务器并不是用于生产的<a href="https://flask.palletsprojects.com/en/2.2.x/deploying/">。相反，你应该使用</a><a href="https://gunicorn.org"> Gunicorn </a>，一个生产级的WSGI web应用服务器。</p>
+<blockquote>
+<p>WSGI代表web服务器网关接口，是web服务器和web应用程序之间的接口，因为Web服务器不能直接与Python应用程序对话。更多信息，请查看<a href="/courses/python-web-framework/wsgi/"> WSGI </a>。</p>
+</blockquote>
+<p>下图说明了如何使用Render将Flask应用程序部署到生产环境中:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/flask_production_diagram.png" loading="lazy" class="lazyload" alt="Flask in Production on Render" src="../Images/b23af608006c89d6bb6cfa24e4e86658.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/flask_production_diagram.png"/></p>
+<p>当部署渲染时，一个“<a href="https://render.com/docs/web-services"> Web服务</a>将运行WSGI服务器(Gunicorn)和Flask应用程序。Render提供web服务器，将HTTP流量路由到Gunicorn。此外，“<a href="https://render.com/docs/databases"> PostgreSQL服务</a>将运行PostgreSQL数据库，Flask应用程序将与该数据库进行交互。</p>
+<h3 id="prerequisites">先决条件</h3>
+<p>从本地计算机上运行的Flask应用程序转移到部署它进行渲染时，有几个注意事项...</p>
+<h4 id="gunicorn">格尼科恩</h4>
+<p>在您的虚拟环境中，安装Gunicorn:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># pip</span>
+<span class="o">(</span>venv<span class="o">)</span>$ pip install gunicorn
+<span class="o">(</span>venv<span class="o">)</span>$ pip freeze &gt; requirements.txt
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>如果您使用pip，请确保将Python包依赖关系保存在一个<em> requirements.txt </em>文件中，因为该文件应该在渲染的“构建”步骤中使用。</p>
+<h4 id="postgresql">一种数据库系统</h4>
+<p>对于小型项目和开发工作来说，SQLite是一个非常好的数据库。然而，一旦您过渡到生产，您将希望使用生产级的关系数据库，比如<a href="https://www.postgresql.org"> PostgreSQL </a>。</p>
+<p>幸运的是，Flask-SQLAlchemy使得用PostgreSQL替换SQLite变得很容易。</p>
+<p>首先，与PostgreSQL数据库交互需要两个Python包:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install psycopg2-binary
+<span class="o">(</span>venv<span class="o">)</span>$ pip freeze &gt; requirements.txt
+</code></pre></div>
+
+<p><a href="https://www.psycopg.org/"> psycopg2 </a>是Python的PostgreSQL数据库适配器。</p>
+<p>此外，您需要确保您的Flask应用程序利用环境变量(如<code>DATABASE_URL</code>)来确定数据库的URI:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="c1"># Since SQLAlchemy 1.4.x has removed support for the 'postgres://' URI scheme,</span>
+    <span class="c1"># update the URI to the postgres database to use the supported 'postgresql://' scheme</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'DATABASE_URL'</span><span class="p">):</span>
+        <span class="n">SQLALCHEMY_DATABASE_URI</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'DATABASE_URL'</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"postgres://"</span><span class="p">,</span> <span class="s2">"postgresql://"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">SQLALCHEMY_DATABASE_URI</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"sqlite:///</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">BASEDIR</span><span class="p">,</span> <span class="s1">'instance'</span><span class="p">,</span> <span class="s1">'app.db'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+<p>要进行的一个关键转换是更新PostgreSQL数据库的URI，以使用受支持的<code>postgresql://</code>方案，而不是<code>postgres://</code> URI。</p>
+<blockquote>
+<p>你可以在这里看到完整的例子<a href="https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/2be600d0bfd5a28957b4961bcb2a6607a9c07b08/config.py">。</a></p>
+</blockquote>
+<h4 id="logging">记录</h4>
+<p>在Render上运行Flask应用程序时，控制台日志将显示来自Gunicorn logger的所有日志消息，但不会显示来自Flask应用程序的消息。</p>
+<p>但是，Flask应用程序可以配置为利用Gunicorn记录器:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'LOG_WITH_GUNICORN'</span><span class="p">]:</span>
+    <span class="n">gunicorn_error_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">'gunicorn.error'</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">gunicorn_error_logger</span><span class="o">.</span><span class="n">handlers</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="o">...</span> <span class="n">standard</span> <span class="n">logging</span> <span class="n">configuration</span> <span class="o">...</span>
+</code></pre></div>
+
+<blockquote>
+<p>你可以在这里看到完整的例子<a href="https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/2be600d0bfd5a28957b4961bcb2a6607a9c07b08/project/__init__.py#L84">。</a></p>
+</blockquote>
+<h4 id="database-initialization">数据库初始化</h4>
+<p>本节仅适用于在Render上使用免费层“Web服务”的情况。</p>
+<p>通常，在首次初始化Flask应用程序时，应该创建一个CLI命令来初始化数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@app</span><span class="o">.</span><span class="n">cli</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="s1">'init_db'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">initialize_database</span><span class="p">():</span>
+    <span class="sd">"""Initialize the database."""</span>
+    <span class="n">db</span><span class="o">.</span><span class="n">drop_all</span><span class="p">()</span>
+    <span class="n">db</span><span class="o">.</span><span class="n">create_all</span><span class="p">()</span>
+    <span class="n">echo</span><span class="p">(</span><span class="s1">'Initialized the database!'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>但是，Render上的免费层“Web服务”不支持访问控制台来运行此CLI命令。</p>
+<p>因此，这个问题的解决方案是在创建Flask应用程序时检查数据库是否需要初始化:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># Check if the database needs to be initialized</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">sa</span><span class="o">.</span><span class="n">create_engine</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">'SQLALCHEMY_DATABASE_URI'</span><span class="p">])</span>
+<span class="n">inspector</span> <span class="o">=</span> <span class="n">sa</span><span class="o">.</span><span class="n">inspect</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">inspector</span><span class="o">.</span><span class="n">has_table</span><span class="p">(</span><span class="s2">"users"</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">app_context</span><span class="p">():</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">drop_all</span><span class="p">()</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">create_all</span><span class="p">()</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Initialized the database!'</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Database already contains the users table.'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>假设应用程序工厂函数用于创建Flask应用程序，在Flask应用程序被实例化和初始化之后，这段代码可以放在应用程序工厂函数中。</p>
+<blockquote>
+<p>你可以在这里看到完整的例子<a href="https://gitlab.com/patkennedy79/flask_user_management_example/-/blob/2be600d0bfd5a28957b4961bcb2a6607a9c07b08/project/__init__.py#L42">。</a></p>
+</blockquote>
+<h2 id="render-deployment-steps">渲染部署步骤</h2>
+<h3 id="web-service">网络服务</h3>
+<p>首先用<a href="https://render.com"> Render </a>创建一个新账户(如果你没有的话)。然后，导航到您的<a href="https://dashboard.render.com">仪表板</a>，点击“新建+”按钮，并选择“Web服务”。</p>
+<p>将您的渲染帐户连接到GitLab或GitHub帐户。连接后，选择要部署的存储库:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_deploy_step1.png" loading="lazy" class="lazyload" alt="Deploy to Render - Step 1" src="../Images/6352482649aeed6c10ae1eb3cb33274e.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_deploy_step1.png"/></p>
+<p>填写部署Web服务的配置:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_deploy_step2.png" loading="lazy" class="lazyload" alt="Deploy to Render - Step 2" src="../Images/50295030d38baa9224a3fa00a7eb325a.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_deploy_step2.png"/></p>
+<p>字段:</p>
+<ol>
+<li>名称-为应用程序选择一个唯一的名称，因为这将用于URL</li>
+<li><a href="https://render.com/docs/monorepo-support#root-directory">根目录</a> -服务的根目录(默认为顶级目录)；所有生成命令都将基于此根目录运行</li>
+<li>环境-选择“Python 3”</li>
+<li>地区-选择离你最近的地区</li>
+</ol>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_deploy_step3.png" loading="lazy" class="lazyload" alt="Deploy to Render - Step 3" src="../Images/4a56643329083676454540ef048a8135.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_deploy_step3.png"/></p>
+<p>更多字段:</p>
+<ol>
+<li>分支——从您的git存储库中选择要部署的分支，通常是“main”或“master”</li>
+<li>构建命令——让您的应用程序为生产做好准备的命令，例如安装必要的Python包——例如<code>pip install -r requirements.txt</code>、<code>poetry build</code>等。</li>
+<li>启动命令-使用默认值<code>gunicorn app:app</code>或使用<code>gunicorn --workers=2 --log-level=info app:app</code>指定工作人员数量和日志级别</li>
+</ol>
+<p>选择要使用的计划。</p>
+<p>接下来，您可以通过环境变量设置要使用的特定Python版本。要设置环境变量，请单击“高级”按钮。然后，添加一个名为“PYTHON_VERSION”的环境变量，为您的应用程序指定PYTHON版本，例如“3.10.7”。</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_deploy_step4.png" loading="lazy" class="lazyload" alt="Deploy to Render - Step 4" src="../Images/ae5824bab708a3b877685ee93cbb35e4.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_deploy_step4.png"/></p>
+<blockquote>
+<p>“PYTHON_VERSION”环境变量<a href="https://render.com/docs/python-version">必须包括</a>主要版本、次要版本和补丁版本，因此“3.10.7”有效，而“3.10”无效。</p>
+</blockquote>
+<p>最后，点击页面底部的“创建Web服务”。</p>
+<p>然后你会看到所有来自<em> requirements.txt </em>的Python包都被安装了:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_deploy_step5.png" loading="lazy" class="lazyload" alt="Deploy to Render - Step 5" src="../Images/b94dac20a0a352e56a608c8759cb6258.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_deploy_step5.png"/></p>
+<p>构建成功并部署后，您将看到类似于以下内容的内容:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_deploy_step6.png" loading="lazy" class="lazyload" alt="Deploy to Render - Step 6" src="../Images/e0508539a5b80e46e2836af554a7d63b.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_deploy_step6.png"/></p>
+<p>您可以点击“Logs”选项卡查看Gunicorn是否已启动并运行:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_deploy_step7.png" loading="lazy" class="lazyload" alt="Deploy to Render - Step 7" src="../Images/6c13274e5db633b456ad82d594bc4a2e.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_deploy_step7.png"/></p>
+<p>此时，您可以导航到应用程序的主页。请记住，我们仍然需要设置PostgreSQL！</p>
+<h3 id="postgresql-service">PostgreSQL服务</h3>
+<p>要配置PostgreSQL，在您的<a href="https://dashboard.render.com">仪表板</a>上，再次点击“New +”按钮并选择“PostgreSQL”。</p>
+<h4 id="configuration">配置</h4>
+<p>接下来，填写用于部署PostgreSQL数据库的配置:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_postgres_step1.png" loading="lazy" class="lazyload" alt="Deploy PostgreSQL to Render - Step 1" src="../Images/c8f426eab32b4e9e7454cd463fabc2c0.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_postgres_step1.png"/></p>
+<p>字段:</p>
+<ol>
+<li>名称-为数据库输入一个友好的(唯一的)名称，该名称将用于在渲染面板中标识该数据库</li>
+<li>数据库-输入一个<a href="https://www.postgresql.org/docs/current/app-psql.html">‘数据库名’</a>或留空以随机生成</li>
+<li>用户——输入一个用户名或留空，以自动生成为<code>&lt;Name&gt;_user</code></li>
+<li>地区-选择离你最近的地区</li>
+<li>PostgreSQL版本-为您的应用程序选择所需的PostgreSQL版本(“14”是默认值)</li>
+</ol>
+<p>选择要使用的计划。</p>
+<blockquote>
+<p>空闲层数据库将在90天后销毁。记住这一点。这个计划仍然是一个很好的实验选择。</p>
+</blockquote>
+<p>点击页面底部的“创建数据库”。</p>
+<p>数据库创建完成后，您将看到“状态”更新为“可用”:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_postgres_step2.png" loading="lazy" class="lazyload" alt="Deploy PostgreSQL to Render - Step 2" src="../Images/c7a529cec4d8a18ebde01d5ab8c93f2b.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_postgres_step2.png"/></p>
+<p>此时，您需要向下滚动到“连接”部分，并复制“内部数据库URL”:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_postgres_step3.png" loading="lazy" class="lazyload" alt="Deploy PostgreSQL to Render - Step 3" src="../Images/c20b179e2435f2b375ec5e1450a0e777.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_postgres_step3.png"/></p>
+<h4 id="update-environment-variables">更新环境变量</h4>
+<p>现在，您需要将数据库URL设置为一个环境变量，以便您的应用程序可以使用它。</p>
+<p>在<a href="https://dashboard.render.com">仪表板</a>中，选择您刚刚创建的“Web服务”,然后单击“环境”选项卡。</p>
+<p>您应该看到“PYTHON_VERSION”环境变量，这是我们之前设置的。使用“内部数据库URL”添加“DATABASE_URL”环境变量。根据您如何配置Flask应用程序，您可能需要添加额外的环境变量，如“SECRET_KEY”。</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_configuration_step1.png" loading="lazy" class="lazyload" alt="Configuration Updates on Render - Step 1" src="../Images/dc6b45453a1d25c7471869cdc342c5f1.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_configuration_step1.png"/></p>
+<p>通过单击“事件”选项卡检查部署状态:</p>
+<p><img data-src="/static/images/blog/flask/flask-render-deployment/render_configuration_step2.png" loading="lazy" class="lazyload" alt="Configuration Updates on Render - Step 2" src="../Images/ec45a790d12dca967bae7f5ce37e8916.png" data-original-src="https://testdriven.io/static/images/blog/flask/flask-render-deployment/render_configuration_step2.png"/></p>
+<p>一旦应用了所有配置更改并更新了服务，您将看到“部署”是活动的。</p>
+<blockquote>
+<p>你可以在<a href="https://flask-user-management-app.onrender.com">https://flask-user-management-app.onrender.com</a>找到我在本教程中使用的Flask应用程序。</p>
+</blockquote>
+<h2 id="conclusion">结论</h2>
+<p>本教程提供了使用Render将带有PostgreSQL数据库的Flask应用程序部署到生产环境的演练。</p>
+<p>Render为Flask应用程序提供了优秀的托管解决方案。部署应用程序是一种很好的体验，免费层非常适合尝试部署。</p>
+<blockquote>
+<p>如果你有兴趣了解更多关于Flask的知识，请查看我的课程，学习如何构建、测试和部署Flask应用程序:</p>
+
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

@@ -1,0 +1,345 @@
+<html>
+<head>
+<title>Migrating to a Custom User Model Mid-project in Django </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>在Django项目中期迁移到自定义用户模型</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-custom-user-model-migration/#0001-01-01">https://testdriven.io/blog/django-custom-user-model-migration/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文着眼于如何在Django项目中期迁移到定制用户模型。</p>
+
+
+
+<h2 id="custom-user-model">自定义用户模型</h2>
+<p>Django的默认<a href="https://docs.djangoproject.com/en/4.1/ref/contrib/auth/#user-model">用户模型</a>带有相对较少的字段。因为这些字段对于所有用例来说都是不够的，所以很多Django项目转向定制用户模型。</p>
+<p>在迁移数据库之前，切换到定制用户模型很容易，但是之后会变得更加困难，因为这会影响外键、多对多关系和迁移等等。</p>
+<p>为了避免经历这个繁琐的迁移过程，Django的官方文档<a href="https://docs.djangoproject.com/en/4.1/topics/auth/customizing/#using-a-custom-user-model-when-starting-a-project">强烈建议您在项目</a>开始时建立一个定制的用户模型，即使默认模型已经足够了。</p>
+<p>直到今天，仍然没有在项目中期迁移到定制用户模型的官方方法。Django社区仍然在讨论什么是最好的迁移方式。</p>
+<p>在本文中，我们将研究一种在项目中期迁移到定制用户模型的相对简单的方法。我们将要使用的迁移过程不像互联网上的其他迁移过程那样具有破坏性，并且不需要任何原始SQL执行或手动修改迁移。</p>
+<blockquote>
+<p>有关在项目开始时创建定制用户模型的更多信息，请查看Django 文章中的<a href="/blog/django-custom-user-model/">创建定制用户模型。</a></p>
+</blockquote>
+<h2 id="dummy-project">虚拟项目</h2>
+<p>在项目中期迁移到定制用户模型是一个潜在的破坏性行为。因此，我准备了一个虚拟项目，您可以在进入实际代码库之前使用它来测试迁移过程。</p>
+<blockquote>
+<p>如果您想使用自己的代码库，可以跳过这一部分。</p>
+</blockquote>
+<p>我们将要使用的虚拟项目叫做<a href="https://github.com/duplxey/django-custom-user/tree/base"> django-custom-user </a>。这是一个简单的利用用户模型的todo应用程序。</p>
+<p>克隆下来:</p>
+<div class="codehilite"><pre><span/><code>$ git clone --single-branch --branch base <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="14737d6054737d607c61763a777b79">[email protected]</a>:duplxey/django-custom-user.git
+$ <span class="nb">cd</span> django-custom-user
+</code></pre></div>
+
+<p>创建新的虚拟环境并激活它:</p>
+<div class="codehilite"><pre><span/><code>$ python3 -m venv venv <span class="o">&amp;&amp;</span> <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装要求:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>旋转Postgres Docker容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker run --name django-todo-postgres -p <span class="m">5432</span>:5432 <span class="se">\</span>
+    -e <span class="nv">POSTGRES_USER</span><span class="o">=</span>django-todo -e <span class="nv">POSTGRES_PASSWORD</span><span class="o">=</span>complexpassword123 <span class="se">\</span>
+    -e <span class="nv">POSTGRES_DB</span><span class="o">=</span>django-todo -d postgres
+</code></pre></div>
+
+<blockquote>
+<p>或者，如果你愿意，你可以在Docker之外安装并运行Postgres。只要确保转到<em> core/settings.py </em>并相应地更改<code>DATABASES</code>凭证。</p>
+</blockquote>
+<p>迁移数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>装载夹具:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py loaddata fixtures/auth.json --app auth
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py loaddata fixtures/todo.json --app todo
+</code></pre></div>
+
+<p>这两个设备向数据库添加了一些用户、组和任务，并创建了一个具有以下凭证的超级用户:</p>
+<div class="codehilite"><pre><span/><code><span class="n">username</span><span class="o">:</span><span class="w">  </span><span class="n">admin</span><span class="w"/>
+<span class="n">password</span><span class="o">:</span><span class="w">  </span><span class="n">password</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来，运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>最后，导航到位于<a href="http://localhost:8000/admin">http://localhost:8000/admin</a>的管理面板，以超级用户身份登录，并确保数据已经成功加载。</p>
+<h2 id="migration-process">迁移过程</h2>
+<p>我们将要使用的迁移过程假设:</p>
+<ol>
+<li>您的项目还没有自定义用户模型。</li>
+<li>您已经创建并迁移了数据库。</li>
+<li>没有挂起的迁移，所有现有迁移都已应用。</li>
+<li>你不想丢失任何数据。</li>
+</ol>
+<blockquote>
+<p>如果您仍处于开发阶段，并且数据库中的数据不重要，则不必遵循这些步骤。要迁移到定制用户模型，您可以简单地擦除数据库，删除所有迁移文件，然后按照这里的步骤<a href="/blog/django-custom-user-model/">执行</a>。</p>
+</blockquote>
+<p>在继续之前，请完全备份您的数据库(和代码库)。在转移到生产环境之前，您还应该在分段分支/环境中尝试这些步骤。</p>
+<h3 id="migration-steps">迁移步骤</h3>
+<ol>
+<li>将<code>AUTH_USER_MODEL</code>指向<em> settings.py </em>中默认的Django用户。</li>
+<li>相应地用<code>AUTH_USER_MODEL</code>或<code>get_user_model()</code>替换所有的<code>User</code>参考。</li>
+<li>启动一个新的Django app，在<em> settings.py </em>中注册。</li>
+<li>在新创建的应用程序中创建一个空迁移。</li>
+<li>迁移数据库，以便应用空迁移。</li>
+<li>删除空的迁移文件。</li>
+<li>在新创建的应用程序中创建自定义用户模型。</li>
+<li>将<code>DJANGO_USER_MODEL</code>指向自定义用户。</li>
+<li>运行makemigrations。</li>
+</ol>
+<p>我们开始吧！</p>
+<h4 id="step-1">第一步</h4>
+<p>要迁移到定制用户模型，我们首先需要去掉所有直接的<code>User</code>引用。为此，首先在<em>设置. py </em>中添加一个名为<code>AUTH_USER_MODEL</code>的新属性，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">AUTH_USER_MODEL</span> <span class="o">=</span> <span class="s1">'auth.User'</span>
+</code></pre></div>
+
+<p>这个属性告诉Django使用什么用户模型。因为我们还没有定制的用户模型，所以我们将它指向默认的Django用户模型。</p>
+<h4 id="step-2">第二步</h4>
+<p>接下来，检查您的整个代码库，确保相应地用<a href="https://docs.djangoproject.com/en/4.1/topics/auth/customizing/#substituting-a-custom-user-model"> AUTH_USER_MODEL </a>或<a href="https://docs.djangoproject.com/en/4.1/topics/auth/customizing/#django.contrib.auth.get_user_model"> get_user_model() </a>替换所有的<code>User</code>引用:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># todo/models.py</span>
+
+<span class="k">class</span> <span class="nc">UserTask</span><span class="p">(</span><span class="n">GenericTask</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+        <span class="n">to</span><span class="o">=</span><span class="n">AUTH_USER_MODEL</span><span class="p">,</span>
+        <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'UserTask </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">'</span>
+
+
+<span class="k">class</span> <span class="nc">GroupTask</span><span class="p">(</span><span class="n">GenericTask</span><span class="p">):</span>
+    <span class="n">users</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ManyToManyField</span><span class="p">(</span>
+        <span class="n">to</span><span class="o">=</span><span class="n">AUTH_USER_MODEL</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'GroupTask </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">'</span>
+</code></pre></div>
+
+<p>不要忘记在文件顶部导入<code>AUTH_USER_MODEL</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">core.settings</span> <span class="kn">import</span> <span class="n">AUTH_USER_MODEL</span>
+</code></pre></div>
+
+<blockquote>
+<p>还要确保你使用的所有第三方应用程序/包都是这样做的。如果他们中的任何一个直接引用了<code>User</code>模型，事情可能会被打破。你不必担心这个，因为大多数利用<code>User</code>模型的流行包并不直接引用它。</p>
+</blockquote>
+<h4 id="step-3">第三步</h4>
+<p>接下来，我们需要启动一个新的Django应用程序，它将托管自定义用户模型。</p>
+<p>我称它为<em>用户</em>，但是你可以选择一个不同的名字:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py startapp users
+</code></pre></div>
+
+<blockquote>
+<p>如果你愿意，你可以重用一个已经存在的应用程序，但是你需要确保这个应用程序中还没有迁移；否则，由于Django的限制，迁移过程将无法进行。</p>
+</blockquote>
+<p>在<em> settings.py </em>中注册app:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'todo.apps.TodoConfig'</span><span class="p">,</span>
+    <span class="s1">'users.apps.UsersConfig'</span><span class="p">,</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h4 id="step-4">第四步</h4>
+<p>接下来，我们需要欺骗Django，让他认为<em>用户</em>应用程序负责<code>auth_user</code>表。这通常可以用migrate命令和<code>--fake</code>标志来完成，但在这种情况下不行，因为我们会遇到<code>InconsistentMigrationHistory</code>，因为大多数迁移都依赖于<code>auth</code>迁移。</p>
+<p>无论如何，要绕过这一点，我们可以使用一个hacky的工作区。首先，我们将创建一个空迁移，应用它以便保存到<code>django_migrations</code>表中，然后与实际的<code>auth_user</code>迁移交换。</p>
+<p>在<em>用户</em>应用程序中创建一个空迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py makemigrations --empty users
+
+Migrations <span class="k">for</span> <span class="s1">'users'</span>:
+  users<span class="se">\m</span>igrations<span class="se">\0</span>001_initial.py
+</code></pre></div>
+
+<p>这将创建一个名为<em>users/migrations/0001 _ initial . py</em>的空迁移。</p>
+<h4 id="step-5">第五步</h4>
+<p>迁移数据库，以便将空迁移添加到<code>django_migrations</code>表中:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, sessions, todo, users
+Running migrations:
+  Applying users.0001_initial... OK
+</code></pre></div>
+
+<h4 id="step-6">第六步</h4>
+<p>现在，删除空的迁移文件:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ rm users/migrations/0001_initial.py
+</code></pre></div>
+
+<h4 id="step-7">第七步</h4>
+<p>转到<em> users/models.py </em>，定义自定义<code>User</code>模型，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># users/models.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">AbstractUser</span>
+
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">AbstractUser</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">db_table</span> <span class="o">=</span> <span class="s1">'auth_user'</span>
+</code></pre></div>
+
+<p>暂时不要添加任何自定义字段。这个模型必须是Django默认用户模型的直接副本，因为我们将使用它来创建初始的<code>auth_user</code>表迁移。</p>
+<p>此外，确保将其命名为<code>User</code>，否则您可能会因为<a href="https://docs.djangoproject.com/en/4.1/ref/contrib/contenttypes/">内容类型</a>而遇到问题。您稍后可以更改模型的名称。</p>
+<h4 id="step-8">第八步</h4>
+<p>导航到您的<em> settings.py </em>，将<code>AUTH_USER_MODEL</code>指向刚刚创建的定制用户模型:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">AUTH_USER_MODEL</span> <span class="o">=</span> <span class="s1">'users.User'</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果你的应用不叫<em> users </em>一定要换一个。</p>
+</blockquote>
+<h4 id="step-9">第九步</h4>
+<p>运行<code>makemigrations</code>生成初始<code>auth_user</code>迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py makemigrations
+
+Migrations <span class="k">for</span> <span class="s1">'users'</span>:
+  users<span class="se">\m</span>igrations<span class="se">\0</span>001_initial.py
+    - Create model User
+</code></pre></div>
+
+<p>就是这样！当您第一次通过Django的<code>auth</code>应用程序运行migrate时，已经应用了生成的迁移，所以再次运行migrate不会做任何事情。</p>
+<h2 id="add-new-fields">添加新字段</h2>
+<p>一旦建立了自定义用户模型，添加新字段就很容易了。</p>
+<p>例如，要添加一个<code>phone</code>和<code>address</code>字段，请将以下内容添加到自定义用户模型中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># users/models.py</span>
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">AbstractUser</span><span class="p">):</span>
+    <span class="n">phone</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>    <span class="c1"># new</span>
+    <span class="n">address</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># new</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">db_table</span> <span class="o">=</span> <span class="s1">'auth_user'</span>
+</code></pre></div>
+
+<p>不要忘记在文件顶部导入<code>models</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+</code></pre></div>
+
+<p>接下来，进行迁移并迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>要确保这些字段已经在数据库中得到反映，请将它们放入Docker容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker <span class="nb">exec</span> -it django-todo-postgres bash
+</code></pre></div>
+
+<p>通过<code>psql</code>连接到数据库:</p>
+<div class="codehilite"><pre><span/><code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6b1904041f2b525d5c0e525a5e530a5c535c">[email protected]</a>:/# psql -U django-todo
+
+psql <span class="o">(</span><span class="m">14</span>.5 <span class="o">(</span>Debian <span class="m">14</span>.5-1.pgdg110+1<span class="o">))</span>
+Type <span class="s2">"help"</span> <span class="k">for</span> help.
+</code></pre></div>
+
+<p>并检查<code>auth_user</code>表:</p>
+<div class="codehilite"><pre><span/><code>django-todo<span class="o">=</span><span class="c1"># \d+ auth_user</span>
+
+                                                                Table <span class="s2">"public.auth_user"</span>
+    Column    <span class="p">|</span>           Type           <span class="p">|</span> Collation <span class="p">|</span> Nullable <span class="p">|</span>             Default              <span class="p">|</span> Storage  <span class="p">|</span> Compression <span class="p">|</span> Stats target <span class="p">|</span> Description
+--------------+--------------------------+-----------+----------+----------------------------------+----------+-------------+--------------+-------------
+ id           <span class="p">|</span> integer                  <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span> generated by default as identity <span class="p">|</span> plain    <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ password     <span class="p">|</span> character varying<span class="o">(</span><span class="m">128</span><span class="o">)</span>   <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> extended <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ last_login   <span class="p">|</span> timestamp with <span class="nb">time</span> zone <span class="p">|</span>           <span class="p">|</span>          <span class="p">|</span>                                  <span class="p">|</span> plain    <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ is_superuser <span class="p">|</span> boolean                  <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> plain    <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ username     <span class="p">|</span> character varying<span class="o">(</span><span class="m">150</span><span class="o">)</span>   <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> extended <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ first_name   <span class="p">|</span> character varying<span class="o">(</span><span class="m">150</span><span class="o">)</span>   <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> extended <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ last_name    <span class="p">|</span> character varying<span class="o">(</span><span class="m">150</span><span class="o">)</span>   <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> extended <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ email        <span class="p">|</span> character varying<span class="o">(</span><span class="m">254</span><span class="o">)</span>   <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> extended <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ is_staff     <span class="p">|</span> boolean                  <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> plain    <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ is_active    <span class="p">|</span> boolean                  <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> plain    <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ date_joined  <span class="p">|</span> timestamp with <span class="nb">time</span> zone <span class="p">|</span>           <span class="p">|</span> not null <span class="p">|</span>                                  <span class="p">|</span> plain    <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ phone        <span class="p">|</span> character varying<span class="o">(</span><span class="m">32</span><span class="o">)</span>    <span class="p">|</span>           <span class="p">|</span>          <span class="p">|</span>                                  <span class="p">|</span> extended <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+ address      <span class="p">|</span> character varying<span class="o">(</span><span class="m">64</span><span class="o">)</span>    <span class="p">|</span>           <span class="p">|</span>          <span class="p">|</span>                                  <span class="p">|</span> extended <span class="p">|</span>             <span class="p">|</span>              <span class="p">|</span>
+</code></pre></div>
+
+<p>您可以看到已经添加了名为<code>phone</code>和<code>address</code>的新字段。</p>
+<h2 id="django-admin">Django管理</h2>
+<p>要在Django管理面板中显示自定义用户模型，首先需要创建一个从<code>UserAdmin</code>继承的新类，然后注册它。接下来，在字段集中包含<code>phone</code>和<code>address</code>。</p>
+<p>最终的<em>用户/管理员副本</em>应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># users/admin.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.admin</span> <span class="kn">import</span> <span class="n">UserAdmin</span>
+
+<span class="kn">from</span> <span class="nn">users.models</span> <span class="kn">import</span> <span class="n">User</span>
+
+
+<span class="k">class</span> <span class="nc">CustomUserAdmin</span><span class="p">(</span><span class="n">UserAdmin</span><span class="p">):</span>
+    <span class="n">fieldsets</span> <span class="o">=</span> <span class="n">UserAdmin</span><span class="o">.</span><span class="n">fieldsets</span> <span class="o">+</span> <span class="p">(</span>
+        <span class="p">(</span><span class="s1">'Additional info'</span><span class="p">,</span> <span class="p">{</span><span class="s1">'fields'</span><span class="p">:</span> <span class="p">(</span><span class="s1">'phone'</span><span class="p">,</span> <span class="s1">'address'</span><span class="p">)}),</span>
+    <span class="p">)</span>
+
+
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">CustomUserAdmin</span><span class="p">)</span>
+</code></pre></div>
+
+<p>再次运行服务器，登录，并导航到一个随机用户。向下滚动到底部，您应该会看到一个包含新字段的新部分。</p>
+<blockquote>
+<p>如果您希望进一步定制Django管理，请从官方文档中查看Django管理站点。</p>
+</blockquote>
+<h2 id="rename-user-tablemodel">重命名用户表/模型</h2>
+<p>此时，您可以像平常一样重命名用户模型和表。</p>
+<p>要重命名用户模型，只需更改类名，要重命名表，只需更改<code>db_table</code>属性:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># users/models.py</span>
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">AbstractUser</span><span class="p">):</span>  <span class="c1"># &lt;-- you can change me</span>
+    <span class="n">phone</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">address</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">db_table</span> <span class="o">=</span> <span class="s1">'auth_user'</span>  <span class="c1"># &lt;-- you can change me</span>
+</code></pre></div>
+
+<p>如果您删除了<code>db_table</code>属性，表名将返回到<code>&lt;app_name&gt;_&lt;model_name&gt;</code>。</p>
+<p>完成更改后，运行:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>我一般不建议重命名任何东西，因为你的数据库结构会变得不一致。有些表格会有前缀<code>users_</code>，而有些表格会有前缀<code>auth_</code>。但另一方面，你可以争辩说<code>User</code>模式现在是<em>用户</em>应用的一部分，所以它不应该有<code>auth_</code>前缀。</p>
+<p>如果您决定重命名该表，最终的数据库结构将如下所示:</p>
+<div class="codehilite"><pre><span/><code>django-todo<span class="o">=</span><span class="c1"># \dt</span>
+
+                     List of relations
+ Schema <span class="p">|</span>            Name             <span class="p">|</span> Type  <span class="p">|</span>    Owner
+--------+-----------------------------+-------+-------------
+ public <span class="p">|</span> auth_group                  <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> auth_group_permissions      <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> auth_permission             <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> django_admin_log            <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> django_content_type         <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> django_migrations           <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> django_session              <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> todo_task                   <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> todo_task_categories        <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> todo_taskcategory           <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> users_user                  <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> users_user_groups           <span class="p">|</span> table <span class="p">|</span> django-todo
+ public <span class="p">|</span> users_user_user_permissions <span class="p">|</span> table <span class="p">|</span> django-todo
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>尽管在项目中期迁移到自定义用户模型的问题已经存在了很长时间，但是仍然没有官方的解决方案。</p>
+<p>不幸的是，许多Django开发人员不得不经历这个迁移过程，因为Django文档没有充分强调您应该在项目开始时创建一个定制的用户模型。也许他们甚至可以把它包括在教程里？</p>
+<p>希望我在文章中介绍的迁移过程对您没有任何问题。万一有些事情对你不起作用，或者你认为有些事情可以改进，我希望听到你的反馈。</p>
+<p>您可以从<a href="https://github.com/duplxey/django-custom-user"> django-custom-user </a> repo中获得最终的源代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

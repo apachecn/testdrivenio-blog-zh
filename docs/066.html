@@ -1,0 +1,856 @@
+<html>
+<head>
+<title>Deploying a Django Application to Elastic Beanstalk </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将Django应用程序部署到Elastic Beanstalk</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-elastic-beanstalk/#0001-01-01">https://testdriven.io/blog/django-elastic-beanstalk/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将逐步完成将生产就绪的<a href="https://www.djangoproject.com/"> Django </a>应用程序部署到<a href="https://aws.amazon.com/elasticbeanstalk/"> AWS Elastic Beanstalk </a>的过程。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>解释什么是弹性豆茎</li>
+<li>初始化和配置弹性豆茎</li>
+<li>对运行在Elastic Beanstalk上的应用程序进行故障排除</li>
+<li>将弹性豆茎与RDS结合</li>
+<li>为静态和媒体文件支持配置S3</li>
+<li>通过AWS证书管理器获取SSL证书</li>
+<li>使用SSL证书在HTTPS上提供您的应用程序</li>
+</ol>
+<h2 id="what-is-elastic-beanstalk">什么是弹性豆茎？</h2>
+<p>AWS Elastic Beanstalk  (EB)是一个易于使用的服务，用于部署和扩展web应用程序。它连接多个AWS服务，例如计算实例(<a href="https://aws.amazon.com/ec2/"> EC2 </a>)、数据库(<a href="https://aws.amazon.com/rds/"> RDS </a>)、负载平衡器(<a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html">应用负载平衡器</a>)和文件存储系统(<a href="https://aws.amazon.com/s3/"> S3 </a>)，等等。EB允许您快速开发和部署web应用程序，而无需考虑底层基础设施。它<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/platforms/platforms-supported.html">支持用Go、Java、.NET、Node.js、PHP、Python和Ruby。如果您需要配置自己的软件栈或部署用EB目前不支持的语言(或版本)开发的应用程序，EB也支持Docker。</a></p>
+<p>典型的弹性豆茎设置:</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/elastic-beanstalk-architecture.png" loading="lazy" class="lazyload" alt="Elastic Beanstalk Architecture" src="../Images/87fe95004fb6ed7e3b5e308378b9c763.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/elastic-beanstalk-architecture.png"/></p>
+<p>AWS弹性豆茎不另收费。您只需为应用程序消耗的资源付费。</p>
+<blockquote>
+<p>要了解更多关于弹性豆茎的信息，请查看<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/Welcome.html">什么是AWS弹性豆茎？</a>来自<a href="https://docs.aws.amazon.com/elastic-beanstalk/index.html">官方AWS弹性豆茎文档</a>。</p>
+</blockquote>
+<h3 id="elastic-beanstalk-concepts">弹性豆茎概念</h3>
+<p>在开始学习教程之前，让我们先来看看与Elastic Beanstalk相关的几个关键概念:</p>
+<ol>
+<li>一个<strong> <a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/concepts.html#concepts-application">应用</a> </strong>是弹性Beanstalk组件的逻辑集合，包括环境、版本和环境配置。一个应用程序可以有多个<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/concepts.html#concepts-version">版本</a>。</li>
+<li>一个<strong> <a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/concepts.html#concepts-environment">环境</a> </strong>是运行一个应用版本的AWS资源的集合。</li>
+<li>一个<strong> <a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/concepts.html#concepts-platform">平台</a> </strong>是操作系统、编程语言运行时、web服务器、应用服务器和弹性Beanstalk组件的组合。</li>
+</ol>
+<p>这些术语将在整个教程中使用。</p>
+<h2 id="project-setup">项目设置</h2>
+<p>在本教程中，我们将部署一个名为<a href="https://github.com/duplxey/django-images"> django-images </a>的简单图像托管应用程序。</p>
+<blockquote>
+<p>按照教程进行操作时，通过部署您自己的应用程序来检查您的理解。</p>
+</blockquote>
+<p>首先，从GitHub 上的<a href="https://github.com/duplxey/django-images">库获取代码:</a></p>
+
+
+<p>创建新的虚拟环境并激活它:</p>
+<div class="codehilite"><pre><span/><code>$ python3 -m venv venv <span class="o">&amp;&amp;</span> <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装需求并迁移数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>打开您最喜欢的网络浏览器，导航到<a href="http://localhost:8000"> http://localhost:8000 </a>。使用右边的表格上传图像，确保一切正常。上传图像后，您应该会看到它显示在表格中:</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/django-images-preview.png" loading="lazy" class="lazyload" alt="django-images Application Preview" src="../Images/c6b8cc865e47f49d18337ed2ad575e3b.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/django-images-preview.png"/></p>
+<h2 id="elastic-beanstalk-cli">弹性豆茎CLI</h2>
+<blockquote>
+<p>在继续之前，请务必在<a href="https://portal.aws.amazon.com/billing/signup#/start">注册一个AWS帐户</a>。通过创建一个账户，你可能也有资格加入<a href="https://aws.amazon.com/free/"> AWS免费等级</a>。</p>
+</blockquote>
+<p><a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/eb-cli3.html"> Elastic Beanstalk命令行界面</a> (EB CLI)允许您执行各种操作来部署和管理您的Elastic Beanstalk应用程序和环境。</p>
+<p>有两种安装EB CLI的方法:</p>
+<ol>
+<li>通过<a href="https://github.com/aws/aws-elastic-beanstalk-cli-setup#2-quick-start"> EB CLI安装程序</a></li>
+<li>与<a href="https://pypi.org/project/awsebcli/"> pip (awsebcli) </a></li>
+</ol>
+<blockquote>
+<p>建议使用安装程序(第一个选项)全局安装EB CLI(任何特定虚拟环境之外),以避免可能的依赖冲突。更多详情请参考<a href="https://github.com/aws/aws-elastic-beanstalk-cli-setup#51-for-the-experienced-python-developer-whats-the-advantage-of-this-mode-of-installation-instead-of-regular-pip-inside-a-virtualenv">本解释</a>。</p>
+</blockquote>
+<p>安装EB CLI后，您可以通过运行以下命令来检查版本:</p>
+<div class="codehilite"><pre><span/><code>$ eb --version
+
+EB CLI <span class="m">3</span>.20.3 <span class="o">(</span>Python <span class="m">3</span>.10.<span class="o">)</span>
+</code></pre></div>
+
+<p>如果该命令不起作用，您可能需要将EB CLI添加到<code>$PATH</code>中。</p>
+<blockquote>
+<p>EB CLI命令列表及其描述可在<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/eb3-cmd-commands.html"> EB CLI命令参考</a>中找到。</p>
+</blockquote>
+<h2 id="initialize-elastic-beanstalk">初始化弹性豆茎</h2>
+<p>一旦我们运行了EB CLI，我们就可以开始与Elastic Beanstalk交互了。让我们初始化一个新项目和一个EB环境。</p>
+<h3 id="init">初始化</h3>
+<p>在项目根目录(“django-images”)中，运行:</p>
+
+
+<p>你会被提示一些问题。</p>
+<h4 id="default-region">默认区域</h4>
+<p>您的弹性Beanstalk环境的AWS区域(和资源)。如果您不熟悉不同的AWS区域，请查看<a href="https://aws.amazon.com/about-aws/global-infrastructure/regions_az/"> AWS区域和可用区域</a>。一般来说，你应该选择离你的客户最近的地区。请记住，资源价格因地区而异。</p>
+<h4 id="application-name">应用程序名称</h4>
+<p>这是您的弹性Beanstalk应用程序的名称。我建议按下回车键，使用默认设置:“django-images”。</p>
+<h4 id="platform-and-platform-branch">平台和平台分支</h4>
+<p>EB CLI将检测到您正在使用Python环境。之后，它会给你不同的Python版本和Amazon Linux版本供你使用。选择“运行在64位亚马逊Linux 2上的Python 3.8”。</p>
+<h4 id="codecommit">代码提交</h4>
+<p>CodeCommit是一个安全的、高度可伸缩的、托管的源代码控制服务，托管私有的Git存储库。我们不会使用它，因为我们已经在使用GitHub进行源代码控制。所以说“不”。</p>
+<h4 id="ssh">嘘</h4>
+<p>为了稍后连接到EC2实例，我们需要设置SSH。出现提示时，说“是”。</p>
+<h4 id="keypair">密钥对</h4>
+<p>为了连接到EC2实例，我们需要一个RSA密钥对。继续生成一个，它将被添加到您的“~/”中。ssh”文件夹。</p>
+<p>回答完所有问题后，您会注意到项目根目录下有一个隐藏的目录，名为。elasticbeanstalk”。该目录应该包含一个<em> config.yml </em>文件，其中包含您刚才提供的所有数据。</p>
+<div class="codehilite"><pre><span/><code>.elasticbeanstalk
+└── config.yml
+</code></pre></div>
+
+<p>该文件应包含类似以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">branch-defaults</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">master</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"/>
+<span class="w">    </span><span class="nt">group_suffix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"/>
+<span class="nt">global</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">application_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">django-images</span><span class="w"/>
+<span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"/>
+<span class="w">  </span><span class="nt">default_ec2_keyname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aws-eb</span><span class="w"/>
+<span class="w">  </span><span class="nt">default_platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Python 3.8 running on 64bit Amazon Linux 2</span><span class="w"/>
+<span class="w">  </span><span class="nt">default_region</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">us-west-2</span><span class="w"/>
+<span class="w">  </span><span class="nt">include_git_submodules</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"/>
+<span class="w">  </span><span class="nt">instance_profile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"/>
+<span class="w">  </span><span class="nt">platform_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"/>
+<span class="w">  </span><span class="nt">platform_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"/>
+<span class="w">  </span><span class="nt">profile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eb-cli</span><span class="w"/>
+<span class="w">  </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"/>
+<span class="w">  </span><span class="nt">sc</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git</span><span class="w"/>
+<span class="w">  </span><span class="nt">workspace_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Application</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="create">创造</h3>
+<p>接下来，让我们创建弹性Beanstalk环境并部署应用程序:</p>
+
+
+<p>同样，系统会提示您几个问题。</p>
+<h4 id="environment-name">环境名称</h4>
+<p>这表示EB环境的名称。我建议坚持使用默认值:“django-images-env”。</p>
+<blockquote>
+<p>将<code>└-env</code>或<code>└-dev</code>后缀添加到您的环境中被认为是一种很好的做法，这样您就可以很容易地将EB应用程序与环境区分开来。</p>
+</blockquote>
+<h4 id="dns-cname-prefix">DNS CNAME前缀</h4>
+<p>您的web应用程序将在<code>%cname%.%region%.elasticbeanstalk.com</code>可访问。同样，使用默认值。</p>
+<h4 id="load-balancer">负载平衡</h4>
+<p>负载平衡器在您的环境实例之间分配流量。选择“应用程序”。</p>
+<blockquote>
+<p>如果您想了解不同的负载平衡器类型，请查看适用于您的弹性Beanstalk环境的<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/using-features.managing.elb.html">负载平衡器。</a></p>
+</blockquote>
+<h4 id="spot-fleet-requests">现货车队请求</h4>
+<p><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-fleet.html"> Spot Fleet </a>请求允许您根据自己的标准按需启动实例。我们不会在本教程中使用它们，所以说“不”。</p>
+<p>--</p>
+<p>有了它，环境将会旋转起来:</p>
+<ol>
+<li>你的代码将被压缩并上传到一个新的S3桶。</li>
+<li>之后，将创建各种AWS资源，如负载平衡器、安全和自动伸缩组以及EC2实例。</li>
+</ol>
+<p>还将部署一个新的应用程序。</p>
+<p>这将需要大约三分钟，所以请随意拿一杯咖啡。</p>
+<p>部署完成后，EB CLI将修改<em>。elasticbeanstalk/config.yml </em>。</p>
+<p>您的项目结构现在应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">|</span>-- .elasticbeanstalk
+<span class="p">|</span>   └-- config.yml
+<span class="p">|</span>-- .gitignore
+<span class="p">|</span>-- README.md
+<span class="p">|</span>-- core
+<span class="p">|</span>   <span class="p">|</span>-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- asgi.py
+<span class="p">|</span>   <span class="p">|</span>-- settings.py
+<span class="p">|</span>   <span class="p">|</span>-- urls.py
+<span class="p">|</span>   └-- wsgi.py
+<span class="p">|</span>-- db.sqlite3
+<span class="p">|</span>-- images
+<span class="p">|</span>   <span class="p">|</span>-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- admin.py
+<span class="p">|</span>   <span class="p">|</span>-- apps.py
+<span class="p">|</span>   <span class="p">|</span>-- forms.py
+<span class="p">|</span>   <span class="p">|</span>-- migrations
+<span class="p">|</span>   <span class="p">|</span>   <span class="p">|</span>-- 0001_initial.py
+<span class="p">|</span>   <span class="p">|</span>   └-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- models.py
+<span class="p">|</span>   <span class="p">|</span>-- tables.py
+<span class="p">|</span>   <span class="p">|</span>-- templates
+<span class="p">|</span>   <span class="p">|</span>   └-- images
+<span class="p">|</span>   <span class="p">|</span>       └-- index.html
+<span class="p">|</span>   <span class="p">|</span>-- tests.py
+<span class="p">|</span>   <span class="p">|</span>-- urls.py
+<span class="p">|</span>   └-- views.py
+<span class="p">|</span>-- manage.py
+└-- requirements.txt
+</code></pre></div>
+
+<h3 id="status">状态</h3>
+<p>部署应用后，您可以通过运行以下命令来检查其状态:</p>
+<div class="codehilite"><pre><span/><code>$ eb status
+
+Environment details <span class="k">for</span>: django-images-env
+  Application name: django-images
+  Region: us-west-2
+  Deployed Version: app-93ec-220218_095635133296
+  Environment ID: e-z7dmesipvc
+  Platform: arn:aws:elasticbeanstalk:us-west-2::platform/Python <span class="m">3</span>.8 running on 64bit Amazon Linux <span class="m">2</span>/3.3.10
+  Tier: WebServer-Standard-1.0
+  CNAME: django-images-env.us-west-2.elasticbeanstalk.com
+  Updated: <span class="m">2022</span>-02-18 <span class="m">16</span>:00:24.954000+00:00
+  Status: Ready
+  Health: Red
+</code></pre></div>
+
+<p>您可以看到我们环境的当前健康状况是<code>Red</code>，这意味着出现了问题。暂时不要担心这个问题，我们将在接下来的步骤中解决它。</p>
+<p>您还可以看到，AWS为我们分配了一个CNAME，这是我们的EB环境的域名。我们可以通过打开浏览器并导航到CNAME来访问web应用程序。</p>
+<h3 id="open">打开</h3>
+
+
+<p>此命令将打开您的默认浏览器并导航到CNAME域。你会看到<code>502 Bad Gateway</code>，我们将在这里很快修复它</p>
+<h3 id="console">安慰</h3>
+
+
+<p>该命令将在您的默认浏览器中打开Elastic Beanstalk控制台:</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/elastic-beanstalk-console.png" loading="lazy" class="lazyload" alt="Elastic Beanstalk Console" src="../Images/13c04d9bed51ff69649d2f0b27cf9b10.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/elastic-beanstalk-console.png"/></p>
+<p>同样，您可以看到环境的健康状况是“严重的”，我们将在下一步中解决这个问题。</p>
+<h2 id="configure-an-environment">配置环境</h2>
+<p>在上一步中，我们尝试访问我们的应用程序，它返回了<code>502 Bad Gateway</code>。背后有几个原因:</p>
+<ol>
+<li>Python需要<code>PYTHONPATH</code>来在我们的应用程序中找到模块。</li>
+<li>默认情况下，Elastic Beanstalk试图从不存在的<em> application.py </em>启动WSGI应用程序。</li>
+<li>Django需要<code>DJANGO_SETTINGS_MODULE</code>知道使用哪些设置。</li>
+</ol>
+<blockquote>
+<p>默认情况下，Elastic Beanstalk为Python应用程序提供了<a href="https://gunicorn.org/"> Gunicorn </a>。EB在部署过程中自动安装Gunicorn，因此我们不必将其添加到<em> requirements.txt </em>中。如果你想用别的东西替换Gunicorn，看看用Procfile 配置WSGI服务器的<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/python-configuration-procfile.html">。</a></p>
+</blockquote>
+<p>让我们修复这些错误。</p>
+<p>在项目根目录下创建一个名为“”的新文件夹。ebextensions”。在新创建的文件夹中创建一个名为<em> 01_django.config </em>的文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .ebextensions/01_django.config</span><span class="w"/>
+
+<span class="n">option_settings</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="n">aws</span><span class="p">:</span><span class="n">elasticbeanstalk</span><span class="p">:</span><span class="n">application</span><span class="p">:</span><span class="n">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">DJANGO_SETTINGS_MODULE</span><span class="p">:</span><span class="w"> </span><span class="s2">"core.settings"</span><span class="w"/>
+<span class="w">    </span><span class="n">PYTHONPATH</span><span class="p">:</span><span class="w"> </span><span class="s2">"/var/app/current:$PYTHONPATH"</span><span class="w"/>
+<span class="w">  </span><span class="n">aws</span><span class="p">:</span><span class="n">elasticbeanstalk</span><span class="p">:</span><span class="n">container</span><span class="p">:</span><span class="n">python</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">WSGIPath</span><span class="p">:</span><span class="w"> </span><span class="s2">"core.wsgi:application"</span><span class="w"/>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>我们将<code>PYTHONPATH</code>设置为EC2实例上的Python路径(<a href="https://docs.python.org/3/using/cmdline.html#envvar-PYTHONPATH"> docs </a>)。</li>
+<li>我们将<code>DJANGO_SETTINGS_MODULE</code>指向我们的Django设置(<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-specific.html#command-options-python"> docs </a>)。</li>
+<li>我们将<code>WSGIPath</code>更改为我们的WSGI应用程序(<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-specific.html#command-options-python"> docs </a>)。</li>
+</ol>
+<blockquote>
+<p>EB如何<em>。config </em>文件管用吗？</p>
+<ol>
+<li>你想要多少就有多少。</li>
+<li>它们按以下顺序加载:01_x、02_x、03_x等。</li>
+<li>您不必记住这些设置；您可以通过运行<code>eb config</code>列出您的所有环境设置。</li>
+</ol>
+<p>如果您想了解更多关于高级环境定制的信息，请查看<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/ebextensions.html">带有配置文件的高级环境定制</a>。</p>
+</blockquote>
+<p>此时，您的项目结构应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">|</span>-- .ebextensions
+<span class="p">|</span>   └-- 01_django.config
+<span class="p">|</span>-- .elasticbeanstalk
+<span class="p">|</span>   └-- config.yml
+<span class="p">|</span>-- .gitignore
+<span class="p">|</span>-- README.md
+<span class="p">|</span>-- core
+<span class="p">|</span>   <span class="p">|</span>-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- asgi.py
+<span class="p">|</span>   <span class="p">|</span>-- settings.py
+<span class="p">|</span>   <span class="p">|</span>-- urls.py
+<span class="p">|</span>   └-- wsgi.py
+<span class="p">|</span>-- db.sqlite3
+<span class="p">|</span>-- images
+<span class="p">|</span>   <span class="p">|</span>-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- admin.py
+<span class="p">|</span>   <span class="p">|</span>-- apps.py
+<span class="p">|</span>   <span class="p">|</span>-- forms.py
+<span class="p">|</span>   <span class="p">|</span>-- migrations
+<span class="p">|</span>   <span class="p">|</span>   <span class="p">|</span>-- 0001_initial.py
+<span class="p">|</span>   <span class="p">|</span>   └-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- models.py
+<span class="p">|</span>   <span class="p">|</span>-- tables.py
+<span class="p">|</span>   <span class="p">|</span>-- templates
+<span class="p">|</span>   <span class="p">|</span>   └-- images
+<span class="p">|</span>   <span class="p">|</span>       └-- index.html
+<span class="p">|</span>   <span class="p">|</span>-- tests.py
+<span class="p">|</span>   <span class="p">|</span>-- urls.py
+<span class="p">|</span>   └-- views.py
+<span class="p">|</span>-- manage.py
+└-- requirements.txt
+</code></pre></div>
+
+<p>在重新部署之前，我们必须做的另一件事是将我们的CNAME添加到<em> core/settings.py </em>中的<code>ALLOWED_HOSTS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'xyz.elasticbeanstalk.com'</span><span class="p">,</span>  <span class="c1"># make sure to replace it with your own EB CNAME</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>或者，对于测试，您可以只使用通配符:<code>ALLOWED_HOSTS = ['*']</code>。只是不要忘记在你完成测试后改变它！</p>
+</blockquote>
+<p>将更改提交给git并部署:</p>
+<div class="codehilite"><pre><span/><code>$ git add .
+$ git commit -m <span class="s2">"updates for eb"</span>
+
+$ eb deploy
+</code></pre></div>
+
+<blockquote>
+<p>您会注意到，如果您不提交，Elastic Beanstalk不会检测到这些变化。这是因为EB与git集成，并且只检测提交的(更改的)文件。</p>
+</blockquote>
+<p>部署完成后，运行<code>eb open</code>看看是否一切正常</p>
+<p>哎哟。我们修复了以前的错误，但现在又出现了新的错误:</p>
+<div class="codehilite"><pre><span/><code>NotSupportedError at /
+<span class="nv">deterministic</span><span class="o">=</span>True requires SQLite <span class="m">3</span>.8.3 or higher
+</code></pre></div>
+
+<p>别担心。这只是SQLite的一个问题，无论如何都不应该在生产中使用。我们将在这里与Postgres交换它。</p>
+<h2 id="configure-rds">配置RDS</h2>
+<p>Django默认使用<a href="https://docs.djangoproject.com/en/4.0/ref/databases/#sqlite-notes">的</a>数据库<a href="https://www.sqlite.org/index.html"> SQLite </a>。虽然这对于开发来说是完美的，但是对于生产来说，您通常会希望迁移到更健壮的数据库，比如Postgres或MySQL。此外，由于版本依赖冲突，当前的EB平台不能很好地与SQLite一起工作。因为这两点，我们将用SQlite替换掉<a href="https://www.postgresql.org/"> Postgres </a>。</p>
+<h3 id="local-postgres">本地邮政汇票</h3>
+<p>首先，让Postgres在本地运行。您可以从<a href="https://www.postgresql.org/download/"> PostgreSQL Downloads </a>下载它，或者启动Docker容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker run --name django-images-postgres -p <span class="m">5432</span>:5432 <span class="se">\</span>
+    -e <span class="nv">POSTGRES_USER</span><span class="o">=</span>django-images -e <span class="nv">POSTGRES_PASSWORD</span><span class="o">=</span>complexpassword123 <span class="se">\</span>
+    -e <span class="nv">POSTGRES_DB</span><span class="o">=</span>django-images -d postgres
+</code></pre></div>
+
+<p>检查容器是否正在运行:</p>
+<div class="codehilite"><pre><span/><code>$ docker ps -f <span class="nv">name</span><span class="o">=</span>django-images-postgres
+
+CONTAINER ID   IMAGE      COMMAND                  CREATED              STATUS              PORTS                    NAMES
+c05621dac852   postgres   <span class="s2">"docker-entrypoint.s…"</span>   About a minute ago   Up About a minute   <span class="m">0</span>.0.0.0:5432-&gt;5432/tcp   django-images-postgres
+</code></pre></div>
+
+<p>现在，让我们试着用Django应用程序连接它。在<em> core/settings.py </em>中，将<code>DATABASE</code>配置更改为以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'ENGINE'</span><span class="p">:</span> <span class="s1">'django.db.backends.postgresql_psycopg2'</span><span class="p">,</span>
+        <span class="s1">'NAME'</span><span class="p">:</span> <span class="s1">'django-images'</span><span class="p">,</span>
+        <span class="s1">'USER'</span><span class="p">:</span> <span class="s1">'django-images'</span><span class="p">,</span>
+        <span class="s1">'PASSWORD'</span><span class="p">:</span> <span class="s1">'complexpassword123'</span><span class="p">,</span>
+        <span class="s1">'HOST'</span><span class="p">:</span> <span class="s1">'localhost'</span><span class="p">,</span>
+        <span class="s1">'PORT'</span><span class="p">:</span> <span class="s1">'5432'</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>接下来，安装Postgres所需的<a href="https://pypi.org/project/psycopg2-binary/"> psycopg2-binary </a>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install psycopg2-binary<span class="o">==</span><span class="m">2</span>.9.3
+</code></pre></div>
+
+<p>添加到<em> requirements.txt </em>:</p>
+<div class="codehilite"><pre><span/><code>Django==4.0.2
+Pillow==9.0.1
+django-tables2==2.4.1
+django-crispy-forms==1.14.0
+psycopg2-binary==2.9.3
+</code></pre></div>
+
+<p>创建和应用迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>确保您仍然可以在<a href="http://localhost:8000"> http://localhost:8000 </a>上传图像。</p>
+<blockquote>
+<p>如果得到一个<code>DisallowedHost</code>错误，将<code>localhost</code>和<code>127.0.0.1</code>添加到<em> core/settings.py </em>内的<code>ALLOWED_HOSTS</code>中。</p>
+</blockquote>
+<h3 id="aws-rds-postgres">AWS RDS Postgres</h3>
+<p>要为生产设置Postgres，首先运行以下命令打开AWS控制台:</p>
+
+
+<p>单击左侧栏上的“配置”，向下滚动到“数据库”，然后单击“编辑”。</p>
+<p>使用以下设置创建一个数据库，然后单击“应用”:</p>
+<ul>
+<li>引擎:postgres</li>
+<li>引擎版本:12.9(自db.t2.micro以来的旧Postgres版本在13.1+版本中不可用)</li>
+<li>实例类:db.t2.micro</li>
+<li>存储:5 GB(应该绰绰有余)</li>
+<li>用户名:选择一个用户名</li>
+<li>密码:选择一个强密码</li>
+</ul>
+<blockquote>
+<p>如果你想留在<a href="https://aws.amazon.com/free/"> AWS免费层</a>内，确保你选择db.t2.micro. RDS价格会根据你选择的实例类呈指数增长。如果你不想和<code>micro</code>一起去，一定要复习<a href="https://aws.amazon.com/rds/postgresql/pricing/"> AWS PostgreSQL定价</a>。</p>
+</blockquote>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/create-the-db.png" loading="lazy" class="lazyload" alt="RDS settings" src="../Images/8b4fb88bc5665f2310e7e2999654b460.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/create-the-db.png"/></p>
+<p>环境更新完成后，EB会自动将以下数据库凭证传递给我们的Django应用程序:</p>
+<div class="codehilite"><pre><span/><code>RDS_DB_NAME
+RDS_USERNAME
+RDS_PASSWORD
+RDS_HOSTNAME
+RDS_PORT
+</code></pre></div>
+
+<p>我们现在可以使用<em> core/settings.py </em>中的这些变量来设置<code>DATABASE</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="k">if</span> <span class="s1">'RDS_DB_NAME'</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+    <span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">'ENGINE'</span><span class="p">:</span> <span class="s1">'django.db.backends.postgresql_psycopg2'</span><span class="p">,</span>
+            <span class="s1">'NAME'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'RDS_DB_NAME'</span><span class="p">],</span>
+            <span class="s1">'USER'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'RDS_USERNAME'</span><span class="p">],</span>
+            <span class="s1">'PASSWORD'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'RDS_PASSWORD'</span><span class="p">],</span>
+            <span class="s1">'HOST'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'RDS_HOSTNAME'</span><span class="p">],</span>
+            <span class="s1">'PORT'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'RDS_PORT'</span><span class="p">],</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'default'</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">'ENGINE'</span><span class="p">:</span> <span class="s1">'django.db.backends.postgresql_psycopg2'</span><span class="p">,</span>
+            <span class="s1">'NAME'</span><span class="p">:</span> <span class="s1">'django-images'</span><span class="p">,</span>
+            <span class="s1">'USER'</span><span class="p">:</span> <span class="s1">'django-images'</span><span class="p">,</span>
+            <span class="s1">'PASSWORD'</span><span class="p">:</span> <span class="s1">'complexpassword123'</span><span class="p">,</span>
+            <span class="s1">'HOST'</span><span class="p">:</span> <span class="s1">'localhost'</span><span class="p">,</span>
+            <span class="s1">'PORT'</span><span class="p">:</span> <span class="s1">'5432'</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div>
+
+<p>不要忘记导入<em> core/settings.py </em>顶部的<code>os</code>包:</p>
+
+
+<p>接下来，我们必须告诉Elastic Beanstalk在部署新的应用程序版本时运行<code>makemigrations</code>和<code>migrate</code>。我们可以通过编辑<em>来实现。EB extensions/01 _ django . config</em>文件。将以下内容添加到文件的底部:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .ebextensions/01_django.config</span><span class="w"/>
+
+<span class="n">container_commands</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="mi">01</span><span class="n">_makemigrations</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py makemigrations --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">02</span><span class="n">_migrate</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py migrate --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，每当我们部署新的应用程序版本时，EB环境都会执行上述命令。我们使用了<code>leader_only</code>，所以只有第一个EC2实例执行它们(以防我们的EB环境运行多个EC2实例)。</p>
+<blockquote>
+<p>弹性Beanstalk配置支持两个不同的命令部分，<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/customize-containers-ec2.html#linux-commands">命令</a>和<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/customize-containers-ec2.html#linux-container-commands">容器_命令</a>。它们之间的主要区别在于它们在部署过程中的运行时间:</p>
+<ol>
+<li><code>commands</code>在设置应用程序和web服务器以及提取应用程序版本文件之前运行。</li>
+<li><code>container_commands</code>在应用程序和web服务器已设置且应用程序版本存档已提取之后，但在应用程序版本部署之前(在文件从暂存文件夹移动到其最终位置之前)运行。</li>
+</ol>
+</blockquote>
+<p>让我们也添加一个命令来创建超级用户。我们可以使用Django直观的<a href="https://docs.djangoproject.com/en/4.0/howto/custom-management-commands/">定制命令框架</a>来添加新命令。在“图像”应用程序中，创建以下文件和文件夹:</p>
+<div class="codehilite"><pre><span/><code>└-- images
+    └-- management
+        <span class="p">|</span>-- __init__.py
+        └-- commands
+            <span class="p">|</span>-- __init__.py
+            └-- createsu.py
+</code></pre></div>
+
+<p><em>create u . py</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># images/management/commands/createsu.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.management.base</span> <span class="kn">import</span> <span class="n">BaseCommand</span>
+
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+    <span class="n">help</span> <span class="o">=</span> <span class="s1">'Creates a superuser.'</span>
+
+    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s1">'admin'</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_superuser</span><span class="p">(</span>
+                <span class="n">username</span><span class="o">=</span><span class="s1">'admin'</span><span class="p">,</span>
+                <span class="n">password</span><span class="o">=</span><span class="s1">'complexpassword123'</span>
+            <span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">'Superuser has been created.'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，将第三个容器命令添加到<em>。EB extensions/01 _ django . config</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .ebextensions/01_django.config</span><span class="w"/>
+
+<span class="n">container_commands</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="mi">01</span><span class="n">_makemigrations</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py makemigrations --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">02</span><span class="n">_migrate</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py migrate --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="c1"># ------------------------------------- new -------------------------------------</span><span class="w"/>
+<span class="w">  </span><span class="mi">03</span><span class="n">_superuser</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py createsu"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="c1"># --------------------------------- end of new  ---------------------------------</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>创建<code>createsu</code>命令的另一种方法是SSH到一个EC2实例中，然后运行Django的默认<code>createsuperuser</code>命令。</p>
+</blockquote>
+<p>将更改提交给git并部署:</p>
+<div class="codehilite"><pre><span/><code>$ git add .
+$ git commit -m <span class="s2">"updates for eb"</span>
+
+$ eb deploy
+</code></pre></div>
+
+<p>等待部署完成。完成后，运行<code>eb open</code>在新的浏览器标签中打开你的应用。您的应用程序现在应该可以工作了。确保您可以上传图像。</p>
+<h2 id="s3-for-file-storage">文件存储的S3</h2>
+<p>查看您的管理仪表板的部署版本。静态文件没有得到正确的服务。此外，我们不希望静态或媒体文件本地存储在EC2实例上，因为EB应用程序应该是无状态的，这使得将您的应用程序扩展到多个EC2实例更加容易。</p>
+<p>虽然AWS提供了许多持久存储服务，但T2 S3 T3可以说是最受欢迎和最容易使用的。</p>
+<p>要配置S3，我们需要:</p>
+<ol>
+<li>创建S3存储桶</li>
+<li>为S3时段管理创建IAM组和用户</li>
+<li>设置弹性豆茎S3环境变量</li>
+<li>配置Django静态和媒体设置</li>
+</ol>
+<h3 id="create-an-s3-bucket">创建S3存储桶</h3>
+<p>首先，让我们创建一个新的S3存储桶。导航到<a href="https://s3.console.aws.amazon.com/s3/home"> AWS S3控制台</a>并点击“创建存储桶”。给这个桶一个惟一的名称，并设置AWS区域。对其他一切使用默认配置。按“创建”。</p>
+<h3 id="iam-group-and-user">IAM组和用户</h3>
+<p>导航到<a href="https://console.aws.amazon.com/iamv2/home"> IAM控制台</a>。在屏幕左侧，选择“用户组”。创建一个具有“AmazonS3FullAccess”权限的新组:</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/iam-group.png" loading="lazy" class="lazyload" alt="AWS IAM Group" src="../Images/58a2f20fbabb15738eddb795ad86fa15.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/iam-group.png"/></p>
+<p>然后，创建一个具有“编程访问”权限的新用户，并将该组分配给该用户:</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/iam-user.png" loading="lazy" class="lazyload" alt="AWS IAM User" src="../Images/2bd0b7b2d1fbd0a8328784f4e24f3b85.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/iam-user.png"/></p>
+<p>AWS将为您生成认证凭证。下载提供的<em>。csv </em>文件。在下一步中，我们需要将它们传递给我们的Elastic Beanstalk环境。</p>
+<h3 id="set-eb-environment-variables">设置EB环境变量</h3>
+<p>接下来，我们需要设置以下环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="n">AWS_ACCESS_KEY_ID</span><span class="w">                </span><span class="o">-</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">ACCESS_KEY_ID</span><span class="w"/>
+<span class="n">AWS_SECRET_ACCESS_KEY</span><span class="w">            </span><span class="o">-</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">SECRET_ACCESS_KEY</span><span class="w"/>
+<span class="n">AWS_S3_REGION_NAME</span><span class="w">               </span><span class="o">-</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">selected</span><span class="w"> </span><span class="n">S3</span><span class="w"> </span><span class="n">region</span><span class="w"/>
+<span class="n">AWS_STORAGE_BUCKET_NAME</span><span class="w">          </span><span class="o">-</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">bucket</span><span class="w"> </span><span class="n">name</span><span class="w"/>
+</code></pre></div>
+
+<p>导航到您的弹性豆茎控制台。点击“配置”。然后，在“软件”类别中，单击“编辑”并向下滚动到“环境属性”部分。添加四个变量。</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/env-vars.png" loading="lazy" class="lazyload" alt="AWS Elastic Beanstalk Environment Variables" src="../Images/e20faf7825075f82a6c4f92d1e7526e1.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/env-vars.png"/></p>
+<p>添加完所有变量后，点击“应用”。</p>
+
+<p>接下来，为了让Django与我们的S3桶通信，我们需要安装<a href="https://django-storages.readthedocs.io/en/latest/"> django-storages </a>和<a href="https://aws.amazon.com/sdk-for-python/"> boto3 </a>包。</p>
+<p>将它们添加到<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code>Django==4.0.2
+Pillow==9.0.1
+django-tables2==2.4.1
+django-crispy-forms==1.14.0
+psycopg2-binary==2.9.3
+boto3==1.21.3
+django-storages==1.12.3
+</code></pre></div>
+
+<p>接下来，将新安装的app添加到<em> core/settings.py </em>中的<code>INSTALLED_APPS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># ...</span>
+    <span class="s1">'storages'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>配置django-storages以使用由Elastic Beanstalk传递的环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="s1">'AWS_STORAGE_BUCKET_NAME'</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+    <span class="n">STATICFILES_STORAGE</span> <span class="o">=</span> <span class="s1">'storages.backends.s3boto3.S3Boto3Storage'</span>
+    <span class="n">DEFAULT_FILE_STORAGE</span> <span class="o">=</span> <span class="s1">'storages.backends.s3boto3.S3Boto3Storage'</span>
+
+    <span class="n">AWS_STORAGE_BUCKET_NAME</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'AWS_STORAGE_BUCKET_NAME'</span><span class="p">]</span>
+    <span class="n">AWS_S3_REGION_NAME</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'AWS_S3_REGION_NAME'</span><span class="p">]</span>
+
+    <span class="n">AWS_S3_ACCESS_KEY_ID</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'AWS_ACCESS_KEY_ID'</span><span class="p">]</span>
+    <span class="n">AWS_S3_SECRET_ACCESS_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'AWS_SECRET_ACCESS_KEY'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>最后，我们需要在部署完成后运行<code>collectstatic</code>命令，因此将以下内容添加到<em> 01_django.config </em>的底部:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .ebextensions/01_django.config</span><span class="w"/>
+<span class="c1"># ...</span><span class="w"/>
+
+<span class="n">container_commands</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="c1"># ...</span><span class="w"/>
+<span class="w">  </span><span class="mi">04</span><span class="n">_collectstatic</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py collectstatic --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+</code></pre></div>
+
+<p>完整的文件现在应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .ebextensions/01_django.config</span><span class="w"/>
+
+<span class="n">option_settings</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="n">aws</span><span class="p">:</span><span class="n">elasticbeanstalk</span><span class="p">:</span><span class="n">application</span><span class="p">:</span><span class="n">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">DJANGO_SETTINGS_MODULE</span><span class="p">:</span><span class="w"> </span><span class="s2">"core.settings"</span><span class="w"/>
+<span class="w">    </span><span class="n">PYTHONPATH</span><span class="p">:</span><span class="w"> </span><span class="s2">"/var/app/current:$PYTHONPATH"</span><span class="w"/>
+<span class="w">  </span><span class="n">aws</span><span class="p">:</span><span class="n">elasticbeanstalk</span><span class="p">:</span><span class="n">container</span><span class="p">:</span><span class="n">python</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">WSGIPath</span><span class="p">:</span><span class="w"> </span><span class="s2">"core.wsgi:application"</span><span class="w"/>
+
+<span class="n">container_commands</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="mi">01</span><span class="n">_makemigrations</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py makemigrations --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">02</span><span class="n">_migrate</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py migrate --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">03</span><span class="n">_superuser</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py createsu"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">04</span><span class="n">_collectstatic</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py collectstatic --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+</code></pre></div>
+
+<p>将更改提交给git并部署:</p>
+<div class="codehilite"><pre><span/><code>$ git add .
+$ git commit -m <span class="s2">"updates for eb"</span>
+
+$ eb deploy
+</code></pre></div>
+
+<p>确认静态和媒体文件现在存储在S3上。</p>
+<blockquote>
+<p>如果您得到一个<code>Signature mismatch</code>错误，您可能想要将以下设置添加到<em> core/settings.py </em> : <code>AWS_S3_ADDRESSING_STYLE = "virtual"</code>。更多详情，请参见<a href="https://github.com/jschneier/django-storages/issues/782">本期GitHub</a>。</p>
+<p>要了解更多关于AWS S3上静态和媒体文件存储的信息，请看一下亚马逊S3 上的文章<a href="/blog/storing-django-static-and-media-files-on-amazon-s3/">存储Django静态和媒体文件。</a></p>
+</blockquote>
+<h2 id="https-with-certificate-manager">HTTPS与证书管理器</h2>
+<p>教程的这一部分要求您有一个域名。</p>
+<blockquote>
+<p>需要一个便宜的域名来练习？几个域名注册商有特殊优惠。“xyz”域。或者，您可以在<a href="https://www.freenom.com/"> Freenom </a>创建一个免费域名。如果你没有域名，但仍然想使用HTTPS，你可以<a href="https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/configuring-https-ssl.html">创建并签署一个X509证书</a>。</p>
+</blockquote>
+<p>要通过HTTPS为您的申请提供服务，我们需要:</p>
+<ol>
+<li>请求并验证SSL/TLS证书</li>
+<li>把你的域名指向你的EB CNAME</li>
+<li>修改负载平衡器以服务于HTTPS</li>
+<li>修改您的应用程序设置</li>
+</ol>
+<h3 id="request-and-validate-an-ssltls-certificate">请求并验证SSL/TLS证书</h3>
+<p>导航到<a href="https://console.aws.amazon.com/acm/"> AWS证书管理器控制台</a>。单击“申请证书”。将证书类型设置为“公共”，然后单击“下一步”。在表单输入中输入您的<a href="https://docs.aws.amazon.com/acm/latest/userguide/setup-domain.html">全限定域名</a>，设置“验证方式”为“DNS验证”，点击“请求”。</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/aws-certificate-manager.png" loading="lazy" class="lazyload" alt="AWS Request Public Certificate" src="../Images/8dc728a1d52b26df9d274d7ac54a2402.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/aws-certificate-manager.png"/></p>
+<p>然后，您将被重定向到一个页面，在那里您可以看到您的所有证书。您刚刚创建的证书应该具有“待验证”状态。</p>
+<p>为了让AWS颁发证书，你首先必须证明你是这个域名的所有者。在表中，单击证书以查看“证书详细信息”。注意“CNAME的名字”和“CNAME的价值”。要验证域的所有权，您需要在域的DNS设置中创建“CNAME记录”。为此使用“CNAME名称”和“CNAME价值”。一旦完成，Amazon将需要几分钟的时间来获取域更改并颁发证书。状态应该从“等待验证”更改为“已发布”。</p>
+<h3 id="point-the-domain-name-to-the-eb-cname">将域名指向EB CNAME</h3>
+<p>接下来，您需要将您的域(或子域)指向您的EB环境CNAME。回到您的域名的DNS设置，添加另一个CNAME记录，其值为您的EB CNAME -例如，<code>django-images-dev.us-west-2.elasticbeanstalk.com</code>。</p>
+<p>等待几分钟，让您的DNS刷新，然后在浏览器中测试您的域名的<code>http://</code>风格。</p>
+<h3 id="modify-the-load-balancer-to-serve-https">修改负载平衡器以服务于HTTPS</h3>
+<p>回到弹性豆茎控制台，点击“配置”。然后，在“负载平衡器”类别中，单击“编辑”。单击“添加监听程序”并使用以下详细信息创建监听程序:</p>
+<ol>
+<li>端口- 443</li>
+<li>议定书- HTTPS</li>
+<li>SSL证书-选择您刚刚创建的证书</li>
+</ol>
+<p>点击“添加”。然后，滚动到页面底部，单击“应用”。环境更新需要几分钟时间。</p>
+<h3 id="modify-your-application-settings">修改您的应用程序设置</h3>
+<p>接下来，我们需要对Django应用程序进行一些修改。</p>
+<p>首先，将您的完全限定域添加到<code>ALLOWED_HOSTS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># ...</span>
+    <span class="s1">'yourdomain.com'</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>最后，我们需要将所有流量从HTTP重定向到HTTPS。有多种方法可以做到这一点，但最简单的方法是将<a href="https://httpd.apache.org/"> Apache </a>设置为代理主机。我们可以通过在<em>中的<code>option_settings</code>末尾添加以下内容来编程实现这一点。EB extensions/01 _ django . config</em>:</p>
+<div class="codehilite"><pre><span/><code># .ebextensions/01_django.config
+
+option_settings:
+  # ...
+  aws:elasticbeanstalk:environment:proxy:  # new
+    ProxyServer: apache                    # new
+</code></pre></div>
+
+<p>您最终的<em> 01_django.config </em>文件现在应该是这样的:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># .ebextensions/01_django.config</span><span class="w"/>
+
+<span class="n">option_settings</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="n">aws</span><span class="p">:</span><span class="n">elasticbeanstalk</span><span class="p">:</span><span class="n">application</span><span class="p">:</span><span class="n">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">DJANGO_SETTINGS_MODULE</span><span class="p">:</span><span class="w"> </span><span class="s2">"core.settings"</span><span class="w"/>
+<span class="w">    </span><span class="n">PYTHONPATH</span><span class="p">:</span><span class="w"> </span><span class="s2">"/var/app/current:$PYTHONPATH"</span><span class="w"/>
+<span class="w">  </span><span class="n">aws</span><span class="p">:</span><span class="n">elasticbeanstalk</span><span class="p">:</span><span class="n">container</span><span class="p">:</span><span class="n">python</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">WSGIPath</span><span class="p">:</span><span class="w"> </span><span class="s2">"core.wsgi:application"</span><span class="w"/>
+<span class="w">  </span><span class="n">aws</span><span class="p">:</span><span class="n">elasticbeanstalk</span><span class="p">:</span><span class="n">environment</span><span class="p">:</span><span class="n">proxy</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">ProxyServer</span><span class="p">:</span><span class="w"> </span><span class="n">apache</span><span class="w"/>
+
+<span class="n">container_commands</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="mi">01</span><span class="n">_makemigrations</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py makemigrations --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">02</span><span class="n">_migrate</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py migrate --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">03</span><span class="n">_superuser</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py createsu"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+<span class="w">  </span><span class="mi">04</span><span class="n">_collectstatic</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="s2">"source /var/app/venv/*/bin/activate &amp;&amp; python3 manage.py collectstatic --noinput"</span><span class="w"/>
+<span class="w">    </span><span class="n">leader_only</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来，创建一个”。平台"文件夹中，并添加以下文件和文件夹:</p>
+<div class="codehilite"><pre><span/><code>└-- .platform
+    └-- httpd
+        └-- conf.d
+            └-- ssl_rewrite.conf
+</code></pre></div>
+
+<p><em> ssl_rewrite.conf </em>:</p>
+<div class="codehilite"><pre><span/><code># .platform/httpd/conf.d/ssl_rewrite.conf
+
+RewriteEngine On
+<span class="nt">&lt;If</span> <span class="err">"-n</span> <span class="err">'%{HTTP:X-Forwarded-Proto}'</span> <span class="err">&amp;&amp;</span> <span class="err">%{HTTP:X-Forwarded-Proto}</span> <span class="err">!=</span> <span class="err">'https'"</span><span class="nt">&gt;</span>
+RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R,L]
+<span class="nt">&lt;/If&gt;</span>
+</code></pre></div>
+
+<p>您的项目结构现在应该如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">|</span>-- .ebextensions
+<span class="p">|</span>   └-- 01_django.config
+<span class="p">|</span>-- .elasticbeanstalk
+<span class="p">|</span>   └-- config.yml
+<span class="p">|</span>-- .gitignore
+<span class="p">|</span>-- .platform
+<span class="p">|</span>   └-- httpd
+<span class="p">|</span>       └-- conf.d
+<span class="p">|</span>           └-- ssl_rewrite.conf
+<span class="p">|</span>-- README.md
+<span class="p">|</span>-- core
+<span class="p">|</span>   <span class="p">|</span>-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- asgi.py
+<span class="p">|</span>   <span class="p">|</span>-- settings.py
+<span class="p">|</span>   <span class="p">|</span>-- urls.py
+<span class="p">|</span>   └-- wsgi.py
+<span class="p">|</span>-- db.sqlite3
+<span class="p">|</span>-- images
+<span class="p">|</span>   <span class="p">|</span>-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- admin.py
+<span class="p">|</span>   <span class="p">|</span>-- apps.py
+<span class="p">|</span>   <span class="p">|</span>-- forms.py
+│   ├── management
+│   │   ├── __init__.py
+│   │   └── commands
+│   │       ├── __init__.py
+│   │       └── createsu.py
+<span class="p">|</span>   <span class="p">|</span>-- migrations
+<span class="p">|</span>   <span class="p">|</span>   <span class="p">|</span>-- 0001_initial.py
+<span class="p">|</span>   <span class="p">|</span>   └-- __init__.py
+<span class="p">|</span>   <span class="p">|</span>-- models.py
+<span class="p">|</span>   <span class="p">|</span>-- tables.py
+<span class="p">|</span>   <span class="p">|</span>-- templates
+<span class="p">|</span>   <span class="p">|</span>   └-- images
+<span class="p">|</span>   <span class="p">|</span>       └-- index.html
+<span class="p">|</span>   <span class="p">|</span>-- tests.py
+<span class="p">|</span>   <span class="p">|</span>-- urls.py
+<span class="p">|</span>   └-- views.py
+<span class="p">|</span>-- manage.py
+└-- requirements.txt
+</code></pre></div>
+
+<p>将更改提交给git并部署:</p>
+<div class="codehilite"><pre><span/><code>$ git add .
+$ git commit -m <span class="s2">"updates for eb"</span>
+
+$ eb deploy
+</code></pre></div>
+
+<p>现在，在你的浏览器中，你的应用程序的<code>https://</code>风格应该工作了。试试去<code>http://</code>味的。你应该被重定向到<code>https://</code>风味。确保证书也正确加载:</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/secure-app.png" loading="lazy" class="lazyload" alt="secure app" src="../Images/25cb5abdd5b13c9bdd23ace9ffa8058b.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/secure-app.png"/></p>
+<h2 id="environment-variables">环境变量</h2>
+<p>在生产中，<a href="https://12factor.net/config">最好将特定于环境的配置存储在环境变量</a>中。使用Elastic Beanstalk，您可以用两种不同的方式设置自定义环境变量。</p>
+<h3 id="environment-variables-via-eb-cli">通过EB CLI的环境变量</h3>
+<p>让我们把Django的<code>SECRET_KEY</code>和<code>DEBUG</code>设置变成环境变量。</p>
+<p>从跑步开始:</p>
+<div class="codehilite"><pre><span/><code>$ eb setenv <span class="nv">DJANGO_SECRET_KEY</span><span class="o">=</span><span class="s1">'&lt;replace me with your own secret key&gt;'</span> <span class="se">\</span>
+            <span class="nv">DJANGO_DEBUG</span><span class="o">=</span><span class="s1">'1'</span>
+</code></pre></div>
+
+<blockquote>
+<p>您可以用一个命令设置多个环境变量，用空格分隔它们。这是推荐的方法，因为它只需要对EB环境进行一次更新。</p>
+</blockquote>
+<p>相应地更改<em> core/settings.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+    <span class="s1">'DJANGO_SECRET_KEY'</span><span class="p">,</span>
+    <span class="s1">'&lt;replace me with your own fallback secret key&gt;'</span>
+<span class="p">)</span>
+
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DJANGO_DEBUG'</span><span class="p">,</span> <span class="s1">'1'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">'true'</span><span class="p">,</span> <span class="s1">'t'</span><span class="p">,</span> <span class="s1">'1'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>将更改提交给git并部署:</p>
+<div class="codehilite"><pre><span/><code>$ git add .
+$ git commit -m <span class="s2">"updates for eb"</span>
+
+$ eb deploy
+</code></pre></div>
+
+<h3 id="environment-variables-via-eb-console">通过EB控制台的环境变量</h3>
+<p>通过<code>eb open</code>进入弹性豆茎控制台。导航至“配置”&gt;“软件”&gt;“编辑”。然后，向下滚动到“环境属性”。</p>
+<p><img data-src="/static/images/blog/django/django-elastic-beanstalk/env-vars-again.png" loading="lazy" class="lazyload" alt="AWS Elastic Beanstalk Environment Variables" src="../Images/8169e58f9b6aa68700fe1de3250bccbf.png" data-original-src="https://testdriven.io/static/images/blog/django/django-elastic-beanstalk/env-vars-again.png"/></p>
+<p>完成后，单击“应用”,您的环境将会更新。</p>
+<p>然后，您可以通过<code>os.environ</code>在您的Python环境中访问这些变量。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="n">VARIABLE_NAME</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">'VARIABLE_NAME'</span><span class="p">]</span>
+</code></pre></div>
+
+<h2 id="debugging-elastic-beanstalk">调试弹性豆茎</h2>
+<p>当使用Elastic Beanstalk时，如果您不知道如何访问日志文件，那么找出问题所在会非常令人沮丧。在这一节中，我们将会看到这一点。</p>
+<p>有两种方法可以访问日志:</p>
+<ol>
+<li>弹性Beanstalk CLI或控制台</li>
+<li>SSH到EC2实例</li>
+</ol>
+<blockquote>
+<p>从个人经验来看，我已经能够用第一种方法解决所有问题。</p>
+</blockquote>
+<h3 id="elastic-beanstalk-cli-or-console">弹性Beanstalk CLI或控制台</h3>
+<p>CLI:</p>
+
+
+<p>该命令将从以下文件中获取最后100行:</p>
+<div class="codehilite"><pre><span/><code><span class="o">/</span><span class="k">var</span><span class="o">/</span><span class="nb">log</span><span class="o">/</span><span class="n">web</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">log</span><span class="w"/>
+<span class="o">/</span><span class="k">var</span><span class="o">/</span><span class="nb">log</span><span class="o">/</span><span class="n">eb</span><span class="o">-</span><span class="n">hooks</span><span class="o">.</span><span class="n">log</span><span class="w"/>
+<span class="o">/</span><span class="k">var</span><span class="o">/</span><span class="nb">log</span><span class="o">/</span><span class="n">nginx</span><span class="o">/</span><span class="n">access</span><span class="o">.</span><span class="n">log</span><span class="w"/>
+<span class="o">/</span><span class="k">var</span><span class="o">/</span><span class="nb">log</span><span class="o">/</span><span class="n">nginx</span><span class="o">/</span><span class="n">error</span><span class="o">.</span><span class="n">log</span><span class="w"/>
+<span class="o">/</span><span class="k">var</span><span class="o">/</span><span class="nb">log</span><span class="o">/</span><span class="n">eb</span><span class="o">-</span><span class="n">engine</span><span class="o">.</span><span class="n">log</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>运行<code>eb logs</code>相当于登录EB控制台，导航到“日志”。</p>
+</blockquote>
+<p>我建议将日志传送到<a href="https://aws.amazon.com/cloudwatch/"> CloudWatch </a>。运行以下命令来启用此功能:</p>
+<div class="codehilite"><pre><span/><code>$ eb logs --cloudwatch-logs <span class="nb">enable</span>
+</code></pre></div>
+
+<p>您通常会在<em> /var/log/web.stdout.log </em>或<em> /var/log/eb-engine.log </em>中找到Django错误。</p>
+<blockquote>
+<p>要了解更多关于弹性Beanstalk日志的信息，请查看来自Amazon EC2实例的日志。</p>
+</blockquote>
+<h3 id="ssh-into-ec2-instance">SSH到EC2实例</h3>
+<p>要连接到运行Django应用程序的EC2实例，运行:</p>
+
+
+<p>第一次会提示您将主机添加到已知主机。答应吧。这样，您现在就可以完全访问EC2实例了。请随意试验Django管理命令，并检查前一节中提到的一些日志文件。</p>
+<blockquote>
+<p>请记住，Elastic Beanstalk会自动伸缩和部署新的EC2实例。您在这个特定EC2实例上所做的更改不会反映在新启动的EC2实例上。一旦这个特定的EC2实例被替换，您的更改将被清除。</p>
+</blockquote>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们介绍了将Django应用程序部署到AWS Elastic Beanstalk的过程。到目前为止，您应该对弹性豆茎的工作原理有了一个大致的了解。通过回顾本教程开头的目标，快速进行自我检查。</p>
+<p>后续步骤:</p>
+<ol>
+<li>你应该考虑创建两个独立的EB环境(<code>dev</code>和<code>production</code>)。</li>
+<li>查看用于您的弹性Beanstalk环境的自动伸缩组,了解如何配置触发器来自动伸缩您的应用程序。</li>
+</ol>
+<p>要删除我们在整个教程中创建的所有AWS资源，首先要终止Elastic Beanstalk环境:</p>
+
+
+<p>您需要手动删除S3桶、SSL证书以及IAM组和用户。</p>
+<p>最后，你可以在GitHub上的<a href="https://github.com/testdrivenio/django-elastic-beanstalk">django-elastic-beanstalk</a>repo中找到代码的最终版本。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

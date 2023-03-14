@@ -1,0 +1,570 @@
+<html>
+<head>
+<title>Deploying a Django App to Dokku on a DigitalOcean Droplet </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>在DigitalOcean Droplet上将Django应用程序部署到Dokku</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-dokku/#0001-01-01">https://testdriven.io/blog/django-dokku/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将了解如何安全地将<a href="https://www.djangoproject.com/"> Django </a>应用程序部署到<a href="https://www.digitalocean.com/products/droplets"> DigitalOcean droplet </a>上的<a href="https://dokku.com/"> Dokku </a>。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释什么是Dokku以及它是如何工作的</li>
+<li>创建一个数字海洋水滴，并在上面安装Dokku</li>
+<li>通过git将Django应用程序部署到Dokku</li>
+<li>创建一个由Dokku管理的Postgres数据库</li>
+<li>配置Dokku以保持存储</li>
+<li>配置Nginx来服务静态和媒体文件</li>
+<li>通过“让我们加密并在HTTPS上为您的应用提供服务”获得TLS证书</li>
+</ol>
+<h2 id="what-is-dokku">什么是Dokku？</h2>
+<p>Dokku是一个开源的平台即服务(PaaS ),允许你构建和管理应用从构建到扩展的生命周期。它基本上是一个迷你的Heroku，你可以在你的Linux机器上自托管。因为它使用Heroku的<a href="https://dokku.com/docs/deployment/builders/herokuish-buildpacks/">构建包</a>，它允许你部署任何可以在Heroku上部署的东西。Dokku由<a href="https://www.docker.com/"> Docker </a>提供支持，并与git很好地集成。</p>
+<p>Dokku极其轻便。其唯一的<a href="https://dokku.com/docs/getting-started/installation/#system-requirements">系统要求</a>是:</p>
+<ol>
+<li>Ubuntu 18.04/20.04/22.04或Debian 10+操作系统</li>
+<li>1 GB系统内存(如果您没有，可以使用<a href="https://dokku.com/docs/getting-started/advanced-installation/#vms-with-less-than-1-gb-of-memory">这种变通方法</a></li>
+</ol>
+<p>由于其系统要求较低，你可以在DigitalOcean droplet上托管它，每月只需6美元。</p>
+<h3 id="why-dokku">为什么是多库？</h3>
+<ol>
+<li>完全免费和开源</li>
+<li>允许您轻松部署应用程序</li>
+<li>丰富的命令行界面</li>
+<li>支持多种<a href="https://dokku.com/docs/community/plugins/">社区插件</a></li>
+<li>轻量级选手</li>
+</ol>
+<blockquote>
+<p>Dokku提供了一个名为Dokku PRO的高级计划，它进一步简化了事情，并带有一个用户友好的界面。你可以在他们的<a href="https://pro.dokku.com/">官网</a>了解更多。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>在本教程中，我们将部署一个简单的图像托管应用程序，名为<a href="https://github.com/duplxey/django-images"> django-images </a>。</p>
+<blockquote>
+<p>在学习教程的过程中，通过部署您自己的Django应用程序来检查您的理解。</p>
+</blockquote>
+<p>首先，从GitHub上的<a href="https://github.com/duplxey/django-images">库</a>中获取代码:</p>
+
+
+<p>创建新的虚拟环境并激活它:</p>
+<div class="codehilite"><pre><span/><code>$ python3 -m venv venv <span class="o">&amp;&amp;</span> <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装需求并迁移数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>打开您最喜欢的网络浏览器，导航到<a href="http://localhost:8000"> http://localhost:8000 </a>。使用右边的表格上传图像，确保一切正常。上传图像后，您应该会看到它显示在表格中:</p>
+<p><img data-src="/static/images/blog/django/django-dokku/django-images-preview.png" loading="lazy" class="lazyload" alt="django-images Application Preview" src="../Images/da0e8d50358615ec0bbada6f51b06a08.png" data-original-src="https://testdriven.io/static/images/blog/django/django-dokku/django-images-preview.png"/></p>
+<h2 id="digitalocean">数字海洋</h2>
+<p>让我们在数字海洋上创建一个水滴。</p>
+<p>首先，你需要<a href="https://m.do.co/c/d8f211a4b4c2">注册</a>一个<a href="https://www.digitalocean.com/">数字海洋</a>账户(如果你还没有的话)，然后<a href="https://www.digitalocean.com/docs/apis-clis/api/create-personal-access-token/">生成</a>一个访问令牌，这样你就可以访问<a href="https://developers.digitalocean.com/documentation/v2/">数字海洋API </a>。</p>
+<p>将生成的令牌添加到您的环境:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="o">=</span>&lt;your_digital_ocean_token&gt;
+</code></pre></div>
+
+<h3 id="create-a-droplet">创建一个液滴</h3>
+<p>让我们创建一个2 GB的droplet，因为我们的Django应用程序需要一些内存，而Dokku需要1 GB的系统内存才能工作。</p>
+<p>创建一个水滴:</p>
+<div class="codehilite"><pre><span/><code>$ curl -X POST -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+     -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> -d <span class="se">\</span>
+    <span class="s1">'{"name":"django-dokku","region":"fra1","size":"s-1vcpu-2gb","image":"ubuntu-20-04-x64"}'</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/droplets"</span>
+</code></pre></div>
+
+<blockquote>
+<p>该命令在<code>frankfurt-1</code>区域创建一个2 GB内存的droplet。请随意选择更好的系统规格并更改地区。如果你不知道数字海洋的标识符，你可以使用<a href="https://slugs.do-api.dev/">这个网站</a>。</p>
+</blockquote>
+<p>DigitalOcean旋转一滴大约需要3-5分钟。</p>
+<p>检查其状态:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/droplets?name=django-dokku"</span>
+</code></pre></div>
+
+<p>如果您安装了<a href="https://stedolan.github.io/jq/"> jq </a>，您可以像这样解析JSON响应:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+    -H <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+    -H <span class="s1">'Authorization: Bearer '</span><span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="s1">''</span> <span class="se">\</span>
+    <span class="s2">"https://api.digitalocean.com/v2/droplets?name=django-dokku"</span> <span class="se">\</span>
+    <span class="p">|</span> jq <span class="s1">'.droplets[0].status'</span>
+</code></pre></div>
+
+<p>一旦droplet可用，您将收到一封电子邮件，其中包含droplet的IP地址和密码。使用该信息SSH到服务器。</p>
+<p>当你第一次SSH进入droplet时，出于安全原因，你将被迫更改密码。您可以选择一个非常强的密码，因为我们将在下一步启用无密码SSH登录。</p>
+<p>要生成SSH密钥，请运行:</p>
+
+
+<p>将密钥保存到<em> /root/。ssh/id_rsa </em>并且不设置密码短语。这将分别生成一个公钥和私钥- <em> id_rsa </em>和<em> id_rsa.pub </em>。要设置无密码SSH登录，请将公钥复制到<em> authorized_keys </em>文件中，并设置适当的权限:</p>
+<div class="codehilite"><pre><span/><code>$ cat ~/.ssh/id_rsa.pub
+$ vi ~/.ssh/authorized_keys
+$ chmod <span class="m">600</span> ~/.ssh/authorized_keys
+$ chmod <span class="m">600</span> ~/.ssh/id_rsa
+</code></pre></div>
+
+<p>复制私钥的内容:</p>
+
+
+<p>退出SSH会话，然后将密钥设置为本地计算机上的环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">export</span> <span class="nv">PRIVATE_KEY</span><span class="o">=</span><span class="s1">'-----BEGIN RSA PRIVATE KEY-----</span>
+<span class="s1">MIIEpAIBAAKCAQEA04up8hoqzS1+APIB0RhjXyObwHQnOzhAk5Bd7mhkSbPkyhP1</span>
+<span class="s1">...</span>
+<span class="s1">iWlX9HNavcydATJc1f0DpzF0u4zY8PY24RVoW8vk+bJANPp1o2IAkeajCaF3w9nf</span>
+<span class="s1">q/SyqAWVmvwYuIhDiHDaV2A==</span>
+<span class="s1">-----END RSA PRIVATE KEY-----'</span>
+</code></pre></div>
+
+<p>将密钥添加到ssh代理中:</p>
+<div class="codehilite"><pre><span/><code>$ ssh-add - <span class="o">&lt;&lt;&lt;</span> <span class="s2">"</span><span class="si">${</span><span class="nv">PRIVATE_KEY</span><span class="si">}</span><span class="s2">"</span>
+</code></pre></div>
+
+<p>要进行测试，请运行:</p>
+
+
+<h2 id="install-dokku">安装Dokku</h2>
+<blockquote>
+<p>警告:Dokku引导脚本应该在新安装的Linux上运行。</p>
+</blockquote>
+<p>要安装最新的稳定Dokku版本，首先SSH回到droplet，然后导航到<a href="https://dokku.com/docs/getting-started/installation/#installing-the-latest-stable-version">安装最新的稳定版本</a>并复制bootstrap命令。在撰写本文时，它看起来是这样的:</p>
+<div class="codehilite"><pre><span/><code>wget https://raw.githubusercontent.com/dokku/dokku/v0.28.1/bootstrap.sh
+sudo <span class="nv">DOKKU_TAG</span><span class="o">=</span>v0.28.1 bash bootstrap.sh
+</code></pre></div>
+
+<p>这个脚本将安装Docker、Dokku和所有其他依赖项。安装将需要大约5到10分钟，所以在此期间您可以随意去喝杯咖啡。</p>
+<p>安装完成后，检查Dokku版本:</p>
+<div class="codehilite"><pre><span/><code>$ dokku version
+
+dokku version <span class="m">0</span>.28.1
+</code></pre></div>
+
+<p>Dokku的部署是通过git处理的。每次将代码推送到远程repo时，您都需要通过输入dokku用户的密码或使用SSH密钥来验证自己。</p>
+<p>为了避免基于密码的认证，将您的SSH密钥添加到Dokku:</p>
+<div class="codehilite"><pre><span/><code>$ cat ~/.ssh/authorized_keys <span class="p">|</span> dokku ssh-keys:add admin
+</code></pre></div>
+
+<blockquote>
+<p>如果你收到一条消息说<code>Duplicate ssh public key specified</code>，这意味着Dokku已经添加了你的SSH密钥。请随意忽略此警告。</p>
+</blockquote>
+<h2 id="create-dokku-app">创建Dokku应用程序</h2>
+<p>要创建Dokku应用程序，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ dokku apps:create django-dokku
+
+-----&gt; Creating django-dokku...
+</code></pre></div>
+
+<p>检查应用程序是否已成功创建:</p>
+<div class="codehilite"><pre><span/><code>$ dokku apps:list
+
+<span class="o">=====</span>&gt; My Apps
+django-dokku
+</code></pre></div>
+
+<blockquote>
+<p>如果您在使用Dokku时遇到困难或忘记了某个命令，您可以在该命令后添加<code>:help</code>来查看该命令的功能及其属性。</p>
+<p>比如:<code>dokku apps:help</code>。</p>
+</blockquote>
+<p>接下来，将您的droplet的IP地址链接到您的Dokku应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ dokku domains:add django-dokku &lt;your_droplet_ip&gt;
+</code></pre></div>
+
+<h2 id="dokku-database-setup">Dokku数据库设置</h2>
+<p>为了让Django工作，我们还需要一个数据库。理论上我们可以使用默认的<a href="https://www.sqlite.org/index.html"> SQLite </a>数据库，但是让我们把它换成一个生产就绪的数据库:<a href="https://www.postgresql.org/"> Postgres </a>。</p>
+<p>默认情况下，Dokku不会在新创建的应用程序上提供数据存储，例如MySQL、Postgres。要用Dokku创建数据库服务，你首先需要安装一个社区插件——例如<a href="https://github.com/dokku/dokku-postgres"> dokku-postgres </a>、<a href="https://github.com/dokku/dokku-mysql">Dokku-MySQL</a>——然后把它链接到应用程序。</p>
+<p>从安装dokku-postgres开始:</p>
+<div class="codehilite"><pre><span/><code>$ sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
+</code></pre></div>
+
+<p>接下来创建一个名为<code>mydb</code>的Postgres服务，运行:</p>
+<div class="codehilite"><pre><span/><code>$ dokku postgres:create mydb
+
+       Waiting <span class="k">for</span> container to be ready
+       Creating container database
+       Securing connection to <span class="nv">database</span>
+<span class="o">=====</span>&gt; Postgres container created: <span class="nv">mydb</span>
+<span class="o">=====</span>&gt; mydb postgres service information
+       Config dir:          /var/lib/dokku/services/postgres/mydb/data
+       Config options:
+       Data dir:            /var/lib/dokku/services/postgres/mydb/data
+       Dsn:                 postgres://postgres:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e1d9d984d3d5d3d7d7d68387d8d4d6d880d5d682d58287d4d9d8d4d4d3d583d982a1858e8a8a94cc918e929586938492cc8c988583">[email protected]</a>:5432/mydb
+       Exposed ports:       -
+       Id:                  7f8274383725b8dca9e64f0d7e3835ae4e6a16a3f5bc9bf015ff9bd32b6c5895
+       Internal ip:         <span class="m">172</span>.17.0.3
+       Links:               -
+       Service root:        /var/lib/dokku/services/postgres/mydb
+       Status:              running
+       Version:             postgres:14.4
+</code></pre></div>
+
+<p>Dokku将推出一个安装了Postgres的新Docker容器。</p>
+<p>检查码头集装箱:</p>
+<div class="codehilite"><pre><span/><code>$ docker ps
+
+CONTAINER ID   IMAGE           COMMAND                  CREATED        STATUS        PORTS      NAMES
+7f8274383725   postgres:14.4   <span class="s2">"docker-entrypoint.s…"</span>   <span class="m">1</span> hour ago     Up <span class="m">1</span> hour     <span class="m">5432</span>/tcp   dokku.postgres.mydb
+</code></pre></div>
+
+<p>最后，将Postgres服务链接到Dokku应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ dokku postgres:link mydb django-dokku
+
+-----&gt; Setting config vars
+       DATABASE_URL:  postgres://postgres:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7941411c4b4d4b4f4f4e1b1f404c4e40184d4e1a4d1a1f4c41404c4c4b4d1b411a391d1612120c5409160a0d1e0b1c0a5414001d1b">[email protected]</a>:5432/mydb
+-----&gt; Restarting app django-dokku
+ !     App image <span class="o">(</span>dokku/django-dokku:latest<span class="o">)</span> not found
+</code></pre></div>
+
+<p>这将设置一个名为<code>DATABASE_URL</code>的新环境变量。这个变量是一个受<a href="https://www.12factor.net/backing-services">十二因素应用</a>启发的URL，稍后将允许我们连接到数据库。</p>
+<div class="codehilite"><pre><span/><code><span class="nl">postgres</span><span class="p">:</span><span class="o">//</span><span class="nl">postgres</span><span class="p">:</span><span class="mf">88e242667</span><span class="n">bf9579a47c4cf5895524b8c</span><span class="nv">@dokku</span><span class="o">-</span><span class="n">postgres</span><span class="o">-</span><span class="nl">mydb</span><span class="p">:</span><span class="mi">5432</span><span class="o">/</span><span class="n">mydb</span><span class="w"/>
+
+<span class="nl">syntax</span><span class="p">:</span><span class="w"/>
+<span class="nl">protocol</span><span class="p">:</span><span class="o">//</span><span class="nl">username</span><span class="p">:</span><span class="n">password</span><span class="nv">@host</span><span class="err">:</span><span class="n">port</span><span class="o">/</span><span class="n">dbname</span><span class="w"/>
+</code></pre></div>
+
+<p>太好了！我们的数据库现在运行在Docker容器中，并链接到Dokku应用程序。</p>
+<blockquote>
+<p>要了解更多关于dokku-postgres的信息，请参考资源库的<a href="https://github.com/dokku/dokku-postgres">自述文件</a>。</p>
+</blockquote>
+<h2 id="configure-django-project">配置Django项目</h2>
+<p>在教程的这一部分，我们将准备Django应用程序，以便与Dokku一起部署。</p>
+<h3 id="environment-variables">环境变量</h3>
+<p>我们不应该在源代码中存储秘密，所以让我们利用环境变量。最简单的方法是使用名为<a href="https://saurabh-kumar.com/python-dotenv/"> python-dotenv </a>的第三方Python包。首先将其添加到<em> requirements.txt </em>:</p>
+
+
+<blockquote>
+<p>随意使用不同的包来处理环境变量，如<a href="https://github.com/joke2k/django-environ"> django-environ </a>或<a href="https://github.com/henriquebastos/python-decouple/"> python-decouple </a>。</p>
+</blockquote>
+<p>然后，在<em> core/settings.py </em>的顶部导入并初始化python-dotenv，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span> <span class="nn">dotenv</span> <span class="kn">import</span> <span class="n">load_dotenv</span>  <span class="c1"># new</span>
+
+<span class="c1"># Build paths inside the project like this: BASE_DIR / 'subdir'.</span>
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+
+<span class="n">load_dotenv</span><span class="p">(</span><span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'.env'</span><span class="p">)</span>  <span class="c1"># new</span>
+</code></pre></div>
+
+<p>接下来，从环境中加载<code>SECRET_KEY</code>、<code>DEBUG</code>和<code>ALLOWED_HOSTS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="c1"># SECURITY WARNING: keep the secret key used in production secret!</span>
+<span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'SECRET_KEY'</span><span class="p">)</span>
+
+<span class="c1"># SECURITY WARNING: don't run with debug turned on in production!</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'DEBUG'</span><span class="p">,</span> <span class="s1">'0'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">'true'</span><span class="p">,</span> <span class="s1">'t'</span><span class="p">,</span> <span class="s1">'1'</span><span class="p">]</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'ALLOWED_HOSTS'</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">' '</span><span class="p">)</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+
+
+<h3 id="database">数据库ˌ资料库</h3>
+<p>要使用Postgres代替SQLite，我们首先需要安装数据库适配器。</p>
+<p>将下面一行添加到<em> requirements.txt </em>中:</p>
+
+
+<p>还记得作为环境变量添加的<code>DATABASE_URL</code>吗？为了在Django中使用它，我们可以使用一个名为<a href="https://pypi.org/project/dj-database-url/"> dj-database-url </a>的包。这个包将URL转换成Django数据库参数。</p>
+<p>像这样添加到<em> requirements.txt </em>中:</p>
+
+
+<p>接下来，转到<em> core/settings.py </em>，把<code>DATABASES</code>改成这样:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="n">dj_database_url</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DATABASE_URL'</span><span class="p">),</span> <span class="n">conn_max_age</span><span class="o">=</span><span class="mi">600</span><span class="p">),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>不要忘记在文件顶部导入<code>dj-database-url</code>:</p>
+
+
+<h3 id="gunicorn">格尼科恩</h3>
+<p>接下来，让我们安装<a href="https://gunicorn.org/"> Gunicorn </a>，这是一个生产级的WSGI服务器，将用于生产，而不是Django的开发服务器。</p>
+<p>添加到<em> requirements.txt </em>:</p>
+
+
+<h3 id="procfile">轮廓</h3>
+<p>像Heroku一样，Dokku也使用一个<a href="https://dokku.com/docs/deployment/builders/dockerfiles/#procfiles-and-multiple-processes"> Procfile </a>来指定应用程序在启动时执行的命令。</p>
+<p>在项目根目录中创建一个<em> Procfile </em>并填充它:</p>
+<div class="codehilite"><pre><span/><code><span class="n">web</span><span class="o">:</span><span class="w"> </span><span class="n">gunicorn</span><span class="w"> </span><span class="n">core</span><span class="o">.</span><span class="na">wsgi</span><span class="o">:</span><span class="n">application</span><span class="w"/>
+
+<span class="n">release</span><span class="o">:</span><span class="w"> </span><span class="n">django</span><span class="o">-</span><span class="n">admin</span><span class="w"> </span><span class="n">migrate</span><span class="w"> </span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">input</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">django</span><span class="o">-</span><span class="n">admin</span><span class="w"> </span><span class="n">collectstatic</span><span class="w"> </span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">input</span><span class="w"/>
+</code></pre></div>
+
+<p>所有使用Heroku构建包的语言和框架都声明了一个<code>web</code>进程类型，它启动应用服务器。发布步骤在发布阶段迁移数据库并收集静态文件。</p>
+<h3 id="runtimetxt">runtime.txt</h3>
+<p>要指定Dokku应该为您的应用程序使用的Python版本，请在项目根目录下创建一个名为<em> runtime.txt </em>的新文件。然后像这样填充它:</p>
+
+
+<blockquote>
+<p>要查看所有受支持的Python运行时列表，请查看Heroku Python支持。</p>
+</blockquote>
+<p>我们的应用程序现在可以部署了。让我们添加所有文件并将它们提交给git:</p>
+<div class="codehilite"><pre><span/><code>$ git add -A
+$ git commit -m <span class="s2">"prepared the app for Dokku deployment"</span>
+</code></pre></div>
+
+<h2 id="deploy-app">部署应用程序</h2>
+<p>在部署应用程序之前，回到droplet上，我们需要将Django设置中使用的环境变量添加到Dokku中:</p>
+<div class="codehilite"><pre><span/><code>$ dokku config:set --no-restart django-dokku <span class="nv">SECRET_KEY</span><span class="o">=</span>h8710y7yaaaqopvbxtyxebdmtcewi_vuf1ah4gaxyjj4goij0u
+$ dokku config:set --no-restart django-dokku <span class="nv">DEBUG</span><span class="o">=</span><span class="m">1</span>
+$ dokku config:set --no-restart django-dokku <span class="nv">ALLOWED_HOSTS</span><span class="o">=</span>*
+</code></pre></div>
+
+<p>为了使调试简单一点，我们将暂时启用调试模式并将<code>ALLOWED_HOSTS</code>设置为<code>*</code>。这是一个糟糕的安全实践，因为它允许你的Django站点在任何主机/域上服务，使你容易受到<a href="https://docs.djangoproject.com/en/4.1/topics/security/#host-headers-virtual-hosting"> HTTP主机头攻击</a>。</p>
+<p>别担心，我们稍后会更改这两个设置。</p>
+<blockquote>
+<p>我们添加了<code>--no-restart</code>标志，以防止Dokku在添加每个新的环境变量后重新启动django-dokku应用程序。</p>
+</blockquote>
+<p>此外，添加<code>DJANGO_SETTINGS_MODULE</code>，这是使用<code>django-admin</code>命令所必需的:</p>
+<div class="codehilite"><pre><span/><code>$ dokku config:set --no-restart django-dokku <span class="nv">DJANGO_SETTINGS_MODULE</span><span class="o">=</span>core.settings
+</code></pre></div>
+
+<p>检查环境变量，确保所有内容都已正确添加:</p>
+<div class="codehilite"><pre><span/><code>$ dokku config:show django-dokku
+
+<span class="o">=====</span>&gt; django-dokku env vars
+ALLOWED_HOSTS:           *
+DATABASE_URL:            postgres://postgres:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4c7f292f7d7d7f2f7b747f74752f7c7f2f2828297f792f2d7f7a747a2e7479752f0c2823272739613c233f382b3e293f612135282e">[email protected]</a>:5432/mydb
+DEBUG:                   <span class="m">1</span>
+DJANGO_SETTINGS_MODULE:  core.settings
+DOKKU_PROXY_PORT:        <span class="m">80</span>
+DOKKU_PROXY_PORT_MAP:    http:80:5000
+SECRET_KEY:              h8710y7yaaaqopvbxtyxebdmtcewi_vuf1ah4gaxyjj4goij0u
+</code></pre></div>
+
+<p>就是这样。</p>
+<p>现在，让我们回到本地开发环境。</p>
+<p>向我们的git存储库添加一个新的remote，并将代码推送到droplet:</p>
+<div class="codehilite"><pre><span/><code>$ git remote add dokku <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="bbdfd4d0d0cefb">[email protected]</a>&lt;your_droplet_ip_address&gt;:django-dokku
+$ git push dokku master
+</code></pre></div>
+
+<blockquote>
+<p>当您创建一个新的Dokku应用程序时，也应该创建一个git存储库。</p>
+<p>如果您得到一个“<app_name>似乎不是一个git存储库”的错误，SSH进入您的droplet并运行:<code>dokku git:initialize django-dokku</code>。</app_name></p>
+</blockquote>
+<p>您应该会在终端中看到一个很长的输出。本质上，Dokku是:</p>
+<ol>
+<li>清洁环境</li>
+<li>设置环境变量</li>
+<li>安装<em> requirements.txt </em>中的所有需求</li>
+<li>收集静态文件和迁移数据库</li>
+<li>创建和配置Nginx实例</li>
+<li>舒婷拆下旧容器，旋出一个新的</li>
+</ol>
+<p>Dokku完成部署后，您可以SSH到您的droplet并检查应用程序的状态:</p>
+
+
+<p>最后，在浏览器中找到你的droplet的IP地址，测试应用程序，看看它是否工作。</p>
+<div class="codehilite"><pre><span/><code>http://&lt;your_droplet_ip_address&gt;/
+</code></pre></div>
+
+<p>不错！您的应用程序现已部署到Dokku。每次你想更新你部署的应用程序时，提交你的更改并推送到<code>dokku</code>原点。</p>
+<h2 id="dokku-storage-setup">Dokku存储设置</h2>
+<p>Dokku应用程序在容器中运行。因此，如果一个容器被破坏，你的文件和其他数据也会被破坏。为了在容器的生命周期之外保存数据，我们需要通过Dokku的<a href="https://dokku.com/docs/advanced-usage/persistent-storage/">持久存储</a>插件来配置存储。</p>
+<h3 id="persist-storage">持久存储</h3>
+<p>为了持久存储，我们首先需要创建一个存储目录。多库推荐使用<code>/var/lib/dokku/data/storage/&lt;app_name&gt;</code>。</p>
+<p>所以，回到droplet，运行:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir /var/lib/dokku/data/storage/django-dokku/
+$ chown -R dokku:dokku /var/lib/dokku/data/storage/django-dokku/
+</code></pre></div>
+
+<p>接下来，让我们挂载目录。该命令有两个参数:</p>
+<ol>
+<li>应用程序名称</li>
+<li>一个<code>host-path:container-path</code>或<code>docker-volume:container-path</code>组合</li>
+</ol>
+<div class="codehilite"><pre><span/><code>$ dokku storage:mount django-dokku /var/lib/dokku/data/storage/django-dokku/staticfiles:/app/staticfiles
+$ dokku storage:mount django-dokku /var/lib/dokku/data/storage/django-dokku/mediafiles:/app/mediafiles
+</code></pre></div>
+
+<p>重新部署Dokku应用程序以确保收集到文件:</p>
+<div class="codehilite"><pre><span/><code>$ dokku ps:restart django-dokku
+</code></pre></div>
+
+<p>列出目录:</p>
+<div class="codehilite"><pre><span/><code>$ ls /var/lib/dokku/data/storage/django-dokku
+
+mediafiles  staticfiles
+</code></pre></div>
+
+<p>太好了，我们的静态和媒体文件已经收集好了。</p>
+
+<p>目前我们有<code>DEBUG=1</code>并通过Django提供我们的静态和媒体文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/urls.py</span>
+
+<span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">:</span>
+    <span class="n">urlpatterns</span> <span class="o">+=</span> <span class="n">static</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">MEDIA_URL</span><span class="p">,</span> <span class="n">document_root</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">MEDIA_ROOT</span><span class="p">)</span>
+    <span class="n">urlpatterns</span> <span class="o">+=</span> <span class="n">static</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">STATIC_URL</span><span class="p">,</span> <span class="n">document_root</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">STATIC_ROOT</span><span class="p">)</span>
+</code></pre></div>
+
+<p>让我们禁用调试模式，并学习如何通过Nginx服务它们。</p>
+<div class="codehilite"><pre><span/><code>$ dokku config:set django-dokku <span class="nv">DEBUG</span><span class="o">=</span><span class="m">0</span>
+</code></pre></div>
+
+<p>您的服务器将重新启动。如果您访问web应用程序，您将无法再看到任何图像。</p>
+<p>要将Nginx配置为在生产中提供静态和媒体文件，请在Dokku应用程序文件中创建一个名为“nginx.conf.d”的新目录。然后在这个目录中创建一个名为<em> static.conf </em>的新文件。</p>
+<div class="codehilite"><pre><span/><code>$ mkdir -p /home/dokku/django-dokku/nginx.conf.d
+$ vi /home/dokku/django-dokku/nginx.conf.d/static.conf
+</code></pre></div>
+
+<p>将以下内容放入<em> static.conf </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">location</span><span class="w"> </span><span class="s">/static/</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kn">alias</span><span class="w"> </span><span class="s">/var/lib/dokku/data/storage/django-dokku/staticfiles/</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">location</span><span class="w"> </span><span class="s">/media/</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kn">alias</span><span class="w"> </span><span class="s">/var/lib/dokku/data/storage/django-dokku/mediafiles/</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>目录结构:</p>
+<div class="codehilite"><pre><span/><code>└── nginx.conf.d
+    └── static.conf
+</code></pre></div>
+
+<p>这创建了两条路径，一条用于存储静态文件，另一条用于媒体文件。</p>
+<p>让dokku用户成为配置的所有者，并重新启动应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ chown -R dokku:dokku /home/dokku/django-dokku/nginx.conf.d
+$ dokku ps:restart django-dokku
+</code></pre></div>
+
+<p>应用程序重启后，在浏览器中访问它，检查媒体文件是否已恢复。</p>
+<h2 id="django-admin-access">Django管理员访问权限</h2>
+<p>要访问Django管理面板，我们需要创建一个超级用户。我们有两个选择:</p>
+<ol>
+<li>使用<code>dokku run</code>执行命令。</li>
+<li>创建一个Django命令来创建一个超级用户，并将其添加到<em> Procfile </em>中。</li>
+</ol>
+<p>由于这是一次性任务，我们将使用第一种方法:</p>
+<div class="codehilite"><pre><span/><code>$ dokku run django-dokku python manage.py createsuperuser
+</code></pre></div>
+
+<p>按照提示操作，就完成了。</p>
+<p>要确保已成功创建超级用户，请导航到管理控制面板并登录。</p>
+<div class="codehilite"><pre><span/><code>http://&lt;your_droplet_ip_address&gt;/admin
+</code></pre></div>
+
+<h2 id="add-domain">添加域</h2>
+<p>教程的这一部分要求您有一个域名。</p>
+<blockquote>
+<p>需要一个便宜的域名来练习？几个域名注册商有特殊优惠。“xyz”域。或者，您可以在<a href="https://www.freenom.com/en/index.html?lang=en"> Freenom </a>创建一个免费域名。</p>
+</blockquote>
+<p>在Dokku中，有两种类型的域:</p>
+<ol>
+<li><em>全局域</em>允许您使用通配符访问特定应用。例如，如果您的域是testdriven.io，而您的应用程序名为myapp，您将能够通过myapp.testdriven.io访问您的应用程序。</li>
+<li><em>应用领域</em>直接指向特定应用。因此，如果您的域是testdriven.io，那么您将能够在testdriven.io访问您的应用程序。</li>
+</ol>
+<blockquote>
+<p>要了解更多关于Dokku域如何工作的信息，请参考<a href="https://dokku.com/docs/configuration/domains/">官方文档</a>。</p>
+</blockquote>
+<p>由于我们只有一个应用程序，我们将利用一个应用程序域。检查当前应用程序域设置:</p>
+<div class="codehilite"><pre><span/><code>$ dokku domains:report django-dokku
+
+<span class="o">=====</span>&gt; django-dokku domains information
+       Domains app enabled:           <span class="nb">true</span>
+       Domains app vhosts:            <span class="m">165</span>.227.135.236
+       Domains global enabled:        <span class="nb">true</span>
+       Domains global vhosts:         django-dokku
+</code></pre></div>
+
+<p>若要添加域，请前往您的域的注册商&gt; DNS设置，并创建一个指向您的droplet的IP地址的新“A记录”,如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                      | TTL       |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| A Record | </span><span class="nv">&lt;</span><span class="c">some host</span><span class="nv">&gt;</span><span class="c">  | </span><span class="nv">&lt;</span><span class="c">your_droplet_ip_address</span><span class="nv">&gt;</span><span class="c">  | Automatic |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                      | TTL       |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+<span class="c">| A Record | django</span><span class="nb">-</span><span class="c">dokku | 159</span><span class="nt">.</span><span class="c">89</span><span class="nt">.</span><span class="c">24</span><span class="nt">.</span><span class="c">5                | Automatic |</span>
+<span class="nb">+----------+--------------+----------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<blockquote>
+<p>如果您不想使用子域，您可以遵循相同的步骤，但只需将DNS主机更改为<code>@</code>并相应地配置Dokku。</p>
+</blockquote>
+<p>最后，将域添加到Dokku:</p>
+<div class="codehilite"><pre><span/><code><span class="o">$</span><span class="w"> </span><span class="n">dokku</span><span class="w"> </span><span class="n">domains</span><span class="p">:</span><span class="n">set</span><span class="w"> </span><span class="n">django</span><span class="o">-</span><span class="n">dokku</span><span class="w"> </span><span class="n">django</span><span class="o">-</span><span class="n">dokku</span><span class="o">.</span><span class="n">testdriven</span><span class="o">.</span><span class="n">io</span><span class="w"/>
+
+<span class="o">-----&gt;</span><span class="w"> </span><span class="n">Set</span><span class="w"> </span><span class="n">django</span><span class="o">-</span><span class="n">dokku</span><span class="o">.</span><span class="n">testdriven</span><span class="o">.</span><span class="n">io</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">django</span><span class="o">-</span><span class="n">dokku</span><span class="w"/>
+<span class="o">-----&gt;</span><span class="w"> </span><span class="n">Configuring</span><span class="w"> </span><span class="n">django</span><span class="o">-</span><span class="n">dokku</span><span class="o">.</span><span class="n">testdriven</span><span class="o">.</span><span class="n">io</span><span class="o">...</span><span class="p">(</span><span class="n">using</span><span class="w"> </span><span class="n">built</span><span class="o">-</span><span class="ow">in</span><span class="w"> </span><span class="n">template</span><span class="p">)</span><span class="w"/>
+<span class="o">-----&gt;</span><span class="w"> </span><span class="n">Creating</span><span class="w"> </span><span class="n">http</span><span class="w"> </span><span class="n">nginx</span><span class="o">.</span><span class="n">conf</span><span class="w"/>
+<span class="w">       </span><span class="n">Reloading</span><span class="w"> </span><span class="n">nginx</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保用您的域或子域替换django-dokku.testdriven.io。</p>
+</blockquote>
+<p>Dokku将配置所有的东西(包括Nginx配置)来与域一起工作。</p>
+<p>再次检查域报告，您将看到一个新的应用虚拟主机:</p>
+<div class="codehilite"><pre><span/><code>$ dokku domains:report django-dokku
+
+<span class="o">=====</span>&gt; django-dokku domains information
+       Domains app enabled:           <span class="nb">true</span>
+       Domains app vhosts:            django-dokku.testdriven.io
+       Domains global enabled:        <span class="nb">true</span>
+       Domains global vhosts:         django-dokku
+</code></pre></div>
+
+<p>尝试通过域访问您的web应用程序，看看它是否工作。</p>
+<h3 id="https-with-lets-encrypt">让我们加密的HTTPS</h3>
+<p>在这最后一部分，我们将使用<a href="https://letsencrypt.org/">加密</a>来获得一个TLS证书，然后通过HTTPS服务web应用程序。</p>
+<p>首先，安装另一个名为<a href="https://github.com/dokku/dokku-letsencrypt"> dokku-letsencrypt </a>的Dokku社区插件:</p>
+<div class="codehilite"><pre><span/><code>$ sudo dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git
+</code></pre></div>
+
+<p>在获得证书之前，您需要添加一个带有您的电子邮件地址的env变量:</p>
+<div class="codehilite"><pre><span/><code>$ dokku config:set --no-restart django-dokku <span class="nv">DOKKU_LETSENCRYPT_EMAIL</span><span class="o">=</span>&lt;your_email&gt;
+
+-----&gt; Setting config vars
+       DOKKU_LETSENCRYPT_EMAIL:  youremail
+</code></pre></div>
+
+<p>此电子邮件用于签发证书并通知您证书到期。</p>
+<p>接下来，运行插件命令来启用HTTPS:</p>
+<div class="codehilite"><pre><span/><code>$ sudo dokku letsencrypt:enable django-dokku
+</code></pre></div>
+
+<p>这个命令将检索证书，安装它，自动配置Nginx，创建从HTTP到HTTPS的重定向，并设置<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security"> HSTS </a>报头。</p>
+<p>尝试通过HTTP访问您的网站，您应该会被重定向到HTTPS。</p>
+<p><img data-src="/static/images/blog/django/django-dokku/dokku-https.png" loading="lazy" class="lazyload" alt="Dokku HTTPS served" src="../Images/22a2a575b22b97e249d7ca5ae620e5de.png" data-original-src="https://testdriven.io/static/images/blog/django/django-dokku/dokku-https.png"/></p>
+<p>要设置自动证书续订，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ dokku letsencrypt:cron-job --add
+</code></pre></div>
+
+<p>这将每天运行检查，并更新所有应该更新的证书。</p>
+<p>最后，配置Django的<code>ALLOWED_HOSTS</code>只允许通过HTTPS访问网站:</p>
+<div class="codehilite"><pre><span/><code>$ dokku config:set django-dokku <span class="s2">"ALLOWED_HOSTS=localhost 127.0.0.1 [::1] &lt;your_domain&gt;"</span>
+</code></pre></div>
+
+<p>确保用您的实际域名替换<code>&lt;your_domain&gt;</code>。</p>
+<p>等待服务器重启——就这样！</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们已经成功地在DigitalOcean droplet上将Django应用程序部署到Dokku。现在，您应该对Dokku的工作原理有了相当的了解，并且能够部署您自己的Django应用程序了。</p>
+<p>从django-dokku-digitalocean 回购中获取最终代码。</p>
+<h3 id="whats-next">下一步是什么？</h3>
+<ol>
+<li>您应该通过<a href="https://www.digitalocean.com/community/tutorials/how-to-set-up-a-firewall-with-ufw-on-ubuntu-20-04">启用和配置防火墙</a>来使您的droplet更加安全。</li>
+<li>将数据库放在容器中是不好的做法。考虑改用数字海洋管理的数据库或类似的服务。</li>
+<li>对于媒体文件，考虑切换到AWS S3，因为它更安全、更便宜。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

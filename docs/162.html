@@ -1,0 +1,738 @@
+<html>
+<head>
+<title>React Hooks - A deeper dive featuring useContext and useReducer </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>react Hooks——以useContext和useReducer为特色的更深入的探讨</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/react-hooks-advanced/#0001-01-01">https://testdriven.io/blog/react-hooks-advanced/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文的主要目的是了解<code>useContext</code>和<code>useReducer</code>以及它们如何一起工作来使React应用程序及其状态管理变得干净和高效。</p>
+<p>新的<a href="https://reactjs.org/docs/hooks-reference.html"> Hooks </a> API允许跨React应用访问一些惊人的特性，这可能会消除对状态管理库的需要，如Redux或Flux。更好的是，我们可以用功能组件来实现这一点。不需要类组件，只需要JavaScript。</p>
+<p>首先，我们将对React应用程序中的“预挂钩”上下文API、最佳实践和实现进行概述。一旦奠定了基础并描绘了一个示例，该示例将被重构以实现<code>useContext</code>。从<code>useContext</code>开始，重点关注围绕reducer函数的概念，这将导致<code>useReducer</code>的实现以及如何使用它来管理复杂状态。在对这两个钩子有了深刻的理解之后，我们将把它们结合起来创建一个只支持React的状态管理工具。</p>
+<blockquote>
+<p>这是两部分系列的第二部分:</p>
+<ol>
+<li><a href="https://testdriven.io/blog/react-hooks-primer/">反应钩上的底漆</a></li>
+<li><em>(本文)</em>React Hooks——以useContext和useReducer为特色的深入探讨</li>
+</ol></blockquote>
+
+
+
+
+<h2 id="audience">观众</h2>
+<p>这是面向React开发人员的中级教程，对以下内容有基本了解:</p>
+<ol>
+<li>反应数据流</li>
+<li><code>useState</code>和<code>useEffect</code>挂钩</li>
+<li>全局状态管理工具和模式(如Redux和Flux)</li>
+<li>React上下文API</li>
+</ol>
+<blockquote>
+<p>如果你是React钩子的新手，看看React钩子上的<a href="https://testdriven.io/blog/react-hooks-primer/">底漆。</a></p>
+</blockquote>
+<h2 id="learning-objectives">学习目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>解释什么是语境</li>
+<li>确定何时应实施上下文</li>
+<li>通过<code>useContext</code>钩子实现上下文</li>
+<li>确定何时应该实施<code>useReducer</code></li>
+<li>实现<code>useReducer</code>组件状态管理</li>
+<li>利用<code>useReducer</code>和<code>useContext</code>作为应用状态管理工具</li>
+<li>通过实现钩子来简化React</li>
+</ol>
+<h2 id="project-overview">项目概述</h2>
+<p>演示的项目将是一个“race series”管理工具，到本文结束时，它将为应用程序的状态管理实现<code>useContext</code>和<code>useReducer</code>。本文开头的项目的当前状态没有使用任何状态管理库，也没有实现上下文或钩子API。它只是通过道具传递逻辑，并利用React的渲染道具。本文不会对整个项目进行分解，而是关注于实现状态管理的<code>useContext</code>和<code>useReducer</code>所必需的重构部分。</p>
+<p>对于完整的项目访问它的回购<em> <a href="https://github.com/joha0033/race-series-hooks/tree/master/src">这里</a> </em>。</p>
+<p><strong>什么是赛事系列管理工具？</strong></p>
+<p>简单来说，一个比赛系列有多个比赛和多个参与者(用户)。不是所有的用户都在每个种族。该应用程序将作为一个管理工具，允许管理员访问一个种族列表和一个系列内的用户列表。当管理员登录并选择查看比赛列表时，他们将能够看到该系列中的所有比赛。从列表中选择一个比赛将显示该比赛的注册用户。相反，当选择查看系列时，管理员将能够从用户中进行选择，并查看特定用户正在参加的比赛。</p>
+<h2 id="a-review-the-basic-hooks">综述:基本钩子</h2>
+<p>如果您不熟悉Hooks API，请从这里开始。钩子允许您访问状态和生命周期方法，以及许多其他在功能组件中使用的技巧。不需要写类组件。同样，不需要编写类组件！如果你正在寻找一个坚实的基础，从<code>useState</code>和<code>useEffect</code>开始。</p>
+<ol>
+<li>
+<p><strong> <a href="https://reactjs.org/docs/hooks-state.html">使用状态</a> : </strong>允许访问和控制功能组件内的状态。以前，只有基于类的组件才能访问状态。</p>
+</li>
+<li>
+<p><strong> <a href="https://reactjs.org/docs/hooks-effect.html"> useEffect </a> : </strong>允许抽象访问功能组件内React的生命周期方法。您不会按名称调用各个生命周期方法，但是您可以通过更多的功能和更干净的代码获得类似的控制。</p>
+</li>
+</ol>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useState</span><span class="p">,</span><span class="w"> </span><span class="nx">useEffect</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">SomeComponent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">DNAMatch</span><span class="p">,</span><span class="w"> </span><span class="nx">setDNAMatch</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">setName</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">setDNAMatch</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="nx">setName</span><span class="p">(</span><span class="nx">name</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">'dad'</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">DNAMatch</span><span class="w"> </span><span class="p">]);</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>同样，关于基本挂钩的更多细节，请阅读初级读本:<a href="https://testdriven.io/blog/react-hooks-primer/">React挂钩初级读本</a>。</p>
+</blockquote>
+<h2 id="usecontext">使用上下文</h2>
+<p>在深入上下文挂钩之前，让我们先看一下<a href="https://reactjs.org/docs/context.html">上下文</a> API的概述，以及它在<a href="https://reactjs.org/docs/hooks-reference.html">挂钩</a> API之前是如何实现的。这将有助于更好地理解<code>useContext</code>钩子，以及更深入地了解何时应该使用上下文。</p>
+<h3 id="overview-of-the-context-api">上下文API概述</h3>
+<p>React中一个众所周知的缺陷是访问全局状态对象。当数据需要深入嵌套的组件树(主题、UI样式或用户授权)时，通过props在几个可能需要也可能不需要该数据的组件之间传输数据会非常麻烦；组件变成了数据骡子。首选的解决方案是像Redux或Flux这样的状态管理库。这些库非常强大，但是在设置、保持有组织性以及知道何时需要实现它们时，可能会有点困难。</p>
+<p>这里有一个例子，前上下文API，道具被偷偷带入子组件的生命深处。</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// NO CONTEXT YET - just prop smuggling</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">Component</span><span class="p">,</span><span class="w"> </span><span class="nx">useReducer</span><span class="p">,</span><span class="w"> </span><span class="nx">useContext</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">Main</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'main'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="cm">/* // Main hires a Component Mule (ListContainer) to smuggle data */</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">List</span><span class="w"/>
+<span class="w">      </span><span class="nx">isAuthenticated</span><span class="o">=</span><span class="p">{</span><span class="nx">props</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">}</span><span class="w"/>
+<span class="w">      </span><span class="nx">toggleAuth</span><span class="o">=</span><span class="p">{</span><span class="nx">props</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="p">);</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">List</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">({</span><span class="w"> </span><span class="nx">isAuthenticated</span><span class="p">,</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="p">,</span><span class="w"> </span><span class="nx">shake</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="nx">isAuthenticated</span><span class="w"/>
+<span class="w">    </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'title'</span><span class="p">}</span><span class="w"> </span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="s2">"secure"</span><span class="w"> </span><span class="nx">list</span><span class="p">,</span><span class="w"> </span><span class="nx">check</span><span class="p">.</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/div &gt;)</span><span class="w"/>
+<span class="w">    </span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'list-login-container'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="p">{</span><span class="cm">/* // And List hires a Component Mule (AdminForm) to smuggle data */</span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">AdminForm</span><span class="w"> </span><span class="nx">shake</span><span class="o">=</span><span class="p">{</span><span class="nx">shake</span><span class="p">}</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="o">=</span><span class="p">{</span><span class="nx">toggleAuth</span><span class="p">}</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/div&gt;)</span><span class="w"/>
+<span class="p">);</span><span class="w"/>
+
+<span class="kd">class</span><span class="w"> </span><span class="nx">AdminForm</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kr">constructor</span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">super</span><span class="p">(</span><span class="nx">props</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{};</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">handleSubmit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">handleSubmit</span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="k">this</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">handleSubmit</span><span class="p">(</span><span class="nx">event</span><span class="p">,</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">event</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'form-container'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">form</span><span class="w"/>
+<span class="w">          </span><span class="nx">onSubmit</span><span class="o">=</span><span class="p">{</span><span class="nx">event</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">handleSubmit</span><span class="p">(</span><span class="nx">event</span><span class="p">,</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">props</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="p">)}</span><span class="w"/>
+<span class="w">          </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'center-content login-form'</span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="o">&gt;</span><span class="w"/>
+<span class="w">          </span><span class="c1">// ... form logic</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="err">/form&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">    </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">class</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kr">constructor</span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">super</span><span class="p">(</span><span class="nx">props</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="k">this</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">toggleAuth</span><span class="p">(</span><span class="nx">isAuthenticated</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">isAuthenticated</span><span class="w"/>
+<span class="w">      </span><span class="o">?</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="nx">alert</span><span class="p">(</span><span class="s1">'Bad Credentials!'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'App'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">Main</span><span class="w"/>
+<span class="w">          </span><span class="nx">isAuthenticated</span><span class="o">=</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">}</span><span class="w"/>
+<span class="w">          </span><span class="nx">toggleAuth</span><span class="o">=</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="err">/Main&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">    </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">App</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="implementing-the-context-api">实现上下文API</h3>
+<p>创建Context API是为了解决这个全球数据危机，并阻止数据走私、滥用无辜子组件的道具——如果你愿意，这是一个国家紧急情况。太好了，让我们看看。</p>
+<p>下面是使用上下文API重构的同一个示例。</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// CONTEXT API</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">Component</span><span class="p">,</span><span class="w"> </span><span class="nx">createContext</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="c1">// We used 'null' because the data we need</span><span class="w"/>
+<span class="c1">// resides in App's state.</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="nx">AuthContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createContext</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span><span class="w"/>
+<span class="c1">// You can also destructure above</span><span class="w"/>
+<span class="c1">// const { Provider, Consumer } = createContext(null)</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="nx">Main</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'main'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">List</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="p">);</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">List</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">AuthContext</span><span class="p">.</span><span class="nx">Consumer</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="nx">auth</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">auth</span><span class="w"/>
+<span class="w">        </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">            </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'list'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">              </span><span class="c1">// ... map over some sensitive data for a beautiful secure list</span><span class="w"/>
+<span class="w">            </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">          </span><span class="p">)</span><span class="w"/>
+<span class="w">        </span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">            </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'form-container'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">               </span><span class="c1">// And List hires a Component Mule to smuggle data</span><span class="w"/>
+<span class="w">              </span><span class="o">&lt;</span><span class="nx">AdminForm</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">            </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">          </span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/AuthContext.Consumer&gt;);</span><span class="w"/>
+
+<span class="kd">class</span><span class="w"> </span><span class="nx">AdminForm</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kr">constructor</span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">super</span><span class="p">(</span><span class="nx">props</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{};</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">handleSubmit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">handleSubmit</span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="k">this</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">handleSubmit</span><span class="p">(</span><span class="nx">event</span><span class="p">,</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">event</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">AdminContext</span><span class="p">.</span><span class="nx">Consumer</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="p">{</span><span class="nx">state</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">          </span><span class="o">&lt;</span><span class="nx">div</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">            </span><span class="o">&lt;</span><span class="nx">form</span><span class="w"/>
+<span class="w">              </span><span class="nx">onSubmit</span><span class="o">=</span><span class="p">{</span><span class="nx">event</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">handleSubmit</span><span class="p">(</span><span class="nx">event</span><span class="p">,</span><span class="w"> </span><span class="nx">state</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="p">)}</span><span class="w"/>
+<span class="w">              </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'center-content login-form'</span><span class="p">}</span><span class="w"/>
+<span class="w">            </span><span class="o">&gt;</span><span class="w"/>
+<span class="w">              </span><span class="c1">// ... form logic</span><span class="w"/>
+<span class="w">            </span><span class="o">&lt;</span><span class="err">/form&gt;</span><span class="w"/>
+<span class="w">          </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">        </span><span class="p">)}</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/AdminContext.Consumer&gt;</span><span class="w"/>
+<span class="w">    </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">class</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kr">constructor</span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">super</span><span class="p">(</span><span class="nx">props</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="k">this</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">toggleAuth</span><span class="p">(</span><span class="nx">isAuthenticated</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">div</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">AuthContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">          </span><span class="o">&lt;</span><span class="nx">Main</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="err">/AuthContext.Provider&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">    </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">App</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>随着钩子的引入，这种使用上下文API的方法仍然有效。</p>
+</blockquote>
+<h3 id="considering-context">考虑上下文</h3>
+<p>在实现上下文时，还需要考虑其他一些事情。上下文API将重新呈现<em>作为提供者后代的所有</em>组件。如果你不小心，你可能会在每次点击或击键时重新渲染整个应用程序。解决方案？你打赌！</p>
+<p>在提供者中包装组件时要考虑周全。控制台日志不会杀死猫。</p>
+<p>创建一个只接受子道具的新组件。将提供程序及其必要的数据移动到该组件中。这使提供者的子道具在渲染之间保持相等。</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// Navigate.js</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useReducer</span><span class="p">,</span><span class="w"> </span><span class="nx">useContext</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">AppContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">React</span><span class="p">.</span><span class="nx">createContext</span><span class="p">();</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">reducer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">action</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="nx">action</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s1">'UPDATE_PATH'</span><span class="o">:</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="p">...</span><span class="nx">state</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nx">pathname</span><span class="o">:</span><span class="w"> </span><span class="nx">action</span><span class="p">.</span><span class="nx">pathname</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">state</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">AppProvider</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">({</span><span class="w"> </span><span class="nx">children</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useReducer</span><span class="p">(</span><span class="nx">reducer</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">pathname</span><span class="o">:</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">pathname</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">navigate</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">pathname</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nb">window</span><span class="p">.</span><span class="nx">history</span><span class="p">.</span><span class="nx">pushState</span><span class="p">(</span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nx">pathname</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s1">'UPDATE_PATH'</span><span class="p">,</span><span class="w"> </span><span class="nx">pathname</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">AppContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{</span><span class="nx">state</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">{</span><span class="nx">children</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/AppContext.Provider&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">LinkItem</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">({</span><span class="w"> </span><span class="nx">activeStyle</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="nx">props</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useContext</span><span class="p">(</span><span class="nx">AppContext</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">context</span><span class="p">,</span><span class="w"> </span><span class="s1">'CONTEXT <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0c5b584a334c">[email protected]</a>'</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">div</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">a</span><span class="w"/>
+<span class="w">        </span><span class="p">{...</span><span class="nx">props</span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="nx">style</span><span class="o">=</span><span class="p">{{</span><span class="w"/>
+<span class="w">          </span><span class="p">...</span><span class="nx">props</span><span class="p">.</span><span class="nx">style</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="p">...(</span><span class="nx">context</span><span class="p">.</span><span class="nx">pathname</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="nx">props</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">activeStyle</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">{}),</span><span class="w"/>
+<span class="w">        </span><span class="p">}}</span><span class="w"/>
+<span class="w">        </span><span class="nx">onClick</span><span class="o">=</span><span class="p">{(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="nx">e</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">          </span><span class="nx">context</span><span class="p">.</span><span class="nx">navigate</span><span class="p">(</span><span class="nx">props</span><span class="p">.</span><span class="nx">href</span><span class="p">);</span><span class="w"/>
+<span class="w">        </span><span class="p">}}</span><span class="w"/>
+<span class="w">      </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">Route</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">({</span><span class="w"> </span><span class="nx">children</span><span class="p">,</span><span class="w"> </span><span class="nx">href</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useContext</span><span class="p">(</span><span class="nx">AppContext</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">div</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">{</span><span class="nx">context</span><span class="p">.</span><span class="nx">pathname</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="nx">href</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">children</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>如果你在下面的模式中使用上述方法，你将不会有不必要的重新渲染(渲染道具<code>&lt;AppProvider&gt;</code>里面的一切)。</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// App.js</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useContext</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">AppProvider</span><span class="p">,</span><span class="w"> </span><span class="nx">LinkItem</span><span class="p">,</span><span class="w"> </span><span class="nx">Route</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./Navigate.js'</span><span class="p">;</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">AppLayout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">({</span><span class="w"> </span><span class="nx">children</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">div</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">LinkItem</span><span class="w"> </span><span class="nx">href</span><span class="o">=</span><span class="s2">"/participants/"</span><span class="w"> </span><span class="nx">activeStyle</span><span class="o">=</span><span class="p">{{</span><span class="w"> </span><span class="nx">color</span><span class="o">:</span><span class="w"> </span><span class="s1">'red'</span><span class="w"> </span><span class="p">}}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="nx">Participants</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/LinkItem&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">LinkItem</span><span class="w"> </span><span class="nx">href</span><span class="o">=</span><span class="s2">"/races/"</span><span class="w"> </span><span class="nx">activeStyle</span><span class="o">=</span><span class="p">{{</span><span class="w"> </span><span class="nx">color</span><span class="o">:</span><span class="w"> </span><span class="s1">'red'</span><span class="w"> </span><span class="p">}}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="nx">Races</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/LinkItem&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">main</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">{</span><span class="nx">children</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/main&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="p">);</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">AppProvider</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">AppLayout</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">Route</span><span class="w"> </span><span class="nx">href</span><span class="o">=</span><span class="s2">"/races/"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">          </span><span class="o">&lt;</span><span class="nx">h1</span><span class="o">&gt;</span><span class="nx">Off</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">Races</span><span class="o">&lt;</span><span class="err">/h1&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="err">/Route&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">Route</span><span class="w"> </span><span class="nx">href</span><span class="o">=</span><span class="s2">"/participants/"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">          </span><span class="o">&lt;</span><span class="nx">h1</span><span class="o">&gt;</span><span class="nx">Off</span><span class="w"> </span><span class="kd">with</span><span class="w"> </span><span class="nx">their</span><span class="w"> </span><span class="nx">Heads</span><span class="o">!&lt;</span><span class="err">/h1&gt;</span><span class="w"/>
+<span class="w">        </span><span class="o">&lt;</span><span class="err">/Route&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/AppLayout&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/AppProvider&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>将您的消费元素包装在更高阶的组件中。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">withAuth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useContext</span><span class="p">(</span><span class="nx">AppContext</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">div</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">{</span><span class="o">&lt;</span><span class="nx">Component</span><span class="w"> </span><span class="p">{...</span><span class="nx">props</span><span class="p">}</span><span class="w"> </span><span class="p">{...</span><span class="nx">context</span><span class="p">}</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">class</span><span class="w"> </span><span class="nx">AdminForm</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="nx">withAuth</span><span class="p">(</span><span class="nx">AdminForm</span><span class="p">);</span><span class="w"/>
+</code></pre></div>
+
+<p>Context永远不会完全取代Redux这样的状态管理库。例如，Redux有助于轻松调试，允许使用中间件进行定制，保持单一状态，并使用<code>connect</code>遵循纯函数实践。语境很有能力；它可以保存状态，而且功能惊人地多，但是它最适合作为数据的<em>提供者</em>，其中的组件<em>消费</em>。</p>
+<blockquote>
+<p>Render Props是传递数据的很好的解决方案，但是它可以创建一个有趣的组件树层次结构。想想回调地狱，但与HTML标签。如果需要在一个组件树的深处获得数据，可以考虑使用上下文。这也可以提高性能，因为当数据更改时，父组件不会重新呈现。</p>
+</blockquote>
+<h3 id="implementing-usecontext">实现useContext</h3>
+<p><code>useContext</code>钩子使得消费上下文数据的实现变得容易，并且有助于使组件可重用。为了说明上下文API可能带来的困难，我们将展示一个使用多个上下文的组件。在挂钩之前，多上下文消费组件变得难以重用和理解。这就是为什么上下文应该少用的一个原因。</p>
+<p>这是上面的一个例子，但是使用了额外的上下文。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">AuthContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createContext</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="nx">ShakeContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createContext</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span><span class="w"/>
+
+<span class="kd">class</span><span class="w"> </span><span class="nx">AdminForm</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">      </span><span class="c1">// this multiple context consumption is not a good look.</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">ShakeContext</span><span class="p">.</span><span class="nx">Consumer</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="p">{</span><span class="nx">shake</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">          </span><span class="o">&lt;</span><span class="nx">AdminContext</span><span class="p">.</span><span class="nx">Consumer</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">            </span><span class="p">{</span><span class="nx">state</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">              </span><span class="c1">// ... consume!</span><span class="w"/>
+<span class="w">            </span><span class="p">)}</span><span class="w"/>
+<span class="w">          </span><span class="o">&lt;</span><span class="err">/AdminContext.Consumer&gt;</span><span class="w"/>
+<span class="w">        </span><span class="p">)}</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/ShakeContext.Consumer&gt;</span><span class="w"/>
+<span class="w">    </span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="kd">class</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">//  ...</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">ShakeContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">shake</span><span class="p">()}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">AuthContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">Main</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/AuthContext.Provider&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/ShakeContext.Provider&gt;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">App</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>现在想象三个或更多的上下文来消费...[头部爆炸:场景结束]</p>
+<p>在游过上下文的海洋之后，深呼吸，陶醉于你的新知识的便捷。这是一个漫长的旅程，如果你回顾我们的努力，它们仍然可见。但随着时间的推移，水面平静下来，屈服于重力。</p>
+<p>Context也做了同样的事情，屈服于JavaScript。输入<code>useContext</code>。</p>
+<p>消费上下文的新挂钩并没有改变上下文的概念，因此出现了上面的暴跌。这个上下文挂钩只是给了我们一个额外的、更漂亮的方法来使用上下文。当将它应用于使用多种上下文的组件时，它非常有用。</p>
+<p>这里我们有一个上述组件的重构版本，用钩子消耗多个上下文！</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">AdminForm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">shake</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useContext</span><span class="p">(</span><span class="nx">ShakeContext</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useContext</span><span class="p">(</span><span class="nx">AuthContext</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="c1">// you have access to the data within each context</span><span class="w"/>
+<span class="w">  </span><span class="c1">// the context still needs be in scope of the consuming component</span><span class="w"/>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">shake</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s1">'shake'</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">'form-container'</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">auth</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="w"/>
+<span class="w">          </span><span class="o">?</span><span class="w"> </span><span class="nx">user</span><span class="p">.</span><span class="nx">name</span><span class="w"/>
+<span class="w">          </span><span class="o">:</span><span class="w"> </span><span class="nx">auth</span><span class="p">.</span><span class="nx">errorMessage</span><span class="w"/>
+<span class="w">      </span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>就是这样！无论您的上下文包含什么，无论是对象、数组还是函数，您都可以通过<code>useContext</code>访问它。太神奇了。接下来，让我们深入减速器，讨论它的优点，然后实现<code>useReducer</code>钩子。</p>
+<h2 id="usereducer">useReducer</h2>
+<p>为了使围绕实现的决策更容易，我们将回顾相关概念、实际用例，然后是实现。我们将使用<code>useState</code>从一个类到功能组件。接下来，我们将实现<code>useReducer</code>。</p>
+<h3 id="concepts-surrounding-usereducer">围绕用户的概念</h3>
+<p>如果您至少熟悉以下三个概念中的两个，您可以跳到下一节。</p>
+
+<p>如果你不相信你对以上任何一点都足够满意，请回顾以下几点进行更深入的研究:</p>
+<p><strong> useReducer和useState:</strong><code>useState</code>钩子允许你访问一个功能组件中的一个状态变量，用一个方法来更新它——也就是<code>setCount</code>。<code>useReducer</code>使更新状态更加灵活和隐式。就像<code>Array.prototype.map</code>和<code>Array.prototype.reduce</code>可以解决类似的问题一样，<code>Array.prototype.reduce</code>的用途要多得多。</p>
+<blockquote>
+<p><code>useState</code>用途<code>useReducer</code>引擎盖下。</p>
+</blockquote>
+<p>下面的例子将任意演示拥有多个<code>useState</code>方法的不便之处。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">isAdminLoading</span><span class="p">,</span><span class="w"> </span><span class="nx">setIsAdminLoading</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">isAdmin</span><span class="p">,</span><span class="w"> </span><span class="nx">setIsAdmin</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">isAdminErr</span><span class="p">,</span><span class="w"> </span><span class="nx">setIsAdminErr</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nx">msg</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// there's a lot more overhead with this approach, more variables to deal with</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">adminStatus</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">loading</span><span class="p">,</span><span class="w"> </span><span class="nx">success</span><span class="p">,</span><span class="w"> </span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// you must have your individual state on hand</span><span class="w"/>
+<span class="w">    </span><span class="c1">// it would be easier to pass your intent</span><span class="w"/>
+<span class="w">    </span><span class="c1">// and have your pre-concluded outcome initialized, typed with intent</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">setIsAdminLoading</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"> </span><span class="c1">// could be set with intent in reducer</span><span class="w"/>
+<span class="w">      </span><span class="nx">setIsAdmin</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">      </span><span class="nx">setIsAdminErr</span><span class="p">({</span><span class="w"/>
+<span class="w">        </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">msg</span><span class="o">:</span><span class="w"> </span><span class="nx">error</span><span class="p">.</span><span class="nx">msg</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="p">});</span><span class="w"/>
+<span class="w">      </span><span class="k">throw</span><span class="w"> </span><span class="nx">error</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">loading</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">error</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">success</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">setIsAdminLoading</span><span class="p">(</span><span class="nx">loading</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">success</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">error</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">loading</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">setIsAdminLoading</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"> </span><span class="c1">// .. these intents are convoluted</span><span class="w"/>
+<span class="w">      </span><span class="nx">setIsAdmin</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p><strong> useReducer和Array.prototype.reduce: </strong> <code>useReducer</code>的行为与<code>Array.protoType.reduce</code>非常相似。它们都采用非常相似的参数；一个回调和一个初始值。在我们的例子中，我们称它们为<code>reducer</code>和<code>initialState</code>。它们都接受两个参数并返回一个值。最大的不同是<code>useReducer</code>随着派遣的回归增加了更多的功能。</p>
+<p><strong> useReducer和Redux Reducer: </strong> Redux是一个复杂得多的应用状态管理工具。Redux reducers通常通过调度、props、连接的类组件、动作和(可能的)服务来访问，并在Redux存储中维护。然而，实现<code>useReducer</code>将所有的复杂性抛在脑后。</p>
+<blockquote>
+<p>我相信许多流行的React包会有令人难以置信的更新，这将使我们不带Redux的React开发更加有趣。对这些新实践的了解将有助于我们轻松过渡到即将到来的新奇更新。</p>
+</blockquote>
+<h3 id="opportunities-for-usereducer">用户的机会</h3>
+<p>Hooks API简化了组件逻辑，去掉了关键字<code>class</code>。它可以在您的组件中根据需要进行多次初始化。困难的部分，很像上下文，是知道什么时候使用它。</p>
+<p><strong>机遇</strong></p>
+<p>您可能想看看在以下情况下实现<code>useReducer</code>:</p>
+<ul>
+<li>组件需要复杂的状态对象</li>
+<li>组件的属性将用于计算组件状态的下一个值</li>
+<li>特定的<code>useState</code>更新方法取决于另一个<code>useState</code>值</li>
+</ul>
+<p>在这些情况下应用<code>useReducer</code>将会减轻这种模式所带来的视觉和心理上的复杂性，并随着应用程序的增长提供持续的喘息空间。简而言之:你最小化了分散在组件中的依赖于状态的逻辑的数量，并增加了在更新状态时表达你的意图的能力，而不是表达结果的能力。</p>
+<p><strong>优势</strong></p>
+<ul>
+<li>组件和容器分离不需要</li>
+<li>在我们的组件范围内，<code>dispatch</code>函数很容易<em/>访问</li>
+<li>使用第三个参数、<code>initialAction</code>在初始渲染时操作状态的能力</li>
+</ul>
+<p>让我们开始编码吧！</p>
+<h3 id="implementing-usereducer">实现useReducer</h3>
+<p>让我们来看上面第一个上下文例子的一小部分。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">class</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nx">React</span><span class="p">.</span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kr">constructor</span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">super</span><span class="p">(</span><span class="nx">props</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">};</span><span class="w"/>
+<span class="w">    </span><span class="k">this</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">toggleAuth</span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="k">this</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">toggleAuth</span><span class="p">(</span><span class="nx">success</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">success</span><span class="w"/>
+<span class="w">      </span><span class="o">?</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">setState</span><span class="p">({</span><span class="w"> </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="s1">'Potential errorists threat. Alert level: Magenta?'</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">render</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>这是上面用<code>useState</code>重构的例子。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">isAuthenticated</span><span class="p">,</span><span class="w"> </span><span class="nx">setAuth</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">success</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">    </span><span class="nx">success</span><span class="w"/>
+<span class="w">      </span><span class="o">?</span><span class="w"> </span><span class="nx">setAuth</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="s1">'Potential errorists threat. Alert level: Magenta?'</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>令人惊讶的是这看起来是如此的漂亮和熟悉。现在，随着我们向这个应用程序添加更多的逻辑，<code>useReducer</code>将变得有用。让我们从<code>useState</code>开始附加逻辑。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">isAuthenticated</span><span class="p">,</span><span class="w"> </span><span class="nx">setAuth</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">shakeForm</span><span class="p">,</span><span class="w"> </span><span class="nx">setShakeForm</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">categories</span><span class="p">,</span><span class="w"> </span><span class="nx">setCategories</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">([</span><span class="s1">'Participants'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Races'</span><span class="p">]);</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">categoryView</span><span class="p">,</span><span class="w"> </span><span class="nx">setCategoryView</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">setAuth</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">toggleShakeForm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">    </span><span class="nx">setTimeout</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">      </span><span class="nx">setShakeForm</span><span class="p">(</span><span class="kc">false</span><span class="p">),</span><span class="w"> </span><span class="mf">500</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">handleShakeForm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">    </span><span class="nx">setShakeForm</span><span class="p">(</span><span class="nx">shakeState</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">!</span><span class="nx">shakeFormState</span><span class="w"/>
+<span class="w">        </span><span class="o">?</span><span class="w"> </span><span class="nx">toggleShakeForm</span><span class="p">()</span><span class="w"/>
+<span class="w">        </span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>这要复杂得多。用<code>useReducer</code>会是什么样子？</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// Here's our reducer and initialState</span><span class="w"/>
+<span class="c1">// outside of the App component</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="nx">reducer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">action</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="nx">action</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s1">'IS_AUTHENTICATED'</span><span class="o">:</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="p">...</span><span class="nx">state</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ... you can image the other cases</span><span class="w"/>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">state</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">initialState</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">shake</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nx">categories</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">'Participants'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Races'</span><span class="p">],</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>我们将在带有<code>useReducer</code>的应用程序组件的顶层使用这些变量。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useReducer</span><span class="p">(</span><span class="nx">reducer</span><span class="p">,</span><span class="w"> </span><span class="nx">initialState</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">success</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">    </span><span class="nx">success</span><span class="w"/>
+<span class="w">      </span><span class="o">?</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s1">'IS_AUTHENTICATED'</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="c1">// BAM!</span><span class="w"/>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="nx">alert</span><span class="p">(</span><span class="s1">'Potential errorists threat. Alert level: Magenta?'</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>这个代码很好地表达了我们的意图。这很好，但是我们需要将这个逻辑放到上下文中，这样我们就可以沿着树向下使用它。让我们看看我们的身份验证提供者，看看我们如何提供它的逻辑。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">AdminContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{{</span><span class="w"/>
+<span class="w">    </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="nx">state</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">toggle</span><span class="o">:</span><span class="w"> </span><span class="nx">toggleAuth</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">}}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">Main</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/AdminContext.Provider&gt;</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>有很多方法可以做到这一点，但是我们有一个状态和一个函数来分派传递给提供者的动作。除了逻辑的位置和组织不同之外，这与前面的很相似。大呼小叫...对吗？</p>
+<p>如果您将<code>value={{ state, dispatch }}</code>传递给提供商的价值主张会怎样？如果我们将提供者提取到一个包装函数中会怎么样？您可以消除组件与其他组件紧密耦合的逻辑。进一步说，传递你的意图(行动)比传递你打算怎么做(逻辑)要好得多。</p>
+<h2 id="state-management-with-hooks">带挂钩的状态管理</h2>
+<p>这里我们有和以前一样的<code>App</code>、<code>reducer</code>和<code>initialState</code>，除了我们能够移除通过上下文传递的逻辑。相反，我们将关注组件中的逻辑，这将反过来执行我们的意图。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useReducer</span><span class="p">(</span><span class="nx">reducer</span><span class="p">,</span><span class="w"> </span><span class="nx">initialState</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">AdminContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{{</span><span class="w"> </span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">dispatch</span><span class="w"> </span><span class="p">}}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">Main</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/AdminContext.Provider&gt;</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>这是我们意图的必要逻辑，它应该在哪里。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">const</span><span class="w"> </span><span class="nx">AdminForm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useContext</span><span class="p">(</span><span class="nx">AdminContext</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">handleSubmit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">event</span><span class="p">.</span><span class="nx">preventDefault</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">authResult</span><span class="p">()</span><span class="w"/>
+<span class="w">      </span><span class="o">?</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s1">'IS_AUTHENTICATED'</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="nx">alert</span><span class="p">(</span><span class="s1">'Potential errorists threat. Alert level: Magenta?'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">};</span><span class="w"/>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">authResult</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"/>
+<span class="w">    </span><span class="nx">setTimeout</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="mf">500</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'form-container'</span><span class="p">}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="nx">form</span><span class="w"/>
+<span class="w">        </span><span class="nx">onSubmit</span><span class="o">=</span><span class="p">{</span><span class="nx">event</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">handleSubmit</span><span class="p">(</span><span class="nx">event</span><span class="p">)}</span><span class="w"/>
+<span class="w">        </span><span class="nx">className</span><span class="o">=</span><span class="p">{</span><span class="s1">'center-content login-form'</span><span class="p">}</span><span class="w"/>
+<span class="w">      </span><span class="o">&gt;</span><span class="w"/>
+<span class="w">        </span><span class="c1">// ... form stuff..</span><span class="w"/>
+<span class="w">      </span><span class="o">&lt;</span><span class="err">/form&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/div &gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>但是我们可以做得更好。用包装器提取提供者组件将为我们提供一种有效的方式来传递数据，而无需不必要的重新呈现。</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// AdminContext.js</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="nx">reducer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">action</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="nx">action</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s1">'IS_AUTHENTICATED'</span><span class="o">:</span><span class="w"/>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="p">...</span><span class="nx">state</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="p">};</span><span class="w"/>
+<span class="w">    </span><span class="c1">// ... you can image other cases</span><span class="w"/>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">state</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">initialState</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ... imagine so much more!</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">ComponentContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">React</span><span class="p">.</span><span class="nx">createContext</span><span class="p">(</span><span class="nx">initialState</span><span class="p">);</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">AdminProvider</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">props</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">dispatch</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useReducer</span><span class="p">(</span><span class="nx">reducer</span><span class="p">,</span><span class="w"> </span><span class="nx">initialState</span><span class="p">);</span><span class="w"/>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">ComponentContext</span><span class="p">.</span><span class="nx">Provider</span><span class="w"> </span><span class="nx">value</span><span class="o">=</span><span class="p">{{</span><span class="w"> </span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">dispatch</span><span class="w"> </span><span class="p">}}</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">      </span><span class="p">{</span><span class="nx">props</span><span class="p">.</span><span class="nx">children</span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="err">/ComponentContext.Provider&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">);</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code><span class="c1">// App.js</span><span class="w"/>
+<span class="c1">// ...</span><span class="w"/>
+<span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">AdminProvider</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">Main</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/AdminProvider&gt;</span><span class="w"/>
+<span class="w">  </span><span class="c1">// ...</span><span class="w"/>
+<span class="p">};</span><span class="w"/>
+</code></pre></div>
+
+<p>所以它稍微有点“复杂”，但是它组织得很好，可读性很强，也很容易理解。当您的应用程序增长并且需要更多上下文时，它也更容易管理。你可以按照组件或者你认为合适的方式来拆分你的上下文文件。这是您发挥和探索最适合您、您的团队和您的应用程序的时间！去找他！</p>
+<h2 id="conclusion">结论</h2>
+<p>在我看来，你绝对应该考虑在你的应用程序中使用钩子进行状态管理。正如<code>useState</code>非常适合简单组件的状态管理一样，<code>useReducer</code>也能够处理一组组件。“应用程序的整体状态”会让位于“鸟巢的微观状态”吗？这种模式会像设计良好的微服务舰队一样创建更易于管理的微状态吗？</p>
+<p>目前，hooks还不能完全取代Redux，但当你冒险进入大型生产应用程序的未知领域时，它们可以让你的旅程变得更容易。</p>
+<p>实现<code>useReducer</code>相当简单，没有痛苦。从<code>useReducer</code>到Redux的重构<em>可能</em>比从头开始更容易。你手边会有大部分你需要的东西。因此，我建议在中小型应用程序上使用hooks进行状态管理，并期待看到新的方法，以更少的开销高效地实现健壮的、可管理的状态管理模式，如Redux。谢谢反应，也谢谢阅读。</p>
+<p><em> <a href="https://github.com/joha0033/race-series-hooks/tree/master/src"> Git回购</a>T3】</em></p>
+<h2 id="hooks-vs-redux-thoughts-and-opinions">钩子vs Redux:思想和观点</h2>
+<p>你是否在考虑通过像Redux这样更结构化的框架来实现状态管理的钩子？请注意以下利弊:</p>
+<p><strong>优点</strong></p>
+<ol>
+<li>较少样板文件</li>
+<li>更快的开发(在一定程度上，对于中小型应用程序)</li>
+<li>主要的重构可以变得不那么复杂和痛苦</li>
+<li>更多的控制，但你必须考虑与大规模重新渲染相关的性能问题</li>
+<li>更好的是，如果你需要在这里和那里撒一些状态</li>
+<li>React核心API的一部分</li>
+</ol>
+<p><strong>缺点</strong></p>
+<ol>
+<li>较少的开发人员工具支持(如时间旅行调试)</li>
+<li>没有标准全局状态对象</li>
+<li>更少的资源和约定</li>
+<li>对于刚从Redux提供结构中获益的开发人员来说，这并不太好</li>
+<li>对于较大的应用程序，很难只提取和传递相关数据</li>
+</ol>
+<p>对于那些刚开始在现有项目上工作的人来说，hooks有可能不那么令人难以招架，术语也不那么多。因此，对于中小型应用程序，新开发人员可能会更好地使用hooks而不是Redux。另一方面，对于较大的应用程序，如果有足够多的复杂性被抽象到已经建立的Redux商店中，那么就有一个很容易传达给任何开发人员的约定。</p>
+<p>Redux有明显的好处，主要是由于广泛的采用和成熟。在约定、资源(比如博客帖子和堆栈溢出问题等)、库和更好的开发工具领域。如果你知道你在做什么，用Redux调试一个讨厌的复杂状态对象可能会简单一些。换句话说，仅仅因为一个开发人员可以看到一个问题，并不一定意味着该开发人员知道如何跟踪并修复它，或者甚至可以访问问题逻辑。此外，对于大型应用程序，商店可能会变得不堪重负。这就像在全食超市挑选橄榄油一样——要吸收的东西太多了。钩子允许我们将数据/归约器/逻辑划分到特定的嵌套<em>，这些嵌套可以在任何地方共享</em>。Redux的性能<em>应该</em>更好，尤其是对于较大的应用。这并不意味着这是一个保证。正确实现Redux，勤于基准测试，关注状态结构，这些都取决于开发人员。使用钩子，在Redux之前，您可能会遇到性能问题，但是从我使用钩子的有限时间来看，我觉得使用上面提到的一些技巧可以更容易地跟踪和修复这些问题。这也是一个实现模仿<code>mapStateToProps</code>和<code>mapDispatchToProps</code>的定制逻辑的机会，这将随着应用的增长而提高性能。这取决于你进行实验，并自己决定什么最适合当前的情况。记住:这不是一个“非此即彼”的情况——你可以同时使用hooks和Redux来管理你的应用程序的状态。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

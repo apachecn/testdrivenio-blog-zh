@@ -1,0 +1,344 @@
+<html>
+<head>
+<title>Pagination in Django </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django中的分页</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-pagination/#0001-01-01">https://testdriven.io/blog/django-pagination/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>分页是将大量数据分割成多个独立网页的过程。您可以定义希望每页显示的单个记录的数量，然后发送回与用户请求的页面相对应的数据，而不是将所有数据都转储给用户。</p>
+<p>使用这种技术的优点是它改善了用户体验，尤其是当有数千条记录需要检索时。在Django中实现分页相当容易，因为Django提供了一个<a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#paginator-class"> Paginator </a>类，您可以使用它将内容分组到不同的页面上。</p>
+<p>根据开发人员的配置方式，分页可以有不同的风格。也就是说，在本文中，我们将研究如何使用三种不同的UI风格将分页与基于函数和基于类的视图结合起来。</p>
+<blockquote>
+<p>示例项目可以在GitHub上的<a href="https://github.com/testdrivenio/django-pagination-example">django-pagination-example</a>repo中找到。</p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本文后，您将能够:</p>
+<ol>
+<li>解释什么是分页，以及为什么你可能想使用它。</li>
+<li>使用Django的<code>Paginator</code>类和<code>Page</code>对象。</li>
+<li>用函数和基于类的视图在Django中实现分页。</li>
+</ol>
+<h2 id="django-constructs">Django建筑</h2>
+<p>在Django中实现分页时，您将使用以下结构，而不是重新发明分页所需的逻辑:</p>
+<ol>
+<li><a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#paginator-class">分页器</a>——将Django查询集或列表分割成大块的<code>Page</code>对象。</li>
+<li><a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#page-class">Page</a>——保存实际的分页数据以及分页元数据。</li>
+</ol>
+<p>让我们看一些简单的例子。</p>
+<h3 id="paginator">分页器</h3>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+
+
+<span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">43</span><span class="p">):</span>
+    <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">num</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们创建了43个用户对象。</p>
+<p>接下来，我们将导入<code>Paginator</code>类并创建一个新实例:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span>
+
+<span class="n">users</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+<span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">paginator</span><span class="o">.</span><span class="n">num_pages</span><span class="p">)</span>  <span class="c1"># =&gt; 5</span>
+</code></pre></div>
+
+<p><code>Paginator</code>类有四个参数:</p>
+<ol>
+<li><code>object_list</code> -任何具有<code>count()</code>或<code>__len__()</code>方法的对象，如列表、元组或查询集</li>
+<li><code>per_page</code> -一页中包含的最大项目数</li>
+<li><code>orphans</code>(可选)-用于防止最后一页项目很少，默认为<code>0</code></li>
+<li><code>allow_empty_first_page</code>(可选)——顾名思义，如果您通过将参数设置为<code>False</code>，默认为<code>True</code>，不允许首页为空，那么您可以引发一个<code>EmtpyPage</code>错误</li>
+</ol>
+<p>因此，在上面的例子中，我们将用户分成十个页面(或块)。前四页将有十个用户，而最后一页将有三个用户。</p>
+<p><code>Paginator</code>类具有以下<a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#attributes">属性</a>:</p>
+<ol>
+<li><code>count</code> -物体总数</li>
+<li><code>num_pages</code> -总页数</li>
+<li><code>page_range</code> -页码范围迭代器</li>
+</ol>
+<blockquote>
+<p>为了获得一致的分页结果，应该对查询集或模型进行排序。</p>
+</blockquote>
+<p>如果您不希望在最后一个页面上只有三个用户，您可以像这样使用<a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#django.core.paginator.Paginator.orphans">孤儿</a>参数来将最后三个用户添加到前一个页面:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span>
+
+<span class="n">users</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+<span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">orphans</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">paginator</span><span class="o">.</span><span class="n">num_pages</span><span class="p">)</span>  <span class="c1"># =&gt; 4</span>
+</code></pre></div>
+
+<p>因此，当最后一页剩余对象的数量小于或等于<code>orphans</code>的值时，这些对象将被添加到前一页。</p>
+<h3 id="page">页</h3>
+<p>在Django查询集被分解成<code>Page</code>个对象之后。然后我们可以使用<code>page()</code>方法通过传递页码来访问每个页面的数据:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span>
+
+<span class="n">users</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+<span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+<span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">page_obj</span><span class="p">)</span>  <span class="c1"># =&gt; &lt;Page 1 of 5&gt;</span>
+</code></pre></div>
+
+<p>这里，<code>page_obj</code>给了我们一个page对象，表示结果的第一页。这可以在你的模板中使用。</p>
+<blockquote>
+<p>注意，我们并没有真的创建一个<code>Page</code>实例。相反，我们从Paginator类获得了实例。</p>
+</blockquote>
+<p>如果页面不存在会怎么样？</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span>
+
+<span class="n">users</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+<span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+<span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="mi">99</span><span class="p">)</span>
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>    raise EmptyPage<span class="o">(</span>_<span class="o">(</span><span class="s1">'That page contains no results'</span><span class="o">))</span>
+django.core.paginator.EmptyPage: That page contains no results
+</code></pre></div>
+
+<p>因此，像这样捕捉一个<code>EmptyPage</code>异常是一个好主意:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">EmptyPage</span><span class="p">,</span> <span class="n">Paginator</span>
+
+<span class="n">users</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+<span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="mi">99</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">EmptyPage</span><span class="p">:</span>
+    <span class="c1"># Do something</span>
+    <span class="k">pass</span>
+</code></pre></div>
+
+<p>您可能还想捕捉一个<code>PageNotAnInteger</code>异常。</p>
+<blockquote>
+<p>有关这方面的更多信息，请查看分页器文档中的<a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#exceptions">异常</a>部分。</p>
+</blockquote>
+<p>也就是说，如果您不想显式处理<code>EmptyPage</code>或<code>PageNotAnInteger</code>异常，您可以使用<a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#django.core.paginator.Paginator.get_page"> get_page() </a>方法来代替<code>page()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span>
+
+<span class="n">users</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+<span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+<span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">get_page</span><span class="p">(</span><span class="mi">99</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">page_obj</span><span class="p">)</span>  <span class="c1"># =&gt; &lt;Page 5 of 5&gt;</span>
+</code></pre></div>
+
+<p>所以，即使数字<code>99</code>超出范围，也将返回最后一页。</p>
+<p>同样，如果页面不是一个有效的数字，默认情况下<code>get_page()</code>将返回第一页:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span>
+
+<span class="n">users</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+<span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+<span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">get_page</span><span class="p">(</span><span class="s1">'foo'</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">page_obj</span><span class="p">)</span>  <span class="c1"># =&gt; &lt;Page 1 of 5&gt;</span>
+</code></pre></div>
+
+<p>因此，<code>page()</code>或<code>get_page()</code>这两种方法都可以根据您的喜好使用。本文中展示的例子将使用<code>page()</code>。</p>
+<p><code>Page</code>对象有几个<a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#id2">属性</a>和<a href="https://docs.djangoproject.com/en/4.0/ref/paginator/#id1">方法</a>，可以在构建模板时使用:</p>
+<ol>
+<li><code>number</code> -显示给定页面的页码</li>
+<li><code>paginator</code> -显示相关的<code>Paginator</code>对象</li>
+<li><code>has_next()</code> -如果有下一页，返回<code>True</code></li>
+<li><code>has_previous()</code> - -如果有上一页，返回<code>True</code></li>
+<li><code>next_page_number()</code> -返回下一页的页码</li>
+<li><code>previous_page_number()</code> -返回上一页的页码</li>
+</ol>
+<h2 id="function-based-views">基于功能的视图</h2>
+<p>接下来，让我们看看如何在基于函数的视图中使用分页:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span><span class="p">,</span> <span class="n">EmptyPage</span><span class="p">,</span> <span class="n">PageNotAnInteger</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="n">models</span> <span class="kn">import</span> <span class="nn">Employee</span>
+
+
+<span class="k">def</span> <span class="nf">index</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">object_list</span> <span class="o">=</span> <span class="n">Employee</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">page_num</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'page'</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">paginator</span> <span class="o">=</span> <span class="n">Paginator</span><span class="p">(</span><span class="n">object_list</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="c1"># 6 employees per page</span>
+
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="n">page_num</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">PageNotAnInteger</span><span class="p">:</span>
+        <span class="c1"># if page is not an integer, deliver the first page</span>
+        <span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">EmptyPage</span><span class="p">:</span>
+        <span class="c1"># if the page is out of range, deliver the last page</span>
+        <span class="n">page_obj</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="n">paginator</span><span class="o">.</span><span class="n">num_pages</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">'index.html'</span><span class="p">,</span> <span class="p">{</span><span class="s1">'page_obj'</span><span class="p">:</span> <span class="n">page_obj</span><span class="p">})</span>
+</code></pre></div>
+
+<p>在此，我们:</p>
+<ol>
+<li>从URL定义了一个<code>page_num</code>变量。</li>
+<li>实例化了<code>Paginator</code>类，向其传递所需的参数、<code>employees</code> QuerySet和每页包含的雇员数。</li>
+<li>生成了一个名为<code>page_obj</code>的页面对象，它包含分页的员工数据以及用于导航到上一页和下一页的元数据。</li>
+</ol>
+<p><a href="https://github.com/testdrivenio/django-pagination-example/blob/main/employees/views.py">https://github . com/testdrivenio/django-pagination-example/blob/main/employees/views . py</a></p>
+<h2 id="class-based-views">基于类的视图</h2>
+<p>在基于类的视图中实现分页的示例:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.views.generic</span> <span class="kn">import</span> <span class="n">ListView</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="n">models</span> <span class="kn">import</span> <span class="nn">Employee</span>
+
+
+<span class="k">class</span> <span class="nc">Index</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Employee</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s1">'employees'</span>
+    <span class="n">paginate_by</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s1">'index.html'</span>
+</code></pre></div>
+
+<p><a href="https://github.com/testdrivenio/django-pagination-example/blob/main/employees/views.py">https://github . com/testdrivenio/django-pagination-example/blob/main/employees/views . py</a></p>
+<h2 id="templates">模板</h2>
+<p>在模板中使用分页开始变得有趣起来，因为有几种不同的实现。在本文中，我们将研究三种不同的实现，每一种都展示了导航到上一页和下一页的不同方式。</p>
+<blockquote>
+<p>你可以在GitHub的<a href="https://github.com/testdrivenio/django-pagination-example">django-pagination-example</a>repo上的<a href="https://github.com/testdrivenio/django-pagination-example/tree/main/employees/templates"> templates </a>文件夹中找到每个例子的代码。</p>
+</blockquote>
+<h3 id="flavor-1">风味1</h3>
+<p>这是实现分页UI的第一种风格。</p>
+<p><img data-src="/static/images/blog/django/django-pagination/flavor1.png" loading="lazy" class="lazyload" alt="Pagination UI - first flavor" src="../Images/0399984ab5402ea4ece14e38aa1a9930.png" data-original-src="https://testdriven.io/static/images/blog/django/django-pagination/flavor1.png"/></p>
+<p>因此，在本例中，我们有“上一页”和“下一页”链接，最终用户可以单击这些链接在页面之间移动。</p>
+<p><em>index.html</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!doctype html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://cdn.jsdelivr.net/npm/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f99b96968d8a8d8b9889b9ccd7c9d7cb">[email protected]</a>/dist/css/bootstrap.min.css"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Pagination in Django<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">h1</span> <span class="na">class</span><span class="o">=</span><span class="s">"text-center"</span><span class="p">&gt;</span>List of Employees<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+      <span class="p">&lt;</span><span class="nt">hr</span><span class="p">&gt;</span>
+
+      <span class="p">&lt;</span><span class="nt">ul</span> <span class="na">class</span><span class="o">=</span><span class="s">"list-group list-group-flush"</span><span class="p">&gt;</span>
+        {% for employee in page_obj %}
+          <span class="p">&lt;</span><span class="nt">li</span> <span class="na">class</span><span class="o">=</span><span class="s">"list-group-item"</span><span class="p">&gt;</span>{{ employee }}<span class="p">&lt;/</span><span class="nt">li</span><span class="p">&gt;</span>
+        {% endfor %}
+      <span class="p">&lt;/</span><span class="nt">ul</span><span class="p">&gt;</span>
+
+      <span class="p">&lt;</span><span class="nt">br</span><span class="p">&gt;&lt;</span><span class="nt">hr</span><span class="p">&gt;</span>
+
+     {% include "pagination.html" %}
+    <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p><em>pagination.html</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">span</span><span class="p">&gt;</span>
+    {% if page_obj.has_previous %}
+      <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.previous_page_number }}"</span><span class="p">&gt;</span>Previous<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+    {% endif %}
+    <span class="p">&lt;</span><span class="nt">span</span><span class="p">&gt;</span>
+      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+    <span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+    {% if page_obj.has_next %}
+      <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.next_page_number }}"</span><span class="p">&gt;</span>Next<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+    {% endif %}
+  <span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>请记住，<em>pagination.html</em>模板可以跨许多模板重用。</p>
+<h3 id="flavor-2">风味2</h3>
+<p><img data-src="/static/images/blog/django/django-pagination/flavor2.png" loading="lazy" class="lazyload" alt="Pagination UI - second flavor" src="../Images/d41f41276a862019bb44c4d81d9c178a.png" data-original-src="https://testdriven.io/static/images/blog/django/django-pagination/flavor2.png"/></p>
+<p><em>pagination.html</em>:</p>
+<div class="codehilite"><pre><span/><code>{% if page_obj.has_previous %}
+ <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.previous_page_number }}"</span><span class="p">&gt;</span>Previous<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+{% else %}
+  <span class="p">&lt;</span><span class="nt">a</span><span class="p">&gt;</span>Previous<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+{% endif %}
+
+{% for i in page_obj.paginator.page_range %}
+  {% if page_obj.number == i %}
+    <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"#"</span><span class="p">&gt;</span>{{ i }} <span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  {% else %}
+    <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ i }}"</span><span class="p">&gt;</span>{{ i }}<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  {% endif %}
+{% endfor %}
+
+{% if page_obj.has_next %}
+  <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.next_page_number }}"</span><span class="p">&gt;</span>Next<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+{% else %}
+  <span class="p">&lt;</span><span class="nt">a</span><span class="p">&gt;</span>Next<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+{% endif %}
+</code></pre></div>
+
+<p>这种风格在UI中显示所有的页码，使得导航到不同的页面更加容易。</p>
+<h3 id="flavor-3">风味3</h3>
+<p><img data-src="/static/images/blog/django/django-pagination/flavor3.png" loading="lazy" class="lazyload" alt="Pagination UI - third flavor" src="../Images/20783e9891d7756ad80933f9ffe7bac2.png" data-original-src="https://testdriven.io/static/images/blog/django/django-pagination/flavor3.png"/></p>
+<p><em>pagination.html</em>:</p>
+<div class="codehilite"><pre><span/><code>{% if page_obj.has_previous %}
+  <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.previous_page_number }}"</span><span class="p">&gt;</span>« Previous page<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+
+  {% if page_obj.number &gt; 3 %}
+    <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page=1"</span><span class="p">&gt;</span>1<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+    {% if page_obj.number &gt; 4 %}
+      <span class="p">&lt;</span><span class="nt">span</span><span class="p">&gt;</span>...<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+{% for num in page_obj.paginator.page_range %}
+  {% if page_obj.number == num %}
+    <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ num }}"</span><span class="p">&gt;</span>{{ num }}<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  {% elif num &gt; page_obj.number|add:'-3' and num <span class="p">&lt;</span> <span class="nt">page_obj.number</span><span class="err">|</span><span class="na">add:</span><span class="err">'</span><span class="na">3</span><span class="err">'</span> <span class="err">%}</span>
+    <span class="err">&lt;</span><span class="na">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ num }}"</span><span class="p">&gt;</span>{{ num }}<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  {% endif %}
+{% endfor %}
+
+{% if page_obj.has_next %}
+  {% if page_obj.number <span class="p">&lt;</span> <span class="nt">page_obj.paginator.num_pages</span><span class="err">|</span><span class="na">add:</span><span class="err">'</span><span class="na">-3</span><span class="err">'</span> <span class="err">%}</span>
+    <span class="err">&lt;</span><span class="na">span</span><span class="p">&gt;</span>...<span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.paginator.num_pages }}"</span><span class="p">&gt;</span>{{ page_obj.paginator.num_pages }}<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  {% elif page_obj.number <span class="p">&lt;</span> <span class="nt">page_obj.paginator.num_pages</span><span class="err">|</span><span class="na">add:</span><span class="err">'</span><span class="na">-2</span><span class="err">'</span> <span class="err">%}</span>
+    <span class="err">&lt;</span><span class="na">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.paginator.num_pages }}"</span><span class="p">&gt;</span>{{ page_obj.paginator.num_pages }}<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+  {% endif %}
+
+  <span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"?page={{ page_obj.next_page_number }}"</span><span class="p">&gt;</span>Next Page »<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;</span>
+{% endif %}
+</code></pre></div>
+
+<p>如果你有大量的页面，你可能想看看这第三种也是最后一种风格。</p>
+<h2 id="conclusion">结论</h2>
+<p>关于在Django中实现分页的文章到此结束。以下是需要记住的要点:</p>
+<ol>
+<li>在Django中实现分页非常容易，因为有现成的<code>Paginator</code>和<code>Page</code>助手类。</li>
+<li>一旦创建了视图，您只需传回带有分页数据的page对象，以便在模板中使用。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

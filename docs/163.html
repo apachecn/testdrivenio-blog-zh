@@ -1,0 +1,152 @@
+<html>
+<head>
+<title>Getting Telegram Notifications From Travis CI </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>从Travis CI获取电报通知</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/getting-telegram-notifications-from-travis-ci/#0001-01-01">https://testdriven.io/blog/getting-telegram-notifications-from-travis-ci/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>我最近在<a href="https://testdriven.io/"> TestDriven.io </a>上完成了关于Docker、Flask和React 的<a href="https://testdriven.io/courses/microservices-with-docker-flask-and-react/">微服务课程，在课程进行到一半时，我开始有点不耐烦Travis CI花了多长时间来完成我的构建，以便我可以将新的Docker映像推送到AWS并继续下一步。当构建完成时，我需要一个通知，这样我就可以离开去做别的事情，而不是盯着构建日志等待它完成。Travis自带了几个通知选项，但我想通过</a><a href="https://telegram.org">电报</a>获得通知，这是不支持的，所以我决定推出自己的通知。</p>
+
+
+
+<h2 id="setting-up-the-telegram-bot">设置电报机器人</h2>
+<p>Telegram提供了一个创建看起来相对容易使用的机器人的API，所以我开始研究官方文档。第一步是创建一个专用的机器人，这实际上是通过Telegram应用程序本身，通过与“<a href="https://telegram.me/botfather">机器人父亲</a>”进行交互来完成的。如果你一直跟着，我会假设你已经有一个电报帐户，所以点击BotFather链接应该会在你的聊天客户端打开一个新的对话。在那里，您可以键入<code>/start</code>来获得可能的命令列表。</p>
+<p>键入<code>/newbot</code>将开始这个过程，首先要求显示名称(当从您的机器人获得消息时，您将看到这个名称)，然后是用户名。对于这个例子，我选择“TestDriven TestBot”作为显示名称，选择“testdriven_test_bot”作为用户名。请注意，您的用户名必须以“bot”的某种变体结尾，正如文档和BotFather所概述的那样。一旦完成，BotFather会给你一个到你的新机器人的链接，以及一个API令牌(在这篇文章的其余部分我将把它称为<code>&lt;TOKEN&gt;</code>)，你会想把它保存在某个地方。</p>
+<p><img data-src="/static/images/blog/travis-telegram/botfather_creation.png" loading="lazy" class="lazyload" alt="botfather success" src="../Images/1289aed0ef5a6a3a339826494f2efcfe.png" data-original-src="https://testdriven.io/static/images/blog/travis-telegram/botfather_creation.png"/></p>
+<p>首先，这个机器人根本不做什么。在我点击对话链接之前，我从终端使用<a href="https://httpie.org/"> HTTPie </a>检查了状态(你可以使用curl，或者浏览器，或者你喜欢的任何东西...我只是更喜欢HTTPie的格式化输出):</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># curl https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</span>
+$ http https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates
+HTTP/1.1 <span class="m">200</span> OK
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Content-Length,Content-Type,Date,Server,Connection
+Connection: keep-alive
+Content-Length: <span class="m">23</span>
+Content-Type: application/json
+Date: Thu, <span class="m">28</span> Feb <span class="m">2019</span> <span class="m">17</span>:06:45 GMT
+Server: nginx/1.12.2
+Strict-Transport-Security: max-age<span class="o">=</span><span class="m">31536000</span><span class="p">;</span> includeSubDomains<span class="p">;</span> preload
+
+<span class="o">{</span>
+    <span class="s2">"ok"</span>: true,
+    <span class="s2">"result"</span>: <span class="o">[]</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果你跟着做，一定要把<code>&lt;TOKEN&gt;</code>替换成你自己机器人的令牌，注意是<code>bot&lt;TOKEN&gt;</code>，而不仅仅是<code>&lt;TOKEN&gt;</code>。</p>
+</blockquote>
+<p>上面的状态显示机器人还活着，但是没有任何当前对话。我点击了僵尸父亲消息中的链接(<a href="https://t.me/testdriven_test_bot">t.me/testdriven_test_bot</a>)并开始了对话，然后再次检查了状态:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># curl https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</span>
+$ http https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates
+HTTP/1.1 <span class="m">200</span> OK
+...
+<span class="o">{</span>
+    <span class="s2">"ok"</span>: true,
+    <span class="s2">"result"</span>: <span class="o">[</span>
+        <span class="o">{</span>
+            <span class="s2">"message"</span>: <span class="o">{</span>
+                <span class="s2">"chat"</span>: <span class="o">{</span>
+                    <span class="s2">"first_name"</span>: <span class="s2">"Anson"</span>,
+                    <span class="s2">"id"</span>: <span class="m">488404184</span>,
+                    <span class="s2">"last_name"</span>: <span class="s2">"VanDoren"</span>,
+                <span class="o">}</span>,
+                ...
+        <span class="o">}</span>
+    <span class="o">]</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>我刚刚开始的对话现在出现了，我需要对话id(在本例中为<code>488404184</code>),下面我称之为<code>&lt;CHAT_ID&gt;</code>。现在我有了令牌和聊天id，我将测试发送一条消息:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># curl -s -X POST https://api.telegram.org/bot&lt;TOKEN&gt;/sendMessage \</span>
+<span class="c1">#            -d chat_id=&lt;CHAT_ID&gt; \</span>
+<span class="c1">#            -d text="The bot speaks"</span>
+$ http POST https://api.telegram.org/bot&lt;TOKEN&gt;/sendMessage <span class="se">\</span>
+       <span class="nv">chat_id</span><span class="o">=</span>&lt;CHAT_ID&gt; <span class="se">\</span>
+       <span class="nv">text</span><span class="o">=</span><span class="s2">"The bot speaks"</span>
+HTTP/1.1 <span class="m">200</span> OK
+...
+<span class="o">{</span>
+    <span class="s2">"ok"</span>: true,
+    <span class="s2">"result"</span>: <span class="o">{</span>
+        <span class="s2">"chat"</span>: <span class="o">{</span>
+            <span class="s2">"first_name"</span>: <span class="s2">"Anson"</span>,
+            <span class="s2">"id"</span>: <span class="m">488404184</span>,
+            <span class="s2">"last_name"</span>: <span class="s2">"VanDoren"</span>,
+        <span class="o">}</span>,
+        <span class="s2">"date"</span>: <span class="m">1551374658</span>,
+        <span class="s2">"from"</span>: <span class="o">{</span>
+            <span class="s2">"first_name"</span>: <span class="s2">"TestDriven TestBot"</span>,
+            <span class="s2">"id"</span>: <span class="m">746763956</span>,
+            <span class="s2">"is_bot"</span>: true,
+            <span class="s2">"username"</span>: <span class="s2">"testdriven_test_bot"</span>
+        <span class="o">}</span>,
+        <span class="s2">"message_id"</span>: <span class="m">2</span>,
+        <span class="s2">"text"</span>: <span class="s2">"The bot speaks"</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>看起来API很高兴，我也可以在我的Telegram客户端中看到发送的消息:</p>
+<p><img data-src="/static/images/blog/travis-telegram/bot_test_message.png" loading="lazy" class="lazyload" alt="bot test message" src="../Images/4e9e4aad0945711ed6a15ac4dd43d68a.png" data-original-src="https://testdriven.io/static/images/blog/travis-telegram/bot_test_message.png"/></p>
+<p>到目前为止，一切看起来都很好，所以现在是时候将它集成到Travis中了。</p>
+<h2 id="setting-up-travis-environment-variables">设置Travis环境变量</h2>
+<p>为了让Travis在构建完成时给我发送消息，我需要让它知道我的Telegram API令牌和聊天ID。我不想在我的<em> .travis.yml </em>文件或我提交给公共回购的任何其他文件中包含任何一个，所以有两个选择，要么在构建脚本中加密它们，要么将它们设置为travis环境变量。关于这两个选项的更多信息可以在<a href="https://docs.travis-ci.com/user/environment-variables/"> Travis文档</a>中找到，但是因为我可以对所有的构建/阶段/版本使用相同的脚本，所以我选择了环境变量。</p>
+<p>为了创建环境变量，我导航到我的repo，点击“更多选项&gt;设置”，然后向下滚动到“环境变量”部分。我添加了两个变量，<code>TELEGRAM_CHAT_ID</code>和<code>TELEGRAM_TOKEN</code>。这是我在上面使用的两个相同的变量，但是为了避免Travis设置中的歧义，我对它们进行了重命名。</p>
+<p><img data-src="/static/images/blog/travis-telegram/travis_env_var.png" loading="lazy" class="lazyload" alt="setting Travis environment variables" src="../Images/6f3b45ecd1af39e4573ec9727e35b4a4.png" data-original-src="https://testdriven.io/static/images/blog/travis-telegram/travis_env_var.png"/></p>
+<h2 id="modifying-the-build-script">修改构建脚本</h2>
+<p>接下来，我在我的<em> .travis.yml </em>文件中添加了一个<code>after_script</code>步骤。我可以很容易地直接在构建脚本文件本身中完成一个简单的通知，但是我想添加一些额外的细节。因此，我选择编写一个单独的shell脚本来封装它，然后在我的构建配置文件中引用该脚本:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">after_script</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash ./telegram_notification.sh</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="writing-the-notification-script">编写通知脚本</h2>
+<p>在我的项目根目录中，我创建了一个名为<code>telegram_notification.sh</code>的bash脚本:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+<span class="c1"># Get the token from Travis environment vars and build the bot URL:</span>
+<span class="nv">BOT_URL</span><span class="o">=</span><span class="s2">"https://api.telegram.org/bot</span><span class="si">${</span><span class="nv">TELEGRAM_TOKEN</span><span class="si">}</span><span class="s2">/sendMessage"</span>
+
+<span class="c1"># Set formatting for the message. Can be either "Markdown" or "HTML"</span>
+<span class="nv">PARSE_MODE</span><span class="o">=</span><span class="s2">"Markdown"</span>
+
+<span class="c1"># Use built-in Travis variables to check if all previous steps passed:</span>
+<span class="k">if</span> <span class="o">[</span> <span class="nv">$TRAVIS_TEST_RESULT</span> -ne <span class="m">0</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+    <span class="nv">build_status</span><span class="o">=</span><span class="s2">"failed"</span>
+<span class="k">else</span>
+    <span class="nv">build_status</span><span class="o">=</span><span class="s2">"succeeded"</span>
+<span class="k">fi</span>
+
+<span class="c1"># Define send message function. parse_mode can be changed to</span>
+<span class="c1"># HTML, depending on how you want to format your message:</span>
+send_msg <span class="o">()</span> <span class="o">{</span>
+    curl -s -X POST <span class="si">${</span><span class="nv">BOT_URL</span><span class="si">}</span> -d <span class="nv">chat_id</span><span class="o">=</span><span class="nv">$TELEGRAM_CHAT_ID</span> <span class="se">\</span>
+        -d <span class="nv">text</span><span class="o">=</span><span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span> -d <span class="nv">parse_mode</span><span class="o">=</span><span class="si">${</span><span class="nv">PARSE_MODE</span><span class="si">}</span>
+<span class="o">}</span>
+
+<span class="c1"># Send message to the bot with some pertinent details about the job</span>
+<span class="c1"># Note that for Markdown, you need to escape any backtick (inline-code)</span>
+<span class="c1"># characters, since they're reserved in bash</span>
+send_msg <span class="s2">"</span>
+<span class="s2">-------------------------------------</span>
+<span class="s2">Travis build *</span><span class="si">${</span><span class="nv">build_status</span><span class="si">}</span><span class="s2">!*</span>
+<span class="s2">\`Repository:  </span><span class="si">${</span><span class="nv">TRAVIS_REPO_SLUG</span><span class="si">}</span><span class="s2">\`</span>
+<span class="s2">\`Branch:      </span><span class="si">${</span><span class="nv">TRAVIS_BRANCH</span><span class="si">}</span><span class="s2">\`</span>
+<span class="s2">*Commit Msg:*</span>
+<span class="si">${</span><span class="nv">TRAVIS_COMMIT_MESSAGE</span><span class="si">}</span><span class="s2"/>
+<span class="s2">[Job Log here](</span><span class="si">${</span><span class="nv">TRAVIS_JOB_WEB_URL</span><span class="si">}</span><span class="s2">)</span>
+<span class="s2">--------------------------------------</span>
+<span class="s2">"</span>
+</code></pre></div>
+
+<h2 id="testing-it-out">测试它</h2>
+<p>将您的更改提交到<em> .travis.yml </em>和新的<em> telegram_notification.sh </em>文件，推送到Github，等待travis完成构建。</p>
+<p><img data-src="/static/images/blog/travis-telegram/travis_notification.png" loading="lazy" class="lazyload" alt="travis notification" src="../Images/bb26fdd738b93bb31cd3b295de84d9fc.png" data-original-src="https://testdriven.io/static/images/blog/travis-telegram/travis_notification.png"/></p>
+<p>这就够了！您可以修改消息以适应您的需要和口味，Travis有相当多的内置环境变量，如果您愿意，您可以将它们放入您的通知脚本中。为了方便起见，上面的脚本也可以作为<a href="https://gist.github.com/anson-vandoren/1456275851ff8ec23daba164fed15f61#file-telegram_notification-sh"> GitHub gist </a>使用。</p>
+<p>一旦你建立并运行了你的机器人，将它混合到其他项目中也是非常容易的。我在跨几种不同的语言、框架和平台的几个不同的部署脚本中使用同一个bot。在任何可以发出HTTP请求的地方，都可以通过bot触发通知！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

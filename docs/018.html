@@ -1,0 +1,334 @@
+<html>
+<head>
+<title>Deploying a Django App to Render </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>部署Django应用程序进行渲染</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-render/#0001-01-01">https://testdriven.io/blog/django-render/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将看看如何部署一个<a href="https://www.djangoproject.com/"> Django </a>应用程序来<a href="https://render.com">渲染</a>。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释什么是渲染以及它是如何工作的。</li>
+<li>部署一个Django应用程序来呈现。</li>
+<li>渲染时加速PostgreSQL实例。</li>
+<li>了解如何在渲染时提供静态和媒体文件。</li>
+<li>添加一个自定义域并在HTTPS上提供您的web应用程序。</li>
+</ol>
+<h2 id="what-is-render">什么是渲染？</h2>
+<p>Render是一个易于使用的<a href="https://en.wikipedia.org/wiki/Platform_as_a_service">平台即服务</a> (PaaS)解决方案，非常适合构建和运行您的所有应用程序和网站。它于2019年推出，此后越来越受欢迎。Render允许您托管静态站点、web服务、PostgreSQL数据库和Redis实例。</p>
+<p>它极其简单的用户界面/UX和强大的git集成让你可以在几分钟内启动并运行一个应用。它具有对Python、Node.js、Ruby、Elixir、Go和Rust的原生支持。如果这些都不适合你，Render还可以通过一个<a href="https://docs.docker.com/engine/reference/builder/"> Dockerfile </a>进行部署。</p>
+<p>Render的<a href="https://render.com/docs/scaling#autoscaling">自动缩放功能</a>将确保你的应用程序总是以合适的价格拥有必要的资源。此外，Render上托管的所有内容也可以获得免费的TLS证书。</p>
+<blockquote>
+<p>参考他们的<a href="https://render.com/pricing">官方文档</a>以获得更多关于他们定价的信息。</p>
+</blockquote>
+<h3 id="why-render">为什么渲染？</h3>
+<ul>
+<li>非常适合初学者</li>
+<li>轻松设置和部署应用</li>
+<li>基于实时CPU和内存使用情况的自动扩展</li>
+<li>免费层(包括web服务、PostgreSQL、Redis)——非常适合原型开发</li>
+<li>良好的客户支持</li>
+</ul>
+<h2 id="project-setup">项目设置</h2>
+<p>在本教程中，我们将部署一个简单的图像托管应用程序，名为<a href="https://github.com/duplxey/django-images"> django-images </a>。</p>
+<blockquote>
+<p>在学习教程的过程中，通过部署您自己的Django应用程序来检查您的理解。</p>
+</blockquote>
+<p>首先，从GitHub上的<a href="https://github.com/duplxey/django-images">库</a>中获取代码:</p>
+
+
+<p>创建新的虚拟环境并激活它:</p>
+<div class="codehilite"><pre><span/><code>$ python3 -m venv venv <span class="o">&amp;&amp;</span> <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<p>安装需求并迁移数据库:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+<span class="o">(</span>venv<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>运行服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>打开您最喜欢的网络浏览器，导航到<a href="http://localhost:8000"> http://localhost:8000 </a>。使用右边的表格上传图像，确保一切正常。上传图像后，您应该会看到它显示在表格中:</p>
+<p><img data-src="/static/images/blog/django/django-render/django-images-preview.png" loading="lazy" class="lazyload" alt="django-images Application Preview" src="../Images/840725e76e1fd56daae6f89c5575a972.png" data-original-src="https://testdriven.io/static/images/blog/django/django-render/django-images-preview.png"/></p>
+<h2 id="configure-django-project">配置Django项目</h2>
+<p>在本节教程中，我们将准备Django项目，以便进行渲染部署。</p>
+<h3 id="environment-variables">环境变量</h3>
+<p>我们不应该在源代码中存储秘密，所以让我们利用环境变量。最简单的方法是使用名为<a href="https://saurabh-kumar.com/python-dotenv/"> python-dotenv </a>的第三方包。首先将其添加到<em> requirements.txt </em>:</p>
+
+
+<blockquote>
+<p>随意使用不同的包来处理环境变量，如<a href="https://github.com/joke2k/django-environ"> django-environ </a>或<a href="https://github.com/henriquebastos/python-decouple/"> python-decouple </a>。</p>
+</blockquote>
+<p>接下来，导航到您的<em> settings.py </em>并在文件顶部初始化python-dotenv，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span> <span class="nn">dotenv</span> <span class="kn">import</span> <span class="n">load_dotenv</span>
+
+<span class="c1"># Build paths inside the project like this: BASE_DIR / 'subdir'.</span>
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+
+<span class="n">load_dotenv</span><span class="p">(</span><span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">'.env'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，从环境中加载<code>SECRET_KEY</code>、<code>DEBUG</code>和<code>ALLOWED_HOSTS</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="c1"># SECURITY WARNING: keep the secret key used in production secret!</span>
+<span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'SECRET_KEY'</span><span class="p">)</span>
+
+<span class="c1"># SECURITY WARNING: don't run with debug turned on in production!</span>
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'DEBUG'</span><span class="p">,</span> <span class="s1">'0'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">'true'</span><span class="p">,</span> <span class="s1">'t'</span><span class="p">,</span> <span class="s1">'1'</span><span class="p">]</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'ALLOWED_HOSTS'</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">' '</span><span class="p">)</span>
+</code></pre></div>
+
+<p>不要忘记在文件顶部导入<code>os</code>:</p>
+
+
+<h3 id="database">数据库ˌ资料库</h3>
+<p>让我们把Django的默认SQLite换成PostgreSQL。</p>
+<p>通过将下面一行添加到<em> requirements.txt </em>来安装数据库适配器:</p>
+
+
+<p>稍后，当我们启动PostgreSQL数据库时，Render将为我们提供一个<code>DATABASE_URL</code>。这是一个受<a href="https://12factor.net/">十二因素应用</a>启发的环境变量，包括连接数据库所需的所有参数。它将采用以下格式:</p>
+<div class="codehilite"><pre><span/><code><span class="nl">postgres</span><span class="p">:</span><span class="o">//</span><span class="k">USER</span><span class="err">:</span><span class="n">PASSWORD</span><span class="nv">@HOST</span><span class="err">:</span><span class="n">PORT</span><span class="o">/</span><span class="n">NAME</span><span class="w"/>
+</code></pre></div>
+
+<p>为了在Django中使用它，我们可以使用一个名为<a href="https://pypi.org/project/dj-database-url/"> dj-database-url </a>的包。这个包允许我们将数据库URL转换成Django数据库参数。</p>
+<p>像这样添加到<em> requirements.txt </em>中:</p>
+
+
+<p>接下来，导航到<em> core/settings.py </em>，将<code>DATABASES</code>更改如下:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'default'</span><span class="p">:</span> <span class="n">dj_database_url</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DATABASE_URL'</span><span class="p">),</span> <span class="n">conn_max_age</span><span class="o">=</span><span class="mi">600</span><span class="p">),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+
+
+<h3 id="gunicorn">格尼科恩</h3>
+<p>接下来，让我们安装<a href="https://gunicorn.org/"> Gunicorn </a>，这是一个生产级的WSGI服务器，将用于生产，而不是Django的开发服务器。</p>
+<p>添加到<em> requirements.txt </em>:</p>
+
+
+<h3 id="build-script">构建脚本</h3>
+<p>为了收集静态文件和迁移数据库，我们将创建一个构建脚本。构建脚本允许我们在部署应用程序之前运行一系列命令。</p>
+<p>在项目根目录下创建一个<em> build.sh </em>文件，内容如下:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/usr/bin/env bash</span>
+
+<span class="nb">set</span> <span class="o">-</span><span class="n">o</span> <span class="n">errexit</span>  <span class="c1"># exit on error</span>
+
+<span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">r</span> <span class="n">requirements</span><span class="o">.</span><span class="n">txt</span>
+
+<span class="n">python</span> <span class="n">manage</span><span class="o">.</span><span class="n">py</span> <span class="n">collectstatic</span> <span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="nb">input</span>
+<span class="n">python</span> <span class="n">manage</span><span class="o">.</span><span class="n">py</span> <span class="n">migrate</span>
+</code></pre></div>
+
+<p>将所有更改提交给git，并推送到您的遥控器。</p>
+<h2 id="deploy">部署</h2>
+<p>在本节教程中，我们将启动一个PostgreSQL实例，并部署Django应用程序进行渲染。</p>
+<blockquote>
+<p>如果你还没有渲染账户，就去<a href="https://dashboard.render.com/register?next=/">注册</a>吧。</p>
+</blockquote>
+<h3 id="database_1">数据库ˌ资料库</h3>
+<p>在<a href="https://dashboard.render.com/">渲染面板</a>中，点击屏幕右上角的“新建”，然后点击“PostgreSQL”。然后，使用以下参数创建一个PostgreSQL实例:</p>
+<ol>
+<li>名称:<strong>自定义名称</strong></li>
+<li>数据库:<strong>留空</strong></li>
+<li>用户:<strong>留空</strong></li>
+<li>地区:<strong>离你最近的地区</strong></li>
+<li>PostgreSQL版本:<strong> 15 </strong></li>
+<li>数据狗API键:<strong>留空</strong></li>
+<li>计划类型:<strong>适合您需求的计划</strong></li>
+</ol>
+<blockquote>
+<p>请记住，免费渲染帐户有以下限制:</p>
+<ol>
+<li>如果你不升级你的帐户，免费的PostgreSQL数据库会在90天后被删除。</li>
+<li>Render只为免费的PostgreSQL数据库提供1 GB的存储空间。</li>
+</ol>
+</blockquote>
+<p>等待数据库状态从“正在创建”变为“可用”，然后向下滚动到“连接”部分。记下“内部数据库URL”。</p>
+<p><img data-src="/static/images/blog/django/django-render/render-db-url.png" loading="lazy" class="lazyload" alt="Render dashboard - database URL" src="../Images/a190a2d36252ff69f60983f76b4fd5c8.png" data-original-src="https://testdriven.io/static/images/blog/django/django-render/render-db-url.png"/></p>
+<p>太好了。数据库部分到此为止。</p>
+<h3 id="web-service">网络服务</h3>
+<p>接下来，让我们创建一个web服务。</p>
+<p>再次单击屏幕右上角的“New ”,但这次选择“Web Service”。</p>
+<p>将您的渲染帐户连接到GitHub或GitLab帐户。确保向您想要部署的存储库授予呈现权限。连接后，选择您的存储库。</p>
+<p>输入以下详细信息:</p>
+<ol>
+<li>名称:<strong>自定义名称</strong></li>
+<li>区域:<strong>与您的数据库相同的区域</strong></li>
+<li>分支:<strong>您的主要分支(例如，主/主要)</strong></li>
+<li>根目录:<strong>留空</strong></li>
+<li>环境:<strong> Python 3 </strong></li>
+<li>构建命令:<strong> <code>sh build.sh</code> </strong></li>
+<li>开始命令<strong> <code>gunicorn core.wsgi:application</code> </strong></li>
+<li>计划类型:<strong>适合您需求的计划</strong></li>
+</ol>
+<p>打开“高级”下拉菜单，添加以下环境变量:</p>
+<ol>
+<li><code>PYTHON_VERSION</code> : <code>3.9.9</code></li>
+<li><code>SECRET_KEY</code>:点击“生成”</li>
+<li><code>DEBUG</code> : <code>1</code></li>
+<li><code>ALLOWED_HOSTS</code> : <code>*</code></li>
+<li><code>DATABASE_URL</code> : <code>&lt;your_internal_database_url&gt;</code></li>
+</ol>
+<p>我们需要设置<code>PYTHON_VERSION</code>，因为Render的默认Python版本是<code>3.7</code>，而Django 4需要<code>3.8</code>或更高版本。我们还临时启用了调试模式，并允许所有主机。不要担心这一点，因为我们将在教程的后面更改它。</p>
+<p>最后，单击“创建Web服务”。</p>
+<p>Render将检查您的源代码，准备环境，运行<em> build.sh </em>，生成容器，并部署它。</p>
+<p><img data-src="/static/images/blog/django/django-render/render-deploying.png" loading="lazy" class="lazyload" alt="Render dashboard - deploying" src="../Images/f2b8d9298d6fb64096fb1524ed166cc6.png" data-original-src="https://testdriven.io/static/images/blog/django/django-render/render-deploying.png"/></p>
+<p>等待几分钟，让部署状态变为“实时”，然后通过上传图像来测试应用程序。您的web应用程序的URL显示在web服务名称下(左上角)。</p>
+<p>每次您将代码签入遥控器时，Render都会自动重新部署您的应用程序。</p>
+<h2 id="static-files">静态文件</h2>
+<p>为了在生产中提供静态文件，我们可以使用一个名为<a href="https://whitenoise.evans.io/en/latest/">whiten noise</a>的包。WhiteNoise使我们的应用程序成为一个独立的单元，可以部署在任何地方，而不依赖于Nginx、Apache或任何其他外部服务。此外，它通过使用<a href="https://www.gnu.org/software/gzip/"> gzip </a>和<a href="https://github.com/google/brotli"> Brotli格式</a>来压缩我们的内容。</p>
+<p>首先将以下两个包添加到<em> requirements.txt </em>中:</p>
+<div class="codehilite"><pre><span/><code>whitenoise==6.2.0
+Brotli==1.0.9
+</code></pre></div>
+
+<blockquote>
+<p>添加Brotli支持是可选的，但是Whitenoise 推荐的<a href="https://whitenoise.evans.io/en/latest/django.html#brotli-compression">以及Render。</a></p>
+</blockquote>
+<p>接下来，将WhiteNoise的中间件添加到<em> settings.py </em>中的<code>MIDDLEWARE</code>列表中。它应该放在除Django的<code>SecurityMiddleware</code>之外的所有其他中间件之上:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">MIDDLEWARE</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.middleware.security.SecurityMiddleware'</span><span class="p">,</span>
+    <span class="s1">'whitenoise.middleware.WhiteNoiseMiddleware'</span><span class="p">,</span>
+    <span class="c1"># ...</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>最后，向下滚动到<em> settings.py </em>的底部，添加:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">STATICFILES_STORAGE</span> <span class="o">=</span> <span class="s1">'whitenoise.storage.CompressedManifestStaticFilesStorage'</span>
+</code></pre></div>
+
+<p>就是这样。下次Render部署新版本的应用程序时，我们的静态文件将由WhiteNoise提供服务。</p>
+
+<p>Render(以及许多其他类似的服务，如Heroku)提供了一个短暂的文件系统。这意味着当应用程序关闭或重新部署时，您的数据不会持久，可能会消失。如果你的应用程序需要保留文件，这是非常糟糕的。</p>
+<p>要启用持久存储，您可以使用:</p>
+<ol>
+<li><a href="https://render.com/docs/disks">渲染磁盘</a>:带自动每日快照的高性能固态硬盘</li>
+<li>云对象存储，如AWS S3或类似的服务</li>
+</ol>
+<p>我建议你设置AWS S3，因为渲染磁盘不允许水平缩放，而且有点贵。</p>
+<blockquote>
+<p>要了解如何使用Django设置AWS S3，请看一下在亚马逊S3 上存储Django静态和媒体文件的<a href="https://testdriven.io/blog/storing-django-static-and-media-files-on-amazon-s3/">。</a></p>
+</blockquote>
+<p>然而，为了本教程的完整性，让我们设置渲染磁盘。</p>
+<p>导航到您的渲染仪表板并选择您的web服务。单击边栏上的“Disks ”,并使用以下详细信息创建一个新磁盘:</p>
+<ol>
+<li>名称:<strong>选择一个自定义名称</strong></li>
+<li>挂载路径:<strong>/opt/render/project/src/media files</strong></li>
+<li>尺寸:<strong>适合你的最小尺寸</strong></li>
+</ol>
+<p>点击“创建”就完成了。您的媒体文件现在将保留。</p>
+<h2 id="django-admin-access">Django管理访问</h2>
+<p>创建超级用户有两种方法:</p>
+<ol>
+<li>SSH进入服务器并运行<code>createsuperuser</code>命令。</li>
+<li>创建一个Django命令来创建超级用户，并将其添加到<em> build.sh </em>。</li>
+</ol>
+<p>我们将使用第二种方法，因为它允许我们自动化部署，而且Render不允许免费用户SSH到他们的web服务。</p>
+<p>首先，在“images”应用程序中创建以下目录结构:</p>
+<div class="codehilite"><pre><span/><code>└-- images
+    └-- management
+        |-- __init__.py
+        └-- commands
+            |-- __init__.py
+            └-- createsu.py
+</code></pre></div>
+
+<p>将以下内容放入<em> createsu.py </em>中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># images/management/commands/createsu.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.core.management.base</span> <span class="kn">import</span> <span class="n">BaseCommand</span>
+
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+    <span class="n">help</span> <span class="o">=</span> <span class="s1">'Creates a superuser.'</span>
+
+    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s1">'admin'</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_superuser</span><span class="p">(</span>
+                <span class="n">username</span><span class="o">=</span><span class="s1">'admin'</span><span class="p">,</span>
+                <span class="n">password</span><span class="o">=</span><span class="s1">'complexpassword123'</span>
+            <span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">'Superuser has been created.'</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果您不想在源代码中暴露您的超级用户凭证，请考虑从环境变量中加载它们。</p>
+</blockquote>
+<p>将<code>createsu</code>命令添加到<em> build.sh </em>的末尾，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/usr/bin/env bash</span>
+
+<span class="nb">set</span> -o errexit  <span class="c1"># exit on error</span>
+
+pip install -r requirements.txt
+
+python manage.py collectstatic --no-input
+python manage.py migrate
+python manage.py createsu  <span class="c1"># new</span>
+</code></pre></div>
+
+<p>最后，提交并推送代码。</p>
+<p>Render将自动重新部署您的应用程序。完成后，导航到您的web应用的管理仪表板并尝试登录。</p>
+<h2 id="custom-domain">自定义域</h2>
+<p>导航到您的<a href="https://dashboard.render.com/">渲染仪表板</a>并选择您的web服务。选择边栏上的“设置”，然后向下滚动到“自定义域”部分。点击“添加”，输入您的域名，然后点击“保存”。</p>
+<p><img data-src="/static/images/blog/django/django-render/render-custom-domain.png" loading="lazy" class="lazyload" alt="Render dashboard - custom domain" src="../Images/c48171c2ae629f1d180ba8c0948c9bf7.png" data-original-src="https://testdriven.io/static/images/blog/django/django-render/render-custom-domain.png"/></p>
+<p>接下来，进入你的域名注册服务商DNS设置，添加一个新的“CNAME记录”指向你的应用程序的主机名，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+-----------------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                             | TTL       |</span>
+<span class="nb">+----------+--------------+-----------------------------------+-----------+</span><span class="c"/>
+<span class="c">| CNAME    | </span><span class="nv">&lt;</span><span class="c">some host</span><span class="nv">&gt;</span><span class="c">  | </span><span class="nv">&lt;</span><span class="c">your_app_hostname</span><span class="nv">&gt;</span><span class="c">               | Automatic |</span>
+<span class="nb">+----------+--------------+-----------------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">+----------+--------------+-----------------------------------+-----------+</span><span class="c"/>
+<span class="c">| Type     | Host         | Value                             | TTL       |</span>
+<span class="nb">+----------+--------------+-----------------------------------+-----------+</span><span class="c"/>
+<span class="c">| CNAME    | render       | django</span><span class="nb">-</span><span class="c">images</span><span class="nb">-</span><span class="c">374w</span><span class="nt">.</span><span class="c">onrender</span><span class="nt">.</span><span class="c">com   | Automatic |</span>
+<span class="nb">+----------+--------------+-----------------------------------+-----------+</span><span class="c"/>
+</code></pre></div>
+
+<p>等待几分钟，让DNS更改传播开来，然后单击“验证”。Render将为您的域颁发TLS证书，您的应用现在可以在HTTPS上的自定义域中访问。</p>
+<p>为确保其有效，请尝试访问您的web应用，网址为:</p>
+<div class="codehilite"><pre><span/><code>https://&lt;your_custom_domain&gt;
+
+Example:
+https://render.testdriven.io
+</code></pre></div>
+
+<p>将<code>ALLOWED_HOSTS</code>环境变量改为<code>&lt;your_custom_domain&gt;</code>(例如<code>render.testdriven.io</code>)。然后，触发最新提交的手动部署。</p>
+<p>等待您的应用程序重新部署，您就大功告成了！</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们已经成功地部署了一个Django应用程序来进行渲染。我们已经处理了PostgreSQL数据库、静态和媒体文件，添加了自定义域名并启用了HTTPS。现在，您应该对Render的工作原理有了一个大致的了解，并且能够部署自己的应用程序了。</p>
+<h3 id="whats-next">下一步是什么？</h3>
+<ol>
+<li>考虑AWS S3或类似的服务，以更好、更安全的方式提供媒体文件。</li>
+<li>设置<code>DEBUG=0</code>禁用调试模式。请记住，该应用程序仅在启用调试模式时提供媒体文件。有关如何在生产中处理静态和媒体文件的更多信息，请参考<a href="https://testdriven.io/blog/django-static-files/">在Django </a>中处理静态和媒体文件。</li>
+<li>看看Render的<a href="https://render.com/docs/scaling">缩放</a>特性。</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

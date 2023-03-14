@@ -1,0 +1,372 @@
+<html>
+<head>
+<title>Custom Permission Classes in Django REST Framework </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django REST框架中的自定义权限类</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/custom-permission-classes-drf/#0001-01-01">https://testdriven.io/blog/custom-permission-classes-drf/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文着眼于如何在Django REST框架(DRF)中构建自定义权限类。</p>
+<p>--</p>
+<p><strong> Django REST框架权限系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-permissions">Django REST框架中的权限</a></li>
+<li><a href="/blog/built-in-permission-classes-drf">Django REST框架中内置的权限类</a></li>
+<li><a href="/blog/custom-permission-classes-drf">Django REST框架中的自定义权限类</a>(本文！)</li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本文后，您应该能够:</p>
+<ol>
+<li>创建自定义权限类</li>
+<li>解释在您的自定义权限类中何时使用<code>has_permission</code>和<code>has_object_permission</code></li>
+<li>当权限被拒绝时返回自定义错误消息</li>
+<li>使用and、OR和NOT运算符组合和排除权限类</li>
+</ol>
+<h2 id="custom-permission-classes">自定义权限类</h2>
+<p>如果您的应用程序有一些特殊要求，而<a href="https://www.django-rest-framework.org/api-guide/permissions/#api-reference">内置权限类</a>不能满足这些要求，那么是时候开始构建您自己的自定义权限了。</p>
+<p>创建自定义权限允许您根据用户是否经过身份验证、请求方法、用户所属的组、对象属性、IP地址...或者它们的任意组合。</p>
+<p>所有权限类，无论是自定义的还是内置的，都是从<code>BasePermission</code>类扩展而来的:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">BasePermission</span><span class="p">(</span><span class="n">metaclass</span><span class="o">=</span><span class="n">BasePermissionMetaclass</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    A base class from which all permission classes should inherit.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="nf">has_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Return `True` if permission is granted, `False` otherwise.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Return `True` if permission is granted, `False` otherwise.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p><code>BasePermission</code>有两个方法，<code>has_permission</code>和<code>has_object_permission</code>，它们都返回<code>True</code>。权限类覆盖这些方法中的一个或两个，以有条件地返回T4。如果不覆盖这些方法，它们将总是返回<code>True</code>，授予无限制的访问权限。</p>
+<blockquote>
+<p>关于<code>has_permission</code>与<code>has_object_permission</code>的更多信息，请务必阅读本系列的第一篇文章，Django REST框架中的<a href="/blog/drf-permissions">权限</a>。</p>
+</blockquote>
+<p>按照惯例，您应该将自定义权限放在一个<em> permissions.py </em>文件中。这只是一个约定，所以如果您需要以不同的方式组织权限，您不必这样做。</p>
+<p>与内置权限一样，如果视图中使用的任何权限类从<code>has_permission</code>或<code>has_object_permission</code>返回<code>False</code>，则会引发<code>PermissionDenied</code>异常。若要更改与异常关联的错误信息，可以直接在自定义权限类上设置消息属性。</p>
+<p>至此，让我们来看一些例子。</p>
+<h2 id="custom-permission-examples">自定义权限示例</h2>
+<h3 id="user-properties">用户属性</h3>
+<p>您可能希望根据不同用户的属性为他们授予不同级别的访问权限，例如，他们是对象的创建者还是员工？</p>
+<p>假设您不希望员工能够编辑对象。这种情况下的自定义权限类可能是这样的:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># permissions.py</span>
+
+<span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">permissions</span>
+
+
+<span class="k">class</span> <span class="nc">AuthorAllStaffAllButEditOrReadOnly</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="n">edit_methods</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"PUT"</span><span class="p">,</span> <span class="s2">"PATCH"</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">has_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_superuser</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="ow">in</span> <span class="n">permissions</span><span class="o">.</span><span class="n">SAFE_METHODS</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">author</span> <span class="o">==</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_staff</span> <span class="ow">and</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_methods</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<p>这里，<code>AuthorAllStaffAllButEditOrReadOnly</code>类扩展了<code>BasePermission</code>并覆盖了<code>has_permission</code>和<code>has_object_permission</code>。</p>
+<p><strong>拥有_权限</strong>:</p>
+<p>在<code>has_permission</code>中，只检查一件事:用户是否被认证。如果不是，则引发<code>NotAuthenticated</code>异常并拒绝访问。</p>
+<p><strong>拥有_对象_权限</strong>:</p>
+<p>因为您不应该限制超级用户的访问，所以第一个检查- <code>request.user.is_superuser</code> -授予超级用户访问权限。</p>
+<p>接下来，我们检查请求方法是否是“安全”的方法之一- <code>request.method in permissions.SAFE_METHODS</code>。安全方法在<a href="https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/permissions.py#L8">rest _ framework/permissions . py</a>中定义:</p>
+<div class="codehilite"><pre><span/><code><span class="n">SAFE_METHODS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'HEAD'</span><span class="p">,</span> <span class="s1">'OPTIONS'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这些方法对对象没有影响；他们只能读它。</p>
+<p>乍一看，<code>SAFE_METHODS</code>检查似乎应该在<code>has_permission</code>方法中。如果你只是检查请求方法，那么它就应该在那里。但是在这种情况下，不会执行其他检查:</p>
+<p><img data-src="/static/images/blog/django/drf-permissions/safe_methods.jpg" loading="lazy" class="lazyload" alt="DRF Permissions Execution" src="../Images/8076320665670779cc674e9b46d12429.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/safe_methods.jpg"/></p>
+<p>因为我们想在方法是安全方法之一时授予访问权限<strong>或</strong>当用户是对象的作者<strong>或</strong>当用户是职员时，我们需要在相同的级别上检查它。换句话说，由于我们无法在<code>has_permission</code>级别检查所有者，所以我们需要在<code>has_object_permission</code>级别检查所有内容。</p>
+<p>最后一种可能性是用户是职员:除了我们定义为<code>edit_methods</code>的方法之外，他们可以使用所有的方法。</p>
+<p>最后，转回类名:<code>AuthorAllStaffAllButEditOrReadOnly</code>。您应该总是尝试尽可能多地命名权限类。</p>
+<blockquote>
+<p>请记住，对于列表视图(无论从哪个视图扩展)或者当请求方法为<code>POST</code>时，永远不会执行<code>has_object_permission</code>(因为对象尚不存在)。</p>
+</blockquote>
+<p>使用自定义权限类的方式与使用内置权限类的方式相同:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># views.py</span>
+
+<span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">viewsets</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Message</span>
+<span class="kn">from</span> <span class="nn">.permissions</span> <span class="kn">import</span> <span class="n">AuthorAllStaffAllButEditOrReadOnly</span>
+<span class="kn">from</span> <span class="nn">.serializers</span> <span class="kn">import</span> <span class="n">MessageSerializer</span>
+
+
+<span class="k">class</span> <span class="nc">MessageViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">AuthorAllStaffAllButEditOrReadOnly</span><span class="p">]</span> <span class="c1"># Custom permission class used</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Message</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">MessageSerializer</span>
+
+    <span class="k">def</span> <span class="nf">perform_create</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
+        <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">author</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</code></pre></div>
+
+<p>对象的作者对其具有完全访问权限。同时，员工可以删除对象，但不能编辑它:</p>
+<p><img data-src="/static/images/blog/django/drf-permissions/staff_perm_del.png" loading="lazy" class="lazyload" alt="DRF Permissions Execution" src="../Images/edacb2f770e5794a617893af4b83dbba.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/staff_perm_del.png"/></p>
+<p>经过身份验证的用户可以查看该对象，但不能编辑或删除它:</p>
+<p><img data-src="/static/images/blog/django/drf-permissions/staff_perm_del.png" loading="lazy" class="lazyload" alt="DRF Permissions Execution" src="../Images/edacb2f770e5794a617893af4b83dbba.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/staff_perm_del.png"/></p>
+<h3 id="object-properties">对象属性</h3>
+<p>虽然我们在前面的例子中简单地提到了对象的属性，但是重点更多地放在了用户的属性上(例如，对象的作者)。在这个例子中，我们将关注对象的属性。</p>
+<p>一个或多个对象属性如何影响权限？</p>
+<ol>
+<li>与前面的示例一样，您可以将访问权限仅限于对象的所有者。您还可以限制对所有者所属群组的访问。</li>
+<li>对象可能有过期日期，因此您可以将对早于<em> n </em>的对象的访问权限仅限于某些用户。</li>
+<li>您可以将DELETE实现为一个标志(这样它就不会真正从数据库中删除)。然后，您可以禁止访问带有删除标志的对象。</li>
+</ol>
+<p>假设您希望限制除超级用户之外的所有人对超过10分钟的对象的访问:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># permissions.py</span>
+
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">timezone</span>
+<span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">permissions</span>
+
+<span class="k">class</span> <span class="nc">ExpiredObjectSuperuserOnly</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">object_expired</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="n">expired_on</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">make_aware</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">10</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">created</span> <span class="o">&lt;</span> <span class="n">expired_on</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_expired</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_superuser</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>在这个权限类中，<code>has_permission</code>方法没有被覆盖——所以它总是返回<code>True</code>。</p>
+<p>因为唯一重要的属性是对象的创建时间，所以检查发生在<code>has_object_permission</code>(因为我们在<code>has_permission</code>中不能访问对象的属性)。</p>
+<p>因此，如果用户想要访问过期的对象，就会引发异常<code>PermissionDenied</code>:</p>
+<p><img data-src="/static/images/blog/django/drf-permissions/denied_message_expired.png" loading="lazy" class="lazyload" alt="DRF Permissions Execution" src="../Images/bfe5b27f009edb8534e2184b33d94a54.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/denied_message_expired.png"/></p>
+<p>同样，和前面的例子一样，我们可以检查用户是否是<code>has_permission</code>中的超级用户，但是如果他们不是，那么对象的属性永远不会被检查。</p>
+<p>记下错误消息。信息量不大。用户不知道为什么他们的访问被拒绝。我们可以通过向权限类添加一个<code>message</code>属性来创建一个定制的错误消息:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">ExpiredObjectSuperuserOnly</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="n">message</span> <span class="o">=</span> <span class="s2">"This object is expired."</span> <span class="c1"># custom error message</span>
+
+    <span class="k">def</span> <span class="nf">object_expired</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="n">expired_on</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">make_aware</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">10</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">created</span> <span class="o">&lt;</span> <span class="n">expired_on</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_expired</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_superuser</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>现在，用户清楚地看到了权限被拒绝的原因:</p>
+<p><img data-src="/static/images/blog/django/drf-permissions/custom_error.png" loading="lazy" class="lazyload" alt="DRF Permissions Execution" src="../Images/a328eecd526b43bbc39bada9cc561c23.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/custom_error.png"/></p>
+<h2 id="combining-and-excluding-permission-classes">组合和排除权限类</h2>
+<p>通常，当使用多个权限类时，可以在视图中定义它们，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">,</span> <span class="n">IsStaff</span><span class="p">,</span> <span class="n">SomeCustomPermissionClass</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这种方法将它们结合在一起，这样只有当所有的类都返回<code>True</code>时才授予许可。</p>
+<p>从DRF版本<a href="https://www.django-rest-framework.org/community/release-notes/#390"> 3.9.0 </a>开始，您还可以使用AND ( <code>&amp;</code>)或OR ( <code>|</code>)逻辑操作符来组合多个类。另外，从<a href="https://www.django-rest-framework.org/community/release-notes/#392"> 3.9.2 </a>开始，支持NOT ( <code>~</code>)运算符。</p>
+<blockquote>
+<p>这些运算符不限于自定义权限类。它们也可以和内置的一起使用。</p>
+</blockquote>
+<p>您可以创建更简单的类并将它们与前面提到的操作符结合起来，而不是创建许多彼此相似的复杂权限类。</p>
+<p>例如，您可能对不同的组组合拥有不同的权限。假设您想要以下权限:</p>
+<ol>
+<li>A组或B组的权限</li>
+<li>B组或C组的权限</li>
+<li>B和C成员的权限</li>
+<li>除A以外的所有组的权限</li>
+</ol>
+<p>虽然四个许可类看起来不多，但这不会扩展得很好。如果你有八个不同的组- A，B，C，D，E，F，G，会怎么样？它会迅速膨胀到一个无法理解和维持的程度。</p>
+<p>您可以简化它，并通过首先为组A、B和c创建权限类，将它们与操作符结合起来。</p>
+<ol>
+<li><code>permission_classes = [PermGroupA | PermGroupB]</code></li>
+<li><code>permission_classes = [PermGroupB | PermGroupC]</code></li>
+<li><code>permission_classes = [PermGroupB &amp; PermGroupC]</code></li>
+<li><code>permission_classes = [~PermGroupA]</code></li>
+</ol>
+<blockquote>
+<p>当涉及到OR ( <code>|</code>)时，事情会变得稍微复杂一些。错误经常会被忽略。更多信息，请查看关于<a href="https://github.com/encode/django-rest-framework/pull/5753">权限的讨论:允许权限被组合</a>拉请求。</p>
+</blockquote>
+<h3 id="and-operator">逻辑积算符</h3>
+<p>并且是权限类的默认行为，通过使用<code>,</code>实现:</p>
+<div class="codehilite"><pre><span/><code><span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">,</span> <span class="n">IsStaff</span><span class="p">,</span> <span class="n">SomeCustomPermissionClass</span><span class="p">]</span>
+</code></pre></div>
+
+<p>也可以用<code>&amp;</code>写:</p>
+<div class="codehilite"><pre><span/><code><span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span> <span class="o">&amp;</span> <span class="n">IsStaff</span> <span class="o">&amp;</span> <span class="n">SomeCustomPermissionClass</span><span class="p">]</span>
+</code></pre></div>
+
+<h3 id="or-operator">OR运算符</h3>
+<p>使用OR ( <code>|</code>)，当任何权限类返回<code>True</code>时，该权限被授予。您可以使用OR运算符提供多种可能性，让用户获得权限。</p>
+<p>让我们看一个例子，对象的所有者或职员都可以编辑或删除对象。</p>
+<p>我们需要两节课:</p>
+<ol>
+<li><code>IsStaff</code>返回<code>True</code>如果用户<code>is_staff</code></li>
+<li>如果用户与<code>obj.author</code>相同，则<code>IsOwner</code>返回<code>True</code></li>
+</ol>
+<p>代码:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">IsStaff</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">has_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_staff</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_staff</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+
+<span class="k">class</span> <span class="nc">IsOwner</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">has_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">author</span> <span class="o">==</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<p>这里有相当多的冗余，但这是必要的。</p>
+<p>为什么？</p>
+<ol>
+<li>
+<p>用于覆盖列表视图</p>
+<p>同样，列表视图不检查<code>has_object_permission</code>。然而，每个创建的权限都需要是独立的<strong/>。您不应该创建需要与另一个权限类组合来覆盖列表视图的权限类。<code>IsOwner</code>限制对<code>has_permission</code>中认证用户的访问——因此，如果<code>IsOwner</code>是唯一使用的类，对API的访问仍然是受控的。</p>
+</li>
+<li>
+<p>默认情况下，这两种方法都返回<code>True</code></p>
+<p>当使用OR时，如果不提供<code>has_object_permission</code>方法，用户将可以访问对象，尽管他们不应该这样做。</p><blockquote>
+<p>注意事项:</p>
+<ul>
+<li>
+<p>如果您省略了<code>IsOwner</code>类中的<code>has_permission</code>，任何人都可以看到或创建列表。</p>
+</li>
+<li>
+<p>如果在<code>IsStaff</code>上省略<code>has_object_permission</code>，用<code>or</code>与<code>IsOwner</code>组合，则二者必有一个返回<code>True</code>。这样，既不是所有者也不是员工的注册用户就可以更改内容。</p>
+</li>
+</ul>
+</blockquote>
+</li>
+</ol>
+
+<p>现在，当我们很好地设计了权限类后，就很容易将它们组合起来:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">viewsets</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Message</span>
+<span class="kn">from</span> <span class="nn">.permissions</span> <span class="kn">import</span> <span class="n">IsStaff</span><span class="p">,</span> <span class="n">IsOwner</span>
+<span class="kn">from</span> <span class="nn">.serializers</span> <span class="kn">import</span> <span class="n">MessageSerializer</span>
+
+
+<span class="k">class</span> <span class="nc">MessageViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsStaff</span> <span class="o">|</span> <span class="n">IsOwner</span><span class="p">]</span> <span class="c1"># or operator used</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Message</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">MessageSerializer</span>
+</code></pre></div>
+
+<p>在这里，我们允许员工或对象的所有者更改或删除它。</p>
+<p><code>IsOwner</code>对列表视图的唯一要求是用户被认证。这意味着不是职员的认证用户将能够创建对象。</p>
+<h3 id="not-operator">“非”算符</h3>
+<p>NOT运算符导致与定义的权限类完全相反的结果。换句话说，除了来自权限类的用户之外，权限被授予所有的用户。</p>
+<p>假设您有三组用户:</p>
+<ol>
+<li>技术</li>
+<li>管理</li>
+<li>资产</li>
+</ol>
+<p>这些组中的每一个都应该能够访问只属于他们特定组的API端点。</p>
+<p>下面是一个权限类，它只授予财务组成员访问权限:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">IsFinancesMember</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">has_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Finances"</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>现在，假设您有一个新视图，它是为不属于财务组的所有用户准备的。您可以使用NOT运算符来实现这一点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">viewsets</span>
+
+<span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">Message</span>
+<span class="kn">from</span> <span class="nn">.permissions</span> <span class="kn">import</span> <span class="n">IsFinancesMember</span>
+<span class="kn">from</span> <span class="nn">.serializers</span> <span class="kn">import</span> <span class="n">MessageSerializer</span>
+
+
+<span class="k">class</span> <span class="nc">MessageViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="o">~</span><span class="n">IsFinancesMember</span><span class="p">]</span> <span class="c1"># using not operator</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Message</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">MessageSerializer</span>
+</code></pre></div>
+
+<p>因此，只有财务组的成员不能访问。</p>
+<blockquote>
+<p>小心点！如果您只使用NOT操作符，<strong>其他所有人</strong>都将被允许访问，<strong>包括未认证的</strong>用户！如果这不是您想要做的，您可以通过添加另一个类来解决这个问题，如下所示:</p><div class="codehilite"><pre><span/><span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="o">~</span><span class="n">IsFinancesMember</span> <span class="o">&amp;</span> <span class="n">IsAuthenticated</span><span class="p">]</span>
+</pre></div>
+</blockquote>
+
+<h3 id="parentheses">圆括号</h3>
+<p>在<code>permission_classes</code>中，你也可以使用圆括号(<code>()</code>)来控制哪个表达式先被解析。</p>
+<p>快速示例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">MessageViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[(</span><span class="n">IsFinancesMember</span> <span class="o">|</span> <span class="n">IsTechMember</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">IsOwner</span><span class="p">]</span> <span class="c1"># using parentheses</span>
+
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Message</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">MessageSerializer</span>
+</code></pre></div>
+
+<p>在本例中，<code>(IsFinancesMember | IsTechMember)</code>将首先被解析。然后，其结果将与<code>&amp; IsOwner</code>一起使用，例如<code>ResultsFromFinancesOrTech &amp; IsOwner</code>。这意味着技术组或财务组的成员以及对象的所有者将被授予访问权限。</p>
+<h2 id="conclusion">结论</h2>
+<p>尽管有各种各样的内置权限类，但有些情况下它们不符合您的需要。这时自定义权限类就派上了用场。</p>
+<p>对于自定义权限类，您必须重写以下一种或两种方法:</p>
+<ul>
+<li><code>has_permission</code></li>
+<li><code>has_object_permission</code></li>
+</ul>
+<p>如果在<code>has_permission</code>方法中没有授予权限，那么在<code>has_object_permission</code>中写什么都不重要——权限被拒绝。如果你不覆盖它们中的一个(或两个)，你需要考虑到默认情况下，方法将总是返回<code>True</code>。</p>
+<p>您可以使用and、OR和NOT运算符组合和排除权限类。您甚至可以用括号决定权限解析的顺序。</p>
+<p>--</p>
+<p><strong> Django REST框架权限系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-permissions">Django REST框架中的权限</a></li>
+<li><a href="/blog/built-in-permission-classes-drf">Django REST框架中内置的权限类</a></li>
+<li><a href="/blog/custom-permission-classes-drf">Django REST框架中的自定义权限类</a>(本文！)</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

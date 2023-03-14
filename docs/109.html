@@ -1,0 +1,307 @@
+<html>
+<head>
+<title>Django REST Framework Views - APIViews </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django REST框架视图- APIViews</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/drf-views-part-1/#0001-01-01">https://testdriven.io/blog/drf-views-part-1/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>Django REST框架(DRF)从Django的<code>View</code>类继承了自己的视图风格。这个由三部分组成的系列深入探讨了DRF视图的所有可能性——从一个简单的视图(您需要自己做很多工作)到<code>ModelViewSet</code>(您只需几行代码就可以让视图运行起来)。因为视图是建立在彼此之上的，所以本系列也解释了它们是如何交织在一起的。</p>
+<p>在这篇文章中，我们看看DRF的观点是如何工作的，并了解最基本的观点。</p>
+<p>--</p>
+<p><strong> Django REST框架视图系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-views-part-1/"> APIViews </a>(本文！)</li>
+<li><a href="/blog/drf-views-part-2/">通用视图</a></li>
+<li><a href="/blog/drf-views-part-3/">视图集</a></li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本文后，您应该能够:</p>
+<ol>
+<li>解释DRF观点是如何工作的</li>
+<li>解释<code>APIView</code>类的用途以及它与Django的<code>View</code>类有何不同</li>
+<li>使用基于函数和类的视图</li>
+<li>利用策略装饰器(对于基于函数的视图)和策略属性(对于基于类的视图)</li>
+</ol>
+<h2 id="drf-views">DRF观点</h2>
+<p>DRF视图的基本组件是<code>APIView</code>类，它是Django的<code>View</code>类的子类。</p>
+<p>class是您可能选择在DRF应用程序中使用的所有视图的基础。</p>
+<p>不管是-</p>
+<ul>
+<li>基于功能的视图</li>
+<li>基于类的视图</li>
+<li>混合蛋白</li>
+<li>通用视图类</li>
+<li>viewster</li>
+</ul>
+<p>-他们都使用<code>APIView</code>类。</p>
+<p>正如你从下面的图片中所看到的，你所拥有的关于DRF风景的选项相互交织，相互延伸。您可以将视图视为构成更大构建块的构建块。这样，您可能会比其他人更多地使用一些构建块，如APIViews、concrete views和(只读)ModelViewSets，如mixins和GenericViewSets。当然，这完全取决于您特定应用的需求。</p>
+<p><img data-src="/static/images/blog/django/drf-views/drf_views_overview.png" loading="lazy" class="lazyload" alt="DRF Views Overview" src="../Images/7c9f937051f11d63db71adc78eaf9d82.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-views/drf_views_overview.png"/></p>
+<p>扩展提供了最大的自由，但也给你留下了更多的工作。如果您需要控制视图的每个方面，或者如果您有非常复杂的视图，这是一个很好的选择。</p>
+<p>使用通用视图类，您可以更快地开发，并且仍然对API端点有相当多的控制。</p>
+<p>使用<code>ModelViewSet</code> s，你可以用五行代码得到一个API(三行用于你的视图，两行用于URL)。</p>
+<p>上面提到的所有视图也可以定制。</p>
+<p>至于用什么没有正确的答案。你甚至不用在单个app中使用相同的视图类型；你可以随意混合搭配组合。也就是说，可预测是好的，所以只有在绝对必要的时候才偏离视图类型。</p>
+<blockquote>
+<p>文档中的DRF视图分为三个部分。本系列的文章遵循相同的组织结构。</p>
+<ol>
+<li>【APIViews的文档(本系列的第1部分)</li>
+<li><a href="https://www.django-rest-framework.org/api-guide/generic-views/">通用视图的文档</a>(本系列的第2部分)</li>
+<li><a href="https://www.django-rest-framework.org/api-guide/viewsets/">视图集的文档</a>(本系列的第3部分)</li>
+</ol>
+<p>值得注意的是，官方文档将每个视图视为一个单独的章节，而不是如您所料，从单个<em>视图</em>章节的子章节。</p>
+<p>除了API指南，还有涵盖所有三种视图的官方教程:</p>
+<ol>
+<li><a href="https://www.django-rest-framework.org/tutorial/2-requests-and-responses/#pulling-it-all-together">使用APIViews的教程</a></li>
+<li><a href="https://www.django-rest-framework.org/tutorial/3-class-based-views/">使用通用视图的教程</a></li>
+<li><a href="https://www.django-rest-framework.org/tutorial/6-viewsets-and-routers/">使用视图集的教程</a></li>
+</ol>
+</blockquote>
+<p>让我们从最基本的视图<code>APIView</code>开始，然后解释视图是如何工作的。</p>
+<h2 id="class-based-views">基于类的视图</h2>
+<p><a href="https://www.django-rest-framework.org/api-guide/views/#class-based-views">基于类的视图</a>扩展了<code>APIView</code>类。通过它们，您可以决定如何处理请求，以及您将使用哪些策略属性。</p>
+<p>例如，假设您的购物清单API有一个<code>Item</code>类:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Item</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">UUIDField</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+    <span class="n">done</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这是一个允许用户一次删除所有项目的视图:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.response</span> <span class="kn">import</span> <span class="n">Response</span>
+<span class="kn">from</span> <span class="nn">rest_framework.views</span> <span class="kn">import</span> <span class="n">APIView</span>
+
+<span class="k">class</span> <span class="nc">DeleteAllItems</span><span class="p">(</span><span class="n">APIView</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+
+        <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_204_NO_CONTENT</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这是一个列出所有项目的视图:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.response</span> <span class="kn">import</span> <span class="n">Response</span>
+<span class="kn">from</span> <span class="nn">rest_framework.views</span> <span class="kn">import</span> <span class="n">APIView</span>
+
+<span class="k">class</span> <span class="nc">ListItems</span><span class="p">(</span><span class="n">APIView</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+        <span class="n">serializer</span> <span class="o">=</span> <span class="n">ItemSerializer</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">serializer</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>如您所见，对数据库的调用是在处理函数内部完成的。它们是根据请求的HTTP方法选择的(例如，GET -&gt; get，DELETE -&gt; delete)。</p>
+<p>我们稍后将深入讨论这些视图是如何工作的。</p>
+<blockquote>
+<p>正如您所看到的，我们已经在第二个视图中设置了一个序列化程序。序列化程序负责将复杂的数据(例如，查询和模型实例)转换为本机Python数据类型，然后再将其呈现为JSON、XML或其他内容类型。</p>
+<p>您可以在有效使用Django REST框架序列化程序的文章中了解更多关于DRF序列化程序的信息。</p>
+</blockquote>
+<h3 id="policy-attributes">策略属性</h3>
+<p>如果您想覆盖基于类的视图的默认设置，您可以使用<a href="https://www.django-rest-framework.org/api-guide/views/#api-policy-attributes">策略属性</a>。</p>
+<p>可以设置的策略属性有:</p>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>使用</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>renderer_classes</code></td>
+<td>已确定响应返回的媒体类型</td>
+<td><code>JSONRenderer</code>，<code>BrowsableAPIRenderer</code></td>
+</tr>
+<tr>
+<td><code>parser_classes</code></td>
+<td>确定允许不同媒体类型的哪些数据分析器</td>
+<td><code>JSONParser</code>，<code>FileUploadParser</code></td>
+</tr>
+<tr>
+<td><code>authentication_classes</code></td>
+<td>确定允许使用哪些身份验证模式来识别用户</td>
+<td><code>TokenAuthentication</code>，<code>SessionAuthentication</code></td>
+</tr>
+<tr>
+<td><code>throttle_classes</code></td>
+<td>根据请求率确定是否应该授权请求</td>
+<td><code>AnonRateThrottle</code>，<code>UserRateThrottle</code></td>
+</tr>
+<tr>
+<td><code>permission_classes</code></td>
+<td>确定是否应根据用户凭据授权请求</td>
+<td><code>IsAuthenticated</code>，<code>DjangoModelPermissions</code></td>
+</tr>
+<tr>
+<td><code>content_negotiation_class</code></td>
+<td>选择资源的多种可能表示形式之一返回给客户机(不太可能需要设置它)</td>
+<td>仅自定义内容协商类</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>请务必阅读Django REST Framework 文章中的<a href="/blog/custom-permission-classes-drf/">自定义权限类，以了解关于权限类的更多信息。</a></p>
+</blockquote>
+<p>在下面的示例中，我们使用<code>permission_classes</code>和<code>renderer_classes</code>策略属性更改了权限以及响应的呈现方式:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.permissions</span> <span class="kn">import</span> <span class="n">IsAuthenticated</span>
+<span class="kn">from</span> <span class="nn">rest_framework.renderers</span> <span class="kn">import</span> <span class="n">JSONRenderer</span>
+<span class="kn">from</span> <span class="nn">rest_framework.response</span> <span class="kn">import</span> <span class="n">Response</span>
+<span class="kn">from</span> <span class="nn">rest_framework.views</span> <span class="kn">import</span> <span class="n">APIView</span>
+
+<span class="k">class</span> <span class="nc">ItemsNotDone</span><span class="p">(</span><span class="n">APIView</span><span class="p">):</span>
+
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">]</span>  <span class="c1"># policy attribute</span>
+    <span class="n">renderer_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">JSONRenderer</span><span class="p">]</span>       <span class="c1"># policy attribute</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+
+        <span class="n">user_count</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+        <span class="n">content</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'not_done'</span><span class="p">:</span> <span class="n">user_count</span><span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="function-based-views">基于功能的视图</h2>
+<p>直接实现<code>APIView</code>有两种方式:用函数或者用类。如果您正在以函数的形式编写视图，您将需要使用<code>@api_view</code>装饰器。</p>
+<p><code>@api_view</code>是一个装饰器，它将一个<a href="https://www.django-rest-framework.org/api-guide/views/#function-based-views">基于函数的视图</a>转换成一个<code>APIView</code>子类(从而提供了<code>Response</code>和<code>Request</code>类)。它将视图允许的方法列表作为参数。</p>
+<blockquote>
+<p>好奇DRF是如何将基于函数的视图转换成APIView子类的吗？</p><div class="codehilite"><pre><span/><code><span class="c1"># https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/decorators.py#L16</span>
+
+<span class="k">def</span> <span class="nf">api_view</span><span class="p">(</span><span class="n">http_method_names</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">http_method_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'GET'</span><span class="p">]</span> <span class="k">if</span> <span class="p">(</span><span class="n">http_method_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="k">else</span> <span class="n">http_method_names</span>
+    <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="n">WrappedAPIView</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span>
+            <span class="s1">'WrappedAPIView'</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">APIView</span><span class="p">,),</span>
+            <span class="p">{</span><span class="s1">'__doc__'</span><span class="p">:</span> <span class="n">func</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">}</span>
+        <span class="p">)</span>
+
+        <span class="c1"># ...</span>
+
+        <span class="k">return</span> <span class="n">WrappedAPIView</span><span class="o">.</span><span class="n">as_view</span><span class="p">()</span>
+</code></pre></div>
+</blockquote>
+
+<p>这是一个基于函数的视图，与之前编写的基于类的视图一样，用于删除所有项目:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.decorators</span> <span class="kn">import</span> <span class="n">api_view</span>
+<span class="kn">from</span> <span class="nn">rest_framework.response</span> <span class="kn">import</span> <span class="n">Response</span>
+
+<span class="nd">@api_view</span><span class="p">([</span><span class="s1">'DELETE'</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">delete_all_items</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_200_OK</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们用<code>@api_view</code>装饰器将<code>delete_all_items</code>转换成了一个<code>APIView</code>子类。只允许使用<code>DELETE</code>方法。其他方法将响应“不允许405方法”。</p>
+<p>忽略类和函数编写方式的差异，我们可以访问相同的属性，因此两个代码片段可以获得相同的结果。</p>
+<h3 id="policy-decorators">政策装饰者</h3>
+<p>如果想要覆盖基于函数的视图的默认设置，可以使用<a href="https://www.django-rest-framework.org/api-guide/views/#api-policy-decorators">策略装饰器</a>。您可以使用以下一个或多个选项:</p>
+<ul>
+<li><code>@renderer_classes</code></li>
+<li><code>@parser_classes</code></li>
+<li><code>@authentication_classes</code></li>
+<li><code>@throttle_classes</code></li>
+<li><code>@permission_classes</code></li>
+</ul>
+<p>那些装饰器对应于APIView子类。因为<code>@api_view</code>装饰器检查是否使用了以下任何一个装饰器，所以需要将它们添加到<code>api_view</code>装饰器的下面的<strong>。</strong></p>
+<p>如果我们使用与策略属性相同的例子，我们可以像这样实现装饰器，以获得相同的结果:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework.decorators</span> <span class="kn">import</span> <span class="n">api_view</span><span class="p">,</span> <span class="n">permission_classes</span><span class="p">,</span> <span class="n">renderer_classes</span>
+<span class="kn">from</span> <span class="nn">rest_framework.permissions</span> <span class="kn">import</span> <span class="n">IsAuthenticated</span>
+<span class="kn">from</span> <span class="nn">rest_framework.renderers</span> <span class="kn">import</span> <span class="n">JSONRenderer</span>
+<span class="kn">from</span> <span class="nn">rest_framework.response</span> <span class="kn">import</span> <span class="n">Response</span>
+
+<span class="nd">@api_view</span><span class="p">([</span><span class="s1">'GET'</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">IsAuthenticated</span><span class="p">])</span>  <span class="c1"># policy decorator</span>
+<span class="nd">@renderer_classes</span><span class="p">([</span><span class="n">JSONRenderer</span><span class="p">])</span>       <span class="c1"># policy decorator</span>
+<span class="k">def</span> <span class="nf">items_not_done</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">user_count</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'not_done'</span><span class="p">:</span> <span class="n">user_count</span><span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="how-do-drf-views-work">DRF观点是如何工作的？</h2>
+<p>当一个请求命中一个视图时，视图首先初始化一个<a href="https://www.django-rest-framework.org/api-guide/requests/">请求</a>对象，这是Django的一个DRF增强的<code>HttpRequest</code>。</p>
+<p>与Django的<code>HttpRequest</code>相比，它具有以下优势:</p>
+<ol>
+<li>内容根据<code>Content-Type</code>头自动解析，并作为<code>request.data</code>提供。</li>
+<li>它支持上传和修补方法(包括文件上传)。(<a href="https://groups.google.com/g/django-developers/c/dxI4qVzrBY4/m/m_9IiNk_p7UJ"> Django只支持<code>GET</code>和<code>POST</code>方法</a>。)</li>
+<li>通过临时重写请求上的方法，它根据其他HTTP方法检查权限。</li>
+</ol>
+<p>在创建了<code>Request</code>实例之后，视图使用提供的(或默认的)内容协商器和呈现器将接受的信息存储在请求中。之后，视图执行身份验证，然后检查权限和任何限制。</p>
+<p>身份验证本身不会返回任何错误。它只是确定请求的用户是谁。权限和节流检查需要该信息。在检查权限时，如果认证不成功，则引发<code>NotAuthenticated</code>异常。如果请求不被允许，就会产生一个<code>PermissionDenied</code>异常。在检查节流时，如果请求被节流，就会引发<code>Throttled</code>异常，并通知用户需要等待多长时间请求才能被允许。</p>
+<p>权限检查实际上有两部分:<code>check_permissions</code>和<code>check_object_permissions</code>。</p>
+<p>在执行视图处理程序之前，调用覆盖一般权限的<code>check_permissions</code>。如果你只是扩展<code>APIView</code>，<code>check_object_permissions</code>，<strong>不会被执行</strong>，除非你明确地调用它。如果您正在使用通用视图或视图集，则为详细视图调用<code>check_object_permissions</code>。</p>
+<blockquote>
+<p>有关DRF权限的更多信息，请查看Django REST框架文章中的<a href="/blog/drf-permissions/">权限。</a></p>
+</blockquote>
+<p>在身份验证、授权/许可和限制检查之后，视图检查请求方法是否是以下方法之一:</p>
+<ul>
+<li>得到</li>
+<li>邮政</li>
+<li>放</li>
+<li>修补</li>
+<li>删除</li>
+<li>头</li>
+<li>选择权</li>
+<li>找到；查出</li>
+</ul>
+<p>如果是，它检查请求方法是否对应于视图中的方法并执行它。如果其中一个方法不被允许或者没有在被调用的视图中定义，就会引发<code>MethodNotAllowed</code>异常。</p>
+<p><code>APIView</code>类中的<code>dispatch</code>方法检查方法并根据方法名选择一个处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># https://github.com/encode/django-rest-framework/blob/3.12.4/rest_framework/views.py#L485</span>
+
+<span class="k">class</span> <span class="nc">APIView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+
+    <span class="c1"># ...</span>
+
+    <span class="k">def</span> <span class="nf">dispatch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c1"># ...</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initial</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+            <span class="c1"># Get the appropriate handler method</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">http_method_names</span><span class="p">:</span>
+                <span class="n">handler</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
+                                  <span class="bp">self</span><span class="o">.</span><span class="n">http_method_not_allowed</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">handler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">http_method_not_allowed</span>
+
+            <span class="n">response</span> <span class="o">=</span> <span class="n">handler</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<p>允许的方法在DRF没有定义，但取自Django:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># https://github.com/django/django/blob/stable/3.2.x/django/views/generic/base.py#L36</span>
+
+<span class="k">class</span> <span class="nc">View</span><span class="p">:</span>
+    <span class="n">http_method_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'get'</span><span class="p">,</span> <span class="s1">'post'</span><span class="p">,</span> <span class="s1">'put'</span><span class="p">,</span> <span class="s1">'patch'</span><span class="p">,</span> <span class="s1">'delete'</span><span class="p">,</span> <span class="s1">'head'</span><span class="p">,</span> <span class="s1">'options'</span><span class="p">,</span> <span class="s1">'trace'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>最后，返回的不是Django的<code>HttpResponse</code>，<a href="https://www.django-rest-framework.org/api-guide/responses/">响应</a>对象。Django的<code>HttpResponse</code>和DRF的<code>Response</code>的区别在于<code>Response</code>是用未呈现的数据初始化的，允许根据客户端请求将内容呈现为多种内容类型。</p>
+<h2 id="conclusion">结论</h2>
+<p>在DRF有多种类型的观点。最广泛使用的有:</p>
+<ol>
+<li>扩展了<code>APIView</code>类的基于类的视图</li>
+<li>具体的观点</li>
+<li><code>ModelViewSet</code></li>
+</ol>
+<p>它们在可定制性和易用性方面有所不同。对于基于类的视图，您可以在视图内部设置策略(即节流、权限)，对于基于函数的视图，您可以使用decorators来设置策略。</p>
+<p>扩展<code>APIView</code>给了你最大的自由来定制视图本身。</p>
+<p><strong>深入了解Django REST框架视图系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-views-part-1/"> APIViews </a>(本文！)</li>
+<li><a href="/blog/drf-views-part-2/">通用视图</a></li>
+<li><a href="/blog/drf-views-part-3/">视图集</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

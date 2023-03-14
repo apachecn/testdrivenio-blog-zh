@@ -1,0 +1,468 @@
+<html>
+<head>
+<title>Async Views in Django </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django中的异步视图</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-async-views/#0001-01-01">https://testdriven.io/blog/django-async-views/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>编写异步代码使您能够不费吹灰之力就加快应用程序的速度。Django版本&gt; = 3.1 <a href="https://docs.djangoproject.com/en/3.2/releases/3.1/#asynchronous-views-and-middleware-support">支持</a>异步视图、中间件和测试。如果您还没有尝试过异步视图，现在是时候了解一下了。</p>
+<p>本教程着眼于如何开始使用Django的异步视图。</p>
+<blockquote>
+<p>如果您有兴趣了解更多关于异步代码背后的力量以及Python中线程、多处理和异步之间的差异，请查看我的文章<a href="/blog/concurrency-parallelism-asyncio/">用并发、并行和异步加速Python。</a></p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>用Django写一个异步视图</li>
+<li>在Django视图中发出一个非阻塞HTTP请求</li>
+<li>用Django的异步视图简化基本的后台任务</li>
+<li>使用<code>sync_to_async</code>在异步视图中进行同步调用</li>
+<li>解释什么时候应该和不应该使用异步视图</li>
+</ol>
+<p>您还应该能够回答以下问题:</p>
+<ol>
+<li>如果在异步视图中进行同步调用会怎样？</li>
+<li>如果在异步视图中进行同步和异步调用会怎么样？</li>
+<li>用Django的异步观点芹菜还有必要吗？</li>
+</ol>
+<h2 id="prerequisites">先决条件</h2>
+<p>只要您已经熟悉Django本身，向非基于类的视图添加异步功能是非常简单的。</p>
+<h3 id="dependencies">属国</h3>
+<ol>
+<li>Python &gt;= 3.8</li>
+<li>Django &gt;= 3.1</li>
+<li>独角兽企业</li>
+<li>HTTPX</li>
+</ol>
+<h3 id="what-is-asgi">ASGI是什么？</h3>
+<p><a href="https://asgi.readthedocs.io/en/latest/"> ASGI </a>代表异步服务器网关接口。它是<a href="https://wsgi.readthedocs.io/en/latest/"> WSGI </a>的现代异步后续，为创建基于Python的异步web应用程序提供了标准。</p>
+<p>另一件值得一提的事情是，ASGI向后兼容WSGI，这是一个很好的借口，可以从像Gunicorn或uWSGI这样的WSGI服务器切换到像<a href="https://www.uvicorn.org/"> Uvicorn </a>或<a href="https://github.com/django/daphne"> Daphne </a>这样的ASGI服务器，即使你<em>没有</em>准备好切换到编写异步应用程序。</p>
+<h2 id="creating-the-app">创建应用程序</h2>
+<p>创建一个新的项目目录和一个新的Django项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-async-views <span class="o">&amp;&amp;</span> <span class="nb">cd</span> django-async-views
+$ python3.10 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install django
+<span class="o">(</span>env<span class="o">)</span>$ django-admin startproject hello_async .
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>如果您使用内置的开发服务器，Django将运行您的异步视图，但它实际上不会异步运行它们，所以我们将使用Uvicorn运行Django。</p>
+<p>安装它:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install uvicorn
+</code></pre></div>
+
+<p>要使用Uvicorn运行您的项目，您可以从项目的根目录使用以下命令:</p>
+<div class="codehilite"><pre><span/><code>uvicorn <span class="o">{</span>name of your project<span class="o">}</span>.asgi:application
+</code></pre></div>
+
+<p>在我们的例子中，这将是:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ uvicorn hello_async.asgi:application
+</code></pre></div>
+
+<p>接下来，让我们创建第一个异步视图。添加一个新文件来保存“hello_async”文件夹中的视图，然后添加以下视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/views.py</span>
+
+<span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">HttpResponse</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">index</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s2">"Hello, async Django!"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在Django中创建异步视图就像创建同步视图一样简单——您所需要做的就是添加关键字<code>async</code>。</p>
+<p>更新URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">hello_async.views</span> <span class="kn">import</span> <span class="n">index</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"admin/"</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">index</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>现在，在终端的根文件夹中，运行:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ uvicorn hello_async.asgi:application --reload
+</code></pre></div>
+
+<blockquote>
+<p>标志告诉Uvicorn观察你的文件是否有变化，如果有变化就重新加载。这可能是不言自明的。</p>
+</blockquote>
+<p>在您最喜欢的网络浏览器中打开<a href="http://localhost:8000/"> http://localhost:8000/ </a>:</p>
+
+
+<p>不是世界上最令人兴奋的事情，但是，嘿，这是一个开始。值得注意的是，用Django的内置开发服务器运行这个视图会产生完全相同的功能和输出。这是因为我们实际上没有在处理程序中做任何异步的事情。</p>
+<h2 id="httpx">HTTPX</h2>
+<p>值得注意的是，异步支持是完全向后兼容的，因此您可以混合异步和同步视图、中间件和测试。Django将在适当的执行上下文中执行每一个。</p>
+<p>为了演示这一点，添加几个新视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/views.py</span>
+
+<span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">sleep</span>
+
+<span class="kn">import</span> <span class="nn">httpx</span>
+<span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">HttpResponse</span>
+
+
+<span class="c1"># helpers</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">http_call_async</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">num</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://httpbin.org/"</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">http_call_sync</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span>
+        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">num</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://httpbin.org/"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+
+
+<span class="c1"># views</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">index</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s2">"Hello, async Django!"</span><span class="p">)</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">async_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+    <span class="n">loop</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">http_call_async</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s2">"Non-blocking HTTP request"</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">sync_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">http_call_sync</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s2">"Blocking HTTP request"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>更新URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">hello_async.views</span> <span class="kn">import</span> <span class="n">index</span><span class="p">,</span> <span class="n">async_view</span><span class="p">,</span> <span class="n">sync_view</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"admin/"</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"async/"</span><span class="p">,</span> <span class="n">async_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"sync/"</span><span class="p">,</span> <span class="n">sync_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">index</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>安装<a href="https://www.python-httpx.org/"> HTTPX </a>:</p>
+
+
+<p>服务器运行时，导航到<a href="http://localhost:8000/async/">http://localhost:8000/async/</a>。您应该会立即看到响应:</p>
+<div class="codehilite"><pre><span/><code>Non-blocking HTTP request
+</code></pre></div>
+
+<p>在您的终端中，您应该看到:</p>
+<div class="codehilite"><pre><span/><code>INFO:     <span class="m">127</span>.0.0.1:60374 - <span class="s2">"GET /async/ HTTP/1.1"</span> <span class="m">200</span> OK
+<span class="m">1</span>
+<span class="m">2</span>
+<span class="m">3</span>
+<span class="m">4</span>
+<span class="m">5</span>
+&lt;Response <span class="o">[</span><span class="m">200</span> OK<span class="o">]</span>&gt;
+</code></pre></div>
+
+<p>这里，HTTP响应在第一次睡眠调用之前被发送回。</p>
+<p>接下来，导航到<a href="http://localhost:8000/sync/">http://localhost:8000/sync/</a>。大约需要五秒钟才能得到响应:</p>
+
+
+<p>转向终端:</p>
+<div class="codehilite"><pre><span/><code><span class="m">1</span>
+<span class="m">2</span>
+<span class="m">3</span>
+<span class="m">4</span>
+<span class="m">5</span>
+&lt;Response <span class="o">[</span><span class="m">200</span> OK<span class="o">]</span>&gt;
+INFO:     <span class="m">127</span>.0.0.1:60375 - <span class="s2">"GET /sync/ HTTP/1.1"</span> <span class="m">200</span> OK
+</code></pre></div>
+
+<p>这里，HTTP响应是在循环和对<code>https://httpbin.org/</code>的请求完成后<em>发送的。</em></p>
+<h2 id="smoking-some-meats">熏肉</h2>
+<p>为了更好地模拟如何利用异步的真实场景，让我们看看如何异步运行多个操作，聚合结果，并将它们返回给调用者。</p>
+<p>回到你的项目的URLconf，在<a href="https://www.youtube.com/watch?v=SVyLlFezj2E"> <code>smoke_some_meats</code> </a>创建一个新路径:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">hello_async.views</span> <span class="kn">import</span> <span class="n">index</span><span class="p">,</span> <span class="n">async_view</span><span class="p">,</span> <span class="n">sync_view</span><span class="p">,</span> <span class="n">smoke_some_meats</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"admin/"</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"smoke_some_meats/"</span><span class="p">,</span> <span class="n">smoke_some_meats</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"async/"</span><span class="p">,</span> <span class="n">async_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"sync/"</span><span class="p">,</span> <span class="n">sync_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">index</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>回到您的视图中，创建一个名为<code>smoke</code>的新异步助手函数。这个函数有两个参数:一个名为<code>smokables</code>的字符串列表和一个名为<code>flavor</code>的字符串。这些分别默认为可吸烟的肉类和“糖宝·雷”的列表。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/views.py</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">smoke</span><span class="p">(</span><span class="n">smokables</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">flavor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"Sweet Baby Ray's"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="sd">""" Smokes some meats and applies the Sweet Baby Ray's """</span>
+
+    <span class="k">for</span> <span class="n">smokable</span> <span class="ow">in</span> <span class="n">smokables</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Smoking some </span><span class="si">{</span><span class="n">smokable</span><span class="si">}</span><span class="s2">..."</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Applying the </span><span class="si">{</span><span class="n">flavor</span><span class="si">}</span><span class="s2">..."</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">smokable</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span><span class="si">}</span><span class="s2"> smoked."</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">smokables</span><span class="p">)</span>
+</code></pre></div>
+
+<p>for循环异步地将风味(读:糖宝·雷的)应用到烟草(读:熏肉)上。</p>
+<p>不要忘记重要的一点:</p>
+
+
+<blockquote>
+<p><code>List</code>用于额外的打字功能。这不是必需的，可以很容易地省略(只需去掉“smokables”参数声明后面的<code>: List[str]</code>)。</p>
+</blockquote>
+<p>接下来，再添加两个异步助手:</p>
+<div class="codehilite"><pre><span/><code><span class="k">async</span> <span class="k">def</span> <span class="nf">get_smokables</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Getting smokeables..."</span><span class="p">)</span>
+
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://httpbin.org/"</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Returning smokeable"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="s2">"ribs"</span><span class="p">,</span>
+            <span class="s2">"brisket"</span><span class="p">,</span>
+            <span class="s2">"lemon chicken"</span><span class="p">,</span>
+            <span class="s2">"salmon"</span><span class="p">,</span>
+            <span class="s2">"bison sirloin"</span><span class="p">,</span>
+            <span class="s2">"sausage"</span><span class="p">,</span>
+        <span class="p">]</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">get_flavor</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Getting flavor..."</span><span class="p">)</span>
+
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://httpbin.org/"</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Returning flavor"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="s2">"Sweet Baby Ray's"</span><span class="p">,</span>
+                <span class="s2">"Stubb's Original"</span><span class="p">,</span>
+                <span class="s2">"Famous Dave's"</span><span class="p">,</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+</code></pre></div>
+
+<p>确保添加导入:</p>
+
+
+<p>创建使用异步函数的异步视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/views.py</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">smoke_some_meats</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">get_smokables</span><span class="p">(),</span> <span class="n">get_flavor</span><span class="p">()])</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">smoke</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">results</span><span class="p">[</span><span class="mi">1</span><span class="p">])])</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Smoked </span><span class="si">{</span><span class="n">total</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> meats with </span><span class="si">{</span><span class="n">results</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">!"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这个视图同时调用<code>get_smokables</code>和<code>get_flavor</code>函数。由于<code>smoke</code>依赖于来自<code>get_smokables</code>和<code>get_flavor</code>的结果，我们使用<code>gather</code>来等待每个异步任务完成。</p>
+<p><strong>请记住，在常规的同步视图中，<code>get_smokables</code>和<code>get_flavor</code>将一次处理一个。此外，异步视图将产生执行，并允许在处理异步任务的同时处理其他请求，这允许在特定的时间内由同一进程处理更多的请求。</strong></p>
+<p>最后，返回一个响应，让用户知道他们美味的BBQ餐准备好了。</p>
+<p>太好了。保存文件，然后返回浏览器，导航到<a href="http://localhost:8000/smoke_some_meats/">http://localhost:8000/smoke _ some _ meats/</a>。应该需要几秒钟才能得到响应:</p>
+<div class="codehilite"><pre><span/><code>Smoked <span class="m">6</span> meats with Sweet Baby Ray<span class="err">'</span>s!
+</code></pre></div>
+
+<p>在您的控制台中，您应该会看到:</p>
+<div class="codehilite"><pre><span/><code>Getting smokeables...
+Getting flavor...
+Returning flavor
+Returning smokeable
+
+Smoking some ribs...
+Applying the Stubb<span class="s1">'s Original...</span>
+<span class="s1">Ribs smoked.</span>
+<span class="s1">Smoking some brisket...</span>
+<span class="s1">Applying the Stubb'</span>s Original...
+Brisket smoked.
+Smoking some lemon chicken...
+Applying the Stubb<span class="s1">'s Original...</span>
+<span class="s1">Lemon chicken smoked.</span>
+<span class="s1">Smoking some salmon...</span>
+<span class="s1">Applying the Stubb'</span>s Original...
+Salmon smoked.
+Smoking some bison sirloin...
+Applying the Stubb<span class="s1">'s Original...</span>
+<span class="s1">Bison sirloin smoked.</span>
+<span class="s1">Smoking some sausage...</span>
+<span class="s1">Applying the Stubb'</span>s Original...
+Sausage smoked.
+INFO:     <span class="m">127</span>.0.0.1:57501 - <span class="s2">"GET /smoke_some_meats/ HTTP/1.1"</span> <span class="m">200</span> OK
+</code></pre></div>
+
+<p>请注意以下打印语句的顺序:</p>
+<div class="codehilite"><pre><span/><code>Getting smokeables...
+Getting flavor...
+Returning flavor
+Returning smokeable
+</code></pre></div>
+
+<p>这就是工作中的异步性:当<code>get_smokables</code>函数休眠时，<code>get_flavor</code>函数完成处理。</p>
+<h2 id="burnt-meats">烧焦的肉</h2>
+<h3 id="sync-call">同步呼叫</h3>
+<p>问:<em>如果在异步视图中进行同步调用会怎样？</em></p>
+<p>如果从非异步视图调用非异步函数，也会发生同样的事情。</p>
+<p>--</p>
+<p>为了说明这一点，在您的<em> views.py </em>中创建一个名为<code>oversmoke</code>的新助手函数:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/views.py</span>
+
+<span class="k">def</span> <span class="nf">oversmoke</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="sd">""" If it's not dry, it must be uncooked """</span>
+    <span class="n">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Who doesn't love burnt meats?"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>非常简单:我们只是同步等待五秒钟。</p>
+<p>创建调用此函数的视图:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/views.py</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">burn_some_meats</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">oversmoke</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Burned some meats."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>最后，在项目的URLconf中连接路线:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">hello_async.views</span> <span class="kn">import</span> <span class="n">index</span><span class="p">,</span> <span class="n">async_view</span><span class="p">,</span> <span class="n">sync_view</span><span class="p">,</span> <span class="n">smoke_some_meats</span><span class="p">,</span> <span class="n">burn_some_meats</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"admin/"</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"smoke_some_meats/"</span><span class="p">,</span> <span class="n">smoke_some_meats</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"burn_some_meats/"</span><span class="p">,</span> <span class="n">burn_some_meats</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"async/"</span><span class="p">,</span> <span class="n">async_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"sync/"</span><span class="p">,</span> <span class="n">sync_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">index</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>在浏览器中访问路线在<a href="http://localhost:8000/burn_some_meats">http://localhost:8000/burn _ some _ meats</a>:</p>
+
+
+<p>请注意，最终从浏览器得到响应花了五秒钟。您还应该同时收到控制台输出:</p>
+<div class="codehilite"><pre><span/><code>Who doesn<span class="err">'</span>t love burnt meats?
+INFO:     <span class="m">127</span>.0.0.1:40682 - <span class="s2">"GET /burn_some_meats HTTP/1.1"</span> <span class="m">200</span> OK
+</code></pre></div>
+
+<p>可能值得注意的是，不管您使用的是什么服务器，不管是基于WSGI还是ASGI，都会发生同样的事情。</p>
+<h3 id="sync-and-async-calls">同步和异步呼叫</h3>
+<p>问:如果在异步视图中进行同步和异步调用会怎么样？</p>
+<p>不要这样。</p>
+<p>同步和异步视图往往最适合不同的目的。如果在异步视图中有阻塞功能，最好的情况也不会比仅仅使用同步视图更好。</p>
+<h2 id="sync-to-async">同步到异步</h2>
+<p>如果您需要在一个异步视图中进行同步调用(例如，通过Django ORM与数据库交互)，使用<a href="https://docs.djangoproject.com/en/4.0/topics/async/#sync-to-async"> sync_to_async </a>作为包装器或装饰器。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/views.py</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">async_with_sync_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+    <span class="n">async_function</span> <span class="o">=</span> <span class="n">sync_to_async</span><span class="p">(</span><span class="n">http_call_sync</span><span class="p">,</span> <span class="n">thread_sensitive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">loop</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">async_function</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="s2">"Non-blocking HTTP request (via sync_to_async)"</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>你注意到我们将<code>thread_sensitive</code>参数设置为<code>False</code>了吗？这意味着同步函数<code>http_call_sync</code>将在一个新的线程中运行。查看<a href="https://docs.djangoproject.com/en/4.0/topics/async/#sync-to-async">文档</a>了解更多信息。</p>
+</blockquote>
+<p>将导入添加到顶部:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">asgiref.sync</span> <span class="kn">import</span> <span class="n">sync_to_async</span>
+</code></pre></div>
+
+<p>添加URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># hello_async/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">hello_async.views</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">index</span><span class="p">,</span>
+    <span class="n">async_view</span><span class="p">,</span>
+    <span class="n">sync_view</span><span class="p">,</span>
+    <span class="n">smoke_some_meats</span><span class="p">,</span>
+    <span class="n">burn_some_meats</span><span class="p">,</span>
+    <span class="n">async_with_sync_view</span>
+<span class="p">)</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"admin/"</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"smoke_some_meats/"</span><span class="p">,</span> <span class="n">smoke_some_meats</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"burn_some_meats/"</span><span class="p">,</span> <span class="n">burn_some_meats</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"sync_to_async/"</span><span class="p">,</span> <span class="n">async_with_sync_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"async/"</span><span class="p">,</span> <span class="n">async_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">"sync/"</span><span class="p">,</span> <span class="n">sync_view</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">index</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>在您的浏览器中进行测试，网址为<a href="http://localhost:8000/sync_to_async/">http://localhost:8000/sync _ to _ async/</a>。</p>
+<p>在您的终端中，您应该看到:</p>
+<div class="codehilite"><pre><span/><code>INFO:     <span class="m">127</span>.0.0.1:61365 - <span class="s2">"GET /sync_to_async/ HTTP/1.1"</span> <span class="m">200</span> OK
+<span class="m">1</span>
+<span class="m">2</span>
+<span class="m">3</span>
+<span class="m">4</span>
+<span class="m">5</span>
+&lt;Response <span class="o">[</span><span class="m">200</span> OK<span class="o">]</span>&gt;
+</code></pre></div>
+
+<p>使用<code>sync_to_async</code>，阻塞同步调用在后台线程中处理，允许HTTP响应在第一个睡眠调用之前被发送回<em>。</em></p>
+<h2 id="celery-and-async-views">芹菜和异步视图</h2>
+<p>问:对于Django的异步观点，芹菜还有存在的必要吗？</p>
+<p>看情况。</p>
+<p>Django的异步视图提供了与任务或消息队列相似的功能，而没有复杂性。如果您正在使用(或者正在考虑使用)Django，并且想做一些简单的事情(并且不关心可靠性)，异步视图是一个快速而简单地实现这一点的好方法。如果您需要执行更繁重、长时间运行的后台进程，您仍然会希望使用Celery或RQ。</p>
+<p>应该注意，为了有效地使用异步视图，视图中应该只有异步调用。另一方面，任务队列在不同的进程上使用工作线程，因此能够在多个服务器上的后台运行同步调用。</p>
+<p>顺便说一下，您决不需要在异步视图和消息队列之间做出选择——您可以很容易地同时使用它们。例如:您可以使用异步视图发送电子邮件或进行一次性数据库修改，但让Celery在每晚的预定时间清理您的数据库或生成并发送客户报告。</p>
+<h2 id="when-to-use">何时使用</h2>
+<p>对于绿地项目，如果异步是你的事情，利用异步视图，尽可能以异步方式编写你的I/O过程。也就是说，如果您的大多数视图只需要调用数据库并在返回数据之前做一些基本的处理，那么您不会看到比坚持使用同步视图有太多的增加(如果有的话)。</p>
+<p>对于棕地项目，如果你有很少或没有I/O进程，坚持使用同步视图。如果你有许多I/O进程，衡量一下用异步方式重写它们有多容易。将sync I/O重写为async并不容易，所以在尝试重写为async之前，您可能需要优化您的sync I/O和视图。另外，将同步过程与异步视图混合在一起从来都不是一个好主意。</p>
+<p>在生产中，一定要使用Gunicorn来管理uvicon，以便利用并发性(通过uvicon)和并行性(通过Gunicorn workers):</p>
+<div class="codehilite"><pre><span/><code>gunicorn -w <span class="m">3</span> -k uvicorn.workers.UvicornWorker hello_async.asgi:application
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>总之，尽管这是一个简单的用例，但它应该让您大致了解Django的异步视图所带来的可能性。在异步视图中还可以尝试发送电子邮件、调用第三方API和读写文件。</p>
+<p>有关Django新发现的异步性的更多信息，请参阅这篇<a href="https://wersdoerfer.de/blogs/ephes_blog/django-31-async/">优秀文章</a>，它涵盖了相同的主题以及多线程和测试。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

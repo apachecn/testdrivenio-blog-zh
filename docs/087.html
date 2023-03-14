@@ -1,0 +1,707 @@
+<html>
+<head>
+<title>Deploying a Node App to Google Cloud with Kubernetes </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Kubernetes将节点应用部署到Google Cloud</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/deploying-a-node-app-to-google-cloud-with-kubernetes/#0001-01-01">https://testdriven.io/blog/deploying-a-node-app-to-google-cloud-with-kubernetes/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>让我们看看如何在谷歌Kubernetes引擎 (GKE)上将节点/快速微服务(以及Postgres)部署到Kubernetes集群。</p>
+<p><em>依赖关系:</em></p>
+<ul>
+<li>文档版本20.10.10</li>
+<li>Kubectl v1.20.8</li>
+<li>谷歌云SDK v365.0.1</li>
+</ul>
+<blockquote>
+<p>本文假设您对Docker有基本的了解，并且对微服务有一个总体的了解。查看包含Docker、Flask和React 课程包的<a href="/bundle/microservices-with-docker-flask-and-react/">微服务，了解更多信息。</a></p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>解释什么是容器编排，以及为什么需要使用编排工具</li>
+<li>讨论与Docker Swarm和AWS弹性容器服务(ECS)等其他编排工具相比，使用Kubernetes的利弊</li>
+<li>解释以下Kubernetes原语:节点、Pod、服务、标签、部署、入口和卷</li>
+<li>使用Docker Compose在本地构建基于节点的微服务</li>
+<li>配置一个Kubernetes集群在谷歌云平台(GCP)上运行</li>
+<li>设置一个卷来保存Kubernetes集群中的Postgres数据</li>
+<li>使用Kubernetes的秘密来管理敏感信息</li>
+<li>在Kubernetes上运行Node和Postgres</li>
+<li>通过负载平衡器向外部用户公开节点API</li>
+</ol>
+<h2 id="what-is-container-orchestration">什么是容器编排？</h2>
+<p>当您从在单台机器上部署容器转移到在多台机器上部署容器时，您将需要一个编排工具来管理(并自动化)容器在整个系统中的安排、协调和可用性。</p>
+<p>编排工具有助于:</p>
+<ol>
+<li>跨服务器容器通信</li>
+<li>水平缩放</li>
+<li>服务发现</li>
+<li>负载平衡</li>
+<li>安全性/TLS</li>
+<li>零停机部署</li>
+<li>卷回</li>
+<li>记录</li>
+<li>监视</li>
+</ol>
+<p>这就是Kubernetes与其他一些编排工具的契合之处，比如T2、Docker Swarm、T4、ECS、Mesos和Nomad。</p>
+<p>你应该用哪一个？</p>
+<ul>
+<li>如果您需要管理大型、复杂的集群，请使用Kubernetes</li>
+<li>如果您刚刚起步和/或需要管理中小型集群，请使用<em> Docker Swarm </em></li>
+<li>如果您已经在使用一些AWS服务，请使用<em> ECS </em></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>赞成的意见</th>
+<th>骗局</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>库伯内特斯</td>
+<td>大型社区，灵活，大多数功能，时尚</td>
+<td>复杂的设置、高学习曲线、hip</td>
+</tr>
+<tr>
+<td>码头工人群</td>
+<td>易于设置，非常适合小型集群</td>
+<td>受Docker API的限制</td>
+</tr>
+<tr>
+<td>精英公司</td>
+<td>全面管理的服务，与AWS集成</td>
+<td>供应商锁定</td>
+</tr>
+</tbody>
+</table>
+<p>市场上还有许多由Kubernetes管理的服务:</p>
+<ol>
+<li><a href="https://cloud.google.com/kubernetes-engine/">谷歌Kubernetes引擎</a> (GKE)</li>
+<li><a href="https://aws.amazon.com/eks/">弹性集装箱服务</a> (EKS)</li>
+<li>Azure Kubernetes服务公司</li>
+</ol>
+<blockquote>
+<p>更多信息，请查看<a href="https://blog.kublr.com/choosing-the-right-containerization-and-cluster-management-tool-fdfcec5700df">选择正确的容器化和集群管理工具</a>博文。</p>
+</blockquote>
+<h2 id="kubernetes-concepts">不可思议的概念</h2>
+<p>在开始之前，让我们先来看看一些您必须使用的来自<a href="https://kubernetes.io/docs/concepts/overview/kubernetes-api/"> Kubernetes API </a>的基本构件:</p>
+<ol>
+<li>一个<strong> <a href="https://kubernetes.io/docs/concepts/architecture/nodes/">节点</a> </strong>是一个用于运行Kubernetes的工作机。每个节点都由Kubernetes主节点管理。</li>
+<li>一个<strong> <a href="https://kubernetes.io/docs/concepts/workloads/pods/pod/"> Pod </a> </strong>是在一个节点上运行的一组逻辑紧密耦合的应用程序容器。Pod中的容器部署在一起并共享资源(如数据量和网络地址)。多个单元可以在一个节点上运行。</li>
+<li>一个<strong> <a href="https://kubernetes.io/docs/concepts/services-networking/service/">服务</a> </strong>是执行类似功能的一组逻辑单元。它支持负载平衡和服务发现。它是豆荚上的一个抽象层；豆荚是短暂的，而服务是持久的。</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/">部署</a> </strong>用于描述Kubernetes的期望状态。它们规定了如何创建、部署和复制pod。</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/">标签</a> </strong>是附属于资源(如pod)的键/值对，用于组织相关资源。你可以把它们想象成CSS选择器。例如:<ul>
+<li><em>环境</em> - <code>dev</code>，<code>test</code>，<code>prod</code></li>
+<li><em> App版本</em> - <code>beta</code>，<code>1.2.1</code></li>
+<li><em>类型</em> - <code>client</code>，<code>server</code>，<code>db</code></li>
+</ul>
+</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/services-networking/ingress/"> Ingress </a> </strong>是一组路由规则，用于根据请求主机或路径控制外部对服务的访问。</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/storage/volumes/">卷</a> </strong>用于保存容器寿命之外的数据。它们对于像Redis和Postgres这样的有状态应用程序尤其重要。<ul>
+<li>一个<em> <a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/">持久卷</a> </em>定义一个独立于正常Pod生命周期的存储卷。它是在它所在的特定舱之外被管理的。</li>
+<li><em> <a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims">持久卷声明</a> </em>是用户使用持久卷的请求。</li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p>更多信息，请查看<a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/">学习Kubernetes基础知识</a>教程。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>从从<a href="https://github.com/testdrivenio/node-kubernetes">https://github.com/testdrivenio/node-kubernetes</a>回购克隆应用程序开始:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/node-kubernetes
+$ <span class="nb">cd</span> node-kubernetes
+</code></pre></div>
+
+<p>构建映像并旋转容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>应用迁移并为数据库设定种子:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web knex migrate:latest
+$ docker-compose <span class="nb">exec</span> web knex seed:run
+</code></pre></div>
+
+<p>测试以下端点...</p>
+<p>获取所有待办事项:</p>
+<div class="codehilite"><pre><span/><code>$ curl http://localhost:3000/todos
+
+<span class="o">[</span>
+  <span class="o">{</span>
+    <span class="s2">"id"</span>: <span class="m">1</span>,
+    <span class="s2">"title"</span>: <span class="s2">"Do something"</span>,
+    <span class="s2">"completed"</span>: <span class="nb">false</span>
+  <span class="o">}</span>,
+  <span class="o">{</span>
+    <span class="s2">"id"</span>: <span class="m">2</span>,
+    <span class="s2">"title"</span>: <span class="s2">"Do something else"</span>,
+    <span class="s2">"completed"</span>: <span class="nb">false</span>
+  <span class="o">}</span>
+<span class="o">]</span>
+</code></pre></div>
+
+<p>添加新的待办事项:</p>
+<div class="codehilite"><pre><span/><code>$ curl -d <span class="s1">'{"title":"something exciting", "completed":"false"}'</span> <span class="se">\</span>
+    -H <span class="s2">"Content-Type: application/json"</span> -X POST http://localhost:3000/todos
+
+<span class="s2">"Todo added!"</span>
+</code></pre></div>
+
+<p>获取一个待办事项:</p>
+<div class="codehilite"><pre><span/><code>$ curl http://localhost:3000/todos/3
+
+<span class="o">[</span>
+  <span class="o">{</span>
+    <span class="s2">"id"</span>: <span class="m">3</span>,
+    <span class="s2">"title"</span>: <span class="s2">"something exciting"</span>,
+    <span class="s2">"completed"</span>: <span class="nb">false</span>
+  <span class="o">}</span>
+<span class="o">]</span>
+</code></pre></div>
+
+<p>更新待办事项:</p>
+<div class="codehilite"><pre><span/><code>$ curl -d <span class="s1">'{"title":"something exciting", "completed":"true"}'</span> <span class="se">\</span>
+    -H <span class="s2">"Content-Type: application/json"</span> -X PUT http://localhost:3000/todos/3
+
+<span class="s2">"Todo updated!"</span>
+</code></pre></div>
+
+<p>删除待办事项:</p>
+<div class="codehilite"><pre><span/><code>$ curl -X DELETE http://localhost:3000/todos/3
+</code></pre></div>
+
+<p>在继续之前，快速浏览一下代码:</p>
+<div class="codehilite"><pre><span/><code>├── .dockerignore
+├── .gitignore
+├── Dockerfile
+├── README.md
+├── docker-compose.yml
+├── knexfile.js
+├── kubernetes
+│   ├── node-deployment-updated.yaml
+│   ├── node-deployment.yaml
+│   ├── node-service.yaml
+│   ├── postgres-deployment.yaml
+│   ├── postgres-service.yaml
+│   ├── secret.yaml
+│   ├── volume-claim.yaml
+│   └── volume.yaml
+├── package-lock.json
+├── package.json
+└── src
+    ├── db
+    │   ├── knex.js
+    │   ├── migrations
+    │   │   └── 20181009160908_todos.js
+    │   └── seeds
+    │       └── todos.js
+    └── server.js
+</code></pre></div>
+
+<h2 id="google-cloud-setup">Google云设置</h2>
+<p>在这一部分，我们将-</p>
+<ol>
+<li>配置<a href="https://cloud.google.com/sdk">谷歌云SDK </a>。</li>
+<li>安装<a href="https://kubernetes.io/docs/reference/kubectl/overview/"> kubectl </a>，这是一个CLI工具，用于针对Kubernetes集群运行命令。</li>
+<li>创建一个GCP项目。</li>
+</ol>
+<blockquote>
+<p>在开始之前，你需要一个<a href="https://cloud.google.com/">谷歌云平台</a> (GCP)账户。如果你是GCP的新用户，谷歌提供了一个价值300美元的<a href="https://cloud.google.com/free/">免费试用</a>。</p>
+</blockquote>
+<p>从安装<a href="https://cloud.google.com/sdk">谷歌云SDK </a>开始。</p>
+<blockquote>
+<p>如果你在Mac上，我们建议安装带有<a href="https://brew.sh/">自制软件</a>的SDK:</p>
+<div class="codehilite"><pre><span/>$ brew update
+$ brew install google-cloud-sdk --cask
+</pre></div></blockquote>
+
+<p>测试:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud --version
+
+Google Cloud SDK <span class="m">365</span>.0.1
+bq <span class="m">2</span>.0.71
+core <span class="m">2021</span>.11.19
+gsutil <span class="m">5</span>.5
+</code></pre></div>
+
+<p>安装后，运行<code>gcloud init</code>来配置SDK，以便它可以访问您的GCP凭证。你还需要选择一个现有的GCP项目或者<a href="https://cloud.google.com/resource-manager/docs/creating-managing-projects#creating_a_project">创建</a>一个新的项目。</p>
+<p>设置项目:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud config <span class="nb">set</span> project &lt;PROJECT_ID&gt;
+</code></pre></div>
+
+<p>最后，安装<code>kubectl</code>:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud components install kubectl
+</code></pre></div>
+
+<h2 id="kubernetes-cluster">不可思议的群集</h2>
+<p>接下来，我们在<a href="https://console.cloud.google.com/kubernetes"> Kubernetes引擎</a>上创建一个集群:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud container clusters create node-kubernetes <span class="se">\</span>
+    --num-nodes<span class="o">=</span><span class="m">3</span> --zone us-central1-a --machine-type g1-small
+</code></pre></div>
+
+<p>这将在具有<code>g1-small</code> <a href="https://cloud.google.com/compute/docs/machine-types">机器</a>的<code>us-central1-a</code> <a href="https://cloud.google.com/compute/docs/regions-zones/">区域</a>中创建一个名为<code>node-kubernetes</code>的三节点集群。旋转起来需要几分钟。</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get nodes
+
+NAME                                             STATUS   ROLES    AGE   VERSION
+gke-node-kubernetes-default-pool-139e0343-0hbt   Ready    &lt;none&gt;   75s   v1.21.5-gke.1302
+gke-node-kubernetes-default-pool-139e0343-p4s3   Ready    &lt;none&gt;   75s   v1.21.5-gke.1302
+gke-node-kubernetes-default-pool-139e0343-rxnc   Ready    &lt;none&gt;   75s   v1.21.5-gke.1302
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-1.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/7eba4537b5e1af4d66970d9b23aeec97.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-1.png"/></p>
+<p>将<code>kubectl</code>客户端连接到集群:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud container clusters get-credentials node-kubernetes --zone us-central1-a
+
+Fetching cluster endpoint and auth data.
+kubeconfig entry generated <span class="k">for</span> node-kubernetes.
+</code></pre></div>
+
+<blockquote>
+<p>有关Kubernetes引擎的帮助，请查看官方<a href="https://cloud.google.com/kubernetes-engine/docs/">文档</a>。</p>
+</blockquote>
+<h2 id="docker-registry">坞站注册表</h2>
+<p>使用<code>gcr.io/&lt;PROJECT_ID&gt;/&lt;IMAGE_NAME&gt;:&lt;TAG&gt;</code> Docker标签格式，为节点API构建本地Docker映像，然后将其推送到<a href="https://cloud.google.com/container-registry/">容器注册表</a>:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud auth configure-docker
+$ docker build -t gcr.io/&lt;PROJECT_ID&gt;/node-kubernetes:v0.0.1 .
+$ docker push gcr.io/&lt;PROJECT_ID&gt;/node-kubernetes:v0.0.1
+</code></pre></div>
+
+<blockquote>
+<p>确保用项目的ID替换<code>&lt;PROJECT_ID&gt;</code>。</p>
+</blockquote>
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-2.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/2f0234c99aeeef861da3976f8c4ea401.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-2.png"/></p>
+<h2 id="node-setup">节点设置</h2>
+<p>这样，我们现在可以通过创建<a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/">部署</a>在<a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/"> pod </a>上运行映像。</p>
+<p><em>kubernetes/node-deployment . YAML</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcr.io/&lt;PROJECT_ID&gt;/node-kubernetes:v0.0.1</span><span class="w"/>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NODE_ENV</span><span class="w"/>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"development"</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PORT</span><span class="w"/>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"3000"</span><span class="w"/>
+<span class="w">      </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Always</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>同样，一定要用项目的ID替换<code>&lt;PROJECT_ID&gt;</code>。</p>
+</blockquote>
+<p>这里发生了什么事？</p>
+<ol>
+<li><code>metadata</code><ul>
+<li><code>name</code>字段定义了部署名称- <code>node</code></li>
+<li><code>labels</code>为部署定义标签- <code>name: node</code></li>
+</ul>
+</li>
+<li><code>spec</code><ul>
+<li><code>replicas</code>定义要运行的pod数量- <code>1</code></li>
+<li><code>selector</code>指定窗格的标签(必须与<code>.spec.template.metadata.labels</code>匹配)</li>
+<li><code>template</code><ul>
+<li><code>metadata</code><ul>
+<li><code>labels</code>指出哪些标签应该分配给pod - <code>app: node</code></li>
+</ul>
+</li>
+<li><code>spec</code><ul>
+<li><code>containers</code>定义与每个pod相关的容器</li>
+<li><code>restartPolicy</code>定义了<a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/">重启策略</a> - <code>Always</code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<p>因此，这将通过我们刚刚上传的<code>gcr.io/&lt;PROJECT_ID&gt;/node-kubernetes:v0.0.1</code>图像旋转一个名为<code>node</code>的pod。</p>
+<p>创建:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/node-deployment.yaml
+</code></pre></div>
+
+<p>验证:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get deployments
+
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+node   <span class="m">1</span>/1     <span class="m">1</span>            <span class="m">1</span>           32s
+
+$ kubectl get pods
+
+NAME                    READY   STATUS    RESTARTS   AGE
+node-59646c8856-72blj   <span class="m">1</span>/1     Running   <span class="m">0</span>          18s
+</code></pre></div>
+
+<p>您可以通过<code>kubectl logs &lt;POD_NAME&gt;</code>查看容器日志:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl logs node-6fbfd984d-7pg92
+
+&gt; start
+&gt; nodemon src/server.js
+
+<span class="o">[</span>nodemon<span class="o">]</span> <span class="m">2</span>.0.15
+<span class="o">[</span>nodemon<span class="o">]</span> to restart at any time, enter <span class="sb">`</span>rs<span class="sb">`</span>
+<span class="o">[</span>nodemon<span class="o">]</span> watching path<span class="o">(</span>s<span class="o">)</span>: *.*
+<span class="o">[</span>nodemon<span class="o">]</span> watching extensions: js,mjs,json
+<span class="o">[</span>nodemon<span class="o">]</span> starting <span class="sb">`</span>node src/server.js<span class="sb">`</span>
+Listening on port: <span class="m">3000</span>
+</code></pre></div>
+
+<p>您也可以从Google Cloud控制台查看这些资源:</p>
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-3.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/b0bca97bad86e40865045dd127ddd4f3.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-3.png"/></p>
+<p>为了从外部访问您的API，让我们通过一个<a href="https://kubernetes.io/docs/concepts/services-networking/service/">服务</a>创建一个负载平衡器。</p>
+<p><em>库柏/节点服务。yaml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LoadBalancer</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3000</span><span class="w"/>
+</code></pre></div>
+
+<p>这将创建一个名为<code>node</code>的serviced，它将找到任何带有标签<code>node</code>的pod，并将端口暴露给外界。</p>
+<p>创建:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/node-service.yaml
+</code></pre></div>
+
+<p>这将在Google Cloud上创建一个新的<a href="https://cloud.google.com/load-balancing/">负载平衡器</a>:</p>
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-4.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/97181a73477dca94d53ebc61aef1ff96.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-4.png"/></p>
+<p>获取外部IP:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get service node
+
+NAME   TYPE           CLUSTER-IP     EXTERNAL-IP     PORT<span class="o">(</span>S<span class="o">)</span>          AGE
+node   LoadBalancer   <span class="m">10</span>.40.10.162   <span class="m">35</span>.222.45.193   <span class="m">3000</span>:31315/TCP   78s
+</code></pre></div>
+
+<p>测试一下:</p>
+<ol>
+<li><a href="http://EXTERNAL_IP:3000"> http://EXTERNAL_IP:3000 </a></li>
+<li><a href="http://EXTERNAL_IP:3000/todos">http://EXTERNAL _ IP:3000/todos</a></li>
+</ol>
+<p>当您点击第二个端点时，您应该会看到<code>"Something went wrong."</code>，因为数据库还没有设置。</p>
+<h2 id="secrets">秘密</h2>
+<p><a href="https://kubernetes.io/docs/concepts/configuration/secret/">秘密</a>用于管理敏感信息，如密码、API令牌和SSH密钥。我们将利用一个秘密来存储我们的Postgres数据库凭证。</p>
+<p><em>立方/秘密。yaml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span><span class="w"/>
+<span class="nt">data</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">c2FtcGxl</span><span class="w"/>
+<span class="w">  </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cGxlYXNlY2hhbmdlbWU=</span><span class="w"/>
+</code></pre></div>
+
+<p>用户和密码字段是base64编码的字符串:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">echo</span> -n <span class="s2">"pleasechangeme"</span> <span class="p">|</span> base64
+<span class="nv">cGxlYXNlY2hhbmdlbWU</span><span class="o">=</span>
+
+$ <span class="nb">echo</span> -n <span class="s2">"sample"</span> <span class="p">|</span> base64
+c2FtcGxl
+</code></pre></div>
+
+<p>创造秘密:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl apply -f ./kubernetes/secret.yaml
+</code></pre></div>
+
+<p>验证:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl describe secret postgres-credentials
+
+Name:         postgres-credentials
+Namespace:    default
+Labels:       &lt;none&gt;
+Annotations:  &lt;none&gt;
+
+Type:  Opaque
+
+<span class="nv">Data</span>
+<span class="o">====</span>
+password:  <span class="m">14</span> bytes
+user:      <span class="m">6</span> bytes
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-5.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/80356a981d17db20b00305758685fcc8.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-5.png"/></p>
+<h2 id="volume">卷</h2>
+<p>由于容器是短暂的，我们需要配置一个卷，通过一个<a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistent-volumes"> PersistentVolume </a>和一个<a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims"> PersistentVolumeClaim </a>来存储pod外部的Postgres数据。如果没有卷，当pod关闭时，您将会丢失数据。</p>
+<p>创建一个<a href="https://cloud.google.com/persistent-disk/">持久磁盘</a>:</p>
+<div class="codehilite"><pre><span/><code>$ gcloud compute disks create pg-data-disk --size 50GB --zone us-central1-a
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-6.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/8b7759e12b04024228dfdfb4f5d400f2.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-6.png"/></p>
+<p>立方/体积。yaml :</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PersistentVolume</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pv</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pv</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">capacity</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50Gi</span><span class="w"/>
+<span class="w">  </span><span class="nt">storageClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w"/>
+<span class="w">  </span><span class="nt">accessModes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ReadWriteOnce</span><span class="w"/>
+<span class="w">  </span><span class="nt">gcePersistentDisk</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">pdName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pg-data-disk</span><span class="w"/>
+<span class="w">    </span><span class="nt">fsType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ext4</span><span class="w"/>
+</code></pre></div>
+
+<p>该配置将创建一个50gb的PersistentVolume，其访问模式为<a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes"> ReadWriteOnce </a>，这意味着该卷可以由单个节点以读写方式装载。</p>
+<p>创建卷:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl apply -f ./kubernetes/volume.yaml
+</code></pre></div>
+
+<p>检查状态:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pv
+
+NAME         CAPACITY  ACCESS MODES  RECLAIM POLICY  STATUS     CLAIM  STORAGECLASS  REASON  AGE
+postgres-pv  50Gi      RWO           Retain          Available         standard              6s
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-7.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/eba696c73fedc49f8ecc8807e178ab57.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-7.png"/></p>
+<p><em>立方/体积索赔. yaml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PersistentVolumeClaim</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pvc</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">accessModes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ReadWriteOnce</span><span class="w"/>
+<span class="w">  </span><span class="nt">resources</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">requests</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50Gi</span><span class="w"/>
+<span class="w">  </span><span class="nt">volumeName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pv</span><span class="w"/>
+</code></pre></div>
+
+<p>这将在PersistentVolume(我们刚刚创建的)上创建一个声明，Postgres pod将能够使用该声明来连接一个卷。</p>
+<p>创建:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl apply -f ./kubernetes/volume-claim.yaml
+</code></pre></div>
+
+<p>查看:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pvc
+
+NAME           STATUS   VOLUME        CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+postgres-pvc   Bound    postgres-pv   50Gi       RWO            standard       6s
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-8.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/de1bb61c7dcb540bc07782c0443b3f95.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-8.png"/></p>
+<h2 id="postgres-setup">Postgres设置</h2>
+<p>随着数据库凭证和卷的建立，我们现在可以配置Postgres数据库本身。</p>
+<p><em>库柏人/研究生部署。yaml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">database</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:14-alpine</span><span class="w"/>
+<span class="w">        </span><span class="nt">volumeMounts</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-volume-mount</span><span class="w"/>
+<span class="w">          </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/lib/postgresql/data</span><span class="w"/>
+<span class="w">          </span><span class="nt">subPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER</span><span class="w"/>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD</span><span class="w"/>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span><span class="w"/>
+<span class="w">      </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Always</span><span class="w"/>
+<span class="w">      </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-volume-mount</span><span class="w"/>
+<span class="w">        </span><span class="nt">persistentVolumeClaim</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">claimName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pvc</span><span class="w"/>
+</code></pre></div>
+
+<p>在这里，除了通过<code>postgres:14-alpine</code>映像构建一个新的pod，这个配置还将PersistentVolumeClaim从<code>volumes</code>部分安装到在<code>volumeMounts</code>部分定义的“/var/lib/postgresql/data”目录中。</p>
+<blockquote>
+<p>查看<a href="https://stackoverflow.com/questions/51168558/how-to-mount-a-postgresql-volume-using-aws-ebs-in-kubernete/51174380">这个</a>堆栈溢出问题，了解为什么我们在卷挂载中包含了一个<a href="https://kubernetes.io/docs/concepts/storage/volumes/#using-subpath">子路径</a>的更多信息。</p>
+</blockquote>
+<p>创建:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/postgres-deployment.yaml
+</code></pre></div>
+
+<p>验证:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pods
+
+NAME                        READY   STATUS    RESTARTS   AGE
+node-59646c8856-72blj       <span class="m">1</span>/1     Running   <span class="m">0</span>          20m
+postgres-64d485d86b-vtrlh   <span class="m">1</span>/1     Running   <span class="m">0</span>          25s
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-9.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/42f94d2db3ab01147c112a044949c44c.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-9.png"/></p>
+<p>创建<code>todos</code>数据库:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl <span class="nb">exec</span> &lt;POD_NAME&gt; --stdin --tty -- createdb -U sample todos
+</code></pre></div>
+
+<p><em>立方/研究生服务。yaml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterIP</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span><span class="w"/>
+</code></pre></div>
+
+<p>这将创建一个<a href="https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types"> ClusterIP </a>服务，以便其他pods可以连接到它。它不会在群集外部提供。</p>
+<p>创建服务:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/postgres-service.yaml
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/node-kubernetes/gcp-10.png" loading="lazy" class="lazyload" alt="google cloud platform" src="../Images/27344319007b634a0a07bc2ab56f5278.png" data-original-src="https://testdriven.io/static/images/blog/node-kubernetes/gcp-10.png"/></p>
+<h2 id="update-node-deployment">更新节点部署</h2>
+<p>接下来，将数据库凭据添加到节点部署中:</p>
+<p><em>kubernetes/node-deployment-updated . YAML</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span><span class="w"/>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcr.io/&lt;PROJECT_ID&gt;/node-kubernetes:v0.0.1</span><span class="w"> </span><span class="c1"># update</span><span class="w"/>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NODE_ENV</span><span class="w"/>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"development"</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PORT</span><span class="w"/>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"3000"</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER</span><span class="w"/>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD</span><span class="w"/>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span><span class="w"/>
+<span class="w">      </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Always</span><span class="w"/>
+</code></pre></div>
+
+<p>创建:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl delete -f ./kubernetes/node-deployment.yaml
+$ kubectl create -f ./kubernetes/node-deployment-updated.yaml
+</code></pre></div>
+
+<p>验证:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pods
+
+NAME                        READY   STATUS    RESTARTS   AGE
+node-64c45d449b-9m7pf       <span class="m">1</span>/1     Running   <span class="m">0</span>          9s
+postgres-64d485d86b-vtrlh   <span class="m">1</span>/1     Running   <span class="m">0</span>          4m7s
+</code></pre></div>
+
+<p>使用节点窗格更新数据库:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl <span class="nb">exec</span> &lt;POD_NAME&gt; knex migrate:latest
+$ kubectl <span class="nb">exec</span> &lt;POD_NAME&gt; knex seed:run
+</code></pre></div>
+
+<p>再次测试:</p>
+<ol>
+<li><a href="http://EXTERNAL_IP:3000"> http://EXTERNAL_IP:3000 </a></li>
+<li><a href="http://EXTERNAL_IP:3000/todos">http://EXTERNAL _ IP:3000/todos</a></li>
+</ol>
+<p>您现在应该可以看到todos:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>
+  <span class="o">{</span>
+    <span class="s2">"id"</span>: <span class="m">1</span>,
+    <span class="s2">"title"</span>: <span class="s2">"Do something"</span>,
+    <span class="s2">"completed"</span>: <span class="nb">false</span>
+  <span class="o">}</span>,
+  <span class="o">{</span>
+    <span class="s2">"id"</span>: <span class="m">2</span>,
+    <span class="s2">"title"</span>: <span class="s2">"Do something else"</span>,
+    <span class="s2">"completed"</span>: <span class="nb">false</span>
+  <span class="o">}</span>
+<span class="o">]</span>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>在这篇文章中，我们看了如何和GKE一起在Kubernetes上运行基于节点的微服务。现在，您应该对Kubernetes的工作原理有了基本的了解，并且能够将运行有应用程序的集群部署到Google Cloud。</p>
+<p>完成后，确保关闭资源(集群、永久磁盘、容器注册表上的映像),以避免产生不必要的费用:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl delete -f ./kubernetes/node-service.yaml
+$ kubectl delete -f ./kubernetes/node-deployment-updated.yaml
+
+$ kubectl delete -f ./kubernetes/secret.yaml
+
+$ kubectl delete -f ./kubernetes/volume-claim.yaml
+$ kubectl delete -f ./kubernetes/volume.yaml
+
+$ kubectl delete -f ./kubernetes/postgres-deployment.yaml
+$ kubectl delete -f ./kubernetes/postgres-service.yaml
+
+$ gcloud container clusters delete node-kubernetes --zone us-central1-a
+$ gcloud compute disks delete pg-data-disk --zone us-central1-a
+$ gcloud container images delete gcr.io/&lt;PROJECT_ID&gt;/node-kubernetes:v0.0.1
+</code></pre></div>
+
+<p>其他资源:</p>
+<ol>
+<li><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/">学习立方基础</a></li>
+<li><a href="https://kubernetes.io/docs/concepts/configuration/overview/">配置最佳实践</a></li>
+<li><a href="/blog/running-flask-on-kubernetes">在Kubernetes上运行烧瓶</a></li>
+</ol>
+<p>你可以在GitHub上的<a href="https://github.com/testdrivenio/node-kubernetes">节点-kubernetes </a> repo中找到代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

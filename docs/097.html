@@ -1,0 +1,148 @@
+<html>
+<head>
+<title>Debugging a Containerized Django App in VS Code </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用VS代码调试一个容器化的Django应用程序</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-debugging-vs-code/#0001-01-01">https://testdriven.io/blog/django-debugging-vs-code/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程着眼于如何用<a href="https://code.visualstudio.com"> Visual Studio代码</a> (VS代码)调试一个容器化的Django应用。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>学完本教程后，您应该能够:</p>
+<ol>
+<li>创建VS代码运行配置以附加到Docker容器</li>
+<li>修改<em> manage.py </em>来启动一个<a href="https://github.com/microsoft/debugpy/">Debug py</a>(Python Tools for Visual Studio Debug Server)调试服务器</li>
+<li>用VS代码调试一个容器化的Django项目</li>
+</ol>
+<h2 id="create-a-run-configuration">创建运行配置</h2>
+<p>如果你还没有为你的项目设置一个<a href="https://code.visualstudio.com/docs/python/debugging">运行配置</a>，添加一个<em>。vscode/launch.json </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.2.0"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"configurations"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">    </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Run Django"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"python"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"request"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attach"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"pathMappings"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">        </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="nt">"localRoot"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${workspaceFolder}/app"</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="nt">"remoteRoot"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/usr/src/app"</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">      </span><span class="p">],</span><span class="w"/>
+<span class="w">      </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">3000</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"127.0.0.1"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">]</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>确保更新<code>localRoot</code>和<code>remoteRoot</code>值，VS代码使用它们在您的<a href="https://stackoverflow.com/a/57134632/1799408">工作区</a>和远程主机的文件系统之间映射源文件。尽管这些值会因项目设置方式的不同而有所不同，但您通常可以从Docker卷配置中获得这些信息。</p>
+<p>例如，假设您的Docker合成文件中有以下配置:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./app/:/usr/src/app/</span><span class="w"/>
+</code></pre></div>
+
+<p>本地文件夹路径<code>./app/</code>是<code>localRoot</code>应该设置的路径(如<code>"${workspaceFolder}/app"</code>)，而<code>remoteRoot</code>应该设置为容器内的文件夹(如<code>"/usr/src/app"</code>)。值得注意的是，容器中的这个文件夹也可能是您的工作目录:</p>
+
+
+<p>表示我们想要将VS代码的调试器连接到一个已经在运行的进程。在上面的配置中，我们告诉它连接到127.0.0.1上的端口3000。我们将很快配置debugpy在<code>127.0.0.1:3000</code>上运行。</p>
+<p>完成后，单击最左侧活动栏中的“Run”图标。您现在应该可以在侧边栏的播放按钮旁边看到<code>Run Django</code>配置:</p>
+<p><img data-src="/static/images/blog/django/django-debugging-vs-code/run_button.png" loading="lazy" class="lazyload" alt="VS Code Run View" src="../Images/d78396d654e6237ddcdff0c423ea7c47.png" data-original-src="https://testdriven.io/static/images/blog/django/django-debugging-vs-code/run_button.png"/></p>
+<h2 id="modify-managepy">修改manage.py</h2>
+<p>将VS代码设置为附加到debugpy，让我们将它集成到我们的应用程序中。</p>
+<p>首先，将<a href="https://github.com/microsoft/debugpy/"> debugpy </a>包添加到您的需求文件中:</p>
+
+
+<p>由于debugpy与Django应用程序一起运行，我们需要将其配置为在我们的<em> manage.py </em>文件中运行:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+
+<span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'RUN_MAIN'</span><span class="p">)</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'WERKZEUG_RUN_MAIN'</span><span class="p">):</span>
+        <span class="kn">import</span> <span class="nn">debugpy</span>
+        <span class="n">debugpy</span><span class="o">.</span><span class="n">listen</span><span class="p">((</span><span class="s2">"0.0.0.0"</span><span class="p">,</span> <span class="mi">3000</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">'Attached!'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>您的文件将类似于:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/usr/bin/env python</span>
+<span class="sd">"""Django's command-line utility for administrative tasks."""</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'DJANGO_SETTINGS_MODULE'</span><span class="p">,</span> <span class="s1">'core.settings'</span><span class="p">)</span>
+
+    <span class="c1"># start new section</span>
+    <span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+
+    <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'RUN_MAIN'</span><span class="p">)</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'WERKZEUG_RUN_MAIN'</span><span class="p">):</span>
+            <span class="kn">import</span> <span class="nn">debugpy</span>
+            <span class="n">debugpy</span><span class="o">.</span><span class="n">listen</span><span class="p">((</span><span class="s2">"0.0.0.0"</span><span class="p">,</span> <span class="mi">3000</span><span class="p">))</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">'Attached!'</span><span class="p">)</span>
+    <span class="c1"># end new section</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">django.core.management</span> <span class="kn">import</span> <span class="n">execute_from_command_line</span>
+    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+            <span class="s2">"Couldn't import Django. Are you sure it's installed and "</span>
+            <span class="s2">"available on your PYTHONPATH environment variable? Did you "</span>
+            <span class="s2">"forget to activate a virtual environment?"</span>
+        <span class="p">)</span> <span class="kn">from</span> <span class="nn">exc</span>
+    <span class="n">execute_from_command_line</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这里，我们首先确定项目是否在<code>DEBUG</code>模式下运行。如果是这样，那么我们要确保调试器没有被附加，如果它是Django的重载(如果你在服务器运行时修改了一些代码)。</p>
+<p><code>debugpy.listen()</code>方法启动调试服务器。您还可以阻塞执行，直到调试器附加了<code>wait_for_client()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+
+<span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'RUN_MAIN'</span><span class="p">)</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'WERKZEUG_RUN_MAIN'</span><span class="p">):</span>
+        <span class="kn">import</span> <span class="nn">debugpy</span>
+        <span class="n">debugpy</span><span class="o">.</span><span class="n">listen</span><span class="p">((</span><span class="s2">"0.0.0.0"</span><span class="p">,</span> <span class="mi">3000</span><span class="p">))</span>
+        <span class="n">debugpy</span><span class="o">.</span><span class="n">wait_for_client</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">'Attached!'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>因为debugpy将在端口3000上运行，所以您需要向主机公开该端口。如果您正在使用Docker Compose，您可以像这样公开端口:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./app</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py runserver 0.0.0.0:8000</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./app/:/usr/src/app/</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000:8000</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3000:3000</span><span class="w"/>
+</code></pre></div>
+
+<p>如果您没有使用Compose，请确保在运行容器时公开端口:</p>
+<div class="codehilite"><pre><span/><code>$ docker run -d -p <span class="m">8000</span>:8000 -p <span class="m">3000</span>:3000 web
+</code></pre></div>
+
+<h2 id="debug-the-containerized-django-app">调试容器化的Django应用</h2>
+<p>在构建新的映像来安装debugpy之后，启动新的容器。</p>
+<p>在代码中的某个地方设置断点。然后在VS代码中再次打开“Run”视图，确保我们之前创建的<code>Run Django</code>配置被选中。单击“播放”按钮开始调试会话。</p>
+<p>现在，您应该能够到达断点并开始调试运行在Docker容器中的Django应用程序了。</p>
+<p><img data-src="/static/images/blog/django/django-debugging-vs-code/breakpoint.png" loading="lazy" class="lazyload" alt="VS Code breakpoint" src="../Images/7b876adf0de5de97b5138fe247b91245.png" data-original-src="https://testdriven.io/static/images/blog/django/django-debugging-vs-code/breakpoint.png"/></p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们向您展示了如何配置VS代码来调试运行在Docker中的Django应用程序。</p>
+<blockquote>
+<p>提示:如果您使用的是Python 3.7或更高版本，debugpy也支持Python的<code>breakpoint()</code>函数。</p>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

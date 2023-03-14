@@ -1,0 +1,600 @@
+<html>
+<head>
+<title>Testing Pinia Data Stores in Vue </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>测试Vue中的Pinia数据存储</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/vue-pinia-testing/#0001-01-01">https://testdriven.io/blog/vue-pinia-testing/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程描述了如何在<a href="https://vuejs.org"> Vue </a>应用程序中测试<a href="https://pinia.vuejs.org"> Pinia </a>数据存储。</p>
+<hr/>
+<p>这是测试Vue应用的两部分系列的第二部分:</p>
+<ol>
+<li><a href="/blog/vue-unit-testing/">Vue组件单元测试指南</a></li>
+<li><a href="/blog/vue-pinia-testing/">测试Vue中的Pinia数据存储</a>(本文！)</li>
+</ol>
+<p>虽然您不必从第一篇文章开始，但建议至少回顾一下，为本文提供一点背景知识。</p>
+<blockquote>
+<p>如果你有兴趣了解更多关于Vue的知识，可以看看我的课程:<a href="/courses/learn-vue/">通过构建和部署CRUD应用</a>来学习Vue。</p>
+</blockquote>
+<p><em>依赖关系</em>:</p>
+
+<p>本文中使用的Vue Weather App项目的源代码(以及详细的安装说明)可以在GitLab上找到:<a href="https://gitlab.com/patkennedy79/vue-weather-app"> Vue Weather App </a>。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>完成本文后，您应该能够:</p>
+<ol>
+<li>解释Pinia数据存储如何管理状态</li>
+<li>解释何时在Vue应用中使用Pinia数据存储</li>
+<li>编写用于测试Pinia数据存储的单元测试</li>
+<li>编写Vue组件如何与Pinia数据存储交互的测试</li>
+<li>使用Vitest运行单元测试</li>
+</ol>
+<h2 id="what-is-pinia">皮尼亚是什么？</h2>
+<p><a href="https://pinia.vuejs.org"> Pinia </a>是一个状态管理库。术语“状态管理”指的是Vue应用程序中通常由多个组件使用的集中式数据。</p>
+<p>Pinia既是一个库，它提供了创建反应式数据存储的工具，也是一组以受控方式访问(读/写)数据的设计模式。此外，Pinia与<a href="https://devtools.vuejs.org/"> Vue DevTools </a>集成在一起，提供了非常好的调试/分析体验。</p>
+<p>以下组件图说明了Pinia如何适应将在本教程中测试的Vue应用程序:</p>
+<p><img data-src="/static/images/blog/vue-unit-testing/vue_weather_app_component_diagram.png" loading="lazy" class="lazyload" alt="Vue Weather App - Component Diagram" src="../Images/1a908b2e4c6d7857205cd422734e32fc.png" data-original-src="https://testdriven.io/static/images/blog/vue-unit-testing/vue_weather_app_component_diagram.png"/></p>
+<p>Pinia数据存储包含Vue应用程序的全局数据。<code>WeatherContent</code>和<code>CityList</code>组件都与Pinia数据存储交互，以添加/检索天气数据。</p>
+<h3 id="when-to-use-pinia">何时使用Pinia</h3>
+<p>一旦您了解了Pinia，将所有数据从每个组件转移到一个数据存储中可能会很有诱惑力。但是，我建议将数据添加到由超过1个组件使用的数据存储中。</p>
+<p>仅在单个组件中使用的数据最好保留在该组件中(以帮助缩小该数据的范围)。</p>
+<p>由&gt; 1个组件共享的任何数据都是添加到数据存储中的良好候选。</p>
+<p>当您开始使用Pinia时，您会注意到许多使用props和定制事件在组件之间传递的数据变得更适合数据存储。</p>
+<h3 id="pinia-vs-vuex">pinia诉Vuex案</h3>
+<p>Vuex是另一个流行的Vue项目状态管理库。虽然它在任何版本的Vue上都可以很好地工作，但是Pinia有一些简化，使得开发体验更简单，生成的代码更容易阅读和理解。</p>
+<blockquote>
+<p>根据正在使用的Vue版本不同，Vuex有不同的版本:Vuex 4.x配合Vue 3使用；Vuex 3.x与Vue 2配合使用。相比之下，Pinia同时支持Vue 2和Vue 3。</p>
+</blockquote>
+<p>最后，Pinia是Vue的<a href="https://pinia.vuejs.org/introduction.html#comparison-with-vuex">推荐状态管理库</a>。</p>
+<h3 id="vocabulary">词汇</h3>
+<p>有几个术语在Pinia中有独特的含义，所以在我们深入研究Pinia的工作原理之前，我想先看一下每个术语:</p>
+<ul>
+<li><strong>状态管理</strong> -以可控的方式管理Vue应用的全局数据</li>
+<li><strong>存储</strong> -存储全局数据的地方</li>
+<li><strong>状态</strong> -商店中的全局数据</li>
+<li><strong> Getters </strong> -从存储中检索数据的方法</li>
+<li><strong>动作</strong> -修改商店中数据的方法</li>
+</ul>
+<h2 id="getting-started-with-pinia">Pinia入门</h2>
+<p>在讨论如何测试Pinia数据存储之前，我想简单介绍一下我们将要测试的<a href="https://gitlab.com/patkennedy79/vue-weather-app"> Vue天气应用</a>。</p>
+<blockquote>
+<p>要玩Vue天气应用，请在Netlify上查看该应用:<a href="https://snazzy-taffy-cd99f4.netlify.app"> Vue天气应用- Netlify </a></p>
+</blockquote>
+<p>如果你想在你的本地机器上运行这个应用，你需要克隆这个库并使用<a href="https://www.npmjs.com"> NPM </a>安装依赖项:</p>
+<div class="codehilite"><pre><span/><code>$ git clone <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="16717f6256717f627a77743875797b">[email protected]</a>:patkennedy79/vue-weather-app.git
+$ <span class="nb">cd</span> vue-weather-app
+$ npm install
+</code></pre></div>
+
+<p>完成后，可以通过启动开发服务器来运行应用程序:</p>
+
+
+<p>应用程序构建完成后，您会看到类似于以下内容的成功消息:</p>
+<div class="codehilite"><pre><span/><code>vite v2.9.14 dev server running at:
+
+ &gt; Local: http://localhost:3000/
+ &gt; Network: use <span class="sb">`</span>--host<span class="sb">`</span> to expose
+
+ ready <span class="k">in</span> 543ms.
+</code></pre></div>
+
+<p>此时，开发服务器将启动并运行。您可以通过在您最喜欢的网络浏览器中导航到<a href="http://localhost:3000"> http://localhost:3000 </a>来查看该应用程序。您可以按城市名称搜索以查看某个城市的当前天气:</p>
+<p><img data-src="/static/images/blog/vue-unit-testing/vue_weather_app_screenshot.png" loading="lazy" class="lazyload" alt="Vue Weather App - Search Results" src="../Images/8607485a2c7ef926a708a607d6cd135f.png" data-original-src="https://testdriven.io/static/images/blog/vue-unit-testing/vue_weather_app_screenshot.png"/></p>
+<p>使用<a href="https://openweathermap.org"> OpenWeather API </a>检索所搜索城市的天气数据；这些城市按搜索顺序排列。点击“清除天气数据”按钮，可以清除城市列表。</p>
+<blockquote>
+<p>有关完整的先决条件和安装说明，请查看GitLab上的<a href="https://gitlab.com/patkennedy79/vue-weather-app#installation-instructions">自述文件</a>。</p>
+</blockquote>
+<p>如果你有兴趣了解更多关于Pinia的知识，请查看我的Vue课程，该课程教授如何在Vue应用中使用Pinia:<a href="/courses/learn-vue/">通过构建和部署CRUD应用</a>来学习Vue。</p>
+<h3 id="installation">装置</h3>
+<p>应使用NPM安装Pinia:</p>
+
+
+<p>一旦安装完成，您应该会看到<code>pinia</code>已经作为依赖项添加到<em> package.json </em>中:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"axios"</span><span class="p">:</span><span class="w"> </span><span class="s2">"^0.27.2"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"pinia"</span><span class="p">:</span><span class="w"> </span><span class="s2">"^2.0.20"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"vue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"^3.2.37"</span><span class="w"/>
+<span class="p">},</span><span class="w"/>
+</code></pre></div>
+
+<p>此外，因为我们将测试用Pinia创建的数据存储，所以安装Pinia测试包:</p>
+<div class="codehilite"><pre><span/><code>$ npm install @pinia/testing --save-dev
+</code></pre></div>
+
+<p>一旦安装完成，您应该会看到<code>@pinia/testing</code>已经作为开发依赖项添加到<em> package.json </em>中:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">"devDependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"@pinia/testing"</span><span class="p">:</span><span class="w"> </span><span class="s2">"^0.0.14"</span><span class="p">,</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="project-structure">项目结构</h3>
+<p>在Vue项目中,“src”文件夹包含Vue组件和Pinia数据存储:</p>
+<div class="codehilite"><pre><span/><code>% tree -L <span class="m">2</span> src
+src
+├── App.vue
+├── assets
+│   ├── base.css
+│   └── main.css
+├── components
+│   ├── CityList.vue
+│   ├── ...
+│   ├── WeatherHeader.vue
+│   └── __tests__
+│       ├── App.spec.js
+│       ├── ...
+│       └── WeatherHeader.spec.js
+├── main.js
+└── stores
+    ├── __tests__
+    │   └── cities.spec.js
+    └── cities.js
+</code></pre></div>
+
+<p>Pinia数据存储在“src/stores”中。每个Pinia数据存储应该是“src/stores”文件夹中的一个单独的文件。</p>
+<p>Pinia数据存储的单元测试文件存储在“src/stores/__tests__”中。每个Pinia数据存储都应该有一个单独的单元测试文件。</p>
+<h3 id="data-store">数据存储</h3>
+<p>本教程将测试的Pinia数据存储存储不同城市的天气数据:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">defineStore</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'pinia'</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">defineStore</span><span class="p">(</span><span class="s1">'cities'</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// state is the data being stored in the data store</span><span class="w"/>
+<span class="w">  </span><span class="nx">state</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="c1">// List of Objects representing the weather for cities:</span><span class="w"/>
+<span class="w">    </span><span class="c1">//   - cityName: name of the city</span><span class="w"/>
+<span class="w">    </span><span class="c1">//   - stateName: name of the state (if applicable)</span><span class="w"/>
+<span class="w">    </span><span class="c1">//   - countryAbbreviation: abbreviation of the country</span><span class="w"/>
+<span class="w">    </span><span class="c1">//   - weatherSummary: brief description of the current weather</span><span class="w"/>
+<span class="w">    </span><span class="c1">//   - currentTemperature: current temperature (in degrees F)</span><span class="w"/>
+<span class="w">    </span><span class="c1">//   - dailyHigh: high temperature (in degrees F) for today</span><span class="w"/>
+<span class="w">    </span><span class="c1">//   - dailyLow: low temperature (in degrees F) for today</span><span class="w"/>
+<span class="w">    </span><span class="nx">weatherData</span><span class="o">:</span><span class="w"> </span><span class="p">[]</span><span class="w"/>
+<span class="w">  </span><span class="p">}),</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// getters return data from the data store</span><span class="w"/>
+<span class="w">  </span><span class="nx">getters</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">getNumberOfCities</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">state</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">state</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// actions are operations that change the state</span><span class="w"/>
+<span class="w">  </span><span class="nx">actions</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">addCity</span><span class="p">(</span><span class="nx">city</span><span class="p">,</span><span class="w"> </span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">country</span><span class="p">,</span><span class="w"> </span><span class="nx">summary</span><span class="p">,</span><span class="w"> </span><span class="nx">currentTemp</span><span class="p">,</span><span class="w"> </span><span class="nx">high</span><span class="p">,</span><span class="w"> </span><span class="nx">low</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// Check if the city is already saved</span><span class="w"/>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">find</span><span class="p">(({</span><span class="w"> </span><span class="nx">cityName</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">cityName</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="nx">city</span><span class="p">)</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="kc">undefined</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">push</span><span class="p">({</span><span class="w"/>
+<span class="w">          </span><span class="s1">'cityName'</span><span class="o">:</span><span class="w"> </span><span class="nx">city</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="s1">'stateName'</span><span class="o">:</span><span class="w"> </span><span class="nx">state</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="s1">'countryAbbreviation'</span><span class="o">:</span><span class="w"> </span><span class="nx">country</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="s1">'weatherSummary'</span><span class="o">:</span><span class="w"> </span><span class="nx">summary</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="s1">'currentTemperature'</span><span class="o">:</span><span class="w"> </span><span class="nx">currentTemp</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="s1">'dailyHigh'</span><span class="o">:</span><span class="w"> </span><span class="nx">high</span><span class="p">,</span><span class="w"/>
+<span class="w">          </span><span class="s1">'dailyLow'</span><span class="o">:</span><span class="w"> </span><span class="nx">low</span><span class="w"/>
+<span class="w">        </span><span class="p">})</span><span class="w"/>
+<span class="w">      </span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">clearAllCities</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="c1">// Setting the `weatherData` array to a length of zero clears it</span><span class="w"/>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>属性定义了被存储的数据，这是一个代表不同城市天气的对象数组。</p>
+<p>在<code>getters</code>属性中有一个元素用于检索存储的城市数量。</p>
+<p>有两个<code>actions</code>用于修改正在存储的数据:</p>
+<ol>
+<li><code>addCity()</code> -添加城市天气数据的动作</li>
+<li><code>clearAllCities()</code> -删除所有城市天气数据的动作</li>
+</ol>
+<h2 id="unit-testing-a-pinia-data-store">单元测试Pinia数据存储</h2>
+<h3 id="unit-test-structure">单元测试结构</h3>
+<p>当对Pinia数据存储进行单元测试时，应通过导入来使用<strong>实际</strong>存储:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">describe</span><span class="p">,</span><span class="w"> </span><span class="nx">it</span><span class="p">,</span><span class="w"> </span><span class="nx">expect</span><span class="p">,</span><span class="w"> </span><span class="nx">beforeEach</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vitest'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">setActivePinia</span><span class="p">,</span><span class="w"> </span><span class="nx">createPinia</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'pinia'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@/stores/cities'</span><span class="w">  </span><span class="c1">// &lt;-- !!</span><span class="w"/>
+
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'Data Store Test'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">store</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// create a fresh Pinia instance and make it active so it's automatically picked</span><span class="w"/>
+<span class="w">    </span><span class="c1">// up by any useStore() call without having to pass it to it:</span><span class="w"/>
+<span class="w">    </span><span class="c1">// `useStore(pinia)`</span><span class="w"/>
+<span class="w">    </span><span class="nx">setActivePinia</span><span class="p">(</span><span class="nx">createPinia</span><span class="p">())</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// create an instance of the data store</span><span class="w"/>
+<span class="w">    </span><span class="nx">store</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'initializes with correct values'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'test adding a new city'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...})</span><span class="w"/>
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'test adding a duplicate city'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'test removing all cities'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>Pinia数据存储被导入以在单元测试文件中使用:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@/stores/cities'</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>在<code>import</code>语句中使用的<code>@</code>是Vue项目中“src”文件夹的别名。</p>
+</blockquote>
+<p>在<code>beforeEach()</code>函数(在每个单元测试函数之前执行)中，<code>pinia</code>实例被创建并激活:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// create a fresh Pinia instance and make it active so it's automatically picked</span><span class="w"/>
+<span class="w">  </span><span class="c1">// up by any useStore() call without having to pass it to it:</span><span class="w"/>
+<span class="w">  </span><span class="c1">// `useStore(pinia)`</span><span class="w"/>
+<span class="w">  </span><span class="nx">setActivePinia</span><span class="p">(</span><span class="nx">createPinia</span><span class="p">())</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// create an instance of the data store</span><span class="w"/>
+<span class="w">  </span><span class="nx">store</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="p">()</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>一旦<code>pinia</code>被激活，Pinia数据存储器的一个实例-即被测单元！-可以使用<code>useCitiesStore()</code>创建。</p>
+<h3 id="unit-tests">单元测试</h3>
+<p>有了单元测试文件的结构，就可以编写单元测试来测试getters和actions了。</p>
+<p>首先，检查Pinia数据存储是否用空数组初始化:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'initializes with zero cities'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">getNumberOfCities</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">0</span><span class="p">)</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来，测试使用<code>addCity()</code>动作的名义场景:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'test adding a new city'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Call the 'addCity' action</span><span class="w"/>
+<span class="w">  </span><span class="nx">store</span><span class="p">.</span><span class="nx">addCity</span><span class="p">(</span><span class="s1">'Chicago'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Illinois'</span><span class="p">,</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"> </span><span class="s1">'cloudy'</span><span class="p">,</span><span class="w"> </span><span class="mf">75.6</span><span class="p">,</span><span class="w"> </span><span class="mf">78.9</span><span class="p">,</span><span class="w"> </span><span class="mf">65.2</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Check that the city was added</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">getNumberOfCities</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">[</span><span class="mf">0</span><span class="p">]).</span><span class="nx">toEqual</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="s1">'cityName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'Chicago'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s1">'stateName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'Illinois'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s1">'countryAbbreviation'</span><span class="o">:</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s1">'weatherSummary'</span><span class="o">:</span><span class="w"> </span><span class="s1">'cloudy'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s1">'currentTemperature'</span><span class="o">:</span><span class="w"> </span><span class="mf">75.6</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s1">'dailyHigh'</span><span class="o">:</span><span class="w"> </span><span class="mf">78.9</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="s1">'dailyLow'</span><span class="o">:</span><span class="w"> </span><span class="mf">65.2</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>此外，在使用<code>addCity()</code>动作时，测试城市已经在<code>weatherData</code>数组中的非名义场景也是一个好主意:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'test adding a duplicate city'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Call the 'addCity' action</span><span class="w"/>
+<span class="w">  </span><span class="nx">store</span><span class="p">.</span><span class="nx">addCity</span><span class="p">(</span><span class="s1">'New Orleans'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Louisiana'</span><span class="p">,</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"> </span><span class="s1">'sunny'</span><span class="p">,</span><span class="w"> </span><span class="mf">87.6</span><span class="p">,</span><span class="w"> </span><span class="mf">78.9</span><span class="p">,</span><span class="w"> </span><span class="mf">65.2</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Check that the city was added</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">cityName</span><span class="p">).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'New Orleans'</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Attempt to add the same city</span><span class="w"/>
+<span class="w">  </span><span class="nx">store</span><span class="p">.</span><span class="nx">addCity</span><span class="p">(</span><span class="s1">'New Orleans'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Louisiana'</span><span class="p">,</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"> </span><span class="s1">'sunny'</span><span class="p">,</span><span class="w"> </span><span class="mf">87.6</span><span class="p">,</span><span class="w"> </span><span class="mf">78.9</span><span class="p">,</span><span class="w"> </span><span class="mf">65.2</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Check that only 1 instance of the city name is saved</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">cityName</span><span class="p">).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'New Orleans'</span><span class="p">)</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>最后，用<code>clearAllCities()</code>动作测试从存储中删除所有数据:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'test removing all cities'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// Add two cities to the data store</span><span class="w"/>
+<span class="w">  </span><span class="nx">store</span><span class="p">.</span><span class="nx">addCity</span><span class="p">(</span><span class="s1">'New Orleans'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Louisiana'</span><span class="p">,</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"> </span><span class="s1">'sunny'</span><span class="p">,</span><span class="w"> </span><span class="mf">87.6</span><span class="p">,</span><span class="w"> </span><span class="mf">78.9</span><span class="p">,</span><span class="w"> </span><span class="mf">65.2</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">store</span><span class="p">.</span><span class="nx">addCity</span><span class="p">(</span><span class="s1">'Denver'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Colorado'</span><span class="p">,</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"> </span><span class="s1">'windy'</span><span class="p">,</span><span class="w"> </span><span class="mf">94.5</span><span class="p">,</span><span class="w"> </span><span class="mf">95.6</span><span class="p">,</span><span class="w"> </span><span class="mf">56.7</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Check that the cities were added</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">2</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Remove a city</span><span class="w"/>
+<span class="w">  </span><span class="nx">store</span><span class="p">.</span><span class="nx">clearAllCities</span><span class="p">()</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// Check that zero cities remain in the data store</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">weatherData</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">0</span><span class="p">)</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>当对Pinia数据存储进行单元测试时，测试应该关注Vue组件将如何使用数据存储。通常，这些单元测试应该集中在修改数据存储的<strong>状态</strong>的<strong>动作</strong>上。</p>
+<h2 id="testing-using-a-pinia-data-store">使用Pinia数据存储进行测试</h2>
+<h3 id="overview">概观</h3>
+<p>当测试使用Pinia数据存储的Vue组件时，应该使用<code>createTestingPinia</code>插件来创建一个Pinia实例，该实例是为<strong>测试</strong>而设计的。</p>
+<p>具体来说，所有的Pinia数据存储都将被嘲笑，因此您可以专注于测试Vue组件。这种方法意味着Vue组件测试应该关注与Pinia数据存储的两个关键交互:</p>
+<ol>
+<li>安装组件时初始化Pinia数据存储</li>
+<li>监视Pinia数据存储中的动作，以确保它们在适当的时间被调用</li>
+</ol>
+<h3 id="unit-tests_1">单元测试</h3>
+<p>当单元测试使用Pinia数据存储的Vue组件时，您需要从Pinia测试模块导入<code>createTestingPinia</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">describe</span><span class="p">,</span><span class="w"> </span><span class="nx">it</span><span class="p">,</span><span class="w"> </span><span class="nx">expect</span><span class="p">,</span><span class="w"> </span><span class="nx">vi</span><span class="p">,</span><span class="w"> </span><span class="nx">beforeEach</span><span class="p">,</span><span class="w"> </span><span class="nx">afterEach</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vitest'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">shallowMount</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@vue/test-utils'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">CityList</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@/components/CityList.vue'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createTestingPinia</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@pinia/testing'</span><span class="w">  </span><span class="c1">// &lt;-- !!</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@/stores/cities'</span><span class="w"/>
+</code></pre></div>
+
+<p>除了<code>createTestingPinia</code>之外，还需要从Pinia数据存储中导入<code>useCitiesStore()</code>函数，以测试数据存储中是否调用了正确的“动作”。</p>
+<p>本教程将介绍两个单元测试套件(复杂性逐渐增加)。</p>
+<p>第一个单元测试套件测试当Pinia数据存储为空时Vue组件如何工作:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'CityList.vue Test with empty data store'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// SETUP - run prior to each unit test</span><span class="w"/>
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// render the component</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallowMount</span><span class="p">(</span><span class="nx">CityList</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nb">global</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">plugins</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">          </span><span class="nx">createTestingPinia</span><span class="p">({</span><span class="w"/>
+<span class="w">            </span><span class="nx">createSpy</span><span class="o">:</span><span class="w"> </span><span class="nx">vi</span><span class="p">.</span><span class="nx">fn</span><span class="w"/>
+<span class="w">          </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">]</span><span class="w"/>
+<span class="w">      </span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// TEARDOWN - run after each unit test</span><span class="w"/>
+<span class="w">  </span><span class="nx">afterEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">unmount</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'initializes with zero elements displayed'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// check that zero city cards are displayed</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'h2'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">0</span><span class="p">)</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// check that the 'Clear Weather Data' button is not displayed</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">)[</span><span class="mf">0</span><span class="p">].</span><span class="nx">isVisible</span><span class="p">()).</span><span class="nx">toBeFalsy</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>当安装组件(使用<code>shallowMount()</code>)时，利用<code>createTestingPinia()</code>创建对所有动作的监视:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// render the component</span><span class="w"/>
+<span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallowMount</span><span class="p">(</span><span class="nx">CityList</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nb">global</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">plugins</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="nx">createTestingPinia</span><span class="p">({</span><span class="w"/>
+<span class="w">        </span><span class="nx">createSpy</span><span class="o">:</span><span class="w"> </span><span class="nx">vi</span><span class="p">.</span><span class="nx">fn</span><span class="w"/>
+<span class="w">      </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">]</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>该单元测试套件中的单个单元测试检查零卡是否显示，以及“清除天气数据”按钮是否显示:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'initializes with zero elements displayed'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// check that zero city cards are displayed</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'h2'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">0</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// check that the 'Clear Weather Data' button is not displayed</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">)[</span><span class="mf">0</span><span class="p">].</span><span class="nx">isVisible</span><span class="p">()).</span><span class="nx">toBeFalsy</span><span class="p">()</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>第二个单元测试套件用两个城市的天气数据初始化Pinia数据存储:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'CityList.vue Test with filled data store'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">store</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// SETUP - run prior to each unit test</span><span class="w"/>
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// render the component and initialize the data store</span><span class="w"/>
+<span class="w">    </span><span class="c1">// to contain weather data for (2) cities</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallowMount</span><span class="p">(</span><span class="nx">CityList</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nb">global</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">plugins</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">          </span><span class="nx">createTestingPinia</span><span class="p">({</span><span class="w"/>
+<span class="w">            </span><span class="nx">createSpy</span><span class="o">:</span><span class="w"> </span><span class="nx">vi</span><span class="p">.</span><span class="nx">fn</span><span class="p">,</span><span class="w"/>
+<span class="w">            </span><span class="nx">initialState</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">              </span><span class="nx">cities</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="nx">weatherData</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">                  </span><span class="p">{</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'cityName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'New Orleans'</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'stateName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'Louisiana'</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'countryAbbreviation'</span><span class="o">:</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'weatherSummary'</span><span class="o">:</span><span class="w"> </span><span class="s1">'sunny'</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'currentTemperature'</span><span class="o">:</span><span class="w"> </span><span class="mf">77.6</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'dailyHigh'</span><span class="o">:</span><span class="w"> </span><span class="mf">78.9</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'dailyLow'</span><span class="o">:</span><span class="w"> </span><span class="mf">65.2</span><span class="w"/>
+<span class="w">                  </span><span class="p">},</span><span class="w"/>
+<span class="w">                  </span><span class="p">{</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'cityName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'Dublin'</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'stateName'</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'countryAbbreviation'</span><span class="o">:</span><span class="w"> </span><span class="s1">'IE'</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'weatherSummary'</span><span class="o">:</span><span class="w"> </span><span class="s1">'windy'</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'currentTemperature'</span><span class="o">:</span><span class="w"> </span><span class="mf">64.5</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'dailyHigh'</span><span class="o">:</span><span class="w"> </span><span class="mf">65.6</span><span class="p">,</span><span class="w"/>
+<span class="w">                    </span><span class="s1">'dailyLow'</span><span class="o">:</span><span class="w"> </span><span class="mf">46.7</span><span class="w"/>
+<span class="w">                  </span><span class="p">}</span><span class="w"/>
+<span class="w">                </span><span class="p">]</span><span class="w"/>
+<span class="w">              </span><span class="p">}</span><span class="w"/>
+<span class="w">            </span><span class="p">}</span><span class="w"/>
+<span class="w">          </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">]</span><span class="w"/>
+<span class="w">      </span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// create the data store using the testing pinia</span><span class="w"/>
+<span class="w">    </span><span class="nx">store</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// TEARDOWN - run after each unit test</span><span class="w"/>
+<span class="w">  </span><span class="nx">afterEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">unmount</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'displays city weather from the data store'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'calls the correct action when the weather data is cleared'</span><span class="p">,</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">})</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>当Vue组件被安装(通过<code>shallowMount()</code>)时，<code>createTestingPinia()</code>用于创建对所有动作的监视。此外，定义了<code>initialState</code>属性来初始化Pinia数据存储:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">// render the component and initialize the data store</span><span class="w"/>
+<span class="c1">// to contain weather data for (2) cities</span><span class="w"/>
+<span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallowMount</span><span class="p">(</span><span class="nx">CityList</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nb">global</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">plugins</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">      </span><span class="nx">createTestingPinia</span><span class="p">({</span><span class="w"/>
+<span class="w">        </span><span class="nx">createSpy</span><span class="o">:</span><span class="w"> </span><span class="nx">vi</span><span class="p">.</span><span class="nx">fn</span><span class="p">,</span><span class="w"/>
+<span class="w">        </span><span class="nx">initialState</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">          </span><span class="nx">cities</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">            </span><span class="nx">weatherData</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">              </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="s1">'cityName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'New Orleans'</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'stateName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'Louisiana'</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'countryAbbreviation'</span><span class="o">:</span><span class="w"> </span><span class="s1">'US'</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'weatherSummary'</span><span class="o">:</span><span class="w"> </span><span class="s1">'sunny'</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'currentTemperature'</span><span class="o">:</span><span class="w"> </span><span class="mf">77.6</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'dailyHigh'</span><span class="o">:</span><span class="w"> </span><span class="mf">78.9</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'dailyLow'</span><span class="o">:</span><span class="w"> </span><span class="mf">65.2</span><span class="w"/>
+<span class="w">              </span><span class="p">},</span><span class="w"/>
+<span class="w">              </span><span class="p">{</span><span class="w"/>
+<span class="w">                </span><span class="s1">'cityName'</span><span class="o">:</span><span class="w"> </span><span class="s1">'Dublin'</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'stateName'</span><span class="o">:</span><span class="w"> </span><span class="s1">''</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'countryAbbreviation'</span><span class="o">:</span><span class="w"> </span><span class="s1">'IE'</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'weatherSummary'</span><span class="o">:</span><span class="w"> </span><span class="s1">'windy'</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'currentTemperature'</span><span class="o">:</span><span class="w"> </span><span class="mf">64.5</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'dailyHigh'</span><span class="o">:</span><span class="w"> </span><span class="mf">65.6</span><span class="p">,</span><span class="w"/>
+<span class="w">                </span><span class="s1">'dailyLow'</span><span class="o">:</span><span class="w"> </span><span class="mf">46.7</span><span class="w"/>
+<span class="w">              </span><span class="p">}</span><span class="w"/>
+<span class="w">            </span><span class="p">]</span><span class="w"/>
+<span class="w">          </span><span class="p">}</span><span class="w"/>
+<span class="w">        </span><span class="p">}</span><span class="w"/>
+<span class="w">      </span><span class="p">})</span><span class="w"/>
+<span class="w">    </span><span class="p">]</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>在指定<code>initialState</code>属性时，指定的对象需要以Pinia数据商店名称开始(在本例中，<code>cities</code>是在<em> src/stores/cities.js </em>中使用<code>defineStore()</code>创建商店时指定的名称)。接下来，指定“状态”(在这种情况下，<code>weatherData</code>)并指定数据的初始数组。</p>
+<p>指定了Pinia数据存储的首字母<code>state</code>后，该测试套件中的第一个单元测试检查来自存储的数据是否正确显示:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'displays city weather from the data store'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// check that two city cards are displayed</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">cityHeadings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'h2'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityHeadings</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">2</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityHeadings</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'New Orleans, Louisiana'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityHeadings</span><span class="p">[</span><span class="mf">1</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'Dublin'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">citySubHeadings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'h3'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">citySubHeadings</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">2</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">citySubHeadings</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'US'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">citySubHeadings</span><span class="p">[</span><span class="mf">1</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'IE'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">cityWeatherData</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'p'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityWeatherData</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">6</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityWeatherData</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'Weather Summary: sunny'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityWeatherData</span><span class="p">[</span><span class="mf">1</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'Current Temperature: 77.6'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityWeatherData</span><span class="p">[</span><span class="mf">2</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'High: 78.9°F / Low: 65.2°F'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityWeatherData</span><span class="p">[</span><span class="mf">3</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'Weather Summary: windy'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityWeatherData</span><span class="p">[</span><span class="mf">4</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'Current Temperature: 64.5'</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">cityWeatherData</span><span class="p">[</span><span class="mf">5</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'High: 65.6°F / Low: 46.7°F'</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// check that the 'Clear Weather Data' button is displayed</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">)[</span><span class="mf">0</span><span class="p">].</span><span class="nx">isVisible</span><span class="p">()).</span><span class="nx">toBeTruthy</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">)[</span><span class="mf">0</span><span class="p">].</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toMatch</span><span class="p">(</span><span class="s1">'Clear Weather Data (2)'</span><span class="p">)</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>第二个单元测试检查单击“清除天气数据”按钮时是否调用了正确的“操作”:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'calls the correct action when the weather data is cleared'</span><span class="p">,</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c1">// create the data store using the testing pinia</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">store</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useCitiesStore</span><span class="p">()</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// trigger an event when the 'Clear Weather Data' button is clicked</span><span class="w"/>
+<span class="w">  </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">findAll</span><span class="p">(</span><span class="s1">'button'</span><span class="p">).</span><span class="nx">at</span><span class="p">(</span><span class="mf">0</span><span class="p">).</span><span class="nx">trigger</span><span class="p">(</span><span class="s1">'click'</span><span class="p">)</span><span class="w"/>
+
+<span class="w">  </span><span class="c1">// check that the 'clearAllCities' action was called on the data store</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">clearAllCities</span><span class="p">).</span><span class="nx">toHaveBeenCalledTimes</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>请注意，该测试并不检查Pinia数据存储中的数据是否发生了变化，因为我们已经在Pinia数据存储的单元测试中对此进行了测试。当测试Vue组件时，我们关心的是<strong>如何与Pinia数据存储交互</strong>(即，是否调用了正确的操作？).</p>
+<h3 id="additional-considerations">其他注意事项</h3>
+<p>如果您对您的Vue应用程序(使用<code>mount()</code>)进行顶级测试，它还需要创建一个Pinia的测试版本，因为与Pinia数据存储交互的Vue子组件将在测试期间安装。</p>
+<p>下面是一个顶级测试文件的示例，它检查是否呈现了正确的组件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">describe</span><span class="p">,</span><span class="w"> </span><span class="nx">it</span><span class="p">,</span><span class="w"> </span><span class="nx">expect</span><span class="p">,</span><span class="w"> </span><span class="nx">vi</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'vitest'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">mount</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@vue/test-utils'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@/App.vue'</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createTestingPinia</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@pinia/testing'</span><span class="w"/>
+
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'App.vue Test'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'renders the page'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c1">// render the component</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">mount</span><span class="p">(</span><span class="nx">App</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nb">global</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">        </span><span class="nx">plugins</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"/>
+<span class="w">          </span><span class="nx">createTestingPinia</span><span class="p">({</span><span class="w"/>
+<span class="w">            </span><span class="nx">createSpy</span><span class="o">:</span><span class="w"> </span><span class="nx">vi</span><span class="p">.</span><span class="nx">fn</span><span class="w"/>
+<span class="w">          </span><span class="p">})</span><span class="w"/>
+<span class="w">        </span><span class="p">]</span><span class="w"/>
+<span class="w">      </span><span class="p">}</span><span class="w"/>
+<span class="w">    </span><span class="p">})</span><span class="w"/>
+
+<span class="w">    </span><span class="c1">// check that all 3 sub-components are rendered</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">getComponent</span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'WeatherHeader'</span><span class="w"> </span><span class="p">}).</span><span class="nx">exists</span><span class="p">()).</span><span class="nx">toBeTruthy</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">getComponent</span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'WeatherContent'</span><span class="w"> </span><span class="p">}).</span><span class="nx">exists</span><span class="p">()).</span><span class="nx">toBeTruthy</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">getComponent</span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'WeatherFooter'</span><span class="w"> </span><span class="p">}).</span><span class="nx">exists</span><span class="p">()).</span><span class="nx">toBeTruthy</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="p">})</span><span class="w"/>
+</code></pre></div>
+
+<p>就像前面的例子一样，<code>App</code>组件需要用<code>createTestingPinia</code>插件<code>mount</code>编辑。这允许与Pinia数据存储交互的任何子组件与测试版本的Pinia一起执行。</p>
+<h2 id="running-the-tests">运行测试</h2>
+<p>Vitest可用于运行单元测试，如下所示:</p>
+<div class="codehilite"><pre><span/><code>$ npm run test:unit
+...
+
+ ✓ src/components/__tests__/CitySearch.spec.js <span class="o">(</span><span class="m">5</span><span class="o">)</span>
+ ✓ src/components/__tests__/WeatherBanner.spec.js <span class="o">(</span><span class="m">5</span><span class="o">)</span>
+ ✓ src/components/__tests__/WeatherFooter.spec.js <span class="o">(</span><span class="m">2</span><span class="o">)</span>
+ ✓ src/components/__tests__/CityList.spec.js <span class="o">(</span><span class="m">3</span><span class="o">)</span>
+ ✓ src/components/__tests__/WeatherHeader.spec.js <span class="o">(</span><span class="m">1</span><span class="o">)</span>
+ ✓ src/components/__tests__/WeatherContent.spec.js <span class="o">(</span><span class="m">5</span><span class="o">)</span>
+ ✓ src/components/__tests__/App.spec.js <span class="o">(</span><span class="m">1</span><span class="o">)</span>
+ ✓ src/stores/__tests__/cities.spec.js <span class="o">(</span><span class="m">4</span><span class="o">)</span>
+
+Test Files  <span class="m">8</span> passed <span class="o">(</span><span class="m">8</span><span class="o">)</span>
+     Tests  <span class="m">26</span> passed <span class="o">(</span><span class="m">26</span><span class="o">)</span>
+      Time  <span class="m">3</span>.44s <span class="o">(</span><span class="k">in</span> thread 801ms, <span class="m">429</span>.95%<span class="o">)</span>
+
+
+ PASS  Waiting <span class="k">for</span> file changes...
+       press h to show help, press q to quit
+</code></pre></div>
+
+<p>太棒了。我们可以成功地运行我们的单元测试。</p>
+<blockquote>
+<p>通过<code>npm</code>为你的Vue项目运行的所有可用命令都在<em> package.json </em>的<code>scripts</code>字段中定义。</p>
+</blockquote>
+<p>Vitest的默认配置是在<a href="https://vitest.dev/guide/features.html#watch-mode">监视模式</a>下运行测试，这意味着每次保存到一个适用的文件时，测试套件都会被重新执行。要更改此配置，使Vitest只运行一次(没有“监视模式”)，请更新<em> package.json </em>中的<code>test:unit</code>配置，以包含<code>run</code>参数:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">"test:unit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vitest run --environment jsdom"</span><span class="p">,</span><span class="w"/>
+</code></pre></div>
+
+<p>运行相同的<code>npm run test:unit</code>命令现在将导致Vitest运行一次，然后完成其执行(没有“监视模式”)。</p>
+<h2 id="conclusion">结论</h2>
+<p>Pinia数据存储是在Vue应用程序中存储全局数据的好方法。</p>
+<p>测试Pinia数据存储应分为两类:</p>
+<ul>
+<li>数据存储的单元测试——测试“getters”和“actions”是否正常工作</li>
+<li>使用数据存储的Vue组件的单元测试——测试检索数据和正确调用“动作”</li>
+</ul>
+<p>虽然配置单元测试文件以与Pinia一起工作有些复杂，但是测试Pinia数据存储可以在您的Vue应用程序的一个关键方面提供信心。</p>
+<blockquote>
+<p>同样，如果你有兴趣了解更多关于Vue的知识，可以看看我的课程:<a href="/courses/learn-vue/">通过构建和部署CRUD应用</a>来学习Vue。</p>
+</blockquote>
+<hr/>
+<p>这是测试Vue应用的两部分系列的第二部分:</p>
+<ol>
+<li><a href="/blog/vue-unit-testing/">Vue组件单元测试指南</a></li>
+<li><a href="/blog/vue-pinia-testing/">测试Vue中的Pinia数据存储</a>(本文！)</li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

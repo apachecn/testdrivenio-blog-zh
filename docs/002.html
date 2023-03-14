@@ -1,0 +1,1199 @@
+<html>
+<head>
+<title>Developing an API with FastAPI and GraphQL </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用FastAPI和GraphQL开发API</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/fastapi-graphql/#0001-01-01">https://testdriven.io/blog/fastapi-graphql/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，你将学习如何用<a href="https://fastapi.tiangolo.com/"> FastAPI </a>、<a href="https://graphql.org/"> GraphQL </a>和<a href="https://orm.masoniteproject.com/"> Masonite ORM </a>构建CRUD应用。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>解释为什么你可能想使用GraphQL而不是REST</li>
+<li>使用Masonite ORM与Postgres数据库进行交互</li>
+<li>描述GraphQL中有哪些模式、变异和查询</li>
+<li>使用石墨烯将GraphQL集成到FastAPI应用程序中</li>
+<li>用Graphene和pytest测试GraphQL API</li>
+</ol>
+<h2 id="why-graphql">为什么是GraphQL？</h2>
+<p>(为什么GraphQL优于传统的REST？)</p>
+<p>REST是构建web APIs的事实上的标准。使用REST，每个CRUD操作都有多个端点:GET、POST、PUT、DELETE。通过访问多个端点来收集数据。</p>
+<p>例如，如果您想获得特定用户的个人资料信息以及他们的帖子和相关评论，您需要调用四个不同的端点:</p>
+<ol>
+<li><code>/users/&lt;id&gt;</code>返回初始用户数据</li>
+<li><code>/users/&lt;id&gt;/posts</code>返回给定用户的所有帖子</li>
+<li><code>/users/&lt;post_id&gt;/comments</code>返回每篇文章的评论列表</li>
+<li><code>/users/&lt;id&gt;/comments</code>返回每个用户的评论列表</li>
+</ol>
+<p>这可能导致请求<a href="https://stackoverflow.com/a/44568365">过度提取</a>，因为你可能不得不获取比你需要的多得多的数据。</p>
+<p>此外，由于一个客户的需求可能与其他客户的需求大相径庭，请求过度提取和提取不足在REST中是很常见的。</p>
+<p>同时，GraphQL是一种用于从API中检索数据的查询语言。GraphQL不是有多个端点，而是围绕单个端点构建，其<em>返回值取决于客户端想要什么，而不是端点返回什么</em>。</p>
+<p>在GraphQL中，您可以像这样构建一个查询来获取用户的个人资料、帖子和评论:</p>
+<div class="codehilite"><pre><span/><code>query <span class="o">{</span>
+  User<span class="o">(</span>userId: <span class="m">2</span><span class="o">){</span>
+    name
+    posts <span class="o">{</span>
+      title
+      comments <span class="o">{</span>
+        body
+      <span class="o">}</span>
+    <span class="o">}</span>
+    comments <span class="o">{</span>
+      body
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>瞧啊。您可以在一个请求中获得所有数据，而不会过度提取，因为我们确切地指定了我们想要的数据。</p>
+<blockquote>
+<p>FastAPI通过<a href="https://www.starlette.io/graphql"> Starlette </a>和<a href="https://graphene-python.org/"> Graphene </a>支持GraphQL。当您不使用异步请求处理程序时，Starlette默认在单独的线程中执行GraphQL查询！</p>
+</blockquote>
+<h2 id="why-masonite-orm">为什么选择Masonite ORM？</h2>
+<p>Masonite ORM是一个干净的、易于使用的对象关系映射库，它是为<a href="https://docs.masoniteproject.com/"> Masonite </a> web框架构建的。它基于<a href="https://orator-orm.com/">演说家ORM </a>，一个<a href="https://www.quora.com/Is-there-something-for-Python-like-ActiveRecord-in-Ruby-Rails/answer/Michael-Herman-3">活动记录ORM</a>。</p>
+<p>Masonite ORM被开发出来作为astorator ORM的<a href="https://github.com/sdispater/orator/issues/369#issuecomment-633591842">替代品</a>,因为astorator不再接收更新和错误修复。</p>
+<p>它类似于其他流行的活动记录实现，如Django的<a href="https://www.fullstackpython.com/django-orm.html"> ORM </a>，Laravel的<a href="https://laravel.com/docs/eloquent">雄辩</a>，adon isjs’<a href="https://adonisjs.com/docs/4.0/lucid">Lucid</a>，以及Ruby On Rails中的<a href="https://guides.rubyonrails.org/active_record_basics.html">活动记录</a>。由于支持MySQL、Postgres和SQLite，它强调<a href="https://en.wikipedia.org/wiki/Convention_over_configuration">约定胜于配置</a>，这使得创建模型变得容易，因为您不必显式定义每个方面。关系是一件轻而易举的事，也很容易处理。</p>
+<p>尽管Masonite ORM是为Masonite web项目设计的，但是您也可以将mason ite ORM用于其他Python web框架或项目。</p>
+<blockquote>
+<p>有关Masonite ORM以及如何使用FastAPI的更多信息，请查看<a href="/blog/masonite-orm-fastapi/">mason ite ORM与FastAPI的集成</a>。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>创建一个目录来保存名为“fastapi-graphql”的项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir fastapi-graphql
+$ <span class="nb">cd</span> fastapi-graphql
+</code></pre></div>
+
+<p>创建虚拟环境并激活它:</p>
+<div class="codehilite"><pre><span/><code>$ python3.11 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>在“fastapi-graphql”目录中创建以下文件:</p>
+
+
+<p>将以下要求添加到<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code>fastapi==0.92.0
+uvicorn==0.20.0
+</code></pre></div>
+
+<p><a href="http://www.uvicorn.org/">uvicon</a>是一个<a href="https://asgi.readthedocs.io/en/latest/"> ASGI </a>(异步服务器网关接口)兼容的服务器，将用于站立FastAPI。</p>
+<p>安装依赖项:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>在<em> main.py </em>文件中，添加以下行来启动服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">ping</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"ping"</span><span class="p">:</span> <span class="s2">"pong"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>要启动服务器，请打开终端，导航到项目目录，然后输入以下命令:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ uvicorn main:app --reload
+</code></pre></div>
+
+<p>在您选择的浏览器中导航到<a href="http://localhost:8000"> http://localhost:8000 </a>。您应该会看到响应:</p>
+
+
+<p>您已经成功启动了一个简单的FastAPI服务器。要查看FastAPI为我们准备的漂亮的<a href="https://fastapi.tiangolo.com/features/#automatic-docs">文档</a>，请导航至<a href="http://localhost:8000/docs">http://localhost:8000/docs</a>:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-graphql/swagger-docs.png" loading="lazy" class="lazyload" alt="Swagger Docs" src="../Images/457063057dd205f1feebb965349c32e2.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-graphql/swagger-docs.png"/></p>
+<p>以及<a href="http://localhost:8000/redoc">http://localhost:8000/redoc</a>:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-graphql/redocs.png" loading="lazy" class="lazyload" alt="Redoc Docs" src="../Images/ede5fe8cb70a1ff136297eb9d8ac9755.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-graphql/redocs.png"/></p>
+<h2 id="masonite-orm">Masonite ORM</h2>
+<p>将以下需求添加到<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code>masonite-orm==2.18.6
+psycopg2-binary==2.9.5
+</code></pre></div>
+
+<p>安装新的依赖项:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>创建以下文件夹:</p>
+<div class="codehilite"><pre><span/><code>models
+databases/migrations
+config
+</code></pre></div>
+
+<p>“models”文件夹将包含我们的模型文件，“databases/migrations”文件夹将包含我们的迁移文件，“config”文件夹将保存我们的Masonite数据库配置文件。</p>
+<h3 id="database-config">数据库配置</h3>
+<p>在“config”文件夹中，创建一个<em> database.py </em>文件。Masonite ORM需要这个文件，因为这是我们声明数据库配置的地方。</p>
+<blockquote>
+<p>欲了解更多信息，请访问<a href="https://orm.masoniteproject.com/installation#configuration">文档</a>。</p>
+</blockquote>
+<p>在<em> database.py </em>文件中，我们需要添加<code>DATABASE</code>变量和一些连接信息，从<code>masonite-orm.connections</code>导入<code>ConnectionResolver</code>，并注册连接细节:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># config/database.py</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.connections</span> <span class="kn">import</span> <span class="n">ConnectionResolver</span>
+
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="s2">"default"</span><span class="p">:</span> <span class="s2">"postgres"</span><span class="p">,</span>
+  <span class="s2">"mysql"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"host"</span><span class="p">:</span> <span class="s2">"127.0.0.1"</span><span class="p">,</span>
+    <span class="s2">"driver"</span><span class="p">:</span> <span class="s2">"mysql"</span><span class="p">,</span>
+    <span class="s2">"database"</span><span class="p">:</span> <span class="s2">"masonite"</span><span class="p">,</span>
+    <span class="s2">"user"</span><span class="p">:</span> <span class="s2">"root"</span><span class="p">,</span>
+    <span class="s2">"password"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="s2">"port"</span><span class="p">:</span> <span class="mi">3306</span><span class="p">,</span>
+    <span class="s2">"log_queries"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s2">"options"</span><span class="p">:</span> <span class="p">{</span>
+      <span class="c1">#</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="s2">"postgres"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"host"</span><span class="p">:</span> <span class="s2">"127.0.0.1"</span><span class="p">,</span>
+    <span class="s2">"driver"</span><span class="p">:</span> <span class="s2">"postgres"</span><span class="p">,</span>
+    <span class="s2">"database"</span><span class="p">:</span> <span class="s2">"test"</span><span class="p">,</span>
+    <span class="s2">"user"</span><span class="p">:</span> <span class="s2">"test"</span><span class="p">,</span>
+    <span class="s2">"password"</span><span class="p">:</span> <span class="s2">"test"</span><span class="p">,</span>
+    <span class="s2">"port"</span><span class="p">:</span> <span class="mi">5432</span><span class="p">,</span>
+    <span class="s2">"log_queries"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s2">"options"</span><span class="p">:</span> <span class="p">{</span>
+      <span class="c1">#</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="s2">"sqlite"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"driver"</span><span class="p">:</span> <span class="s2">"sqlite"</span><span class="p">,</span>
+    <span class="s2">"database"</span><span class="p">:</span> <span class="s2">"db.sqlite3"</span><span class="p">,</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">DB</span> <span class="o">=</span> <span class="n">ConnectionResolver</span><span class="p">()</span><span class="o">.</span><span class="n">set_connection_details</span><span class="p">(</span><span class="n">DATABASES</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们定义了三种不同的数据库设置:</p>
+<ol>
+<li>关系型数据库</li>
+<li>Postgres</li>
+<li>SQLite</li>
+</ol>
+<p>我们将默认连接设置为Postgres。</p>
+<blockquote>
+<p>注意:确保您已经启动并运行了Postgres数据库。请随意更改默认的数据库连接。</p>
+</blockquote>
+<h3 id="masonite-models">Masonite型号</h3>
+<p>要创建一个新的样板文件<a href="https://orm.masoniteproject.com/models#creating-a-model"> Masonite模型</a>，从终端的项目根文件夹中运行下面的<code>masonite-orm</code>命令:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ masonite-orm model User --directory models
+</code></pre></div>
+
+<p>您应该会看到一条成功消息:</p>
+<div class="codehilite"><pre><span/><code>Model created: models/User.py
+</code></pre></div>
+
+<p>因此，该命令应该在“models”目录中创建一个包含以下内容的<em> User.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">""" User Model """</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.models</span> <span class="kn">import</span> <span class="n">Model</span>
+
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="sd">"""User Model"""</span>
+
+    <span class="k">pass</span>
+</code></pre></div>
+
+<blockquote>
+<p>如果您收到一个<code>FileNotFoundError</code>，检查以确保“模型”文件夹存在。</p>
+</blockquote>
+<p>对帖子和评论模型运行相同的命令:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ masonite-orm model Post --directory models
+&gt; Model created: models/Post.py
+
+<span class="o">(</span>env<span class="o">)</span>$ masonite-orm model Comment --directory models
+&gt; Model created: models/Comment.py
+</code></pre></div>
+
+<p>接下来，我们可以创建初始迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ masonite-orm migration migration_for_user_table --create users
+</code></pre></div>
+
+<p>我们添加了<code>--create</code>标志来告诉Masonite将要创建的迁移文件是针对我们的<code>users</code>表的，并且应该在迁移运行时创建数据库表。</p>
+<p>在“数据库/迁移”文件夹中，应该已经创建了一个新文件:</p>
+<p><code>&lt;timestamp&gt;_migration_for_user_table.py</code></p>
+<p>内容:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""MigrationForUserTable Migration."""</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.migrations</span> <span class="kn">import</span> <span class="n">Migration</span>
+
+
+<span class="k">class</span> <span class="nc">MigrationForUserTable</span><span class="p">(</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">up</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Run the migrations.</span>
+<span class="sd">        """</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"users"</span><span class="p">)</span> <span class="k">as</span> <span class="n">table</span><span class="p">:</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">increments</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span>
+
+            <span class="n">table</span><span class="o">.</span><span class="n">timestamps</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">down</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Revert the migrations.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"users"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>创建剩余的迁移文件:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ masonite-orm migration migration_for_post_table --create posts
+&gt; Migration file created: databases/migrations/2022_05_04_084820_migration_for_post_table.py
+
+<span class="o">(</span>env<span class="o">)</span>$ masonite-orm migration migration_for_comment_table --create comments
+&gt; Migration file created: databases/migrations/2022_05_04_084833_migration_for_comment_table.py
+</code></pre></div>
+
+<h3 id="database-tables">数据库表</h3>
+<p><code>users</code>表应该有以下字段:</p>
+<ol>
+<li>名字</li>
+<li>电子邮件(唯一)</li>
+<li>地址(可选)</li>
+<li>电话号码(可选)</li>
+<li>性别(可选)</li>
+</ol>
+<p>将与用户模型相关联的迁移文件更改为:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""MigrationForUserTable Migration."""</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.migrations</span> <span class="kn">import</span> <span class="n">Migration</span>
+
+
+<span class="k">class</span> <span class="nc">MigrationForUserTable</span><span class="p">(</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">up</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Run the migrations.</span>
+<span class="sd">        """</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"users"</span><span class="p">)</span> <span class="k">as</span> <span class="n">table</span><span class="p">:</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">increments</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">string</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">string</span><span class="p">(</span><span class="s2">"email"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">"address"</span><span class="p">)</span><span class="o">.</span><span class="n">nullable</span><span class="p">()</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">string</span><span class="p">(</span><span class="s2">"phone_number"</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span><span class="o">.</span><span class="n">nullable</span><span class="p">()</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">enum</span><span class="p">(</span><span class="s2">"sex"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"male"</span><span class="p">,</span> <span class="s2">"female"</span><span class="p">])</span><span class="o">.</span><span class="n">nullable</span><span class="p">()</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">timestamps</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">down</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Revert the migrations.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"users"</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>有关表方法和列类型的更多信息，请查看文档中的<a href="https://orm.masoniteproject.com/schema-and-migrations">模式&amp;迁移</a>。</p>
+</blockquote>
+<p>接下来，更新帖子和评论模型的字段，注意这些字段。</p>
+<p>帖子:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""MigrationForPostTable Migration."""</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.migrations</span> <span class="kn">import</span> <span class="n">Migration</span>
+
+
+<span class="k">class</span> <span class="nc">MigrationForPostTable</span><span class="p">(</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">up</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Run the migrations.</span>
+<span class="sd">        """</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"posts"</span><span class="p">)</span> <span class="k">as</span> <span class="n">table</span><span class="p">:</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">increments</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">unsigned</span><span class="p">()</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">foreign</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">references</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"users"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">string</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">"body"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">timestamps</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">down</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Revert the migrations.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"posts"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>评论:</p>
+<div class="codehilite"><pre><span/><code><span class="sd">"""MigrationForCommentTable Migration."""</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.migrations</span> <span class="kn">import</span> <span class="n">Migration</span>
+
+
+<span class="k">class</span> <span class="nc">MigrationForCommentTable</span><span class="p">(</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">up</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Run the migrations.</span>
+<span class="sd">        """</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">)</span> <span class="k">as</span> <span class="n">table</span><span class="p">:</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">increments</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">unsigned</span><span class="p">()</span><span class="o">.</span><span class="n">nullable</span><span class="p">()</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">foreign</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">references</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"users"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="s2">"post_id"</span><span class="p">)</span><span class="o">.</span><span class="n">unsigned</span><span class="p">()</span><span class="o">.</span><span class="n">nullable</span><span class="p">()</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">foreign</span><span class="p">(</span><span class="s2">"post_id"</span><span class="p">)</span><span class="o">.</span><span class="n">references</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"posts"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">"body"</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">timestamps</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">down</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Revert the migrations.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>注意到:</p>
+<div class="codehilite"><pre><span/><code><span class="n">table</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">unsigned</span><span class="p">()</span>
+<span class="n">table</span><span class="o">.</span><span class="n">foreign</span><span class="p">(</span><span class="s2">"user_id"</span><span class="p">)</span><span class="o">.</span><span class="n">references</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"users"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>上面几行创建了一个从<code>posts</code> / <code>comments</code>表到<code>users</code>表的外键。<code>user_id</code>列引用<code>users</code>表上的<code>id</code>列</p>
+<p>要应用迁移，请在终端中运行以下命令:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ masonite-orm migrate
+</code></pre></div>
+
+<p>您应该会看到关于每个迁移的成功消息:</p>
+<div class="codehilite"><pre><span/><code>Migrating: 2022_05_04_084807_migration_for_user_table
+Migrated: 2022_05_04_084807_migration_for_user_table <span class="o">(</span><span class="m">0</span>.08s<span class="o">)</span>
+Migrating: 2022_05_04_084820_migration_for_post_table
+Migrated: 2022_05_04_084820_migration_for_post_table <span class="o">(</span><span class="m">0</span>.04s<span class="o">)</span>
+Migrating: 2022_05_04_084833_migration_for_comment_table
+Migrated: 2022_05_04_084833_migration_for_comment_table <span class="o">(</span><span class="m">0</span>.02s<span class="o">)</span>
+</code></pre></div>
+
+<p>到目前为止，我们已经在表中添加并引用了外键，这些外键是在数据库中创建的。但是，我们仍然需要告诉Masonite每个模型之间的关系类型。</p>
+<h3 id="table-relationships">表关系</h3>
+<p>为了定义一对多的关系，我们需要从<em>模型/User.py </em>中的<code>masoniteorm.relationships</code>导入<code>has_many</code>，并将其作为装饰者添加到我们的函数中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># models/User.py</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.models</span> <span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span> <span class="nn">masoniteorm.relationships</span> <span class="kn">import</span> <span class="n">has_many</span>
+
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="sd">"""User Model"""</span>
+
+    <span class="nd">@has_many</span><span class="p">(</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">posts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.Post</span> <span class="kn">import</span> <span class="n">Post</span>
+
+        <span class="k">return</span> <span class="n">Post</span>
+
+    <span class="nd">@has_many</span><span class="p">(</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">comments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.Comment</span> <span class="kn">import</span> <span class="n">Comment</span>
+
+        <span class="k">return</span> <span class="n">Comment</span>
+</code></pre></div>
+
+<p>请注意，<code>has_many</code>有两个参数:</p>
+<ol>
+<li>将在另一个表中引用的主表上的主键列的名称</li>
+<li>将作为外键引用的列的名称</li>
+</ol>
+<p>在<code>users</code>表中，<code>id</code>是主键列，而<code>user_id</code>是引用<code>users</code>表记录的<code>posts</code>表中的列。</p>
+<p>对<em>型号/Post.py </em>进行同样的操作:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># models/Post.py</span>
+
+<span class="kn">from</span> <span class="nn">masoniteorm.models</span> <span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span> <span class="nn">masoniteorm.relationships</span> <span class="kn">import</span> <span class="n">has_many</span>
+
+
+<span class="k">class</span> <span class="nc">Post</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="sd">"""Post Model"""</span>
+
+    <span class="nd">@has_many</span><span class="p">(</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"post_id"</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">comments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.Comment</span> <span class="kn">import</span> <span class="n">Comment</span>
+
+        <span class="k">return</span> <span class="n">Comment</span>
+</code></pre></div>
+
+<h2 id="graphql">GraphQL</h2>
+<p>虽然有许多<a href="https://fastapi.tiangolo.com/advanced/graphql/#graphql-libraries"> GraphQL库</a>可以与FastAPI一起工作，但是<a href="https://strawberry.rocks/docs/integrations/fastapi"> Strawberry </a>是<a href="https://fastapi.tiangolo.com/advanced/graphql/#graphql-with-strawberry">推荐的</a>库，因为它利用了与FastAPI非常相似的数据类和类型提示。</p>
+<p>将<code>strawberry-graphql[fastapi]</code>添加到您的<em> requirement.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">strawberry</span><span class="o">-</span><span class="n">graphql</span><span class="o">[</span><span class="n">fastapi</span><span class="o">]==</span><span class="mf">0.158.0</span><span class="w"/>
+</code></pre></div>
+
+<p>安装:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>接下来，像这样更新<em> main.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">strawberry</span>  <span class="c1"># new</span>
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span> <span class="nn">strawberry.fastapi</span> <span class="kn">import</span> <span class="n">GraphQLRouter</span>  <span class="c1"># new</span>
+
+
+<span class="c1"># new</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">Query</span><span class="p">:</span>
+  <span class="nd">@strawberry</span><span class="o">.</span><span class="n">field</span>
+  <span class="k">def</span> <span class="nf">hello</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s2">"Hello World"</span>
+
+
+<span class="n">schema</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">Schema</span><span class="p">(</span><span class="n">Query</span><span class="p">)</span>  <span class="c1"># new</span>
+<span class="n">graphql_app</span> <span class="o">=</span> <span class="n">GraphQLRouter</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>  <span class="c1"># new</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">graphql_app</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"/graphql"</span><span class="p">)</span>  <span class="c1"># new</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">ping</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"ping"</span><span class="p">:</span> <span class="s2">"pong"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>启动您的服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ uvicorn main:app --reload
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8000/graphql">http://localhost:8000/graph QL</a>。你应该去看看<a href="https://github.com/graphql/graphql-playground"> GraphQL游乐场</a>:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-graphql/strawberry-playground.png" loading="lazy" class="lazyload" alt="Strawberry Playground" src="../Images/18174e2c703733c8de1307ece2f86908.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-graphql/strawberry-playground.png"/></p>
+<p>键入一个快速查询以确保一切正常:</p>
+
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"hello"</span>: <span class="s2">"Hello World"</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<h2 id="schema">(计划或理论的)纲要</h2>
+<p>一个<a href="https://docs.graphene-python.org/en/latest/types/schema/">模式</a>是每个GraphQL应用程序的构建块。GraphQL服务器使用它们来描述数据的形状。它充当应用程序的核心，将所有其他部分粘合在一起，如突变和查询。</p>
+<p>在项目根目录下创建以下三个新文件:</p>
+<ol>
+<li>这个文件将保存我们的草莓类型。Strawberry支持代码优先的<a href="https://strawberry.rocks/docs/general/schema-basics">模式</a>，这看起来很像Python数据类。</li>
+<li><em>controller . py</em>——将保存我们执行数据库操作的所有逻辑。这个文件中定义的函数将在我们稍后创建突变和查询时充当我们的解析器。</li>
+<li><em>core . py</em>——会把所有东西绑在一起。在这里，我们将为读写操作定义<em>查询</em>和<em>变异</em>类，然后我们的GraphQL服务器可以执行这些操作。</li>
+</ol>
+<p>在<em> schema.py </em>文件中，让我们定义我们的类型:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">strawberry</span>
+
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">CommentsType</span><span class="p">:</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">post_id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">PostType</span><span class="p">:</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">comments</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">CommentsType</span><span class="p">]]</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">UserType</span><span class="p">:</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">address</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">phone_number</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">sex</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">posts</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PostType</span><span class="p">]]</span>
+    <span class="n">comments</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">CommentsType</span><span class="p">]]</span>
+</code></pre></div>
+
+<p>至此，让我们添加创建、读取、更新和删除数据库中的用户、帖子和评论的基本CRUD操作。</p>
+<h2 id="mutations">突变</h2>
+<p><a href="https://docs.graphene-python.org/en/latest/types/mutations/">突变</a>在GraphQL中用于修改数据——即创建、更新和删除数据。我们将使用一个变异来创建<code>User</code>、<code>Post</code>和<code>Comment</code>对象，并将它们保存在数据库中。</p>
+<h3 id="input-types">输入类型</h3>
+<p>在我们创建变异之前，我们将创建一些草莓输入类型。输入类型使我们更容易定义希望用作输入的字段，而不是在函数中将它们作为参数传递。要定义输入类型，可以使用<code>strawberry.input</code>装饰器。</p>
+<p>将以下输入类型添加到<em> schema.py </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@strawberry</span><span class="o">.</span><span class="n">input</span>
+<span class="k">class</span> <span class="nc">UserInput</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">address</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">phone_number</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">sex</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">input</span>
+<span class="k">class</span> <span class="nc">PostInput</span><span class="p">:</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">input</span>
+<span class="k">class</span> <span class="nc">CommentInput</span><span class="p">:</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">post_id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+<h3 id="add-user-mutation">添加用户突变</h3>
+<p>现在，在我们的<em>控制器. py </em>类中，让我们添加添加用户的逻辑。创建一个mutate类，并在该类中包含一个<code>add_user</code>方法，该方法接受一个类型为<code>UserInput</code>的参数:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">models.User</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">UserInput</span>
+
+
+<span class="k">class</span> <span class="nc">CreateMutation</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">add_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_data</span><span class="p">:</span> <span class="n">UserInput</span><span class="p">):</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="s2">"email"</span><span class="p">,</span> <span class="n">user_data</span><span class="o">.</span><span class="n">email</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">user</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">"User already exists"</span><span class="p">)</span>
+
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">()</span>
+
+        <span class="n">user</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">email</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">address</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">phone_number</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">phone_number</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">sex</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">sex</span>
+
+        <span class="n">user</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">user</span>
+</code></pre></div>
+
+<p>现在，为了将这个类绑定到我们的变异中，将以下内容添加到<em> core.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">strawberry</span>
+
+<span class="kn">from</span> <span class="nn">controller</span> <span class="kn">import</span> <span class="n">CreateMutation</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">UserType</span><span class="p">,</span> <span class="n">PostType</span><span class="p">,</span> <span class="n">CommentsType</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">Mutation</span><span class="p">:</span>
+    <span class="n">add_user</span><span class="p">:</span> <span class="n">UserType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">mutation</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">CreateMutation</span><span class="o">.</span><span class="n">add_user</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在，我们只需将我们的突变添加到<code>strawberry.Schema</code>实例化中。打开<em> main.py </em>文件，更改模式实例化，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="n">schema</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">Schema</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">Query</span><span class="p">,</span> <span class="n">mutation</span><span class="o">=</span><span class="n">Mutation</span><span class="p">)</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">Mutation</span>
+</code></pre></div>
+
+<h3 id="remaining-mutations">剩余突变</h3>
+<p>将其他mutate方法添加到<em> controller.py </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">models.Comment</span> <span class="kn">import</span> <span class="n">Comment</span>
+<span class="kn">from</span> <span class="nn">models.Post</span> <span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span> <span class="nn">models.User</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">CommentInput</span><span class="p">,</span> <span class="n">PostInput</span><span class="p">,</span> <span class="n">UserInput</span>
+
+
+<span class="k">class</span> <span class="nc">CreateMutation</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">add_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_data</span><span class="p">:</span> <span class="n">UserInput</span><span class="p">):</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="s2">"email"</span><span class="p">,</span> <span class="n">user_data</span><span class="o">.</span><span class="n">email</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">user</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">"User already exists"</span><span class="p">)</span>
+
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">()</span>
+
+        <span class="n">user</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">email</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">address</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">phone_number</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">phone_number</span>
+        <span class="n">user</span><span class="o">.</span><span class="n">sex</span> <span class="o">=</span> <span class="n">user_data</span><span class="o">.</span><span class="n">sex</span>
+
+        <span class="n">user</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">user</span>
+
+    <span class="k">def</span> <span class="nf">add_post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">post_data</span><span class="p">:</span> <span class="n">PostInput</span><span class="p">):</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">post_data</span><span class="o">.</span><span class="n">user_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">user</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">"User not found"</span><span class="p">)</span>
+        <span class="n">post</span> <span class="o">=</span> <span class="n">Post</span><span class="p">()</span>
+        <span class="n">post</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="n">post_data</span><span class="o">.</span><span class="n">title</span>
+        <span class="n">post</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="n">post_data</span><span class="o">.</span><span class="n">body</span>
+        <span class="n">post</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="n">post_data</span><span class="o">.</span><span class="n">user_id</span>
+        <span class="n">post</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+        <span class="n">user</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"posts"</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">post</span>
+
+    <span class="k">def</span> <span class="nf">add_comment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">comment_data</span><span class="p">:</span> <span class="n">CommentInput</span><span class="p">):</span>
+        <span class="n">post</span> <span class="o">=</span> <span class="n">Post</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">comment_data</span><span class="o">.</span><span class="n">post_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">post</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">"Post not found"</span><span class="p">)</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">comment_data</span><span class="o">.</span><span class="n">user_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">user</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">"User not found"</span><span class="p">)</span>
+
+        <span class="n">comment</span> <span class="o">=</span> <span class="n">Comment</span><span class="p">()</span>
+        <span class="n">comment</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="n">comment_data</span><span class="o">.</span><span class="n">body</span>
+        <span class="n">comment</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="n">comment_data</span><span class="o">.</span><span class="n">user_id</span>
+        <span class="n">comment</span><span class="o">.</span><span class="n">post_id</span> <span class="o">=</span> <span class="n">comment_data</span><span class="o">.</span><span class="n">post_id</span>
+
+        <span class="n">comment</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+        <span class="n">user</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">,</span> <span class="n">comment</span><span class="p">)</span>
+        <span class="n">post</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">,</span> <span class="n">comment</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">comment</span>
+</code></pre></div>
+
+<p>同时更新<em> core.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">Mutation</span><span class="p">:</span>
+    <span class="n">add_user</span><span class="p">:</span> <span class="n">UserType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">mutation</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">CreateMutation</span><span class="o">.</span><span class="n">add_user</span><span class="p">)</span>
+    <span class="n">add_post</span><span class="p">:</span> <span class="n">PostType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">mutation</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">CreateMutation</span><span class="o">.</span><span class="n">add_post</span><span class="p">)</span>
+    <span class="n">add_comment</span><span class="p">:</span> <span class="n">CommentsType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">mutation</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">CreateMutation</span><span class="o">.</span><span class="n">add_comment</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="testing">测试</h3>
+<p>再次点燃Uvicorn。重新加载您的浏览器，在GraphQL Playground的<a href="http://localhost:8000/graphql">http://localhost:8000/graph QL</a>，执行<code>addUser</code>突变:</p>
+<div class="codehilite"><pre><span/><code>mutation <span class="o">{</span>
+  addUser<span class="o">(</span>userData:<span class="o">{</span>
+    name: <span class="s2">"John Doe"</span>,
+    email: <span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f59f9a9d9bb59098949c99db969a98">[email protected]</a>"</span>,
+    address: <span class="s2">"My home address"</span>,
+    phoneNumber: <span class="s2">"1234567890"</span>,
+    sex: <span class="s2">"male"</span>
+  <span class="o">}){</span>
+    id
+    name
+    address
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>您应该得到这样一个用户对象:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"addUser"</span>: <span class="o">{</span>
+      <span class="s2">"id"</span>: <span class="m">1</span>,
+      <span class="s2">"name"</span>: <span class="s2">"John Doe"</span>,
+      <span class="s2">"address"</span>: <span class="s2">"My home address"</span>
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>尝试使用相同的电子邮件再次添加相同的用户，现在应该会显示一个错误列表，其中数据键为空:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: null,
+  <span class="s2">"errors"</span>: <span class="o">[</span>
+    <span class="o">{</span>
+      <span class="s2">"message"</span>: <span class="s2">"User already exists"</span>,
+      <span class="s2">"locations"</span>: <span class="o">[</span>
+        <span class="o">{</span>
+          <span class="s2">"line"</span>: <span class="m">2</span>,
+          <span class="s2">"column"</span>: <span class="m">3</span>
+        <span class="o">}</span>
+      <span class="o">]</span>,
+      <span class="s2">"path"</span>: <span class="o">[</span>
+        <span class="s2">"addUser"</span>
+      <span class="o">]</span>
+    <span class="o">}</span>
+  <span class="o">]</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>执行<code>addPost</code>突变也是为了创建一个新帖子:</p>
+<div class="codehilite"><pre><span/><code>mutation addPost <span class="o">{</span>
+  addPost<span class="o">(</span>postData: <span class="o">{</span>
+    userId: <span class="m">1</span>,
+    title: <span class="s2">"My first Post"</span>,
+    body: <span class="s2">"This is a Post about myself"</span>
+  <span class="o">})</span>
+  <span class="o">{</span>
+    id
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"addPost"</span>: <span class="o">{</span>
+      <span class="s2">"id"</span>: <span class="m">1</span>
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>最后，执行<code>createComment</code>变异来创建一个新的注释:</p>
+<div class="codehilite"><pre><span/><code>mutation createComment <span class="o">{</span>
+  addComment<span class="o">(</span>commentData: <span class="o">{</span>
+    userId: <span class="m">1</span>,
+    postId: <span class="m">1</span>,
+    body: <span class="s2">"Another Comment"</span>
+  <span class="o">})</span>
+  <span class="o">{</span>
+    id
+    body
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<h2 id="queries">问题</h2>
+<p>为了检索数据，我们需要创建一个<a href="https://strawberry.rocks/docs/general/queries">查询</a>类，然后我们可以将它传递给<em> main.py </em>文件中的模式实例化。</p>
+<p>在<em> controller.py </em>中，添加一个查询类，其中所有函数都将是我们的查询解析器:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Queries</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">get_all_users</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">UserType</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">User</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</code></pre></div>
+
+<p>更新顶部的导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+<span class="kn">from</span> <span class="nn">models.Comment</span> <span class="kn">import</span> <span class="n">Comment</span>
+<span class="kn">from</span> <span class="nn">models.Post</span> <span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span> <span class="nn">models.User</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">CommentInput</span><span class="p">,</span> <span class="n">CommentsType</span><span class="p">,</span> <span class="n">PostInput</span><span class="p">,</span> <span class="n">PostType</span><span class="p">,</span> <span class="n">UserInput</span><span class="p">,</span> <span class="n">UserType</span>
+</code></pre></div>
+
+<p>我们已经定义了模式和解析器。</p>
+<p>现在，让我们通过更新<em> core.py </em>将它们联系起来，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>  <span class="c1"># new</span>
+
+<span class="kn">import</span> <span class="nn">strawberry</span>
+
+<span class="kn">from</span> <span class="nn">controller</span> <span class="kn">import</span> <span class="n">CreateMutation</span><span class="p">,</span> <span class="n">Queries</span>  <span class="c1"># updated</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">UserType</span><span class="p">,</span> <span class="n">PostType</span><span class="p">,</span> <span class="n">CommentsType</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">Mutation</span><span class="p">:</span>
+    <span class="n">add_user</span><span class="p">:</span> <span class="n">UserType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">mutation</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">CreateMutation</span><span class="o">.</span><span class="n">add_user</span><span class="p">)</span>
+    <span class="n">add_post</span><span class="p">:</span> <span class="n">PostType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">mutation</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">CreateMutation</span><span class="o">.</span><span class="n">add_post</span><span class="p">)</span>
+    <span class="n">add_comment</span><span class="p">:</span> <span class="n">CommentsType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">mutation</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">CreateMutation</span><span class="o">.</span><span class="n">add_comment</span><span class="p">)</span>
+
+
+<span class="c1"># new</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">Query</span><span class="p">:</span>
+    <span class="n">users</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">UserType</span><span class="p">]</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">Queries</span><span class="o">.</span><span class="n">get_all_users</span><span class="p">)</span>
+</code></pre></div>
+
+<p>更新<em> main.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">strawberry</span>
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span> <span class="nn">strawberry.fastapi</span> <span class="kn">import</span> <span class="n">GraphQLRouter</span>
+
+<span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">Mutation</span><span class="p">,</span> <span class="n">Query</span>  <span class="c1"># updated</span>
+
+
+<span class="n">schema</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">Schema</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">Query</span><span class="p">,</span> <span class="n">mutation</span><span class="o">=</span><span class="n">Mutation</span><span class="p">)</span>
+<span class="n">graphql_app</span> <span class="o">=</span> <span class="n">GraphQLRouter</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">graphql_app</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"/graphql"</span><span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">ping</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"ping"</span><span class="p">:</span> <span class="s2">"pong"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>启动您的服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ uvicorn main:app --reload
+</code></pre></div>
+
+<p>再次导航到<a href="http://localhost:8000/graphql">http://localhost:8000/graph QL</a>，并执行以下查询以返回用户列表:</p>
+<div class="codehilite"><pre><span/><code>query getAllUsers <span class="o">{</span>
+  users<span class="o">{</span>
+    id
+    name
+    posts <span class="o">{</span>
+      title
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>结果:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"users"</span>: <span class="o">[</span>
+      <span class="o">{</span>
+        <span class="s2">"id"</span>: <span class="m">1</span>,
+        <span class="s2">"name"</span>: <span class="s2">"John Doe"</span>,
+        <span class="s2">"posts"</span>: <span class="o">[</span>
+          <span class="o">{</span>
+            <span class="s2">"title"</span>: <span class="s2">"My first Post"</span>
+          <span class="o">}</span>
+        <span class="o">]</span>
+      <span class="o">}</span>
+    <span class="o">]</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>要检索单个用户，再次更新<code>Queries</code>类，添加以下解析器方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Queries</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">get_all_users</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">UserType</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">User</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+    <span class="c1"># new</span>
+    <span class="k">def</span> <span class="nf">get_single_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UserType</span><span class="p">:</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">user</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">"User not found"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">user</span>
+</code></pre></div>
+
+<p>接下来，像这样更新<em> core.py </em>中的<code>Query</code>类:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span> <span class="nc">Query</span><span class="p">:</span>
+    <span class="n">users</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">UserType</span><span class="p">]</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">Queries</span><span class="o">.</span><span class="n">get_all_users</span><span class="p">)</span>
+    <span class="n">get_single_user</span><span class="p">:</span> <span class="n">UserType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">Queries</span><span class="o">.</span><span class="n">get_single_user</span><span class="p">)</span>  <span class="c1"># new</span>
+</code></pre></div>
+
+<p>尝试一下:</p>
+<div class="codehilite"><pre><span/><code>query getUser <span class="o">{</span>
+  getSingleUser<span class="o">(</span>userId: <span class="m">1</span><span class="o">)</span> <span class="o">{</span>
+    name
+    posts <span class="o">{</span>
+      title
+      comments <span class="o">{</span>
+        body
+      <span class="o">}</span>
+    <span class="o">}</span>
+    comments <span class="o">{</span>
+      body
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>该查询应该返回一个帖子列表，该列表又应该包含每个帖子对象的评论列表:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"getSingleUser"</span>: <span class="o">{</span>
+      <span class="s2">"name"</span>: <span class="s2">"John Doe"</span>,
+      <span class="s2">"posts"</span>: <span class="o">[</span>
+        <span class="o">{</span>
+          <span class="s2">"title"</span>: <span class="s2">"My first Post"</span>,
+          <span class="s2">"comments"</span>: <span class="o">[</span>
+            <span class="o">{</span>
+              <span class="s2">"body"</span>: <span class="s2">"Another Comment"</span>
+            <span class="o">}</span>
+          <span class="o">]</span>
+        <span class="o">}</span>
+      <span class="o">]</span>,
+      <span class="s2">"comments"</span>: <span class="o">[</span>
+        <span class="o">{</span>
+          <span class="s2">"body"</span>: <span class="s2">"Another Comment"</span>
+        <span class="o">}</span>
+      <span class="o">]</span>
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>如果不需要帖子或评论，可以从查询中删除帖子和评论块:</p>
+<div class="codehilite"><pre><span/><code>query getUser <span class="o">{</span>
+  getSingleUser<span class="o">(</span>userId: <span class="m">1</span><span class="o">)</span> <span class="o">{</span>
+    name
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>结果:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"getSingleUser"</span>: <span class="o">{</span>
+      <span class="s2">"name"</span>: <span class="s2">"John Doe"</span>
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>尝试使用不正确的用户ID:</p>
+<div class="codehilite"><pre><span/><code>query getUser <span class="o">{</span>
+  getSingleUser<span class="o">(</span>userId: <span class="m">5999</span><span class="o">)</span> <span class="o">{</span>
+    name
+  <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>它应该会返回一个错误:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: null,
+  <span class="s2">"errors"</span>: <span class="o">[</span>
+    <span class="o">{</span>
+      <span class="s2">"message"</span>: <span class="s2">"User not found"</span>,
+      <span class="s2">"locations"</span>: <span class="o">[</span>
+        <span class="o">{</span>
+          <span class="s2">"line"</span>: <span class="m">2</span>,
+          <span class="s2">"column"</span>: <span class="m">3</span>
+        <span class="o">}</span>
+      <span class="o">]</span>,
+      <span class="s2">"path"</span>: <span class="o">[</span>
+        <span class="s2">"getSingleUser"</span>
+      <span class="o">]</span>
+    <span class="o">}</span>
+  <span class="o">]</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>注意异常是如何被设计成消息的。</p>
+<h2 id="tests">试验</h2>
+<p>Graphene提供了一个<a href="https://docs.graphene-python.org/en/latest/testing/#test-client">测试客户端</a>，用于创建测试Graphene应用程序的虚拟GraphQL客户端。</p>
+<p>我们将使用pytest，因此将依赖项添加到您的需求文件中:</p>
+
+
+<p>我们还需要HTTPX库，因为FastAPI的TestClient是基于它的。也将其添加到需求文件中:</p>
+
+
+<p>安装:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>接下来，让我们为测试创建一个单独的配置文件，这样我们就不会覆盖主开发数据库中的数据。在“config”文件夹中，创建一个名为test_config.py的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">masoniteorm.connections</span> <span class="kn">import</span> <span class="n">ConnectionResolver</span>
+
+
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="s2">"default"</span><span class="p">:</span> <span class="s2">"sqlite"</span><span class="p">,</span>
+  <span class="s2">"sqlite"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"driver"</span><span class="p">:</span> <span class="s2">"sqlite"</span><span class="p">,</span>
+    <span class="s2">"database"</span><span class="p">:</span> <span class="s2">"db.sqlite3"</span><span class="p">,</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">DB</span> <span class="o">=</span> <span class="n">ConnectionResolver</span><span class="p">()</span><span class="o">.</span><span class="n">set_connection_details</span><span class="p">(</span><span class="n">DATABASES</span><span class="p">)</span>
+</code></pre></div>
+
+<p>接下来，创建一个“tests”文件夹，并在该文件夹中添加一个<em> conftest.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">pytest</span>
+<span class="kn">from</span> <span class="nn">masoniteorm.migrations</span> <span class="kn">import</span> <span class="n">Migration</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">setup_database</span><span class="p">():</span>
+    <span class="n">config_path</span> <span class="o">=</span> <span class="s2">"config/test_config.py"</span>
+
+    <span class="n">migrator</span> <span class="o">=</span> <span class="n">Migration</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="n">config_path</span><span class="p">)</span>
+    <span class="n">migrator</span><span class="o">.</span><span class="n">create_table_if_not_exists</span><span class="p">()</span>
+
+    <span class="n">migrator</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+</code></pre></div>
+
+<p>接下来，添加用于创建用户、帖子和评论的装置:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"function"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">user</span><span class="p">():</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">()</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"John Doe"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="s2">"United States of Nigeria"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">phone_number</span> <span class="o">=</span> <span class="mi">123456789</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">sex</span> <span class="o">=</span> <span class="s2">"male"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="27414848674546550944484a">[email protected]</a>"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">user</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"function"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="n">user</span><span class="p">):</span>
+    <span class="n">post</span> <span class="o">=</span> <span class="n">Post</span><span class="p">()</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="s2">"Test Title"</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="s2">"this is the post body and can be as long as possible"</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="n">user</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"posts"</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">post</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"function"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">comment</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">post</span><span class="p">):</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="n">Comment</span><span class="p">()</span>
+    <span class="n">comment</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="s2">"This is a comment body"</span>
+    <span class="n">comment</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span>
+    <span class="n">comment</span><span class="o">.</span><span class="n">post_id</span> <span class="o">=</span> <span class="n">post</span><span class="o">.</span><span class="n">id</span>
+
+    <span class="n">comment</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="n">user</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">,</span> <span class="n">comment</span><span class="p">)</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">,</span> <span class="n">comment</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">comment</span>
+</code></pre></div>
+
+<p>不要忘记模型导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">models.Comment</span> <span class="kn">import</span> <span class="n">Comment</span>
+<span class="kn">from</span> <span class="nn">models.Post</span> <span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span> <span class="nn">models.User</span> <span class="kn">import</span> <span class="n">User</span>
+</code></pre></div>
+
+<p>您的<em> conftest.py </em>文件现在应该是这样的:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">pytest</span>
+<span class="kn">from</span> <span class="nn">masoniteorm.migrations</span> <span class="kn">import</span> <span class="n">Migration</span>
+
+<span class="kn">from</span> <span class="nn">models.Comment</span> <span class="kn">import</span> <span class="n">Comment</span>
+<span class="kn">from</span> <span class="nn">models.Post</span> <span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span> <span class="nn">models.User</span> <span class="kn">import</span> <span class="n">User</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">setup_database</span><span class="p">():</span>
+    <span class="n">config_path</span> <span class="o">=</span> <span class="s2">"config/test_config.py"</span>
+
+    <span class="n">migrator</span> <span class="o">=</span> <span class="n">Migration</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="n">config_path</span><span class="p">)</span>
+    <span class="n">migrator</span><span class="o">.</span><span class="n">create_table_if_not_exists</span><span class="p">()</span>
+
+    <span class="n">migrator</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"function"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">user</span><span class="p">():</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">()</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"John Doe"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="s2">"United States of Nigeria"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">phone_number</span> <span class="o">=</span> <span class="mi">123456789</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">sex</span> <span class="o">=</span> <span class="s2">"male"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="01676e6e416360732f626e6c">[email protected]</a>"</span>
+    <span class="n">user</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">user</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"function"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="n">user</span><span class="p">):</span>
+    <span class="n">post</span> <span class="o">=</span> <span class="n">Post</span><span class="p">()</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="s2">"Test Title"</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="s2">"this is the post body and can be as long as possible"</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="n">user</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"posts"</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">post</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"function"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">comment</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">post</span><span class="p">):</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="n">Comment</span><span class="p">()</span>
+    <span class="n">comment</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="s2">"This is a comment body"</span>
+    <span class="n">comment</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span>
+    <span class="n">comment</span><span class="o">.</span><span class="n">post_id</span> <span class="o">=</span> <span class="n">post</span><span class="o">.</span><span class="n">id</span>
+
+    <span class="n">comment</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="n">user</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">,</span> <span class="n">comment</span><span class="p">)</span>
+    <span class="n">post</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">,</span> <span class="n">comment</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">comment</span>
+</code></pre></div>
+
+<p>现在，我们可以开始添加一些测试。</p>
+<p>创建一个名为<em> test_query.py </em>的测试文件。</p>
+<p>首先创建一个<code>TestClient</code>的实例:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi.testclient</span> <span class="kn">import</span> <span class="n">TestClient</span>
+
+<span class="kn">from</span> <span class="nn">main</span> <span class="kn">import</span> <span class="n">app</span>  <span class="c1"># =&gt; FastAPI app created in our main.py file</span>
+
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">TestClient</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在，我们将测试添加到:</p>
+<ol>
+<li>添加用户</li>
+<li>获取所有用户</li>
+<li>使用用户ID获取单个用户</li>
+</ol>
+<p>测试:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">test_create_user</span><span class="p">():</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="s2">"""</span>
+<span class="s2">        mutation {</span>
+<span class="s2">            addUser(userData: {</span>
+<span class="s2">                name: "Test User",</span>
+<span class="s2">                email: "<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="147179757d7854607167603a777b79">[email protected]</a>",</span>
+<span class="s2">                sex: "male",</span>
+<span class="s2">                address: "My Address",</span>
+<span class="s2">                phoneNumber: "123456789",</span>
+<span class="s2">            })</span>
+<span class="s2">            {</span>
+<span class="s2">                id</span>
+<span class="s2">                name</span>
+<span class="s2">                address</span>
+<span class="s2">            }</span>
+<span class="s2">        }</span>
+<span class="s2">    """</span>
+
+    <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/graphql"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="s2">"data"</span><span class="p">][</span><span class="s2">"addUser"</span><span class="p">][</span><span class="s2">"name"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"Test User"</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="s2">"data"</span><span class="p">][</span><span class="s2">"addUser"</span><span class="p">][</span><span class="s2">"address"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"My Address"</span>
+
+<span class="k">def</span> <span class="nf">test_get_user_list</span><span class="p">(</span><span class="n">user</span><span class="p">):</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="s2">"""</span>
+<span class="s2">      query {</span>
+<span class="s2">          users {</span>
+<span class="s2">              name</span>
+<span class="s2">              address</span>
+<span class="s2">          }</span>
+<span class="s2">      }</span>
+<span class="s2">    """</span>
+
+    <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/graphql"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'data'</span><span class="p">][</span><span class="s1">'users'</span><span class="p">])</span> <span class="o">==</span> <span class="nb">list</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="s2">"data"</span><span class="p">][</span><span class="s2">"users"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">"name"</span><span class="p">]</span> <span class="o">==</span> <span class="n">user</span><span class="o">.</span><span class="n">name</span>
+
+
+
+<span class="k">def</span> <span class="nf">test_get_single_user</span><span class="p">(</span><span class="n">user</span><span class="p">):</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="s2">"""</span>
+<span class="s2">      query {</span>
+<span class="s2">          getSingleUser(userId: </span><span class="si">%s</span><span class="s2">) {</span>
+<span class="s2">              name</span>
+<span class="s2">              address</span>
+<span class="s2">          }</span>
+<span class="s2">      }</span>
+<span class="s2">    """</span> <span class="o">%</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span>
+
+    <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/graphql"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'data'</span><span class="p">][</span><span class="s1">'getSingleUser'</span><span class="p">])</span> <span class="o">==</span> <span class="nb">dict</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="s2">"data"</span><span class="p">][</span><span class="s2">"getSingleUser"</span><span class="p">][</span><span class="s2">"name"</span><span class="p">]</span> <span class="o">==</span> <span class="n">user</span><span class="o">.</span><span class="n">name</span>
+</code></pre></div>
+
+<p>运行测试:</p>
+
+
+<p>这将执行所有的测试。它们都应该通过:</p>
+<div class="codehilite"><pre><span/><code><span class="o">===============================</span> <span class="nb">test</span> session <span class="nv">starts</span> <span class="o">===============================</span>
+platform darwin -- Python <span class="m">3</span>.10.3, pytest-7.2.1, pluggy-1.0.0
+rootdir: /Users/michael/repos/testdriven/fastapi-graphql
+plugins: anyio-3.6.2, Faker-13.16.0
+collected <span class="m">3</span> items
+
+tests/test_query.py ...                                                     <span class="o">[</span><span class="m">100</span>%<span class="o">]</span>
+
+<span class="o">================================</span> <span class="m">3</span> passed <span class="k">in</span> <span class="m">0</span>.47s <span class="o">================================</span>
+</code></pre></div>
+
+<p>遵循同样的模式，自己为<code>Post</code>和<code>Comment</code>编写测试。</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们介绍了如何使用FastAPI、Strawberry、Masonite ORM和pytest开发和测试GraphQL API。我们讨论了如何创建GraphQL模式、查询和变异。最后，我们用pytest测试了我们的GraphQL API。</p>
+<p>从<a href="https://github.com/testdrivenio/fastapi-graphql"> fastapi-graphql </a> repo中获取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

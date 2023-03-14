@@ -1,0 +1,361 @@
+<html>
+<head>
+<title>Asynchronous Tasks with Flask and Redis Queue </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Flask和Redis队列的异步任务</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/asynchronous-tasks-with-flask-and-redis-queue/#0001-01-01">https://testdriven.io/blog/asynchronous-tasks-with-flask-and-redis-queue/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>如果一个长时间运行的任务是你的应用程序工作流的一部分，你应该在正常流程之外的后台处理它。</p>
+<p>也许您的web应用程序要求用户在注册时提交一个缩略图(可能需要重新调整大小)并确认他们的电子邮件。如果您的应用程序处理了图像并直接在请求处理程序中发送了确认电子邮件，那么最终用户将不得不等待两者都完成。相反，您会希望将这些任务传递给任务队列，并让一个单独的工作进程来处理它，这样您就可以立即将响应发送回客户端。最终用户可以在客户端做其他事情，您的应用程序可以自由地响应其他用户的请求。</p>
+<p>本教程着眼于如何配置<a href="http://python-rq.org/"> Redis队列</a> (RQ)来处理Flask应用程序中长时间运行的任务。</p>
+<blockquote>
+<p>芹菜也是一种可行的解决方案。查看使用Flask和Celery的<a href="/blog/flask-and-celery/">异步任务</a>了解更多信息。</p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>将Redis队列集成到Flask应用程序中，并创建任务。</li>
+<li>用容器装烧瓶并用码头工人重新分发。</li>
+<li>使用单独的工作进程在后台运行长时间运行的任务。</li>
+<li>设置<a href="https://github.com/eoranged/rq-dashboard"> RQ仪表板</a>来监控队列、作业和工人。</li>
+<li>用Docker缩放工人计数。</li>
+</ol>
+<h2 id="workflow">工作流程</h2>
+<p>我们的目标是开发一个Flask应用程序，它与Redis Queue一起处理正常请求/响应周期之外的长时间运行的流程。</p>
+<ol>
+<li>最终用户通过向服务器端发送POST请求开始一项新任务</li>
+<li>在视图中，一个任务被添加到队列中，任务id被发送回客户端</li>
+<li>使用AJAX，当任务本身在后台运行时，客户机继续轮询服务器以检查任务的状态</li>
+</ol>
+<p><img data-src="/static/images/blog/flask-rq/flask-rq-flow.png" loading="lazy" class="lazyload" alt="flask and redis queue user flow" src="../Images/d67c5e50ae28f674283285b1b9ec8779.png" data-original-src="https://testdriven.io/static/images/blog/flask-rq/flask-rq-flow.png"/></p>
+<p>最终，该应用程序将如下所示:</p>
+<p><img data-src="/static/images/gifs/blog/flask-rq/app.gif" loading="lazy" class="lazyload" alt="final app" src="../Images/69d1bb7df927d53fb1696da05d535487.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-rq/app.gif"/></p>
+<h2 id="project-setup">项目设置</h2>
+<p>想跟着去吗？克隆基础项目，然后检查代码和项目结构:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/mjhea0/flask-redis-queue --branch base --single-branch
+$ <span class="nb">cd</span> flask-redis-queue
+</code></pre></div>
+
+<p>因为我们总共需要管理三个进程(Flask、Redis、worker)，所以我们将使用Docker来简化我们的工作流，以便可以从一个终端窗口管理它们。</p>
+<p>要进行测试，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>打开浏览器进入<a href="http://localhost:5004"> http://localhost:5004 </a>。您应该看到:</p>
+<p><img data-src="/static/images/blog/flask-rq/flask_redis_queue.png" loading="lazy" class="lazyload" alt="flask, redis queue, docker" src="../Images/e5184695924810b95eea15c765a78a3f.png" data-original-src="https://testdriven.io/static/images/blog/flask-rq/flask_redis_queue.png"/></p>
+<h2 id="trigger-a-task">触发任务</h2>
+<p>在<em>project/client/static/main . js</em>中设置了一个事件处理程序，它监听一个按钮点击，并用适当的任务类型向服务器发送一个AJAX POST请求:<code>1</code>、<code>2</code>或<code>3</code>。</p>
+<div class="codehilite"><pre><span/><code><span class="nx">$</span><span class="p">(</span><span class="s1">'.btn'</span><span class="p">).</span><span class="nx">on</span><span class="p">(</span><span class="s1">'click'</span><span class="p">,</span><span class="w"> </span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">$</span><span class="p">.</span><span class="nx">ajax</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">url</span><span class="o">:</span><span class="w"> </span><span class="s1">'/tasks'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="nx">$</span><span class="p">(</span><span class="k">this</span><span class="p">).</span><span class="nx">data</span><span class="p">(</span><span class="s1">'type'</span><span class="p">)</span><span class="w"> </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">'POST'</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">done</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_id</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">fail</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>在服务器端，已经在<em>project/server/main/views . py</em>中配置了一个视图来处理请求:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@main_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">"POST"</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">run_task</span><span class="p">():</span>
+    <span class="n">task_type</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">task_type</span><span class="p">),</span> <span class="mi">202</span>
+</code></pre></div>
+
+<p>我们只需要接通Redis队列。</p>
+<h2 id="redis-queue">重复队列</h2>
+<p>因此，我们需要启动两个新流程:Redis和一个worker。将它们添加到<em> docker-compose.yml </em>文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5004:5000</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py run -h 0.0.0.0</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.:/usr/src/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">FLASK_DEBUG=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APP_SETTINGS=project.server.config.DevelopmentConfig</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">worker</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py run_worker</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.:/usr/src/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APP_SETTINGS=project.server.config.DevelopmentConfig</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">redis</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis:6.2-alpine</span><span class="w"/>
+</code></pre></div>
+
+<p>将任务添加到“项目/服务器/主目录”中名为<em> tasks.py </em>的新文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># project/server/main/tasks.py</span>
+
+
+<span class="kn">import</span> <span class="nn">time</span>
+
+
+<span class="k">def</span> <span class="nf">create_task</span><span class="p">(</span><span class="n">task_type</span><span class="p">):</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">task_type</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>更新视图以连接到Redis，对任务进行排队，并使用id进行响应:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@main_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">"POST"</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">run_task</span><span class="p">():</span>
+    <span class="n">task_type</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span>
+    <span class="k">with</span> <span class="n">Connection</span><span class="p">(</span><span class="n">redis</span><span class="o">.</span><span class="n">from_url</span><span class="p">(</span><span class="n">current_app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"REDIS_URL"</span><span class="p">])):</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">Queue</span><span class="p">()</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">enqueue</span><span class="p">(</span><span class="n">create_task</span><span class="p">,</span> <span class="n">task_type</span><span class="p">)</span>
+    <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">,</span>
+        <span class="s2">"data"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"task_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">get_id</span><span class="p">()</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">response_object</span><span class="p">),</span> <span class="mi">202</span>
+</code></pre></div>
+
+<p>不要忘记进口:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">redis</span>
+<span class="kn">from</span> <span class="nn">rq</span> <span class="kn">import</span> <span class="n">Queue</span><span class="p">,</span> <span class="n">Connection</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">render_template</span><span class="p">,</span> <span class="n">Blueprint</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">current_app</span>
+
+<span class="kn">from</span> <span class="nn">project.server.main.tasks</span> <span class="kn">import</span> <span class="n">create_task</span>
+</code></pre></div>
+
+<p>更新<code>BaseConfig</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">BaseConfig</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">"""Base configuration."""</span>
+
+    <span class="n">WTF_CSRF_ENABLED</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">REDIS_URL</span> <span class="o">=</span> <span class="s2">"redis://redis:6379/0"</span>
+    <span class="n">QUEUES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"default"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>你注意到我们在<code>REDIS_URL</code>中引用了<code>redis</code>服务(来自<em> docker-compose.yml </em>)而不是<code>localhost</code>或其他IP吗？查看Docker Compose <a href="https://docs.docker.com/compose/networking/">文档</a>以获得更多关于通过主机名连接到其他服务的信息。</p>
+<p>最后，我们可以使用一个Redis队列<a href="http://python-rq.org/docs/workers/"> worker </a>，来处理队列顶部的任务。</p>
+<p><em> manage.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@cli</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="s2">"run_worker"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">run_worker</span><span class="p">():</span>
+    <span class="n">redis_url</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"REDIS_URL"</span><span class="p">]</span>
+    <span class="n">redis_connection</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">from_url</span><span class="p">(</span><span class="n">redis_url</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">Connection</span><span class="p">(</span><span class="n">redis_connection</span><span class="p">):</span>
+        <span class="n">worker</span> <span class="o">=</span> <span class="n">Worker</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"QUEUES"</span><span class="p">])</span>
+        <span class="n">worker</span><span class="o">.</span><span class="n">work</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这里，我们设置了一个定制的CLI命令来触发worker。</p>
+<p>值得注意的是，当命令被执行时，<code>@cli.command()</code>装饰器将提供对应用程序上下文以及来自<em> project/server/config.py </em>的相关配置变量的访问。</p>
+<p>也添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">redis</span>
+<span class="kn">from</span> <span class="nn">rq</span> <span class="kn">import</span> <span class="n">Connection</span><span class="p">,</span> <span class="n">Worker</span>
+</code></pre></div>
+
+<p>将依赖项添加到需求文件中:</p>
+
+
+<p>构建并旋转新容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>要触发新任务，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ curl -F <span class="nv">type</span><span class="o">=</span><span class="m">0</span> http://localhost:5004/tasks
+</code></pre></div>
+
+<p>您应该会看到类似这样的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"task_id"</span>: <span class="s2">"bdad64d0-3865-430e-9cc3-ec1410ddb0fd"</span>
+  <span class="o">}</span>,
+  <span class="s2">"status"</span>: <span class="s2">"success"</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<h2 id="task-status">任务状态</h2>
+<p>回到客户端的事件处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">$</span><span class="p">(</span><span class="s1">'.btn'</span><span class="p">).</span><span class="nx">on</span><span class="p">(</span><span class="s1">'click'</span><span class="p">,</span><span class="w"> </span><span class="kd">function</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">$</span><span class="p">.</span><span class="nx">ajax</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">url</span><span class="o">:</span><span class="w"> </span><span class="s1">'/tasks'</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="nx">$</span><span class="p">(</span><span class="k">this</span><span class="p">).</span><span class="nx">data</span><span class="p">(</span><span class="s1">'type'</span><span class="p">)</span><span class="w"> </span><span class="p">},</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">'POST'</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">done</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_id</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">fail</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>一旦最初的AJAX请求返回响应，我们就继续每秒调用带有任务id的<code>getStatus()</code>。如果响应成功，一个新行被添加到DOM上的表中。</p>
+<div class="codehilite"><pre><span/><code><span class="kd">function</span><span class="w"> </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">taskID</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">$</span><span class="p">.</span><span class="nx">ajax</span><span class="p">({</span><span class="w"/>
+<span class="w">    </span><span class="nx">url</span><span class="o">:</span><span class="w"> </span><span class="sb">`/tasks/</span><span class="si">${</span><span class="nx">taskID</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">'GET'</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">done</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">html</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span>
+<span class="sb">    &lt;tr&gt;</span>
+<span class="sb">      &lt;td&gt;</span><span class="si">${</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_id</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">      &lt;td&gt;</span><span class="si">${</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_status</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">      &lt;td&gt;</span><span class="si">${</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_result</span><span class="si">}</span><span class="sb">&lt;/td&gt;</span>
+<span class="sb">    &lt;/tr&gt;`</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">$</span><span class="p">(</span><span class="s1">'#tasks'</span><span class="p">).</span><span class="nx">prepend</span><span class="p">(</span><span class="nx">html</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">taskStatus</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_status</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">taskStatus</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'finished'</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">taskStatus</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">'failed'</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nx">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nx">getStatus</span><span class="p">(</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">task_id</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">},</span><span class="w"> </span><span class="mf">1000</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">})</span><span class="w"/>
+<span class="w">  </span><span class="p">.</span><span class="nx">fail</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>更新视图:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@main_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/tasks/&lt;task_id&gt;"</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">"GET"</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">get_status</span><span class="p">(</span><span class="n">task_id</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">Connection</span><span class="p">(</span><span class="n">redis</span><span class="o">.</span><span class="n">from_url</span><span class="p">(</span><span class="n">current_app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"REDIS_URL"</span><span class="p">])):</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">Queue</span><span class="p">()</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">fetch_job</span><span class="p">(</span><span class="n">task_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">task</span><span class="p">:</span>
+        <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"success"</span><span class="p">,</span>
+            <span class="s2">"data"</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">"task_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">get_id</span><span class="p">(),</span>
+                <span class="s2">"task_status"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">get_status</span><span class="p">(),</span>
+                <span class="s2">"task_result"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">result</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"error"</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">response_object</span><span class="p">)</span>
+</code></pre></div>
+
+<p>向队列添加新任务:</p>
+<div class="codehilite"><pre><span/><code>$ curl -F <span class="nv">type</span><span class="o">=</span><span class="m">1</span> http://localhost:5004/tasks
+</code></pre></div>
+
+<p>然后，从响应中获取<code>task_id</code>并调用更新的端点来查看状态:</p>
+<div class="codehilite"><pre><span/><code>$ curl http://localhost:5004/tasks/5819789f-ebd7-4e67-afc3-5621c28acf02
+
+<span class="o">{</span>
+  <span class="s2">"data"</span>: <span class="o">{</span>
+    <span class="s2">"task_id"</span>: <span class="s2">"5819789f-ebd7-4e67-afc3-5621c28acf02"</span>,
+    <span class="s2">"task_result"</span>: true,
+    <span class="s2">"task_status"</span>: <span class="s2">"finished"</span>
+  <span class="o">}</span>,
+  <span class="s2">"status"</span>: <span class="s2">"success"</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>也在浏览器中测试一下:</p>
+<p><img data-src="/static/images/blog/flask-rq/flask_redis_queue_updated.png" loading="lazy" class="lazyload" alt="flask, redis queue, docker" src="../Images/301491b5ac26485acc8aa6bb6fc3a69b.png" data-original-src="https://testdriven.io/static/images/blog/flask-rq/flask_redis_queue_updated.png"/></p>
+<h2 id="dashboard">仪表盘</h2>
+<p>RQ Dashboard 是一个轻量级的、基于web的Redis队列监控系统。</p>
+<p>要进行设置，首先在“项目”目录中添加一个名为“仪表板”的新目录。然后，将新的<em> Dockerfile </em>添加到新创建的目录中:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-alpine</span>
+
+<span class="k">RUN</span><span class="w"> </span>pip install rq-dashboard
+
+<span class="c"># https://github.com/rq/rq/issues/1469</span>
+<span class="k">RUN</span><span class="w"> </span>pip uninstall -y click
+<span class="k">RUN</span><span class="w"> </span>pip install <span class="nv">click</span><span class="o">==</span><span class="m">7</span>.1.2
+
+<span class="k">EXPOSE</span><span class="w"> </span><span class="s">9181</span>
+
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"rq-dashboard"</span><span class="p">]</span>
+</code></pre></div>
+
+<p>简单地将服务添加到<em> docker-compose.yml </em>文件中，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5004:5000</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py run -h 0.0.0.0</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.:/usr/src/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">FLASK_DEBUG=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APP_SETTINGS=project.server.config.DevelopmentConfig</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">worker</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python manage.py run_worker</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.:/usr/src/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APP_SETTINGS=project.server.config.DevelopmentConfig</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">redis</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis:6.2-alpine</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">dashboard</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./project/dashboard</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dashboard</span><span class="w"/>
+<span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dashboard</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9181:9181</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rq-dashboard -H redis</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis</span><span class="w"/>
+</code></pre></div>
+
+<p>构建映像并旋转容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:9181"> http://localhost:9181 </a>查看仪表板:</p>
+<p><img data-src="/static/images/blog/flask-rq/rq_dashboard.png" loading="lazy" class="lazyload" alt="rq dashboard" src="../Images/df1fe8a979e50cc52408f83671b628b4.png" data-original-src="https://testdriven.io/static/images/blog/flask-rq/rq_dashboard.png"/></p>
+<p>开始几项工作来全面测试仪表板:</p>
+<p><img data-src="/static/images/blog/flask-rq/rq_dashboard_in_action.png" loading="lazy" class="lazyload" alt="rq dashboard" src="../Images/44a6c87a8c6418c6890c5e122a84000d.png" data-original-src="https://testdriven.io/static/images/blog/flask-rq/rq_dashboard_in_action.png"/></p>
+<p>试着增加几个工人，看看会有什么影响:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build --scale <span class="nv">worker</span><span class="o">=</span><span class="m">3</span>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>这是关于如何配置Redis队列以在Flask应用程序中运行长时间运行的任务的基本指南。您应该让队列处理任何可能阻塞或减慢面向用户的代码的进程。</p>
+<p>寻找一些挑战？</p>
+<ol>
+<li>使用Kubernetes或Docker Swarm在多个<a href="https://m.do.co/c/d8f211a4b4c2">digital ocean</a>droplet上部署该应用程序。</li>
+<li>为新的端点编写单元测试。(用<a href="https://github.com/jamesls/fakeredis"> fakeredis </a>模拟Redis实例)</li>
+<li>尝试使用<a href="https://flask-socketio.readthedocs.io"> Flask-SocketIO </a>打开一个websocket连接，而不是轮询服务器。</li>
+</ol>
+<p>从<a href="https://github.com/mjhea0/flask-redis-queue">回购</a>中抓取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

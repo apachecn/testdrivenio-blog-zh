@@ -1,0 +1,143 @@
+<html>
+<head>
+<title>Multi-Region Python Applications </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>多区域Python应用程序</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/python-multi-region/#0001-01-01">https://testdriven.io/blog/python-multi-region/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文着眼于如何在Python应用程序中启用多区域支持。</p>
+<h2 id="problem">问题</h2>
+<p>假设您刚刚使用Django完成了基于Python的web应用程序的开发，并将其投入生产。一段时间后，一些用户报告说应用程序很慢。您可以检查日志和服务器指标，以了解资源使用情况以及其他情况——一切看起来都很好。CPU、内存或磁盘使用率没有峰值。您在本地启动您的本地开发环境，并试图重现该问题，但它工作得很好。这是怎么回事？</p>
+<p>你忘记了一些重要但容易忽视的东西:支配我们宇宙的法则。信息从一个地方传到另一个地方只能这么快。</p>
+<p>作为开发人员，我们的主要责任是确保信息系统正常运行。这些系统涉及数据在时间和空间中的移动，我们的工作就是管理和协调这一过程。然而，就像任何其他系统一样，有一些基本的规则来管理数据的传输，这可能会使该过程不那么即时。这是潜在问题可能出现的地方，我们的职责是处理和解决这些问题。</p>
+<p>例如，当你在浏览器中打开这个页面时，信息是在时间和空间上传递的——这需要一些时间来加载。</p>
+<p>请记住，我们的本地开发环境在这种情况下没有帮助我们，因为它位于我们的本地机器上，所以A点和B点彼此非常接近，因为它们之间的距离非常小。所以传递信息的时间很短。但是在生产中，我们的应用程序位于世界上某个地方的服务器上，我们的浏览器和服务器之间的距离要大得多。因此，传输信息所需的时间要长得多。</p>
+<p>哪些工具可以帮助我们测量信息从服务器传输到浏览器所需的时间？我们如何使用这个工具来提高我们的应用程序性能？这是我们将在下一节讨论的内容。</p>
+<blockquote>
+<p>本文假设您已经排除了冗长的过程、低效的数据库查询以及其他导致性能下降的潜在原因。换句话说，您已经确定您的用户所经历的延迟可能是由数据包从浏览器到服务器来回传输的距离所导致的延迟。这可能是由多种因素造成的，包括物理距离、网络拥塞和用于传输数据的基础设施的限制。</p>
+</blockquote>
+<h2 id="benchmark">基准</h2>
+<p>在开始寻找解决方案之前，您应该测量当前的传输速度，即请求+响应时间，并设置一个基准来衡量:</p>
+<p><img data-src="/static/images/blog/python/python-multi-region/transmission_speed.png" loading="lazy" class="lazyload" alt="Transmission Speed" src="../Images/9e077de7d3d627c31022f55431b31dce.png" data-original-src="https://testdriven.io/static/images/blog/python/python-multi-region/transmission_speed.png"/></p>
+<p>因此，我们需要一个工具，它可以给出向服务器发送请求，然后在浏览器中接收响应所需的总时间。这就是平的概念。ping测量从发送主机发送到目的计算机的消息回显到源计算机的往返时间。</p>
+<p>幸运的是，对于每一个最流行的Python web框架- <a href="/blog/topics/django/"> Django </a>、<a href="/blog/topics/flask/"> Flask </a>和<a href="/blog/topics/fastapi/"> FastAPI </a> -很容易建立一个视图或路由处理程序来解决这个问题。让我们看一些例子...</p>
+<h3 id="django">姜戈</h3>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">JsonResponse</span>
+
+<span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'message'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'ECHOMSG'</span><span class="p">,</span> <span class="s1">''</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="flask">瓶</h3>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">jsonify</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">'/ping'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">ping</span><span class="p">():</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'message'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'ECHOMSG'</span><span class="p">,</span> <span class="s1">''</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="fastapi">FastAPI</h3>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">Request</span>
+<span class="kn">from</span> <span class="nn">fastapi.responses</span> <span class="kn">import</span> <span class="n">JSONResponse</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'/ping'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'message'</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">query_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'ECHOMSG'</span><span class="p">,</span> <span class="s1">''</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">JSONResponse</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="client-example">客户端示例</h3>
+<p>您还需要建立一种机制来计算请求和响应时间。如果您的客户端是浏览器，那么您可以设置一个简单的JavaScript函数，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kd">function</span><span class="w"> </span><span class="nx">ping</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">startTime</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">().</span><span class="nx">getTime</span><span class="p">();</span><span class="w">  </span><span class="c1">// start the timer</span><span class="w"/>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">xhr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">XMLHttpRequest</span><span class="p">();</span><span class="w">  </span><span class="c1">// create a new request</span><span class="w"/>
+<span class="w">  </span><span class="nx">xhr</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="s2">"GET"</span><span class="p">,</span><span class="w"> </span><span class="s2">"/ping"</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">);</span><span class="w">  </span><span class="c1">// call the ping endpoint</span><span class="w"/>
+<span class="w">  </span><span class="nx">xhr</span><span class="p">.</span><span class="nx">onreadystatechange</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">xhr</span><span class="p">.</span><span class="nx">readyState</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mf">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">endTime</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">().</span><span class="nx">getTime</span><span class="p">();</span><span class="w">  </span><span class="c1">// stop the timer</span><span class="w"/>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">time</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">endTime</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">startTime</span><span class="p">;</span><span class="w">  </span><span class="c1">// calculate the time it took to get the response</span><span class="w"/>
+<span class="w">      </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">time</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="nx">xhr</span><span class="p">.</span><span class="nx">send</span><span class="p">();</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="full-example">完整示例</h3>
+<p>如果您想看完整的Django实例，请查看<a href="https://github.com/amirtds/web-diagnostic/tree/master"> web诊断</a> repo。按照自述文件中的说明将其复制下来并设置项目。</p>
+<p>随着Django开发服务器的运行，在您选择的浏览器中访问<a href="http://localhost:8000"> http://localhost:8000 </a>。然后，点击<strong>诊断</strong>和<strong> Ping </strong>按钮后，您应该在浏览器中看到Ping时间:</p>
+<p><img data-src="/static/images/blog/python/python-multi-region/local_ping.png" loading="lazy" class="lazyload" alt="Local Ping" src="../Images/301e7e65234f2b93957c3445e5348173.png" data-original-src="https://testdriven.io/static/images/blog/python/python-multi-region/local_ping.png"/></p>
+<blockquote>
+<p>记下时间，单位为毫秒(ms)。对我来说是5到11 ms之间，传输时间真的很少，因为客户端和服务器离得很近。</p>
+</blockquote>
+<p>现在访问<a href="https://web-diagnostic.fly.dev">https://we b-Diagnostic . fly . dev</a>并打开<strong>诊断</strong>并点击<strong> Ping </strong>按钮。该服务器位于迈阿密地区，因此根据您的位置，ping时间应该更长。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">71</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">76</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">65</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">67</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">64</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">75</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">71</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">70</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">72</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">75</span><span class="n">ms</span><span class="w"/>
+</code></pre></div>
+
+<p>如果你有一个VPN，你可以看到世界各地用户的响应时间。以下是西班牙某IP的样子:</p>
+<div class="codehilite"><pre><span/><code><span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">324</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">320</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">320</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">330</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">324</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">319</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">326</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">321</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">320</span><span class="n">ms</span><span class="w"/>
+<span class="n">Time</span><span class="o">:</span><span class="w"> </span><span class="mi">324</span><span class="n">ms</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>如您所见，响应时间变得更长了，因为服务器位于美国，而用户在西班牙。所以信息从服务器传到用户手中需要更多的时间。</p>
+</blockquote>
+<h2 id="multi-region-support">多区域支持</h2>
+<p>虽然有多种方式来实现多地区支持，但我们将重点关注顶级云提供商:<a href="https://aws.amazon.com/">亚马逊网络服务</a>(AWS)<a href="https://cloud.google.com/">谷歌云平台</a> (GCP)，以及<a href="https://azure.microsoft.com/">微软Azure </a>。这些提供商提供了一系列服务，可以帮助我们为web应用程序实现多区域架构。</p>
+<p>一般来说，部署多区域应用程序的体系结构包括在世界各地的不同区域设置应用程序的多个实例。然后，这些实例可以连接到负载均衡器，负载均衡器根据用户的位置将传入流量分配到最近的实例。</p>
+<p><img data-src="/static/images/blog/python/python-multi-region/load_balancer.jpeg" loading="lazy" class="lazyload" alt="Multi Region Architecture" src="../Images/2fd02498a86e1402b6c6521bc3d5ecc0.png" data-original-src="https://testdriven.io/static/images/blog/python/python-multi-region/load_balancer.jpeg"/></p>
+<p>这些提供商提供了一些服务来帮助实现这种架构:</p>
+<h3 id="amazon-web-services">亚马逊网络服务</h3>
+<ul>
+<li><a href="https://aws.amazon.com/ec2/"> Amazon EC2 </a>:允许我们在全球多个地区启动和管理虚拟服务器。</li>
+<li>亚马逊弹性负载均衡器(Amazon Elastic Load Balancer)(ELB):帮助在不同地区的多个应用实例之间分配传入流量。</li>
+<li>亚马逊Route 53 :一种域名系统(DNS)服务，可以根据用户的位置将用户路由到最近的实例。</li>
+</ul>
+<p>AWS提供了一系列服务，可以帮助您管理多个地区的基础设施。虽然您可以使用上述服务启动和管理您自己的多区域EC2集群和负载平衡器，但是您也可以选择使用像<a href="https://aws.amazon.com/ecs/">弹性容器服务</a> (ECS)和<a href="https://aws.amazon.com/elasticbeanstalk/">弹性豆茎</a>这样的服务来为您管理基础设施。这些服务为在不同地区部署和扩展应用程序提供了一个方便且全面管理的解决方案。</p>
+<h3 id="google-cloud-platform">谷歌云平台</h3>
+<ul>
+<li><a href="https://cloud.google.com/compute">谷歌计算引擎</a> (GCE):在全球多个地区提供虚拟机。如果您的应用程序是Dockerized，而不是GCE，您可以使用<a href="https://cloud.google.com/kubernetes-engine"> Google Kubernetes引擎</a> (GKE)，它允许您运行和管理世界上多个地区的Kubernetes集群。</li>
+<li><a href="https://cloud.google.com/load-balancing"> Google Load Balancer </a>:在不同地区的应用程序的多个实例之间分配输入流量。</li>
+<li><a href="https://cloud.google.com/dns"> Google Cloud DNS </a>:一种DNS服务，可以根据用户的位置将用户路由到最近的实例。</li>
+</ul>
+<h3 id="microsoft-azure">微软Azure</h3>
+<ul>
+<li>Azure虚拟机(Azure Virtual Machines):允许我们在全球多个地区启动和管理虚拟服务器。如果您的应用程序是Docker化的，而不是虚拟机，那么您可以使用<a href="https://azure.microsoft.com/en-us/products/container-instances">容器实例</a>，这允许您在全球多个地区快速部署和管理Docker容器。</li>
+<li><a href="https://azure.microsoft.com/en-us/solutions/load-balancing-with-azure"> Azure负载均衡器</a>:帮助在不同地区的应用程序的多个实例之间分配传入流量。</li>
+<li><a href="https://azure.microsoft.com/en-us/products/traffic-manager/"> Azure Traffic Manager </a>:基于DNS的流量管理服务，根据用户的位置将用户路由到最近的实例。</li>
+</ul>
+<h2 id="conclusion">结论</h2>
+<p>当我们将应用程序部署到云中时，有时我们会忽略区域选项，而选择默认选项。到目前为止，您应该意识到让您的应用程序尽可能靠近您的用户以优化性能是多么重要。</p>
+<p>许多应用程序的用户遍布世界各地。作为开发人员，我们的责任是问:“我的下一个用户可能在哪里？”。更重要的是，我们应该记住，互联网正在快速发展，我们应该找到合适的架构来支持快速全球连接的需求，以便以用户满意的方式传递信息。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

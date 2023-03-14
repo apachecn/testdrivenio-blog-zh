@@ -1,0 +1,459 @@
+<html>
+<head>
+<title>Deploying and Hosting a Machine Learning Model with FastAPI and Heroku </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用FastAPI和Heroku部署和托管机器学习模型</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/fastapi-machine-learning/#0001-01-01">https://testdriven.io/blog/fastapi-machine-learning/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>假设你是一名数据科学家。按照典型的机器学习工作流程，您将根据业务需求定义问题陈述以及目标。然后，您将开始查找和清理数据，接着分析收集的数据并构建和训练您的模型。一旦训练完毕，你将评估结果。这个查找和清理数据、训练模型以及评估结果的过程将会继续，直到您对结果满意为止。然后，您将重构代码，并将其与依赖项一起打包到一个模块中，为测试和部署做准备。</p>
+<p>接下来会发生什么？您会将模型交给另一个团队来测试和部署吗？还是要自己处理？无论哪种方式，理解部署模型时会发生什么都很重要。有一天你可能不得不自己部署这个模型。或者你可能有一个副业项目，你只是想站在生产，并提供给最终用户。</p>
+<p>在本教程中，我们将看看如何使用<a href="https://fastapi.tiangolo.com/"> FastAPI </a>在Heroku上将预测股票价格的机器学习模型作为RESTful API部署到生产中。</p>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>在这篇文章结束时，你应该能够:</p>
+<ol>
+<li>用Python和FastAPI开发RESTful API</li>
+<li>建立一个基本的机器学习模型来预测股票价格</li>
+<li>将FastAPI应用程序部署到Heroku</li>
+<li>使用Heroku容器注册中心将Docker部署到Heroku</li>
+</ol>
+<h2 id="fastapi">FastAPI</h2>
+<p>FastAPI是一个现代的、高性能的、内置电池的Python web框架，非常适合构建RESTful APIs。它可以处理同步和异步请求，并内置了对数据验证、JSON序列化、认证和授权以及<a href="https://swagger.io/docs/specification/about/"> OpenAPI </a>的支持。</p>
+<p>亮点:</p>
+<ol>
+<li>受Flask的启发，它有一种轻量级微框架的感觉，支持类似Flask的route decorators。</li>
+<li>它利用Python类型提示进行参数声明，支持数据验证(通过<a href="https://pydantic-docs.helpmanual.io/"> pydantic </a>)和OpenAPI/Swagger文档。</li>
+<li>它建立在<a href="https://www.starlette.io/"> Starlette </a>之上，支持异步API的开发。</li>
+<li>它很快。由于async比传统的同步线程模型更有效，所以在性能方面它可以与Node和Go竞争。</li>
+</ol>
+<blockquote>
+<p>查看官方文档中的<a href="https://fastapi.tiangolo.com/features/">功能</a>指南，了解更多信息。我们也鼓励大家回顾一下<a href="https://fastapi.tiangolo.com/alternatives/">的替代方案、灵感和比较</a>，其中详细介绍了FastAPI与其他web框架和技术的比较。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>创建一个名为“fastapi-ml”的项目文件夹:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir fastapi-ml
+$ <span class="nb">cd</span> fastapi-ml
+</code></pre></div>
+
+<p>然后，创建并激活新的虚拟环境:</p>
+<div class="codehilite"><pre><span/><code>$ python3.8 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+<span class="o">(</span>env<span class="o">)</span>$
+</code></pre></div>
+
+<p>增加两个新文件:<em> requirements.txt </em>和<em> main.py </em>。</p>
+<p>与Django或Flask不同，FastAPI没有内置的开发服务器。因此，我们将使用<a href="https://www.uvicorn.org/">uvicon</a>，一个<a href="https://asgi.readthedocs.io/en/latest/"> ASGI </a>服务器，来提供FastAPI。</p>
+<blockquote>
+<p>不熟悉ASGI？通读精彩的ASGI简介:异步Python Web生态系统的出现。</p>
+</blockquote>
+<p>将FastAPI和Uvicorn添加到需求文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="nv">fastapi</span><span class="o">==</span><span class="m">0</span>.68.0
+<span class="nv">uvicorn</span><span class="o">==</span><span class="m">0</span>.14.0
+</code></pre></div>
+
+<p>安装依赖项:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>然后，在<em> main.py </em>中，创建一个新的FastAPI实例，并设置一个快速测试路径:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/ping"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">pong</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"ping"</span><span class="p">:</span> <span class="s2">"pong!"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>启动应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ uvicorn main:app --reload --workers <span class="m">1</span> --host <span class="m">0</span>.0.0.0 --port <span class="m">8008</span>
+</code></pre></div>
+
+<p>因此，我们为Uvicorn定义了以下<a href="https://www.uvicorn.org/settings/">设置</a>:</p>
+<ol>
+<li><code>--reload</code>启用自动重新加载，这样服务器将在对代码库进行更改后重新启动。</li>
+<li><code>--workers 1</code>提供单个工作进程。</li>
+<li><code>--host 0.0.0.0</code>定义托管服务器的地址。</li>
+<li><code>--port 8008</code>定义托管服务器的端口。</li>
+</ol>
+<p><code>main:app</code>告诉Uvicorn在哪里可以找到FastAPI ASGI应用程序——例如，“在‘main . py’文件中，您会找到ASGI应用程序，<code>app = FastAPI()</code>。</p>
+<p>导航到<a href="http://localhost:8008/ping">http://localhost:8008/ping</a>。您应该看到:</p>
+
+
+<h2 id="ml-model">ML模型</h2>
+<p>我们将部署的模型使用<a href="https://facebook.github.io/prophet/"> Prophet </a>来预测股票市场价格。</p>
+<p>添加以下函数来训练模型并生成一个预测到名为<em> model.py </em>的新文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span> <span class="nn">joblib</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">yfinance</span> <span class="k">as</span> <span class="nn">yf</span>
+<span class="kn">from</span> <span class="nn">fbprophet</span> <span class="kn">import</span> <span class="n">Prophet</span>
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+<span class="n">TODAY</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">train</span><span class="p">(</span><span class="n">ticker</span><span class="o">=</span><span class="s2">"MSFT"</span><span class="p">):</span>
+    <span class="c1"># data = yf.download("^GSPC", "2008-01-01", TODAY.strftime("%Y-%m-%d"))</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">yf</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="s2">"2020-01-01"</span><span class="p">,</span> <span class="n">TODAY</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"%Y-%m-</span><span class="si">%d</span><span class="s2">"</span><span class="p">))</span>
+    <span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+    <span class="n">data</span><span class="p">[</span><span class="s2">"Adj Close"</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2"> Stock Adjusted Closing Price"</span><span class="p">)</span>
+
+    <span class="n">df_forecast</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">df_forecast</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">df_forecast</span><span class="p">[</span><span class="s2">"ds"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_forecast</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span>
+    <span class="n">df_forecast</span><span class="p">[</span><span class="s2">"y"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_forecast</span><span class="p">[</span><span class="s2">"Adj Close"</span><span class="p">]</span>
+    <span class="n">df_forecast</span> <span class="o">=</span> <span class="n">df_forecast</span><span class="p">[[</span><span class="s2">"ds"</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">]]</span>
+    <span class="n">df_forecast</span>
+
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Prophet</span><span class="p">()</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">df_forecast</span><span class="p">)</span>
+
+    <span class="n">joblib</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">.joblib"</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="n">ticker</span><span class="o">=</span><span class="s2">"MSFT"</span><span class="p">,</span> <span class="n">days</span><span class="o">=</span><span class="mi">7</span><span class="p">):</span>
+    <span class="n">model_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">.joblib"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">model_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="n">model</span> <span class="o">=</span> <span class="n">joblib</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">model_file</span><span class="p">)</span>
+
+    <span class="n">future</span> <span class="o">=</span> <span class="n">TODAY</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">days</span><span class="p">)</span>
+
+    <span class="n">dates</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">date_range</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="s2">"2020-01-01"</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">future</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"%m/</span><span class="si">%d</span><span class="s2">/%Y"</span><span class="p">),)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"ds"</span><span class="p">:</span> <span class="n">dates</span><span class="p">})</span>
+
+    <span class="n">forecast</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+
+    <span class="n">model</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">forecast</span><span class="p">)</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">_plot.png"</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">plot_components</span><span class="p">(</span><span class="n">forecast</span><span class="p">)</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">_plot_components.png"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">forecast</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="n">days</span><span class="p">)</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="s2">"records"</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">convert</span><span class="p">(</span><span class="n">prediction_list</span><span class="p">):</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">prediction_list</span><span class="p">:</span>
+        <span class="n">date</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"ds"</span><span class="p">]</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"%m/</span><span class="si">%d</span><span class="s2">/%Y"</span><span class="p">)</span>
+        <span class="n">output</span><span class="p">[</span><span class="n">date</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"trend"</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">output</span>
+</code></pre></div>
+
+<p>这里，我们定义了三个函数:</p>
+<ol>
+<li><code>train</code>用<a href="https://github.com/ranaroussi/yfinance"> yfinance </a>下载历史股票数据，创建一个新的Prophet模型，将模型拟合到股票数据，然后将模型序列化保存为<a href="https://joblib.readthedocs.io/en/latest/generated/joblib.dump.html"> Joblib文件</a>。</li>
+<li><code>predict</code>加载并反序列化保存的模型，生成新的预测，创建预测图和预测组件的图像，并以字典列表的形式返回预测中包含的日期。</li>
+<li><code>convert</code>从<code>predict</code>获取字典列表，并输出日期和预测值的字典(即<code>{"07/02/2020": 200}</code>)。</li>
+</ol>
+<blockquote>
+<p>这个模型是由安德鲁·克拉克开发的。</p>
+</blockquote>
+<p>更新需求文件:</p>
+<div class="codehilite"><pre><span/><code># pystan must be installed before prophet
+# you may need to pip install it on it's own
+# before installing the remaining requirements
+# pip install pystan==2.19.1.1
+
+pystan==2.19.1.1
+
+fastapi==0.68.0
+uvicorn==0.14.0
+
+fbprophet==0.7.1
+joblib==1.0.1
+pandas==1.3.1
+plotly==5.1.0
+yfinance==0.1.63
+</code></pre></div>
+
+<p>安装新的依赖项:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<blockquote>
+<p>如果在你的机器上安装依赖项有问题，你可以使用Docker来代替。有关如何使用Docker运行应用程序的说明，请查看GitHub上的<a href="https://github.com/testdrivenio/fastapi-ml"> fastapi-ml </a> repo上的自述文件。</p>
+</blockquote>
+<p>要进行测试，请打开一个新的Python shell并运行以下命令:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python
+
+&gt;&gt;&gt; from model import train, predict, convert
+&gt;&gt;&gt; train<span class="o">()</span>
+&gt;&gt;&gt; <span class="nv">prediction_list</span> <span class="o">=</span> predict<span class="o">()</span>
+&gt;&gt;&gt; convert<span class="o">(</span>prediction_list<span class="o">)</span>
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span>
+    <span class="s1">'08/12/2021'</span><span class="p">:</span> <span class="mf">282.99012951691776</span><span class="p">,</span>
+    <span class="s1">'08/13/2021'</span><span class="p">:</span> <span class="mf">283.31354121099446</span><span class="p">,</span>
+    <span class="s1">'08/14/2021'</span><span class="p">:</span> <span class="mf">283.63695290507127</span><span class="p">,</span>
+    <span class="s1">'08/15/2021'</span><span class="p">:</span> <span class="mf">283.960364599148</span><span class="p">,</span>
+    <span class="s1">'08/16/2021'</span><span class="p">:</span> <span class="mf">284.2837762932248</span><span class="p">,</span>
+    <span class="s1">'08/17/2021'</span><span class="p">:</span> <span class="mf">284.6071879873016</span><span class="p">,</span>
+    <span class="s1">'08/18/2021'</span><span class="p">:</span> <span class="mf">284.93059968137834</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这是微软公司(MSFT)未来七天的预测价格。记下保存的<em> MSFT.joblib </em>模型以及两个图像:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-ml/msft_plot.png" loading="lazy" class="lazyload" alt="plot" src="../Images/45c9cdcae20661010186b99f7a6f86b2.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-ml/msft_plot.png"/></p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-ml/msft_plot_components.png" loading="lazy" class="lazyload" alt="components" src="../Images/25a36fe6fc1be47095e36f25c8179d4b.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-ml/msft_plot_components.png"/></p>
+<p>继续训练更多的模型来工作。例如:</p>
+<div class="codehilite"><pre><span/><code>&gt;&gt;&gt; train<span class="o">(</span><span class="s2">"GOOG"</span><span class="o">)</span>
+&gt;&gt;&gt; train<span class="o">(</span><span class="s2">"AAPL"</span><span class="o">)</span>
+&gt;&gt;&gt; train<span class="o">(</span><span class="s2">"^GSPC"</span><span class="o">)</span>
+</code></pre></div>
+
+<p>退出外壳。</p>
+<p>至此，让我们连接我们的API。</p>
+<h2 id="routes">路线</h2>
+<p>通过更新<em> main.py </em>添加一个<code>/predict</code>端点，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">HTTPException</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+
+<span class="kn">from</span> <span class="nn">model</span> <span class="kn">import</span> <span class="n">convert</span><span class="p">,</span> <span class="n">predict</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+
+<span class="c1"># pydantic models</span>
+
+
+<span class="k">class</span> <span class="nc">StockIn</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">ticker</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span> <span class="nc">StockOut</span><span class="p">(</span><span class="n">StockIn</span><span class="p">):</span>
+    <span class="n">forecast</span><span class="p">:</span> <span class="nb">dict</span>
+
+
+<span class="c1"># routes</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/ping"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">pong</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"ping"</span><span class="p">:</span> <span class="s2">"pong!"</span><span class="p">}</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/predict"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">StockOut</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_prediction</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="n">StockIn</span><span class="p">):</span>
+    <span class="n">ticker</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">ticker</span>
+
+    <span class="n">prediction_list</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">ticker</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prediction_list</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"Model not found."</span><span class="p">)</span>
+
+    <span class="n">response_object</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"ticker"</span><span class="p">:</span> <span class="n">ticker</span><span class="p">,</span> <span class="s2">"forecast"</span><span class="p">:</span> <span class="n">convert</span><span class="p">(</span><span class="n">prediction_list</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="n">response_object</span>
+</code></pre></div>
+
+<p>因此，在新的<code>get_prediction</code>视图函数中，我们向模型的<code>predict</code>函数传递了一个ticker，然后使用<code>convert</code>函数为响应对象创建输出。我们还利用pydantic <a href="https://pydantic-docs.helpmanual.io/usage/schema/">模式</a>将JSON有效负载转换为<code>StockIn</code>对象模式。这提供了自动类型验证。响应对象使用<code>StockOut</code>模式对象将Python dict - <code>{"ticker": ticker, "forecast": convert(prediction_list)}</code> -转换为JSON，并再次进行验证。</p>
+<p>对于web应用程序，我们只需在JSON中输出预测。注释掉<code>predict</code>中的以下几行:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># model.plot(forecast).savefig(f"{ticker}_plot.png")</span>
+<span class="c1"># model.plot_components(forecast).savefig(f"{ticker}_plot_components.png")</span>
+</code></pre></div>
+
+<p>全功能:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="n">ticker</span><span class="o">=</span><span class="s2">"MSFT"</span><span class="p">,</span> <span class="n">days</span><span class="o">=</span><span class="mi">7</span><span class="p">):</span>
+    <span class="n">model_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">BASE_DIR</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">.joblib"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">model_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="n">model</span> <span class="o">=</span> <span class="n">joblib</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">model_file</span><span class="p">)</span>
+
+    <span class="n">future</span> <span class="o">=</span> <span class="n">TODAY</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">days</span><span class="p">)</span>
+
+    <span class="n">dates</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">date_range</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="s2">"2020-01-01"</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">future</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"%m/</span><span class="si">%d</span><span class="s2">/%Y"</span><span class="p">),)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"ds"</span><span class="p">:</span> <span class="n">dates</span><span class="p">})</span>
+
+    <span class="n">forecast</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+
+    <span class="c1"># model.plot(forecast).savefig(f"{ticker}_plot.png")</span>
+    <span class="c1"># model.plot_components(forecast).savefig(f"{ticker}_plot_components.png")</span>
+
+    <span class="k">return</span> <span class="n">forecast</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="n">days</span><span class="p">)</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="s2">"records"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>运行应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ uvicorn main:app --reload --workers <span class="m">1</span> --host <span class="m">0</span>.0.0.0 --port <span class="m">8008</span>
+</code></pre></div>
+
+<p>然后，在新的终端窗口中，使用curl测试端点:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+  --header <span class="s2">"Content-Type: application/json"</span> <span class="se">\</span>
+  --request POST <span class="se">\</span>
+  --data <span class="s1">'{"ticker":"MSFT"}'</span> <span class="se">\</span>
+  http://localhost:8008/predict
+</code></pre></div>
+
+<p>您应该会看到类似这样的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"ticker"</span><span class="p">:</span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"forecast"</span><span class="p">:{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"08/12/2021"</span><span class="p">:</span><span class="w"> </span><span class="mf">282.99012951691776</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"08/13/2021"</span><span class="p">:</span><span class="w"> </span><span class="mf">283.31354121099446</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"08/14/2021"</span><span class="p">:</span><span class="w"> </span><span class="mf">283.63695290507127</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"08/15/2021"</span><span class="p">:</span><span class="w"> </span><span class="mf">283.960364599148</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"08/16/2021"</span><span class="p">:</span><span class="w"> </span><span class="mf">284.2837762932248</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"08/17/2021"</span><span class="p">:</span><span class="w"> </span><span class="mf">284.6071879873016</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"08/18/2021"</span><span class="p">:</span><span class="w"> </span><span class="mf">284.93059968137834</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>如果ticker模型不存在会怎么样？</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+  --header <span class="s2">"Content-Type: application/json"</span> <span class="se">\</span>
+  --request POST <span class="se">\</span>
+  --data <span class="s1">'{"ticker":"NONE"}'</span> <span class="se">\</span>
+  http://localhost:8008/predict
+
+<span class="o">{</span>
+  <span class="s2">"detail"</span>: <span class="s2">"Model not found."</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<h2 id="heroku-deployment">Heroku部署</h2>
+<p>Heroku是一个平台即服务(PaaS ),为网络应用提供托管服务。它们提供了抽象的环境，您无需管理底层基础设施，从而轻松管理、部署和扩展web应用程序。只需几次点击，您就可以启动并运行您的应用程序，准备接收流量。</p>
+<p>注册一个Heroku账号(如果你还没有的话)，然后安装<a href="https://devcenter.heroku.com/articles/heroku-cli"> Heroku CLI </a>(如果你还没有的话)。</p>
+<p>接下来，通过CLI登录您的Heroku帐户:</p>
+
+
+<p>系统会提示您按任意键打开web浏览器以完成登录。</p>
+<p>在Heroku上创建一个新应用程序:</p>
+
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>Creating app... <span class="k">done</span>, ⬢ tranquil-cliffs-74287
+https://tranquil-cliffs-74287.herokuapp.com/ <span class="p">|</span> https://git.heroku.com/tranquil-cliffs-74287.git
+</code></pre></div>
+
+<p>接下来，我们将使用Heroku的<a href="https://devcenter.heroku.com/articles/container-registry-and-runtime">容器注册表</a>来部署带有<a href="https://www.docker.com/"> Docker </a>的应用程序。简单地说，通过容器注册中心，您可以将预构建的Docker映像部署到Heroku。</p>
+<blockquote>
+<p>为什么是Docker？我们希望最小化生产和开发环境之间的差异。这对于这个项目尤其重要，因为它依赖于许多具有非常具体的系统要求的数据科学依赖项。</p>
+</blockquote>
+<p>登录Heroku容器注册表，向Heroku表明我们想要使用容器运行时:</p>
+
+
+<p>向项目根目录添加一个<em> Dockerfile </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.8</span>
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="k">RUN</span><span class="w"> </span>apt-get -y update  <span class="o">&amp;&amp;</span> apt-get install -y <span class="se">\</span>
+  python3-dev <span class="se">\</span>
+  apt-utils <span class="se">\</span>
+  python-dev <span class="se">\</span>
+  build-essential <span class="se">\</span>
+<span class="o">&amp;&amp;</span> rm -rf /var/lib/apt/lists/*
+
+<span class="k">RUN</span><span class="w"> </span>pip install --upgrade setuptools
+<span class="k">RUN</span><span class="w"> </span>pip install <span class="se">\</span>
+    <span class="nv">cython</span><span class="o">==</span><span class="m">0</span>.29.24 <span class="se">\</span>
+    <span class="nv">numpy</span><span class="o">==</span><span class="m">1</span>.21.1 <span class="se">\</span>
+    <span class="nv">pandas</span><span class="o">==</span><span class="m">1</span>.3.1 <span class="se">\</span>
+    <span class="nv">pystan</span><span class="o">==</span><span class="m">2</span>.19.1.1
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="k">CMD</span><span class="w"> </span>gunicorn -w <span class="m">3</span> -k uvicorn.workers.UvicornWorker main:app --bind <span class="m">0</span>.0.0.0:<span class="nv">$PORT</span>
+</code></pre></div>
+
+<p>在这里，在提取Python 3.8基础映像后，我们安装了适当的依赖项，复制了应用程序，并运行了生产级WSGI应用服务器<a href="https://gunicorn.org/"> Gunicorn </a>，以管理具有三个工作进程的Uvicorn。这种配置利用了并发性(通过Uvicorn)和并行性(通过Gunicorn workers)。</p>
+<p>将Gunicorn添加到<em> requirements.txt </em>文件中:</p>
+<div class="codehilite"><pre><span/><code># pystan must be installed before prophet
+# you may need to pip install it on it's own
+# before installing the remaining requirements
+# pip install pystan==2.19.1.1
+
+pystan==2.19.1.1
+
+fastapi==0.68.0
+gunicorn==20.1.0
+uvicorn==0.14.0
+
+fbprophet==0.7.1
+joblib==1.0.1
+pandas==1.3.1
+plotly==5.1.0
+yfinance==0.1.63
+</code></pre></div>
+
+<p>加一个<em>。dockerignore </em>文件也一样:</p>
+
+
+<p>构建Docker映像，并用以下格式对其进行标记:</p>
+<div class="codehilite"><pre><span/><code><span class="n">registry</span><span class="p">.</span><span class="n">heroku</span><span class="p">.</span><span class="n">com</span><span class="o">/&lt;</span><span class="n">app</span><span class="o">&gt;/&lt;</span><span class="n">process</span><span class="o">-</span><span class="k">type</span><span class="o">&gt;</span><span class="w"/>
+</code></pre></div>
+
+<p>确保将<code>&lt;app&gt;</code>替换为您刚刚创建的Heroku应用程序的名称，将<code>&lt;process-type&gt;</code>替换为<code>web</code>，因为这将用于<a href="https://devcenter.heroku.com/articles/procfile#the-web-process-type"> web流程</a>。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -t registry.heroku.com/tranquil-cliffs-74287/web .
+</code></pre></div>
+
+<p>安装<code>fbprophet</code>需要几分钟时间。耐心点。你应该看到它挂在这里一段时间:</p>
+<div class="codehilite"><pre><span/><code>Running setup.py install <span class="k">for</span> fbprophet: started
+</code></pre></div>
+
+<p>完成后，您可以像这样运行映像:</p>
+<div class="codehilite"><pre><span/><code>$ docker run --name fastapi-ml -e <span class="nv">PORT</span><span class="o">=</span><span class="m">8008</span> -p <span class="m">8008</span>:8008 -d registry.heroku.com/tranquil-cliffs-74287/web:latest
+</code></pre></div>
+
+<p>确保<a href="http://localhost:8008/ping">http://localhost:8008/ping</a>按预期工作。完成后，停止并移除容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker stop fastapi-ml
+$ docker rm fastapi-ml
+</code></pre></div>
+
+<p>将图像推送到注册表:</p>
+<div class="codehilite"><pre><span/><code>$ docker push registry.heroku.com/tranquil-cliffs-74287/web
+</code></pre></div>
+
+<p>发布图像:</p>
+<div class="codehilite"><pre><span/><code>$ heroku container:release -a tranquil-cliffs-74287 web
+</code></pre></div>
+
+<p>这将运行容器。您现在应该可以查看您的应用程序了。确保测试<code>/predict</code>终点:</p>
+<div class="codehilite"><pre><span/><code>$ curl <span class="se">\</span>
+  --header <span class="s2">"Content-Type: application/json"</span> <span class="se">\</span>
+  --request POST <span class="se">\</span>
+  --data <span class="s1">'{"ticker":"MSFT"}'</span> <span class="se">\</span>
+  https://&lt;YOUR_HEROKU_APP_NAME&gt;.herokuapp.com/predict
+</code></pre></div>
+
+<p>最后，查看FastAPI在<code>https://&lt;YOUR_HEROKU_APP_NAME&gt;.herokuapp.com/docs</code>自动生成的交互式API文档:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-ml/swagger.png" loading="lazy" class="lazyload" alt="swagger ui" src="../Images/31d10559f2328727a8cd56a1606335e2.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-ml/swagger.png"/></p>
+<h2 id="conclusion">结论</h2>
+<p>本教程介绍了如何在Heroku上使用FastAPI将一个用于预测股票价格的机器学习模型作为RESTful API部署到生产中。</p>
+<p>下一步是什么？</p>
+<ol>
+<li>建立数据库以保存预测结果</li>
+<li>创建一个生产Docker文件，该文件使用多级Docker构建来减小生产映像的大小</li>
+<li>添加日志记录和监控</li>
+<li>将视图函数和模型预测函数转换为异步函数</li>
+<li>将预测作为后台任务运行，以防止阻塞</li>
+<li>添加测试</li>
+<li>将训练好的模型存储到AWS S3，在Heroku的<a href="https://devcenter.heroku.com/articles/dynos#ephemeral-filesystem">短暂文件系统</a>之外</li>
+</ol>
+<p>查看以下资源以获得上述内容的帮助:</p>
+<ol>
+<li><a href="https://testdriven.io/blog/fastapi-crud/">使用FastAPI和Pytest开发和测试异步API</a></li>
+<li><a href="https://testdriven.io/courses/tdd-fastapi/">用FastAPI和Docker进行测试驱动开发</a></li>
+</ol>
+<p>如果您正在部署一个非平凡的模型，我建议添加模型版本控制和对反事实分析的支持以及模型监控(模型和特性漂移，偏差检测)。查看<a href="https://monitaur.ai/"> Monitaur </a>平台以获得这些方面的帮助。</p>
+<p>您可以在<a href="https://github.com/testdrivenio/fastapi-ml"> fastapi-ml </a> repo中找到代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

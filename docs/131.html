@@ -1,0 +1,339 @@
+<html>
+<head>
+<title>Permissions in Django REST Framework </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Django REST框架中的权限</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/drf-permissions/#0001-01-01">https://testdriven.io/blog/drf-permissions/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文着眼于Django REST框架(DRF)中权限的工作方式。</p>
+<p>--</p>
+<p><strong> Django REST框架权限系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-permissions">Django REST框架中的权限</a>(本文！)</li>
+<li><a href="/blog/built-in-permission-classes-drf">Django REST框架中内置的权限类</a></li>
+<li><a href="/blog/custom-permission-classes-drf">Django REST框架中的自定义权限类</a></li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>在本文结束时，你应该能够解释:</p>
+<ol>
+<li>DRF权限如何工作</li>
+<li><code>has_permission</code>和<code>has_object_permission</code>的异同</li>
+<li>何时使用<code>has_permission</code>和<code>has_object_permission</code></li>
+</ol>
+<h2 id="drf-permissions">DRF权限</h2>
+<p>在DRF，<a href="https://www.django-rest-framework.org/api-guide/permissions/">权限</a>，以及<a href="https://www.django-rest-framework.org/api-guide/authentication/">认证</a>和<a href="https://www.django-rest-framework.org/api-guide/throttling/">节流</a>，用于授予或拒绝不同类别的用户访问API的不同部分。</p>
+<p>身份验证和授权是相辅相成的。身份验证总是在授权之前执行。</p>
+<p>身份验证是检查用户身份的过程(发出请求的用户、签名的令牌)，而授权是检查请求用户是否有执行请求的必要权限的过程(他们是超级用户，还是对象的创建者)。</p>
+<p>DRF的授权过程是由权限覆盖的。</p>
+<h2 id="view-permissions">查看权限</h2>
+<p>APIView 有两种检查权限的方法:</p>
+<ol>
+<li><code>check_permissions</code>根据请求数据检查请求是否被允许</li>
+<li><code>check_object_permissions</code>根据请求和对象数据的组合检查请求是否被允许</li>
+</ol>
+<div class="codehilite"><pre><span/><code><span class="c1"># rest_framework/views.py</span>
+
+<span class="k">class</span> <span class="nc">APIView</span><span class="p">(</span><span class="n">View</span><span class="p">):</span>
+    <span class="c1"># other methods</span>
+    <span class="k">def</span> <span class="nf">check_permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Check if the request should be permitted.</span>
+<span class="sd">        Raises an appropriate exception if the request is not permitted.</span>
+<span class="sd">        """</span>
+        <span class="k">for</span> <span class="n">permission</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_permissions</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">permission</span><span class="o">.</span><span class="n">has_permission</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="bp">self</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">permission_denied</span><span class="p">(</span>
+                    <span class="n">request</span><span class="p">,</span>
+                    <span class="n">message</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">permission</span><span class="p">,</span> <span class="s1">'message'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="n">code</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">permission</span><span class="p">,</span> <span class="s1">'code'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">check_object_permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Check if the request should be permitted for a given object.</span>
+<span class="sd">        Raises an appropriate exception if the request is not permitted.</span>
+<span class="sd">        """</span>
+        <span class="k">for</span> <span class="n">permission</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_permissions</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">permission</span><span class="o">.</span><span class="n">has_object_permission</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">permission_denied</span><span class="p">(</span>
+                    <span class="n">request</span><span class="p">,</span>
+                    <span class="n">message</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">permission</span><span class="p">,</span> <span class="s1">'message'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="n">code</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">permission</span><span class="p">,</span> <span class="s1">'code'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="p">)</span>
+</code></pre></div>
+
+<p>当请求进来时，执行身份验证。如果认证不成功，就会出现一个<code>NotAuthenticated</code>错误。之后，在一个循环中检查权限，如果其中任何一个失败，就会引发一个<code>PermissionDenied</code>错误。最后，对请求执行节流检查。</p>
+<p>在执行视图处理程序之前调用<code>check_permissions</code>,而不执行<code>check_object_permissions</code>,除非您显式调用它。例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">MessageSingleAPI</span><span class="p">(</span><span class="n">APIView</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">pk</span><span class="p">):</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span><span class="n">Message</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span> <span class="n">pk</span><span class="o">=</span><span class="n">pk</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_object_permissions</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span> <span class="c1"># explicitly called</span>
+        <span class="n">serializer</span> <span class="o">=</span> <span class="n">MessageSerializer</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">serializer</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>使用<a href="https://www.django-rest-framework.org/api-guide/viewsets/">视图集</a>和<a href="https://www.django-rest-framework.org/api-guide/generic-views/">通用视图</a>，从数据库中检索所有详细视图的对象后，调用<code>check_object_permissions</code>。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># rest_framework/generics.py</span>
+
+<span class="k">class</span> <span class="nc">GenericAPIView</span><span class="p">(</span><span class="n">views</span><span class="o">.</span><span class="n">APIView</span><span class="p">):</span>
+    <span class="c1"># other methods</span>
+    <span class="k">def</span> <span class="nf">get_object</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">"""</span>
+<span class="sd">        Returns the object the view is displaying.</span>
+
+<span class="sd">        You may want to override this if you need to provide non-standard</span>
+<span class="sd">        queryset lookups.  Eg if objects are referenced using multiple</span>
+<span class="sd">        keyword arguments in the url conf.</span>
+<span class="sd">        """</span>
+        <span class="n">queryset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_queryset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_queryset</span><span class="p">())</span>
+
+        <span class="c1"># Perform the lookup filtering.</span>
+        <span class="n">lookup_url_kwarg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_url_kwarg</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_field</span>
+
+        <span class="k">assert</span> <span class="n">lookup_url_kwarg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">,</span> <span class="p">(</span>
+            <span class="s1">'Expected view </span><span class="si">%s</span><span class="s1"> to be called with a URL keyword argument '</span>
+            <span class="s1">'named "</span><span class="si">%s</span><span class="s1">". Fix your URL conf, or set the `.lookup_field` '</span>
+            <span class="s1">'attribute on the view correctly.'</span> <span class="o">%</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">lookup_url_kwarg</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">filter_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">lookup_field</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">[</span><span class="n">lookup_url_kwarg</span><span class="p">]}</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span><span class="n">queryset</span><span class="p">,</span> <span class="o">**</span><span class="n">filter_kwargs</span><span class="p">)</span>
+
+        <span class="c1"># May raise a permission denied</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_object_permissions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>  <span class="c1"># HERE</span>
+
+        <span class="k">return</span> <span class="n">obj</span>
+</code></pre></div>
+
+<p>对所有权限进行检查，如果其中任何一个权限返回<code>False</code>，就会引发<code>PermissionDenied</code>错误。</p>
+<h2 id="permission-classes">权限类别</h2>
+<p>DRF中的权限被定义为权限类列表。你可以创建自己的或者使用七个<a href="https://www.django-rest-framework.org/api-guide/permissions/#api-reference">内置类</a>中的一个。所有权限类，无论是自定义的还是内置的，都是从<code>BasePermission</code>类扩展而来的:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">BasePermission</span><span class="p">(</span><span class="n">metaclass</span><span class="o">=</span><span class="n">BasePermissionMetaclass</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">has_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>如您所见，<code>BasePermission</code>有两个方法，<code>has_permission</code>和<code>has_object_permission</code>，它们都返回<code>True</code>。权限类覆盖一个或两个方法来有条件地<strong>返回<code>True</code>。</strong></p>
+<p>回到文章开头的<code>check_permissions</code>和<code>check_object_permissions</code>方法:</p>
+<ul>
+<li><code>check_permissions</code>为每个权限调用<code>has_permission</code></li>
+<li><code>check_object_permissions</code>为每个权限调用<code>has_object_permission</code></li>
+</ul>
+<h2 id="has_permission">拥有_权限</h2>
+<p><code>has_permission</code>用于决定是否允许请求和用户访问特定视图</p>
+<p>例如:</p>
+<ul>
+<li>是否允许请求方法？</li>
+<li>用户是否经过身份验证？</li>
+<li>用户是管理员还是超级用户？</li>
+</ul>
+<p>拥有关于请求的知识，但不知道请求的对象。</p>
+<p>如开头所解释的，<code>has_permission</code>(由<code>check_permissions</code>调用)在视图处理程序执行之前被执行，而不是显式调用它。</p>
+<h2 id="has_object_permission">拥有_对象_权限</h2>
+<p><code>has_object_permission</code>用于决定是否允许特定用户与特定对象进行交互</p>
+<p>例如:</p>
+<ul>
+<li>谁创建了该对象？</li>
+<li>它是什么时候创建的？</li>
+<li>该对象属于哪个组？</li>
+</ul>
+<p>除了请求的知识之外，<code>has_object_permission</code>还拥有关于请求对象的数据。方法在从数据库中检索到对象后执行。</p>
+<p>与<code>has_permission</code>不同，<code>has_object_permission</code>并不总是默认执行:</p>
+<ul>
+<li>使用<code>APIView</code>，必须显式调用<code>check_object_permission</code>来为所有权限类执行<code>has_object_permission</code>。</li>
+<li>对于<code>ViewSets</code>(如<code>ModelViewSet</code>)或通用视图(如<code>RetrieveAPIView</code>)，通过开箱即用的<code>get_object</code>方法中的<code>check_object_permission</code>来执行<code>has_object_permission</code>。</li>
+<li>对于列表视图(无论从哪个视图扩展)或当请求方法为<code>POST</code>时(因为对象尚不存在)，从不执行<code>has_object_permission</code>。</li>
+<li>当任何一个<code>has_permission</code>返回<code>False</code>时，<code>has_object_permission</code>不会被检查。该请求立即被拒绝。</li>
+</ul>
+<h2 id="has_permission-vs-has_object_permission">has _ permission vs has _ object _ permission</h2>
+<p><em>Django REST框架中的<code>has_permission</code>和<code>has_object_permission</code>有什么区别？</em></p>
+<p><img data-src="/static/images/blog/django/drf-permissions/permissions_execution.png" loading="lazy" class="lazyload" alt="DRF Permissions Execution" src="../Images/961f770659f4bc84df45bc670fdc73a6.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/permissions_execution.png"/></p>
+<p>同样，对于:</p>
+<ul>
+<li>列表视图，只有<code>has_permission</code>被执行，请求被允许或拒绝访问。如果访问被拒绝，对象就永远不会被检索到。</li>
+<li>详细视图，执行<code>has_permission</code>，然后仅<strong>如果许可，则在检索对象后执行<code>has_object_permission</code>。</strong></li>
+</ul>
+<h2 id="built-in-drf-permission-classes">内置DRF权限类</h2>
+<p>关于内置的DRF权限类，它们都覆盖了<code>has_permission</code>，只有<code>DjangoObjectPermissions</code>覆盖了<code>has_object_permission</code>:</p>
+<table>
+<thead>
+<tr>
+<th>权限类别</th>
+<th>拥有_权限</th>
+<th>拥有_对象_权限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>允许任何</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>已认证</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>isauthentaicatedorreadonly</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>IsAdminUser</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>DjangoModelPermissions</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>djangodelpermissionsoranonreadonly</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>DjangoObjectPermissions</td>
+<td>通过扩展<code>DjangoModelPermissions</code></td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>有关内置权限类的更多信息，请务必阅读本系列的第二篇文章，<a href="/blog/built-in-permission-classes-drf">Django REST框架中的内置权限类</a>。</p>
+</blockquote>
+<h2 id="custom-permission-classes">自定义权限类</h2>
+<p>对于自定义权限类，可以重写一个或两个方法。如果您只覆盖其中一个权限，您需要小心，尤其是当您使用的权限很复杂或者您正在组合多个权限时。<code>has_permission</code>和<code>has_object_permission</code>都默认为<code>True</code>，所以如果你没有显式地设置它们中的一个，请求的拒绝依赖于你显式设置的那个。</p>
+<blockquote>
+<p>关于定制权限类的更多信息，请务必阅读本系列的第二篇文章，Django REST框架中的定制权限类。</p>
+</blockquote>
+<h3 id="correct-usage">正确用法</h3>
+<p>让我们看一个简单的例子:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">permissions</span>
+
+
+<span class="k">class</span> <span class="nc">AuthorOrReadOnly</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">has_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">author</span> <span class="o">==</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<p>此权限类别仅允许对象的作者访问它:</p>
+<ol>
+<li>在<code>has_permission</code>中，我们只拒绝未认证用户的许可。此时，我们无法访问该对象，因此我们不知道发出请求的用户是否是所需对象的作者。</li>
+<li>如果用户通过了身份验证，那么在检索到对象后，<code>has_object_permission</code>将被调用，在这里我们检查对象的作者是否与用户相同。</li>
+</ol>
+<p>结果:</p>
+<table>
+<tbody>
+<tr>
+<th> </th>
+<th>列表视图</th>
+<th>详细视图</th>
+</tr>
+<tr>
+<th>拥有_权限</th>
+<td>向经过身份验证的用户授予权限</td>
+<td>向经过身份验证的用户授予权限</td>
+</tr>
+<tr>
+<th>拥有_对象_权限</th>
+<td>没有影响</td>
+<td>授予对象作者权限</td>
+</tr>
+<tr>
+<th>结果</th>
+<td><b>授予认证用户的访问权限</b></td>
+<td><b>如果对象的所有者通过验证，则授予他们访问权限</b></td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="incorrect-usage">不正确的用法</h3>
+<p>为了更好地理解发生了什么，让我们来看看一个不符合我们要求的许可:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">rest_framework</span> <span class="kn">import</span> <span class="n">permissions</span>
+
+<span class="k">class</span> <span class="nc">AuthenticatedOnly</span><span class="p">(</span><span class="n">permissions</span><span class="o">.</span><span class="n">BasePermission</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">has_object_permission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">is_authenticated</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<p>该权限拒绝未经认证的用户访问，但是检查是在<code>has_object_permission</code>而不是<code>has_permission</code>中完成的。</p>
+<p>未经验证的用户的详细视图:</p>
+<p><img data-src="/static/images/blog/django/drf-permissions/unauthenticated_detail_view.png" loading="lazy" class="lazyload" alt="DRF Browsable API Response detail view" src="../Images/689f058dde25a1a3824a45aa70611ca3.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/unauthenticated_detail_view.png"/></p>
+<p>即使自动生成的可浏览API显示了delete按钮，未经身份验证的用户也不能删除消息。</p>
+<p>以及未经验证的用户的列表视图:</p>
+<p><img data-src="/static/images/blog/django/drf-permissions/unauthenticated_list_view.png" loading="lazy" class="lazyload" alt="DRF Browsable API Response list view" src="../Images/dfd2af06e3213e001daa9c20a1829d47.png" data-original-src="https://testdriven.io/static/images/blog/django/drf-permissions/unauthenticated_list_view.png"/></p>
+<p><strong>到底怎么回事？</strong></p>
+<ol>
+<li>列表视图只检查<code>has_permission</code>。所以，由于自定义类没有，它从<code>BasePermission</code>中检查<code>has_permission</code>，后者无条件返回<code>True</code>。</li>
+<li>细节视图首先检查<code>has_permission</code>(同样，总是<code>True</code>)。然后它检查<code>has_object_permission</code>，拒绝未经授权的用户访问。</li>
+</ol>
+<p>这就是为什么在这个例子中，未经身份验证的请求不能访问细节视图，但是可以访问列表视图。</p>
+<table>
+<tbody>
+<tr>
+<th> </th>
+<th>列表视图</th>
+<th>详细视图</th>
+</tr>
+<tr>
+<th>拥有_权限</th>
+<td>使用无条件授予权限的默认函数</td>
+<td>使用无条件授予权限的默认函数</td>
+</tr>
+<tr>
+<th>拥有_对象_权限</th>
+<td>没有影响</td>
+<td>向经过身份验证的用户授予权限</td>
+</tr>
+<tr>
+<th>结果</th>
+<td><b>许可总是被授予</b></td>
+<td><b>被认证的用户被授予权限</b></td>
+</tr>
+</tbody>
+</table>
+
+<blockquote>
+<p>创建这个权限类只是为了展示这两种方法是如何工作的。你应该使用内置的类<code>IsAuthenticated</code>而不是创建你自己的类。</p>
+</blockquote>
+<h2 id="conclusion">结论</h2>
+<p>Django REST框架中的所有权限，无论是自定义的还是内置的，都利用<code>has_permission</code>或<code>has_object_permission</code>或两者来限制对API端点的访问。</p>
+<p>虽然<code>has_permission</code>对于何时可以使用它没有限制，但是它不能访问所需的对象。因此，它更像是一种“通用”权限检查，以确保请求和用户可以访问视图。另一方面，由于<code>has_object_permission</code>可以访问对象，所以标准可以更加具体，但是对于何时可以使用它有许多限制。</p>
+<p>请记住，如果您不覆盖这些方法，它们将总是返回<code>True</code>，授予无限制的访问权限。只有<code>has_permission</code>影响对列表视图的访问，而它们都影响对细节视图的访问。</p>
+<p>在创建自定义权限类时，了解和理解这两种方法的工作方式尤为重要。</p>
+<p>--</p>
+<p><strong> Django REST框架权限系列:</strong></p>
+<ol>
+<li><a href="/blog/drf-permissions">Django REST框架中的权限</a>(本文！)</li>
+<li><a href="/blog/built-in-permission-classes-drf">Django REST框架中内置的权限类</a></li>
+<li><a href="/blog/custom-permission-classes-drf">Django REST框架中的自定义权限类</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

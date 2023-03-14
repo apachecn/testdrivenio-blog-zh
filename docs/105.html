@@ -1,0 +1,269 @@
+<html>
+<head>
+<title>Deploying Vault and Consul </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>部署保险库和领事</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/deploying-vault-and-consul/#0001-01-01">https://testdriven.io/blog/deploying-vault-and-consul/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>我们来看看如何用Docker Swarm部署Hashicorp的<a href="https://www.vaultproject.io/">金库</a>和<a href="https://www.consul.io/">领事</a>到<a href="https://m.do.co/c/d8f211a4b4c2">数字海洋</a>。</p>
+<blockquote>
+<p>本教程假设您具备使用Vault和Consul管理机密的基本工作知识。更多信息请参考<a href="/managing-secrets-with-vault-and-consul">保管库管理机密和咨询</a>教程。</p>
+</blockquote>
+<p>完成后，您将能够:</p>
+<ol>
+<li>使用Docker机器在DigitalOcean上配置主机</li>
+<li>配置一个Docker群集群在数字海洋上运行</li>
+<li>在码头群上运行金库和领事</li>
+</ol>
+<p><em>主要依赖:</em></p>
+<ul>
+<li>文档v20.10.8</li>
+<li>坞站-复合v1.29.2</li>
+<li>对接机v0.16.2</li>
+<li>保险库版本1.8.3</li>
+<li>领事v1.10.3</li>
+</ul>
+
+
+
+<h2 id="consul">领事</h2>
+<p>创建新的项目目录:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir vault-consul-swarm <span class="o">&amp;&amp;</span> <span class="nb">cd</span> vault-consul-swarm
+</code></pre></div>
+
+<p>然后，将一个<em> docker-compose.yml </em>文件添加到项目根:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">"3.8"</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">server-bootstrap</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">consul:1.10.3</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8500:8500</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"agent</span><span class="nv"> </span><span class="s">-server</span><span class="nv"> </span><span class="s">-bootstrap-expect</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">-ui</span><span class="nv"> </span><span class="s">-client</span><span class="nv"> </span><span class="s">0.0.0.0</span><span class="nv"> </span><span class="s">-bind</span><span class="nv"> </span><span class="s">'{{</span><span class="nv"> </span><span class="s">GetInterfaceIP</span><span class="nv"> </span><span class="s">\"eth0\"</span><span class="nv"> </span><span class="s">}}'"</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">server</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">consul:1.10.3</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"agent</span><span class="nv"> </span><span class="s">-server</span><span class="nv"> </span><span class="s">-retry-join</span><span class="nv"> </span><span class="s">server-bootstrap</span><span class="nv"> </span><span class="s">-client</span><span class="nv"> </span><span class="s">0.0.0.0</span><span class="nv"> </span><span class="s">-bind</span><span class="nv"> </span><span class="s">'{{</span><span class="nv"> </span><span class="s">GetInterfaceIP</span><span class="nv"> </span><span class="s">\"eth0\"</span><span class="nv"> </span><span class="s">}}'"</span><span class="w"/>
+<span class="w">    </span><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">server-bootstrap</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">client</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">consul:1.10.3</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"agent</span><span class="nv"> </span><span class="s">-retry-join</span><span class="nv"> </span><span class="s">server-bootstrap</span><span class="nv"> </span><span class="s">-client</span><span class="nv"> </span><span class="s">0.0.0.0</span><span class="nv"> </span><span class="s">-bind</span><span class="nv"> </span><span class="s">'{{</span><span class="nv"> </span><span class="s">GetInterfaceIP</span><span class="nv"> </span><span class="s">\"eth0\"</span><span class="nv"> </span><span class="s">}}'"</span><span class="w"/>
+<span class="w">    </span><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">server-bootstrap</span><span class="w"/>
+
+<span class="nt">networks</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">default</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">external</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core</span><span class="w"/>
+</code></pre></div>
+
+<p>这种配置应该看起来很熟悉。</p>
+<ol>
+<li>参考Docker Swarm 博客文章<a href="/running-flask-on-docker-swarm">运行Flask的</a><a href="/running-flask-on-docker-swarm#compose-file">合成文件</a>部分，了解更多关于使用Docker Swarm模式合成文件的信息。</li>
+<li>查看<a href="https://hub.docker.com/_/consul"> Consul和Docker </a>指南，了解上述Consul配置的信息。</li>
+</ol>
+<h2 id="docker-swarm">码头工人群</h2>
+<p>注册一个<a href="https://m.do.co/c/d8f211a4b4c2">数字海洋</a>账户(如果你还没有的话)，然后<a href="https://www.digitalocean.com/docs/apis-clis/api/">生成</a>一个访问令牌，这样你就可以访问数字海洋API了。</p>
+<p>将令牌添加到您的环境中:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">DIGITAL_OCEAN_ACCESS_TOKEN</span><span class="o">=[</span>your_digital_ocean_token<span class="o">]</span>
+</code></pre></div>
+
+<p>旋转三个液滴:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="k">for</span> i <span class="k">in</span> <span class="m">1</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+    docker-machine create <span class="se">\</span>
+      --driver digitalocean <span class="se">\</span>
+      --digitalocean-region <span class="s2">"nyc1"</span> <span class="se">\</span>
+      --digitalocean-image<span class="o">=</span>debian-10-x64 <span class="se">\</span>
+      --engine-install-url <span class="s2">"https://releases.rancher.com/install-docker/19.03.9.sh"</span> <span class="se">\</span>
+      --digitalocean-access-token <span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span> <span class="se">\</span>
+      node-<span class="nv">$i</span><span class="p">;</span>
+<span class="k">done</span>
+</code></pre></div>
+
+<p>在第一个节点<code>node-1</code>上初始化<a href="https://docs.docker.com/engine/swarm/">群模式</a>:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine ssh node-1 -- docker swarm init --advertise-addr <span class="k">$(</span>docker-machine ip node-1<span class="k">)</span>
+</code></pre></div>
+
+<p>使用上一个命令输出中的join令牌将剩余的两个节点作为workers添加到群中:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="k">for</span> i <span class="k">in</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+    docker-machine ssh node-<span class="nv">$i</span> -- docker swarm join --token YOUR_JOIN_TOKEN HOST:PORT<span class="p">;</span>
+<span class="k">done</span>
+</code></pre></div>
+
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">for</span> i <span class="k">in</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+    docker-machine ssh node-<span class="nv">$i</span> -- docker swarm join --token SWMTKN-1-18xrfgcgq7k6krqr7tvav3ydx5c5104y662lzh4pyct2t0ror3-e3ed1ggivhf8z15i40z6x55g5 <span class="m">67</span>.205.165.166:2377<span class="p">;</span>
+<span class="k">done</span>
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>This node joined a swarm as a worker.
+This node joined a swarm as a worker.
+</code></pre></div>
+
+<p>将Docker守护进程指向<code>node-1</code>，创建一个可连接的<a href="https://docs.docker.com/network/network-tutorial-overlay/">覆盖网络</a>(称为<code>core</code>)，并部署堆栈:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">eval</span> <span class="k">$(</span>docker-machine env node-1<span class="k">)</span>
+$ docker network create -d overlay --attachable core
+$ docker stack deploy --compose-file<span class="o">=</span>docker-compose.yml secrets
+</code></pre></div>
+
+<p>列出堆栈中的服务:</p>
+<div class="codehilite"><pre><span/><code>$ docker stack ps -f <span class="s2">"desired-state=running"</span> secrets
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>ID             NAME                         IMAGE          NODE     DESIRED STATE   CURRENT STATE
+b5f5eycrhf3o   secrets_client.1             consul:1.10.3   node-1   Running         Running <span class="m">7</span> seconds ago
+zs7a5t8khcew   secrets_server.1             consul:1.10.3   node-2   Running         Running <span class="m">9</span> seconds ago
+qnhtlan6m0sp   secrets_server-bootstrap.1   consul:1.10.3   node-1   Running         Running <span class="m">7</span> seconds ago
+u61eycesmsl7   secrets_client.2             consul:1.10.3   node-2   Running         Running <span class="m">9</span> seconds ago
+vgpql8lfy5fi   secrets_server.2             consul:1.10.3   node-3   Running         Running <span class="m">9</span> seconds ago
+</code></pre></div>
+
+<p>抓取与<code>node-1</code>关联的IP:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine ip node-1
+</code></pre></div>
+
+<p>然后，在<a href="http://YOUR_MACHINE_IP:8500/ui">http://YOUR _ MACHINE _ IP:8500/UI</a>的浏览器中测试Consul UI。应该有三个正在运行的服务和五个节点。</p>
+<p><img data-src="/static/images/blog/vault-consul-swarm/consul-ui-services.png" loading="lazy" class="lazyload" alt="consul ui services" src="../Images/5ed70d9e53f9949c5fb6782f727a2d6a.png" data-original-src="https://testdriven.io/static/images/blog/vault-consul-swarm/consul-ui-services.png"/></p>
+<p><img data-src="/static/images/blog/vault-consul-swarm/consul-ui-nodes.png" loading="lazy" class="lazyload" alt="consul ui nodes" src="../Images/52ff55ec8f3f4aa136f98b1d84d8b933.png" data-original-src="https://testdriven.io/static/images/blog/vault-consul-swarm/consul-ui-nodes.png"/></p>
+<h2 id="vault">跳跃</h2>
+<p>将<code>vault</code>服务添加到<em> docker-compose.yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">vault</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vault:1.8.3</span><span class="w"/>
+<span class="w">  </span><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8200:8200</span><span class="w"/>
+<span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">VAULT_ADDR=http://127.0.0.1:8200</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">VAULT_LOCAL_CONFIG={"backend":{"consul":{"address":"http://server-bootstrap:8500","path":"vault/"}},"listener":{"tcp":{"address":"0.0.0.0:8200","tls_disable":1}},"ui":true, "disable_mlock":true}</span><span class="w"/>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">server</span><span class="w"/>
+<span class="w">  </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">consul</span><span class="w"/>
+</code></pre></div>
+
+<p>记下<code>VAULT_LOCAL_CONFIG</code>环境变量:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"backend"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"consul"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nt">"address"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://server-bootstrap:8500"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vault/"</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nt">"listener"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"tcp"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">      </span><span class="nt">"address"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.0.0.0:8200"</span><span class="p">,</span><span class="w"/>
+<span class="w">      </span><span class="nt">"tls_disable"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"/>
+<span class="w">    </span><span class="p">}</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"/>
+<span class="w">  </span><span class="nt">"ui"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"disable_mlock"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>查看<a href="/managing-secrets-with-vault-and-consul#consul-backend">领事后端</a>部分，从<a href="/managing-secrets-with-vault-and-consul">用Vault和领事</a>管理秘密的博文中获取更多信息。此外，对于生产环境，不建议将<a href="https://www.vaultproject.io/docs/configuration#disable_mlock"> disable_mlock </a>设置为<code>true</code>；但是，由于<code>--cap-add</code>在Docker群组模式下不可用，因此必须将其启用。有关详细信息，请参见以下GitHub问题:</p>
+<ol>
+<li><a href="https://github.com/hashicorp/docker-vault/issues/89"> - cap-add=IPC_LOCK在docker群中不可用</a></li>
+<li><a href="https://github.com/moby/moby/issues/25885">从Swarmmode - cap-add中丢失</a></li>
+</ol>
+<h2 id="test">试验</h2>
+<p>重新部署堆栈:</p>
+<div class="codehilite"><pre><span/><code>$ docker stack deploy --compose-file<span class="o">=</span>docker-compose.yml secrets
+</code></pre></div>
+
+<p>等待几秒钟，让服务开始运转，然后检查状态:</p>
+<div class="codehilite"><pre><span/><code>$ docker stack ps -f <span class="s2">"desired-state=running"</span> secrets
+</code></pre></div>
+
+<p>同样，您应该看到类似于以下内容的内容:</p>
+<div class="codehilite"><pre><span/><code>ID             NAME                         IMAGE           NODE      DESIRED STATE   CURRENT STATE
+xtfsetfrbrs7   secrets_client.1             consul:1.10.3   node-3    Running         Running <span class="m">19</span> minutes ago
+ydqxexgiyzb2   secrets_client.2             consul:1.10.3   node-1    Running         Running <span class="m">19</span> minutes ago
+izlku3y6j8rp   secrets_server-bootstrap.1   consul:1.10.3   node-2    Running         Running <span class="m">19</span> minutes ago
+zqpkcrhrix2x   secrets_server.1             consul:1.10.3   node-1    Running         Running <span class="m">19</span> minutes ago
+kmlxuhxw1akv   secrets_server.2             consul:1.10.3   node-2    Running         Running <span class="m">19</span> minutes ago
+wfmscoj53m39   secrets_vault.1              vault:1.8.3     node-3    Running         Running about a minute ago
+</code></pre></div>
+
+<p>接下来，确保Vault列在Consul UI的“服务”部分:</p>
+<p><img data-src="/static/images/blog/vault-consul-swarm/consul-ui-services2.png" loading="lazy" class="lazyload" alt="consul ui services" src="../Images/0aac63cb48ad9e97cb585f79aa344bdb.png" data-original-src="https://testdriven.io/static/images/blog/vault-consul-swarm/consul-ui-services2.png"/></p>
+<p>现在，您应该能够通过CLI、HTTP API和UI与Vault进行交互。从初始化和解封保险库开始。然后，登录并创建一个新的秘密。</p>
+<p>完成后删除节点:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine rm node-1 node-2 node-3 -y
+</code></pre></div>
+
+<h2 id="automation-script">自动化脚本</h2>
+<p>最后，让我们创建一个快速脚本来自动化部署过程:</p>
+<ol>
+<li>用Docker机器提供三个数字海洋液滴</li>
+<li>配置Docker群组模式</li>
+<li>向群集添加节点</li>
+<li>部署堆栈</li>
+</ol>
+<p>将名为<em> deploy.sh </em>的新文件添加到项目根目录:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/bash</span>
+
+
+<span class="nb">echo</span> <span class="s2">"Spinning up three droplets..."</span>
+
+<span class="k">for</span> i <span class="k">in</span> <span class="m">1</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+  docker-machine create <span class="se">\</span>
+    --driver digitalocean <span class="se">\</span>
+    --digitalocean-region <span class="s2">"nyc1"</span> <span class="se">\</span>
+    --digitalocean-image<span class="o">=</span>debian-10-x64 <span class="se">\</span>
+    --engine-install-url <span class="s2">"https://releases.rancher.com/install-docker/19.03.9.sh"</span> <span class="se">\</span>
+    --digitalocean-access-token <span class="nv">$DIGITAL_OCEAN_ACCESS_TOKEN</span> <span class="se">\</span>
+    node-<span class="nv">$i</span><span class="p">;</span>
+<span class="k">done</span>
+
+
+<span class="nb">echo</span> <span class="s2">"Initializing Swarm mode..."</span>
+
+docker-machine ssh node-1 -- docker swarm init --advertise-addr <span class="k">$(</span>docker-machine ip node-1<span class="k">)</span>
+
+
+<span class="nb">echo</span> <span class="s2">"Adding the nodes to the Swarm..."</span>
+
+<span class="nv">TOKEN</span><span class="o">=</span><span class="sb">`</span>docker-machine ssh node-1 docker swarm join-token worker <span class="p">|</span> grep token <span class="p">|</span> awk <span class="s1">'{ print $5 }'</span><span class="sb">`</span>
+
+<span class="k">for</span> i <span class="k">in</span> <span class="m">2</span> <span class="m">3</span><span class="p">;</span> <span class="k">do</span>
+  docker-machine ssh node-<span class="nv">$i</span> <span class="se">\</span>
+    -- docker swarm join --token <span class="si">${</span><span class="nv">TOKEN</span><span class="si">}</span> <span class="k">$(</span>docker-machine ip node-1<span class="k">)</span>:2377<span class="p">;</span>
+<span class="k">done</span>
+
+
+<span class="nb">echo</span> <span class="s2">"Creating networking..."</span>
+
+<span class="nb">eval</span> <span class="k">$(</span>docker-machine env node-1<span class="k">)</span>
+docker network create -d overlay --attachable core
+
+
+<span class="nb">echo</span> <span class="s2">"Deploying the stack..."</span>
+
+docker stack deploy --compose-file<span class="o">=</span>docker-compose.yml secrets
+</code></pre></div>
+
+<p>试试吧！</p>
+
+
+<p>完成后将水滴带下来:</p>
+<div class="codehilite"><pre><span/><code>$ docker-machine rm node-1 node-2 node-3 -y
+</code></pre></div>
+
+<hr/>
+
+<p>代码可以在<a href="https://github.com/testdrivenio/vault-consul-swarm"> vault-consul-swarm </a> repo中找到。干杯！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

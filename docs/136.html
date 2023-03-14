@@ -1,0 +1,1046 @@
+<html>
+<head>
+<title>Test-Driven Development with React, Jest, and Enzyme - Part 1 </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用React、Jest和Enzyme的测试驱动开发——第1部分</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/tdd-with-react-jest-and-enzyme-part-one/#0001-01-01">https://testdriven.io/blog/tdd-with-react-jest-and-enzyme-part-one/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在这篇文章中，我们将使用测试驱动开发(TDD)结合Jest和Enzyme开发一个React应用程序。完成后，您将能够:</p>
+<ul>
+<li>使用TDD开发一个React应用程序</li>
+<li>用酶和Jest测试React应用程序</li>
+<li>编写和使用CSS变量进行重用和响应性设计</li>
+<li>创建一个可重用的React组件，根据所提供的道具以不同的方式呈现和运行</li>
+<li>使用React属性类型对组件属性进行类型检查</li>
+<li>从响应式设计的角度看应用程序</li>
+<li>使用灵活框模块创建灵活布局</li>
+</ul>
+<blockquote>
+<p>这篇文章假设你至少有React的基本知识。如果你完全是React新手，建议你完成React官方<a href="https://reactjs.org/tutorial/tutorial.html">简介</a>教程。</p>
+</blockquote>
+<p><strong>零件:</strong></p>
+<ul>
+<li><em> Part 1 </em>(本帖！):在第一部分，我们将建立整个项目，然后用测试驱动开发来开发UI。</li>
+<li><em> <a href="/blog/tdd-with-react-jest-and-enzyme-part-two">第二部分</a> </em>:在这一部分，我们将在开始添加基本的计算器功能之前，通过添加数字和操作键来完成UI。</li>
+</ul>
+<p><strong>我们将使用:</strong></p>
+<ol>
+<li>React v17.02</li>
+<li>节点v14.16.1</li>
+</ol>
+<blockquote>
+<p>其他依赖版本<a href="https://github.com/calebpollman/react-calculator/blob/master/package.json">此处</a>。</p>
+</blockquote>
+
+
+
+<h2 id="project-overview">项目概述</h2>
+<p>我们将构建一个由四个UI组件组成的基本计算器应用程序。每个组件都有一组独立的测试，保存在相应的测试文件中。</p>
+<h3 id="what-is-test-driven-development">什么是测试驱动开发？</h3>
+<p>测试驱动开发(TDD)是一种利用短开发周期重复的开发方法，称为<span>红色</span> - <span>绿色</span> - <span>重构</span>。</p>
+<p><strong>流程</strong>:</p>
+<ol>
+<li>添加测试</li>
+<li>运行所有测试，查看新测试是否失败(<span>红色</span>)</li>
+<li>编写通过测试的代码(<span>绿色</span>)</li>
+<li>运行所有测试</li>
+<li><span>重构</span></li>
+<li>重复</li>
+</ol>
+<p><strong>优点</strong>:</p>
+<ol>
+<li>实施前设计</li>
+<li>有助于防止未来的退化和错误</li>
+<li>增加代码按预期工作的信心</li>
+</ol>
+<p><strong>缺点</strong>:</p>
+<ol>
+<li>需要更长的开发时间(但从长远来看可以节省时间)</li>
+<li>测试边缘案例很难</li>
+<li>嘲笑、假装和磕碰都更加困难</li>
+</ol>
+<h3 id="design-process">设计过程</h3>
+<p>想想你对基本计算器的了解...</p>
+<p><strong>从视觉角度来看</strong>，一个基本的计算器:</p>
+<ol>
+<li>可以用每个键(操作键)进行四种运算:加、减、乘、除</li>
+<li>有12个更新显示的键:<code>0</code>到<code>9</code>(数字键)、<code>.</code>(小数)和<code>ce</code>(退格键)</li>
+<li>有一个<code>=</code>(等于)键。</li>
+</ol>
+<p><strong>从功能角度来看</strong>:</p>
+<ol>
+<li>单击数字键时，计算器会更新显示以反映新的显示值。</li>
+<li>单击操作键时，计算器将所选操作符和当前显示值保存到存储器中，然后更新显示。</li>
+<li>当点击提交(或“等于”)键时，计算器获取存储的值、存储的操作符以及显示器的当前值，并基于上述输入创建输出。</li>
+<li>
+<p>最后，根据我们上面确定的内容，我们知道我们将有三种类型的按键和三种不同的功能，分别对应于这些按键类型:</p>
+<table>
+<thead>
+<tr>
+<th>键类型</th>
+<th>函数名</th>
+<th>功能描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数字键</td>
+<td><code>updateDisplay</code></td>
+<td>更新显示值并将其呈现给DOM</td>
+</tr>
+<tr>
+<td>操作员键</td>
+<td><code>setOperator</code></td>
+<td>将选择的运算符保存到组件状态对象</td>
+</tr>
+<tr>
+<td>提交密钥</td>
+<td><code>callOperator</code></td>
+<td>处理数学运算</td>
+</tr>
+</tbody>
+</table>
+</li>
+</ol>
+<p><strong>我们会有这些变量</strong>:</p>
+<ol>
+<li><code>displayValue</code> -要显示的输入或计算值。</li>
+<li><code>numbers</code> -用于数字键的字符串值数组。</li>
+<li><code>operators</code> -用于操作键的字符串值数组。</li>
+<li><code>selectedOperator</code> -保存在存储器中的选定操作。</li>
+<li><code>storedValue</code> -保存在存储器中的输入或计算值。</li>
+</ol>
+<p>至此，我们现在可以考虑我们的React组件了。将有四个与计算器相关的组件:</p>
+<p><img data-src="/static/images/blog/tdd_react/components/component_structure.png" loading="lazy" class="lazyload" alt="component structure" src="../Images/0a40e73eb4b7b01fe28ff6a190a1ddc5.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/components/component_structure.png"/></p>
+<h3 id="calculator-component">计算器组件</h3>
+<p><img data-src="/static/images/blog/tdd_react/components/calculator_component.png" loading="lazy" class="lazyload" alt="calculator component" src="../Images/ecace64ea0f8737ca422151a8f581b6c.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/components/calculator_component.png"/></p>
+<p>这是我们应用程序的主要UI状态组件。它呈现了<code>Display</code>和<code>Keypad</code>组件，包含了所有的应用程序功能以及应用程序的状态。</p>
+<h3 id="display-component">显示组件</h3>
+<p><img data-src="/static/images/blog/tdd_react/components/display_component.png" loading="lazy" class="lazyload" alt="display component" src="../Images/5ec586bf9e1685b5b05d52296c30f9b9.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/components/display_component.png"/></p>
+<p>这是一个无状态组件，它接收一个单独的属性<code>displayValue</code>。</p>
+<h3 id="keypad-component">键盘组件</h3>
+<p><img data-src="/static/images/blog/tdd_react/components/keypad_component.png" loading="lazy" class="lazyload" alt="keypad component" src="../Images/01f2234a0e9021b489b9d803de8d215e.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/components/keypad_component.png"/></p>
+<p>这也是一个无状态组件，包含所有的键。它接收以下道具:</p>
+<ol>
+<li><code>callOperator</code></li>
+<li><code>numbers</code></li>
+<li><code>operators</code></li>
+<li><code>setOperator</code></li>
+<li><code>updateDisplay</code></li>
+</ol>
+<h3 id="key-component">关键组分</h3>
+<p><img data-src="/static/images/blog/tdd_react/components/key_component.png" loading="lazy" class="lazyload" alt="key component" src="../Images/42bb0815e449afee50597a7056fcf190.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/components/key_component.png"/></p>
+<p>最后一个组件也是无状态的，它接收以下属性:</p>
+<ol>
+<li><code>keyAction</code> -与按键类型相关的功能。</li>
+<li><code>keyType</code> -用于确定<code>Key</code>将拥有哪些CSS规则的字符串。</li>
+<li><code>keyValue</code> -用于确定要传递给<code>keyAction</code>函数的值的字符串。</li>
+</ol>
+<h2 id="getting-started">入门指南</h2>
+<h3 id="project-setup">项目设置</h3>
+<p>从克隆初始项目存储库开始:</p>
+<div class="codehilite"><pre><span/><code>$ git clone -b init <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="dbbcb2af9bbcb2afb3aeb9f5b8b4b6">[email protected]</a>:calebpollman/react-calculator.git
+$ <span class="nb">cd</span> react-calculator
+$ npm install
+$ npm start
+</code></pre></div>
+
+<blockquote>
+<p>使用非常有用的<a href="https://github.com/facebook/create-react-app"> Create React App </a>生成器<em>初始化项目回购。</em></p>
+</blockquote>
+<p>一个新的浏览器标签应该打开到<a href="http://localhost:3000"> http://localhost:3000 </a>，DOM的唯一内容是<code>Hello World!</code>。一旦完成就杀死服务器。</p>
+<blockquote>
+<p>因为我们使用TDD来开发UI，所以对视图的更改会很慢。我们将专注于预先编写测试，UI将在整个后期逐步完成。</p>
+</blockquote>
+<h3 id="test-config">测试配置</h3>
+<p>对于测试，我们将使用Create React应用程序附带的全功能测试解决方案<a href="https://facebook.github.io/jest/"> Jest </a>，以及React的一组强大测试实用程序<a href="https://github.com/airbnb/enzyme"> Enzyme </a>。</p>
+<p>添加酶:</p>
+
+
+<p>对于react应用版本15.5或更高版本，Enzyme需要<a href="https://reactjs.org/docs/test-renderer.html"> react-test-renderer </a>:</p>
+<div class="codehilite"><pre><span/><code>$ npm i -D react-test-renderer @wojtekmaj/enzyme-adapter-react-17
+</code></pre></div>
+
+<p>在“src”目录下添加一个名为<em> setupTests.js </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">configure</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'enzyme'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Adapter</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@wojtekmaj/enzyme-adapter-react-17'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">configure</span><span class="p">({</span><span class="w"> </span><span class="nx">adapter</span><span class="o">:</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Adapter</span><span class="p">()</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>Create React App在每次测试前都会运行<em> setupTests.js </em>文件，所以它会执行并正确配置Enzyme。</p>
+<h2 id="configure-font-and-initial-css">配置字体和初始CSS</h2>
+<h3 id="import-application-font">导入应用程序字体</h3>
+<p>对于我们的应用程序字体，我们将使用<code>Orbitron</code>，这是一种为显示器设计的字体，类似于您在技术先进的未来看到的东西，如果未来是1983年的话。我们需要两个权重，<code>regular</code> (400)和<code>bold</code> (700)，我们将从<a href="https://fonts.google.com/specimen/Orbitron?selection.family=Orbitron"> Google Fonts </a>加载字体。导航到“公共”目录中的<em>index.html</em>，并在HTML的<code>head</code>中添加<code>link</code>元素:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"utf-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1, shrink-to-fit=no"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"theme-color"</span> <span class="na">content</span><span class="o">=</span><span class="s">"#000000"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">href</span><span class="o">=</span><span class="s">"https://fonts.googleapis.com/css?family=Orbitron:400,700"</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"shortcut icon"</span> <span class="na">href</span><span class="o">=</span><span class="s">"%PUBLIC_URL%/favicon.png"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Calcultronic 5000<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">noscript</span><span class="p">&gt;</span>
+      You need to enable JavaScript to run this app.
+    <span class="p">&lt;/</span><span class="nt">noscript</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">div</span> <span class="na">id</span><span class="o">=</span><span class="s">"root"</span><span class="p">&gt;&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<h3 id="write-css-variables">编写CSS变量</h3>
+<p>接下来，我们将编写第一个变量和一个基本的<a href="https://meyerweb.com/eric/tools/css/reset/"> CSS重置</a>。因为我们希望变量对应用程序全局可用，所以我们将从<code>:root</code>范围定义它们。定义变量的语法是使用<a href="https://developer.mozilla.org/en-US/docs/Web/CSS/--*" title="Custom Properties">自定义属性符号</a>，每个符号都以<code>--</code>开头，后跟变量名。让我们为应用程序字体编写一个变量，并根据需要继续更新变量。</p>
+<p>导航到<em> index.css </em>文件并添加以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="c">/*</span>
+<span class="c">app variables</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c">/* font */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--main-font</span><span class="p">:</span><span class="w"> </span><span class="s1">'Orbitron'</span><span class="p">,</span><span class="w"> </span><span class="kc">sans-serif</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">app CSS reset</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="nt">body</span><span class="o">,</span><span class="w"> </span><span class="nt">div</span><span class="o">,</span><span class="w"> </span><span class="nt">p</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">margin</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>然后我们需要将CSS导入到我们的应用程序中。在<em> index.js </em>中更新文件顶部的导入语句:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">ReactDOM</span> <span class="kn">from</span> <span class="s1">'react-dom'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="s1">'./index.css'</span><span class="p">;</span>
+
+<span class="n">ReactDOM</span><span class="o">.</span><span class="n">render</span><span class="p">(</span>
+  <span class="o">&lt;</span><span class="n">div</span><span class="o">&gt;</span><span class="n">Hello</span> <span class="n">World</span><span class="err">!</span><span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span><span class="p">,</span>
+  <span class="n">document</span><span class="o">.</span><span class="n">getElementById</span><span class="p">(</span><span class="s1">'root'</span><span class="p">)</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h2 id="app-component">应用程序组件</h2>
+<h3 id="shallow-rendering-tests">浅层渲染测试</h3>
+<p>我们将开始构建每个组件，首先添加一个相应的测试文件，然后使用Enzyme进行浅层渲染测试。</p>
+<p>浅层呈现测试有助于将组件作为一个单元进行测试，并避免间接测试子组件的行为。你可以在<a href="http://airbnb.io/enzyme/docs/api/shallow.html">酵素文档</a>中找到更多关于浅层渲染的信息。</p>
+<h3 id="write-app-shallow-render-test">编写<code>App</code>浅渲染测试</h3>
+<p>首先为<code>App</code>组件添加第一个失败的测试(<span>红色</span>)，然后编写代码让它通过(<span>绿色</span>)。首先，在“src/components/App”中添加一个名为<em> App.spec.js </em>的新spec文件，并添加一个浅层渲染测试:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">shallow</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'enzyme'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./App'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'App'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should render a &lt;div /&gt;'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">App</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>运行测试:</p>
+
+
+<p>一旦测试运行程序启动并运行，您的终端应该如下所示:</p>
+<div class="codehilite"><pre><span/><code> FAIL  src/components/App/App.spec.js
+  App
+    ✕ should render a &lt;div /&gt; <span class="o">(</span>58ms<span class="o">)</span>
+
+  ● App › should render a &lt;div /&gt;
+
+    ReactShallowRenderer render<span class="o">()</span>: Shallow rendering works only with custom components,
+    but the provided element <span class="nb">type</span> was <span class="sb">`</span>object<span class="sb">`</span>.
+
+       <span class="m">5</span> <span class="p">|</span> describe<span class="o">(</span><span class="s1">'App'</span>, <span class="o">()</span> <span class="o">=</span>&gt; <span class="o">{</span>
+       <span class="m">6</span> <span class="p">|</span>   it<span class="o">(</span><span class="s1">'should render a &lt;div /&gt;'</span>, <span class="o">()</span> <span class="o">=</span>&gt; <span class="o">{</span>
+    &gt;  <span class="m">7</span> <span class="p">|</span>     const <span class="nv">wrapper</span> <span class="o">=</span> shallow<span class="o">(</span>&lt;App /&gt;<span class="o">)</span><span class="p">;</span>
+         <span class="p">|</span>                     ^
+       <span class="m">8</span> <span class="p">|</span>     expect<span class="o">(</span>wrapper.find<span class="o">(</span><span class="s1">'div'</span><span class="o">)</span>.length<span class="o">)</span>.toEqual<span class="o">(</span><span class="m">1</span><span class="o">)</span><span class="p">;</span>
+       <span class="m">9</span> <span class="p">|</span>   <span class="o">})</span><span class="p">;</span>
+      <span class="m">10</span> <span class="p">|</span> <span class="o">})</span><span class="p">;</span>
+
+      at ReactShallowRenderer.render <span class="o">(</span>node_modules/react-test-renderer/cjs/react-test-renderer-shallow.development.js:786:15<span class="o">)</span>
+      at fn <span class="o">(</span>node_modules/enzyme-adapter-react-16/src/ReactSixteenAdapter.js:668:53<span class="o">)</span>
+      at withSetStateAllowed <span class="o">(</span>node_modules/enzyme-adapter-utils/src/Utils.js:99:18<span class="o">)</span>
+      at Object.render <span class="o">(</span>node_modules/enzyme-adapter-react-16/src/ReactSixteenAdapter.js:668:18<span class="o">)</span>
+      at new ShallowWrapper <span class="o">(</span>node_modules/enzyme/src/ShallowWrapper.js:397:22<span class="o">)</span>
+      at shallow <span class="o">(</span>node_modules/enzyme/src/shallow.js:10:10<span class="o">)</span>
+      at Object.&lt;anonymous&gt; <span class="o">(</span>src/components/App/App.spec.js:7:21<span class="o">)</span>
+
+  console.error node_modules/react/cjs/react.development.js:167
+    Warning: React.createElement: <span class="nb">type</span> is invalid -- expected a string <span class="o">(</span><span class="k">for</span> built-in components<span class="o">)</span>
+    or a class/function <span class="o">(</span><span class="k">for</span> composite components<span class="o">)</span> but got: object. You likely forgot to <span class="nb">export</span> your
+    component from the file it<span class="err">'</span>s defined <span class="k">in</span>, or you might have mixed up default and named imports.
+
+    Check your code at App.spec.js:7.
+
+Test Suites: <span class="m">1</span> failed, <span class="m">1</span> total
+Tests:       <span class="m">1</span> failed, <span class="m">1</span> total
+Snapshots:   <span class="m">0</span> total
+Time:        <span class="m">1</span>.999s, estimated 2s
+Ran all <span class="nb">test</span> suites.
+</code></pre></div>
+
+<p>测试失败，因为<code>App</code>组件尚未写入。</p>
+<h3 id="create-the-app-component">创建应用程序组件</h3>
+<p>继续通过创建<code>App</code>组件来通过测试。导航到<em> App.jsx </em>并添加以下代码:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">App</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"app-container"</span> <span class="o">/&gt;</span><span class="p">;</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">App</span><span class="p">;</span>
+</code></pre></div>
+
+<p>运行测试:</p>
+
+
+<p>第一个测试现在应该通过了:</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/App/App.spec.js
+  App
+    ✓ should render a &lt;div /&gt; <span class="o">(</span>9ms<span class="o">)</span>
+
+Test Suites: <span class="m">1</span> passed, <span class="m">1</span> total
+Tests:       <span class="m">1</span> passed, <span class="m">1</span> total
+Snapshots:   <span class="m">0</span> total
+Time:        <span class="m">2</span>.369s
+Ran all <span class="nb">test</span> suites related to changed files.
+</code></pre></div>
+
+<blockquote>
+<p>您可能已经注意到，如果您没有退出测试运行程序，它仍然在命令行上运行。只要它在运行，它就会继续监视项目，并在文件发生变化时运行测试。您可以在继续学习本教程时让它运行，也可以退出并在空闲时运行它。</p>
+</blockquote>
+<h3 id="add-app-css">添加应用CSS</h3>
+<p>现在我们的第一个测试已经通过了，让我们给<code>App</code>组件添加一些样式。由于它是应用程序其余部分的包装器，我们将使用它来设置应用程序的窗口大小，并使用<code>flexbox</code>模块将<code>App</code>的内容(即<code>Calculator</code>组件)水平和垂直居中。</p>
+<p>导航到“src/components/App”目录中的<em> App.css </em>并添加以下类:</p>
+<div class="codehilite"><pre><span/><code><span class="p">.</span><span class="nc">app-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">vh</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">vw</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">align-items</span><span class="p">:</span><span class="w"> </span><span class="kc">center</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">display</span><span class="p">:</span><span class="w"> </span><span class="kc">flex</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">justify-content</span><span class="p">:</span><span class="w"> </span><span class="kc">center</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>关于这些CSS属性:</p>
+<ul>
+<li><code>height: 100vh;</code>将应用高度设置为浏览器窗口视图高度的100%。</li>
+<li><code>width: 100vw;</code>将应用程序宽度设置为浏览器窗口视图宽度的100%。</li>
+<li>如果<code>display</code>属性被设置为<code>flex</code>，那么<code>align-items: center;</code>垂直对齐flex-container内部的内容。</li>
+<li><code>display: flex;</code>设置<code>App</code>类使用<code>flexbox</code>模块。</li>
+<li>如果<code>display</code>属性设置为<code>flex</code>，则<code>justify-content: center;</code>水平对齐flex-container内的内容。</li>
+</ul></blockquote>
+
+<p>将CSS导入到<code>App</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="s1">'./App.css'</span><span class="p">;</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="s2">"app-container"</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">;</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">App</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>将<code>App</code>导入<em> index.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">ReactDOM</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react-dom'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./components/App/App'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="s1">'./index.css'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">ReactDOM</span><span class="p">.</span><span class="nx">render</span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">App</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s1">'root'</span><span class="p">)</span><span class="w"/>
+<span class="p">);</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="calculator-component_1">计算器组件</h2>
+<h3 id="check-for-calculator-in-app">检查应用程序中的计算器</h3>
+<p>因为<code>App</code>组件将包含<code>Calculator</code>组件，所以让我们编写一个测试来检查<code>App</code>中是否存在<code>Calculator</code>组件。这个测试将使用<code>containsMatchingElement</code>，一个酶<a href="http://airbnb.io/enzyme/docs/api/ShallowWrapper/containsMatchingElement.html">方法</a>，根据React元素是否匹配渲染树中的元素返回<code>true</code>或<code>false</code>。</p>
+<p>我们还应该重构文件以使用<code>beforeEach</code>，这是Jest中的一个设置方法，用于减少测试中的样板文件。顾名思义，任何放在<code>beforeEach</code>中的代码都会在每个<code>it</code>块之前执行。我们将在<code>beforeEach</code>之外创建<code>wrapper</code>对象，使其可以被测试访问。</p>
+<p>添加测试并重构<em> App.spec.js </em>，确保导入文件顶部的<code>Calculator</code>组件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">shallow</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'enzyme'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./App'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Calculator</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../Calculator/Calculator'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'App'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">App</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should render a &lt;div /&gt;'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should render the Calculator Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">containsMatchingElement</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Calculator</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>该测试将失败，因为<code>Calculator</code>组件不存在:</p>
+<div class="codehilite"><pre><span/><code> FAIL  src/components/App/App.spec.js
+  App
+    ✓ should render a &lt;div /&gt; <span class="o">(</span>9ms<span class="o">)</span>
+    ✕ should render the Calculator Component <span class="o">(</span>7ms<span class="o">)</span>
+
+  ● App › should render the Calculator Component
+
+    expect<span class="o">(</span>received<span class="o">)</span>.toEqual<span class="o">(</span>expected<span class="o">)</span> // deep equality
+
+    Expected: <span class="nb">true</span>
+    Received: <span class="nb">false</span>
+
+      <span class="m">13</span> <span class="p">|</span>
+      <span class="m">14</span> <span class="p">|</span>   it<span class="o">(</span><span class="s1">'should render the Calculator Component'</span>, <span class="o">()</span> <span class="o">=</span>&gt; <span class="o">{</span>
+    &gt; <span class="m">15</span> <span class="p">|</span>     expect<span class="o">(</span>wrapper.containsMatchingElement<span class="o">(</span>&lt;Calculator /&gt;<span class="o">))</span>.toEqual<span class="o">(</span><span class="nb">true</span><span class="o">)</span><span class="p">;</span>
+         <span class="p">|</span>                                                             ^
+      <span class="m">16</span> <span class="p">|</span>   <span class="o">})</span><span class="p">;</span>
+      <span class="m">17</span> <span class="p">|</span> <span class="o">})</span><span class="p">;</span>
+      <span class="m">18</span> <span class="p">|</span>
+
+      at Object.&lt;anonymous&gt; <span class="o">(</span>src/components/App/App.spec.js:15:61<span class="o">)</span>
+
+  console.error node_modules/react/cjs/react.development.js:167
+    Warning: React.createElement: <span class="nb">type</span> is invalid -- expected a string <span class="o">(</span><span class="k">for</span> built-in components<span class="o">)</span>
+    or a class/function <span class="o">(</span><span class="k">for</span> composite components<span class="o">)</span> but got: object. You likely forgot to <span class="nb">export</span> your
+    component from the file it<span class="err">'</span>s defined <span class="k">in</span>, or you might have mixed up default and named imports.
+
+    Check your code at App.spec.js:15.
+
+Test Suites: <span class="m">1</span> failed, <span class="m">1</span> total
+Tests:       <span class="m">1</span> failed, <span class="m">1</span> passed, <span class="m">2</span> total
+Snapshots:   <span class="m">0</span> total
+Time:        <span class="m">2</span>.803s
+Ran all <span class="nb">test</span> suites related to changed files.
+</code></pre></div>
+
+<h3 id="write-calculator-shallow-rendering-test">写计算器浅渲染测试</h3>
+<p>在我们编写通过<code>App › should render the Calculator Component</code>测试的<code>Calculator</code>组件之前，添加<code>Calculator</code>测试文件，并在新的测试文件中设置一个浅层渲染测试，就像我们对<code>App</code>组件所做的那样。</p>
+<p>创建<em> Calculator.spec.js </em>，将浅层渲染测试和<code>beforeEach</code>设置方法添加到文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">shallow</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'enzyme'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Calculator</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./Calculator'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'Calculator'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Calculator</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should render a &lt;div /&gt;'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>该测试将立即失败。</p>
+<h3 id="create-the-calculator-component">创建计算器组件</h3>
+<p>我们的应用程序主要由<em>无状态的</em>组件组成，但是<code>Calculator</code>将是<em>有状态的</em>，所以我们可以利用React的内部应用程序状态。</p>
+<blockquote>
+<p><em>有状态的</em>组件是基于类的，允许我们设置可变的组件状态变量，这些变量可以作为<code>props</code>传递给子组件。</p>
+</blockquote>
+<p>导航到<em> Calculator.jsx </em>并定义初始状态变量和方法，这些在文章的<a href="#project-overview">设计过程</a>部分已经讨论过了:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span><span class="o">,</span> <span class="p">{</span> <span class="n">Component</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+
+<span class="k">class</span> <span class="nc">Calculator</span> <span class="n">extends</span> <span class="n">Component</span> <span class="p">{</span>
+  <span class="n">state</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="o">//</span> <span class="n">value</span> <span class="n">to</span> <span class="n">be</span> <span class="n">displayed</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">Display</span> <span class="o">/&gt;</span>
+    <span class="n">displayValue</span><span class="p">:</span> <span class="s1">'0'</span><span class="p">,</span>
+    <span class="o">//</span> <span class="n">values</span> <span class="n">to</span> <span class="n">be</span> <span class="n">displayed</span> <span class="ow">in</span> <span class="n">number</span> <span class="o">&lt;</span><span class="n">Keys</span> <span class="o">/&gt;</span>
+    <span class="n">numbers</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="o">//</span> <span class="n">values</span> <span class="n">to</span> <span class="n">be</span> <span class="n">displayed</span> <span class="ow">in</span> <span class="n">operator</span> <span class="o">&lt;</span><span class="n">Keys</span> <span class="o">/&gt;</span>
+    <span class="n">operators</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="o">//</span> <span class="n">operator</span> <span class="n">selected</span> <span class="k">for</span> <span class="n">math</span> <span class="n">operation</span>
+    <span class="n">selectedOperator</span><span class="p">:</span> <span class="s1">''</span><span class="p">,</span>
+    <span class="o">//</span> <span class="n">stored</span> <span class="n">value</span> <span class="n">to</span> <span class="n">use</span> <span class="k">for</span> <span class="n">math</span> <span class="n">operation</span>
+    <span class="n">storedValue</span><span class="p">:</span> <span class="s1">''</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="n">callOperator</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">console</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">'call operation'</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">setOperator</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">console</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">'set operation'</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">updateDisplay</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">console</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">'update display'</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">render</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">(</span>
+      <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"calculator-container"</span> <span class="o">/&gt;</span>
+    <span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">Calculator</span><span class="p">;</span>
+</code></pre></div>
+
+<p>这通过了<code>Calculator › should render a &lt;div /&gt;</code>测试，但没有通过<code>App › should render the Calculator Component</code>。为什么？因为<code>App</code>组件还没有更新为包含<code>Calculator</code>组件。让我们现在做那件事。</p>
+<p>在<em> App.jsx </em>中，将代码更新如下:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Calculator</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../Calculator/Calculator'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="s1">'./App.css'</span><span class="p">;</span><span class="w"/>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">div</span><span class="w"> </span><span class="nx">className</span><span class="o">=</span><span class="s2">"app-container"</span><span class="o">&gt;</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">Calculator</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/div&gt;</span><span class="w"/>
+<span class="p">);</span><span class="w"/>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">App</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>随着<code>Calculator</code>组件的创建，所有测试现在都通过了:</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/Calculator/Calculator.spec.js
+ PASS  src/components/App/App.spec.js
+
+Test Suites: <span class="m">2</span> passed, <span class="m">2</span> total
+Tests:       <span class="m">3</span> passed, <span class="m">3</span> total
+Snapshots:   <span class="m">0</span> total
+Time:        <span class="m">2</span>.5s
+Ran all <span class="nb">test</span> suites related to changed files.
+</code></pre></div>
+
+<h3 id="add-snapshot-testing-for-app">为应用程序添加快照测试</h3>
+<p>虽然快照并不是TDD的一部分，因为它们是在组件被写入之后<em>被写入的(想想“<span>绿色</span> - <span>绿色</span> - <span>重构</span>”而不是“<span>红色</span> - <span>绿色</span> - <span>重构</span>”)，但是它们是值得包含在内的，因为它们会迅速提醒您所呈现组件的任何意外变化。最好在</em>完成组件编写后再添加它们<em>。</em></p>
+<p>来自<a href="https://facebook.github.io/jest/docs/en/snapshot-testing.html"> Jest文档</a>:</p>
+<blockquote>
+<p>一个典型的移动应用程序快照测试用例呈现一个UI组件，截取一个屏幕截图，然后将其与测试中存储的参考图像进行比较。如果两个图像不匹配，测试将失败:要么是意外的更改，要么是屏幕截图需要更新到UI组件的新版本。</p>
+</blockquote>
+<p>您将需要为<a href="https://github.com/facebook/jest/issues/7802"> Jest版本24或更高版本</a>使用快照序列化程序。我们将使用<a href="https://github.com/adriantoine/enzyme-to-json">酶转json </a>:</p>
+<div class="codehilite"><pre><span/><code>$ npm i -D enzyme-to-json
+</code></pre></div>
+
+<p>导航到<em> App.spec.js </em>并将<code>toMatchSnapshot</code>添加为文件中的第一个测试，就在<code>beforeEach</code>之后:</p>
+<div class="codehilite"><pre><span/><code><span class="p">...</span><span class="w"/>
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'App'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">App</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should render correctly'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">).</span><span class="nx">toMatchSnapshot</span><span class="p">());</span><span class="w"/>
+<span class="w">  </span><span class="p">...</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>当我们完成每个组件的UI时，我们将添加一个快照测试作为每个<code>spec</code>文件中的第一个测试。这创建了一个模式，将出现在每个<code>spec</code>文件中的通用测试(快照、浅层渲染)放置在组件特定测试之上。</p>
+</blockquote>
+<p>新的快照测试立即通过，并且它将继续通过<em>,直到</em>在那个组件中有一个UI变化。这也为<code>App</code>组件创建了一个“__snapshots__”目录以及一个名为<em> App.spec.js.snap </em>的文件。</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/Calculator/Calculator.spec.js
+ PASS  src/components/App/App.spec.js
+ › <span class="m">1</span> snapshot written.
+
+Snapshot Summary
+ › <span class="m">1</span> snapshot written from <span class="m">1</span> <span class="nb">test</span> suite.
+
+Test Suites: <span class="m">2</span> passed, <span class="m">2</span> total
+Tests:       <span class="m">4</span> passed, <span class="m">4</span> total
+Snapshots:   <span class="m">1</span> written, <span class="m">1</span> total
+Time:        <span class="m">1</span>.642s, estimated 2s
+Ran all <span class="nb">test</span> suites.
+</code></pre></div>
+
+<p>现在我们可以添加<code>Calculator</code>样式了。</p>
+<h3 id="add-calculator-css">添加计算器CSS</h3>
+<p>首先用与<code>Calculator</code>相关的变量更新CSS变量，并添加一个媒体查询。由于应用程序的最小视觉设计，我们只使用一个媒体查询来更新字体大小，并为平板电脑或更小的设备删除<code>Calculator</code>组件周围的边距。</p>
+<p>导航到<em> index.css </em>并更新文件，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="c">/*</span>
+<span class="c">app variables</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c">/* background colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#696969</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--main-font</span><span class="p">:</span><span class="w"> </span><span class="s1">'Orbitron'</span><span class="p">,</span><span class="w"> </span><span class="kc">sans-serif</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">72</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">36</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">media query for tablet or smaller screen</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">@</span><span class="k">media</span><span class="w"> </span><span class="nt">screen</span><span class="w"> </span><span class="nt">and</span><span class="w"> </span><span class="o">(</span><span class="nt">max-width</span><span class="o">:</span><span class="w"> </span><span class="nt">1024px</span><span class="o">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">app CSS reset</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="nt">body</span><span class="o">,</span><span class="w"> </span><span class="nt">div</span><span class="o">,</span><span class="w"> </span><span class="nt">p</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">margin</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>接下来更新<em> Calculator.css </em>中的组件CSS:</p>
+<div class="codehilite"><pre><span/><code><span class="p">.</span><span class="nc">calculator-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">background-color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--calculator-background-color</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--calculator-height</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--calculator-width</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>然后将CSS文件导入到<em> Calculator.jsx </em>的顶部:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="s1">'./Calculator.css'</span><span class="p">;</span>
+</code></pre></div>
+
+<p>我们现在有了第一个呈现到DOM的组件！通过运行应用程序启动浏览器:</p>
+
+
+<p>然后打开你的浏览器(如果还没有自动打开的话)到<a href="http://localhost:3000"> http://localhost:3000 </a>。DOM应该与这个截图匹配:</p>
+<p><img data-src="/static/images/blog/tdd_react/calculator_component_render.png" loading="lazy" class="lazyload" alt="calculator component render" src="../Images/cf1ae150773221a5bdb4f3bd80538fe6.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/calculator_component_render.png"/></p>
+<blockquote>
+<p>现在是停下来回顾我们迄今所做的一切的好时机。也尝试一下CSS。</p>
+</blockquote>
+<h2 id="display-component_1">显示组件</h2>
+<h3 id="check-for-display-in-calculator">检查计算器中的显示</h3>
+<p>因为<code>Calculator</code>组件将包含<code>Display</code>和<code>Keypad</code>组件，下一步是编写一个测试来检查<code>Display</code>组件在<code>Calculator</code>中的存在。</p>
+<p>将测试添加到<em> Calculator.spec.js </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render the Display Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">containsMatchingElement</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Display</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>确保导入文件顶部的<code>Display</code>组件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Display</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../Display/Display'</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>与之前的<code>containsMatchingElement</code>测试一样，它将失败，因为<code>Display</code>组件不存在。</p>
+<p>在我们编写<code>Display</code>组件之前，添加<code>Display</code>测试文件，并在新的测试文件中设置一个浅层渲染测试，就像我们对<code>Calculator</code>组件所做的那样。</p>
+<p>创建，然后导航到<em> Display.spec.js </em>，添加浅层渲染测试以及<code>beforeEach</code>设置方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">shallow</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'enzyme'</span><span class="p">;</span><span class="w"/>
+<span class="k">import</span><span class="w"> </span><span class="nx">Display</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'./Display'</span><span class="p">;</span><span class="w"/>
+
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'Display'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Display</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should render a &lt;div /&gt;'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">).</span><span class="nx">length</span><span class="p">).</span><span class="nx">toEqual</span><span class="p">(</span><span class="mf">1</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>这也将失败，因为<code>Display</code>组件仍然不存在。</p>
+<p>在<em> Display.jsx </em>中添加组件，并在文件顶部导入<code>prop-types</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">PropTypes</span> <span class="kn">from</span> <span class="s1">'prop-types'</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">Display</span> <span class="o">=</span> <span class="p">({</span> <span class="n">displayValue</span> <span class="p">})</span> <span class="o">=&gt;</span> <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"display-container"</span> <span class="o">/&gt;</span><span class="p">;</span>
+
+<span class="n">Display</span><span class="o">.</span><span class="n">propTypes</span> <span class="o">=</span> <span class="p">{</span> <span class="n">displayValue</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">string</span><span class="o">.</span><span class="n">isRequired</span> <span class="p">};</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">Display</span><span class="p">;</span>
+</code></pre></div>
+
+<blockquote>
+<p><a href="https://github.com/facebook/prop-types"> prop-types </a>允许我们记录传递给组件的预期属性类型，并在开发过程中，如果传递给组件的类型与包含在<code>ComponentName.propTypes</code>对象中的props不匹配，抛出警告。</p>
+</blockquote>
+<p>将组件添加到<em> Display.jsx </em>将通过<code>Display</code>浅层渲染测试，但带有一个<code>prop-type</code>警告。尽管如此,<code>Calculator › should render the Display component</code>测试仍然会失败:</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/App/App.spec.js
+ PASS  src/components/Display/Display.spec.js
+  ● Console
+
+    console.error node_modules/prop-types/checkPropTypes.js:20
+      Warning: Failed prop type: The prop <span class="sb">`</span>displayValue<span class="sb">`</span> is marked as required <span class="k">in</span> <span class="sb">`</span>Display<span class="sb">`</span>,
+      but its value is <span class="sb">`</span>undefined<span class="sb">`</span>.
+          <span class="k">in</span> Display <span class="o">(</span>at Display.spec.js:8<span class="o">)</span>
+
+ FAIL  src/components/Calculator/Calculator.spec.js
+  ● Console
+
+    console.error node_modules/prop-types/checkPropTypes.js:20
+      Warning: Failed prop type: The prop <span class="sb">`</span>displayValue<span class="sb">`</span> is marked as required <span class="k">in</span> <span class="sb">`</span>Display<span class="sb">`</span>,
+      but its value is <span class="sb">`</span>undefined<span class="sb">`</span>.
+          <span class="k">in</span> Display <span class="o">(</span>at Calculator.spec.js:16<span class="o">)</span>
+
+  ● Calculator › should render the Display Component
+
+    expect<span class="o">(</span>received<span class="o">)</span>.toEqual<span class="o">(</span>expected<span class="o">)</span> // deep equality
+
+    Expected: <span class="nb">true</span>
+    Received: <span class="nb">false</span>
+
+      <span class="m">14</span> <span class="p">|</span>
+      <span class="m">15</span> <span class="p">|</span>   it<span class="o">(</span><span class="s1">'should render the Display Component'</span>, <span class="o">()</span> <span class="o">=</span>&gt; <span class="o">{</span>
+    &gt; <span class="m">16</span> <span class="p">|</span>     expect<span class="o">(</span>wrapper.containsMatchingElement<span class="o">(</span>&lt;Display /&gt;<span class="o">))</span>.toEqual<span class="o">(</span><span class="nb">true</span><span class="o">)</span><span class="p">;</span>
+         <span class="p">|</span>                                                          ^
+      <span class="m">17</span> <span class="p">|</span>   <span class="o">})</span><span class="p">;</span>
+      <span class="m">18</span> <span class="p">|</span> <span class="o">})</span><span class="p">;</span>
+      <span class="m">19</span> <span class="p">|</span>
+
+      at Object.&lt;anonymous&gt; <span class="o">(</span>src/components/Calculator/Calculator.spec.js:16:58<span class="o">)</span>
+
+Test Suites: <span class="m">1</span> failed, <span class="m">2</span> passed, <span class="m">3</span> total
+Tests:       <span class="m">1</span> failed, <span class="m">5</span> passed, <span class="m">6</span> total
+Snapshots:   <span class="m">1</span> passed, <span class="m">1</span> total
+Time:        <span class="m">2</span>.583s
+</code></pre></div>
+
+<p>我们需要在<em> Calculator.jsx </em>中导入并添加<code>Display</code>组件，然后更新渲染方法，以便我们将<code>displayValue</code>道具传递给<code>Display</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span><span class="o">,</span> <span class="p">{</span> <span class="n">Component</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">Display</span> <span class="kn">from</span> <span class="s1">'../Display/Display'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="s1">'./Calculator.css'</span><span class="p">;</span>
+
+<span class="k">class</span> <span class="nc">Calculator</span> <span class="n">extends</span> <span class="n">Component</span> <span class="p">{</span>
+  <span class="o">...</span>
+  <span class="n">render</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="o">//</span> <span class="n">unpack</span> <span class="n">the</span> <span class="n">component</span> <span class="n">state</span> <span class="n">by</span> <span class="n">using</span> <span class="n">Object</span> <span class="n">Destructuring</span>
+    <span class="n">const</span> <span class="p">{</span> <span class="n">displayValue</span> <span class="p">}</span> <span class="o">=</span> <span class="n">this</span><span class="o">.</span><span class="n">state</span><span class="p">;</span>
+
+    <span class="k">return</span> <span class="p">(</span>
+      <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"calculator-container"</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">Display</span> <span class="n">displayValue</span><span class="o">=</span><span class="p">{</span><span class="n">displayValue</span><span class="p">}</span> <span class="o">/&gt;</span>
+      <span class="o">&lt;/</span><span class="n">div</span><span class="o">&gt;</span>
+    <span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+<span class="o">...</span>
+</code></pre></div>
+
+<p>在<em> Display.spec.js </em>中，使用空字符串作为值，将<code>displayValue</code>属性添加到<code>beforeEach</code>块中:</p>
+<div class="codehilite"><pre><span/><code><span class="p">...</span><span class="w"/>
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'Display'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">wrapper</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">beforeEach</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wrapper</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shallow</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Display</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">=</span><span class="p">{</span><span class="s1">''</span><span class="p">}</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">));</span><span class="w"/>
+<span class="w">  </span><span class="p">...</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+<span class="p">...</span><span class="w"/>
+</code></pre></div>
+
+<p>然后更新<code>Calculator › should render the Display component</code>测试，以说明<code>Display</code>中所需的道具。我们可以通过对<code>wrapper</code>对象使用<code>instance</code>方法来访问<code>Calculator</code>的状态变量和方法。</p>
+<p>在<em> Calculator.spec.js </em>中更新测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render the Display Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">containsMatchingElement</span><span class="p">(</span><span class="w"/>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">Display</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">=</span><span class="p">{</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">instance</span><span class="p">().</span><span class="nx">state</span><span class="p">.</span><span class="nx">displayValue</span><span class="p">}</span><span class="w"> </span><span class="o">/&gt;</span><span class="w"/>
+<span class="w">  </span><span class="p">)).</span><span class="nx">toEqual</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>所有测试都应该通过！</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/Calculator/Calculator.spec.js
+ PASS  src/components/Display/Display.spec.js
+ PASS  src/components/App/App.spec.js
+
+Test Suites: <span class="m">3</span> passed, <span class="m">3</span> total
+Tests:       <span class="m">6</span> passed, <span class="m">6</span> total
+Snapshots:   <span class="m">1</span> passed, <span class="m">1</span> total
+Time:        <span class="m">1</span>.964s, estimated 2s
+Ran all <span class="nb">test</span> suites.
+</code></pre></div>
+
+<h3 id="display-renders-displayvalue">显示渲染显示值</h3>
+<p>接下来，让我们测试实际<code>displayValue</code>的渲染，这样我们的计算器就会显示一些东西。</p>
+<p>首先在<em> Display.spec.js </em>中编写一个测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'renders the value of displayValue'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">setProps</span><span class="p">({</span><span class="w"> </span><span class="nx">displayValue</span><span class="o">:</span><span class="w"> </span><span class="s1">'test'</span><span class="w"> </span><span class="p">});</span><span class="w"/>
+<span class="w">  </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">text</span><span class="p">()).</span><span class="nx">toEqual</span><span class="p">(</span><span class="s1">'test'</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>我们将再次在控制台中进行失败的测试:</p>
+<div class="codehilite"><pre><span/><code> PASS  src/components/App/App.spec.js
+ PASS  src/components/Calculator/Calculator.spec.js
+ FAIL  src/components/Display/Display.spec.js
+  ● Display › renders the value of displayValue
+
+    expect<span class="o">(</span>received<span class="o">)</span>.toEqual<span class="o">(</span>expected<span class="o">)</span> // deep equality
+
+    Expected: <span class="s2">"test"</span>
+    Received: <span class="s2">""</span>
+
+      <span class="m">14</span> <span class="p">|</span>   it<span class="o">(</span><span class="s1">'renders the value of displayValue'</span>, <span class="o">()</span> <span class="o">=</span>&gt; <span class="o">{</span>
+      <span class="m">15</span> <span class="p">|</span>     wrapper.setProps<span class="o">({</span> displayValue: <span class="s1">'test'</span> <span class="o">})</span><span class="p">;</span>
+    &gt; <span class="m">16</span> <span class="p">|</span>     expect<span class="o">(</span>wrapper.text<span class="o">())</span>.toEqual<span class="o">(</span><span class="s1">'test'</span><span class="o">)</span><span class="p">;</span>
+         <span class="p">|</span>                            ^
+      <span class="m">17</span> <span class="p">|</span>   <span class="o">})</span><span class="p">;</span>
+      <span class="m">18</span> <span class="p">|</span> <span class="o">})</span><span class="p">;</span>
+      <span class="m">19</span> <span class="p">|</span>
+
+      at Object.&lt;anonymous&gt; <span class="o">(</span>src/components/Display/Display.spec.js:16:28<span class="o">)</span>
+
+Test Suites: <span class="m">1</span> failed, <span class="m">2</span> passed, <span class="m">3</span> total
+Tests:       <span class="m">1</span> failed, <span class="m">6</span> passed, <span class="m">7</span> total
+Snapshots:   <span class="m">1</span> passed, <span class="m">1</span> total
+Time:        <span class="m">2</span>.489s
+Ran all <span class="nb">test</span> suites.
+</code></pre></div>
+
+<p>我们需要重构<em> Display.jsx </em>来呈现<code>displayValue</code>的值。让我们也添加一些<code>className</code>到我们的HTML元素中，为添加样式做准备:</p>
+<div class="codehilite"><pre><span/><code>...
+const Display = ({ displayValue }) =&gt; (
+  <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"display-container"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;p</span> <span class="na">className=</span><span class="s">"display-value"</span><span class="nt">&gt;</span>
+      {displayValue}
+    <span class="nt">&lt;/p&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+);
+...
+</code></pre></div>
+
+<blockquote>
+<p>注意，我们使用括号来扩展arrow函数的隐式返回功能。</p>
+</blockquote>
+<p>测试和测试套件都应该是绿色的！</p>
+<h3 id="add-snapshot-testing-for-display">为显示添加快照测试</h3>
+<p>完成我们的组件后，我们可以导航到<em> Display.spec.js </em>并将<code>toMatchSnapshot</code>添加为文件中的第一个测试，就在<code>beforeEach</code>之后:</p>
+<div class="codehilite"><pre><span/><code><span class="p">...</span><span class="w"/>
+<span class="nx">describe</span><span class="p">(</span><span class="s1">'Display'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="p">...</span><span class="w"/>
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should render correctly'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">).</span><span class="nx">toMatchSnapshot</span><span class="p">());</span><span class="w"/>
+<span class="w">  </span><span class="p">...</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="add-display-css">添加显示CSS</h3>
+<p>按照我们在前面的组件中使用的添加CSS的相同模式，首先更新<em> index.css </em>中的变量和媒体查询:</p>
+<div class="codehilite"><pre><span/><code><span class="c">/*</span>
+<span class="c">app variables</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="c">/* background colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-background-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#1d1f1f</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--main-font</span><span class="p">:</span><span class="w"> </span><span class="s1">'Orbitron'</span><span class="p">,</span><span class="w"> </span><span class="kc">sans-serif</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font colors */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-color</span><span class="p">:</span><span class="w"> </span><span class="mh">#23e000</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* font weights */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-text-weight</span><span class="p">:</span><span class="w"> </span><span class="mi">400</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">72</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">36</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+
+<span class="w">  </span><span class="c">/* display dimensions */</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-height</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="nv">--display-width</span><span class="p">:</span><span class="w"> </span><span class="mi">92</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">media query for tablet or smaller screen</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="p">@</span><span class="k">media</span><span class="w"> </span><span class="nt">screen</span><span class="w"> </span><span class="nt">and</span><span class="w"> </span><span class="o">(</span><span class="nt">max-width</span><span class="o">:</span><span class="w"> </span><span class="nt">1024px</span><span class="o">)</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="p">:</span><span class="nd">root</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="c">/* font sizes */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--display-text-size</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="kt">em</span><span class="p">;</span><span class="w"/>
+
+<span class="w">    </span><span class="c">/* calculator dimensions */</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-height</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">    </span><span class="nv">--calculator-width</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="p">}</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="c">/*</span>
+<span class="c">app CSS reset</span>
+<span class="c">*/</span><span class="w"/>
+
+<span class="nt">body</span><span class="o">,</span><span class="w"> </span><span class="nt">div</span><span class="o">,</span><span class="w"> </span><span class="nt">p</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">margin</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>然后在<em> Display.css </em>中添加组件CSS:</p>
+<div class="codehilite"><pre><span/><code><span class="p">.</span><span class="nc">display-container</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">align-items</span><span class="p">:</span><span class="w"> </span><span class="kc">center</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">background</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--display-background-color</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">display</span><span class="p">:</span><span class="w"> </span><span class="kc">flex</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">height</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--display-height</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="mi">4</span><span class="kt">%</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">width</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--display-width</span><span class="p">);</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+
+<span class="p">.</span><span class="nc">display-value</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="k">color</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--display-text-color</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">font-size</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--display-text-size</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">font-family</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--main-font</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">font-weight</span><span class="p">:</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="nv">--display-text-weight</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="k">margin-left</span><span class="p">:</span><span class="w"> </span><span class="kc">auto</span><span class="p">;</span><span class="w"/>
+<span class="w">  </span><span class="k">overflow</span><span class="p">:</span><span class="w"> </span><span class="kc">hidden</span><span class="p">;</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>关于这些CSS属性:</p>
+<ul>
+<li><code>margin-left: auto;</code>将元素推到容器的右边缘。</li>
+<li><code>overflow: hidden;</code>指定如果HTML大于容器，溢出将被隐藏。</li>
+</ul></blockquote>
+
+<p>并将CSS文件导入到<em> Display.jsx </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">PropTypes</span> <span class="kn">from</span> <span class="s1">'prop-types'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="s1">'./Display.css'</span><span class="p">;</span>
+<span class="o">...</span>
+</code></pre></div>
+
+<p>现在我们已经完成了<code>Display</code>的CSS，让我们启动浏览器，看看输出！</p>
+
+
+<p>输出应该与该屏幕截图相匹配:</p>
+<p><img data-src="/static/images/blog/tdd_react/display_render.png" loading="lazy" class="lazyload" alt="display render" src="../Images/7cc53970cfc010e5a8bba20f25a5c397.png" data-original-src="https://testdriven.io/static/images/blog/tdd_react/display_render.png"/></p>
+<p><code>Display</code>组件现在呈现在浏览器中，我们准备继续测试和编写<code>Keypad</code>组件。</p>
+<h2 id="keypad-component_1">键盘组件</h2>
+<h3 id="add-keypad-component-and-tests">添加键盘组件和测试</h3>
+<p>现在我们已经构建好了<code>Display</code>组件，我们需要将<code>Keypad</code>组件添加到<code>Calculator</code>中。我们将从在<code>Calculator</code>组件测试中测试它开始。</p>
+<p>在<em> Calculator.spec.js </em>中重构<code>Calculator › should render the Display component</code>测试:</p>
+<div class="codehilite"><pre><span/><code>it('should render the Display and Keypad Components', () =&gt; {
+  expect(wrapper.containsAllMatchingElements([
+    &lt;Display displayValue={wrapper.instance().state.displayValue} /&gt;,
+    &lt;Keypad
+      callOperator={wrapper.instance().callOperator}
+      numbers={wrapper.instance().state.numbers}
+      operators={wrapper.instance().state.operators}
+      setOperator={wrapper.instance().setOperator}
+      updateDisplay={wrapper.instance().updateDisplay}
+    /&gt;
+  ])).toEqual(true);
+});
+</code></pre></div>
+
+<blockquote>
+<p><code>containsAllMatchingElements</code>获取一个元素数组，如果在DOM树中找到了所有元素，则返回<code>true</code>。</p>
+</blockquote>
+<p>确保在<code>Keypad</code>组件中导入:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Keypad</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../Keypad/Keypad'</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>我们的新测试失败了！<code>Keypad</code>组件尚不存在。</p>
+<p>在我们添加组件之前，遵循我们对<code>Display</code>组件使用的模式:</p>
+<ol>
+<li>在“src/components/Keypad”中创建规格文件<em> Keypad.spec.js </em></li>
+<li>添加<code>Keypad</code>浅渲染测试</li>
+</ol>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="p">{</span> <span class="n">shallow</span> <span class="p">}</span> <span class="kn">from</span> <span class="s1">'enzyme'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">Keypad</span> <span class="kn">from</span> <span class="s1">'./Keypad'</span><span class="p">;</span>
+
+<span class="n">describe</span><span class="p">(</span><span class="s1">'Keypad'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="n">let</span> <span class="n">wrapper</span><span class="p">;</span>
+
+  <span class="n">beforeEach</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">wrapper</span> <span class="o">=</span> <span class="n">shallow</span><span class="p">(</span>
+      <span class="o">&lt;</span><span class="n">Keypad</span>
+        <span class="n">callOperator</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+        <span class="n">numbers</span><span class="o">=</span><span class="p">{[]}</span>
+        <span class="n">operators</span><span class="o">=</span><span class="p">{[]}</span>
+        <span class="n">setOperator</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+        <span class="n">updateDisplay</span><span class="o">=</span><span class="p">{</span><span class="n">jest</span><span class="o">.</span><span class="n">fn</span><span class="p">()}</span>
+      <span class="o">/&gt;</span>
+    <span class="p">);</span>
+  <span class="p">});</span>
+
+  <span class="n">it</span><span class="p">(</span><span class="s1">'should render a &lt;div /&gt;'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="n">expect</span><span class="p">(</span><span class="n">wrapper</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">'div'</span><span class="p">)</span><span class="o">.</span><span class="n">length</span><span class="p">)</span><span class="o">.</span><span class="n">toEqual</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+  <span class="p">});</span>
+<span class="p">});</span>
+</code></pre></div>
+
+<blockquote>
+<p>因为我们直接从它的文件中呈现<code>Keypad</code>，所以它不能访问<code>Calculator</code>方法。代替这些方法，我们使用<code>jest.fn()</code>，一个创建模拟函数的Jest函数。更多信息<a href="https://facebook.github.io/jest/docs/en/mock-functions.html">这里</a>。</p>
+</blockquote>
+<p>如果您检查控制台，您应该看到两个测试套件失败。现在将JSX添加到<em> Keypad.jsx </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">React</span> <span class="kn">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kn">import</span> <span class="nn">PropTypes</span> <span class="kn">from</span> <span class="s1">'prop-types'</span><span class="p">;</span>
+
+<span class="n">const</span> <span class="n">Keypad</span> <span class="o">=</span> <span class="p">({</span> <span class="n">callOperator</span><span class="p">,</span> <span class="n">numbers</span><span class="p">,</span> <span class="n">operators</span><span class="p">,</span> <span class="n">setOperator</span><span class="p">,</span> <span class="n">updateDisplay</span> <span class="p">})</span> <span class="o">=&gt;</span>
+  <span class="o">&lt;</span><span class="n">div</span> <span class="n">className</span><span class="o">=</span><span class="s2">"keypad-container"</span> <span class="o">/&gt;</span><span class="p">;</span>
+
+<span class="n">Keypad</span><span class="o">.</span><span class="n">propTypes</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="n">callOperator</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+  <span class="n">numbers</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+  <span class="n">operators</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+  <span class="n">setOperator</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+  <span class="n">updateDisplay</span><span class="p">:</span> <span class="n">PropTypes</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">isRequired</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">export</span> <span class="n">default</span> <span class="n">Keypad</span><span class="p">;</span>
+</code></pre></div>
+
+<p>导入<em> Calculator.jsx </em>中的<code>Keypad</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">import</span><span class="w"> </span><span class="nx">Keypad</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../Keypad/Keypad'</span><span class="p">;</span><span class="w"/>
+</code></pre></div>
+
+<p>然后，将<code>Keypad</code>添加到<code>render</code>方法中，确保从<code>this.state</code>解包<code>numbers</code>和<code>operators</code>的值，并将所有需要的道具传递给<code>Keypad</code>:</p>
+<div class="codehilite"><pre><span/><code>render = () =&gt; {
+  // unpack the component state by using Object Destructuring
+  const { displayValue, numbers, operators } = this.state;
+
+  return (
+    <span class="nt">&lt;div</span> <span class="na">className=</span><span class="s">"calculator-container"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;Display</span> <span class="na">displayValue=</span><span class="s">{displayValue}</span> <span class="nt">/&gt;</span>
+      <span class="nt">&lt;Keypad</span>
+        <span class="na">callOperator=</span><span class="s">{this.callOperator}</span>
+        <span class="na">numbers=</span><span class="s">{numbers}</span>
+        <span class="na">operators=</span><span class="s">{operators}</span>
+        <span class="na">setOperator=</span><span class="s">{this.setOperator}</span>
+        <span class="na">updateDisplay=</span><span class="s">{this.updateDisplay}</span>
+      <span class="nt">/&gt;</span>
+    <span class="nt">&lt;/div&gt;</span>
+  );
+}
+</code></pre></div>
+
+<p>所有测试都应该通过。</p>
+<h3 id="calculator-snapshot">计算器快照</h3>
+<p>添加<code>Calculator</code>快照，现在我们已经完成了组件的UI，就在<em> Calculator.spec.js </em>中的<code>beforeEach</code>下面:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should render correctly'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">expect</span><span class="p">(</span><span class="nx">wrapper</span><span class="p">).</span><span class="nx">toMatchSnapshot</span><span class="p">());</span><span class="w"/>
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code> PASS  src/components/App/App.spec.js
+ PASS  src/components/Keypad/Keypad.spec.js
+ PASS  src/components/Display/Display.spec.js
+ PASS  src/components/Calculator/Calculator.spec.js
+ › <span class="m">1</span> snapshot written.
+
+Snapshot Summary
+ › <span class="m">1</span> snapshot written from <span class="m">1</span> <span class="nb">test</span> suite.
+
+Test Suites: <span class="m">4</span> passed, <span class="m">4</span> total
+Tests:       <span class="m">10</span> passed, <span class="m">10</span> total
+Snapshots:   <span class="m">1</span> written, <span class="m">2</span> passed, <span class="m">3</span> total
+Time:        <span class="m">2</span>.726s
+Ran all <span class="nb">test</span> suites related to changed files.
+</code></pre></div>
+
+<h2 id="next-time">下次</h2>
+<p>我们将在这里休息一下，在下一部分继续，从测试包含在<code>Keypad</code>中的<code>numbers</code>和<code>operators</code>数组中的值的呈现开始。然后我们将继续测试<code>Key</code>组件，继续应用程序事件和功能测试，然后做一些最终的重构。</p>
+<p>如果你想跳过前面，你可以从GitHub上的<a href="https://www.github.com/calebpollman/react-calculator"> react-calculator </a> repo获取最终代码。</p>
+<p>干杯！</p>
+<blockquote>
+<p>part 2<a href="/blog/tdd-with-react-jest-and-enzyme-part-two">可用</a>！</p>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

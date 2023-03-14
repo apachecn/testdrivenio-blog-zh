@@ -1,0 +1,241 @@
+<html>
+<head>
+<title>Django vs. Flask in 2023: Which Framework to Choose </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>2023年Django vs. Flask:选择哪个框架</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-vs-flask/#0001-01-01">https://testdriven.io/blog/django-vs-flask/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>根据<a href="https://lp.jetbrains.com/python-developers-survey-2021/#FrameworksLibraries"> 2021 JetBrains Python开发者调查</a>，Django和Flask是目前最流行的两个Python web框架。虽然Django传统上是最受欢迎的Python web框架，但Flask在几年前超过了Django，占据了头把交椅，考虑到web开发行业在过去七年左右的时间里一直倾向于更小的框架、微服务和“无服务器”平台，这并不奇怪。</p>
+<blockquote>
+<p>或者这可能与行业趋势关系不大，而与JetBrains用户关系更大？</p>
+</blockquote>
+<p>Django和Flask拥有成熟的社区，得到了广泛的支持和欢迎，并提供了高效的应用程序开发方法，让您可以将时间和精力集中在应用程序的独特部分，而不是核心构架上。最后，这两个框架都用于开发web应用程序。关键的区别在于他们如何实现这个目标。把Django想象成一辆汽车，把Flask想象成一辆自行车。两者都可以把你从A点带到B点，但是他们的方法是完全不同的。每种都有自己的最佳用例。姜戈和弗拉斯克也一样。</p>
+<p>在本文中，我们将从教育和开发的角度来看Django和Flask的最佳用例，以及它们的独特之处。</p>
+
+
+
+<h2 id="philosophy">哲学</h2>
+<p>Django和Flask都是免费的、开源的、基于Python的web框架，旨在构建web应用程序。</p>
+<p>与Flask相比，Django支持稳定性以及“包含电池”的方法，即开箱即用地提供大量电池(例如，工具、模式、特性和功能)。在稳定性方面，Django通常有更长、更严格的发布周期。因此，虽然Django版本的新特性较少，但它们往往具有更强的向后兼容性。</p>
+<p>基于<a href="/blog/what-is-werkzeug/"> Werkzeug </a>，Flask很好的处理了核心脚手架。开箱即用，您可以获得URL路由、请求和错误处理、模板、cookies、单元测试支持、调试器和开发服务器。因为大多数web应用程序需要更多的东西(比如ORM、认证和授权等等)，所以您可以决定如何构建您的应用程序。无论是利用第三方扩展还是自己定制代码，Flask都不会干涉。比Django灵活多了。如果你需要打开引擎盖查看源代码，那么暴露在攻击面前的表面区域也少得多，需要审查的<a href="http://www.grokcode.com/864/snakefooding-python-code-for-complexity-visualization/">代码也少得多。</a></p>
+<blockquote>
+<p>我强烈建议你阅读并回顾一下<a href="https://github.com/pallets/flask/tree/main/src/flask"> Flask源代码</a>。干净、清晰、简洁——这是结构良好的Python代码的一个很好的例子。</p>
+</blockquote>
+<h2 id="features">特征</h2>
+<p>接下来，让我们根据核心框架附带的特性来比较Flask和Django。</p>
+<h3 id="database">数据库ˌ资料库</h3>
+<p>Django包括一个简单而强大的ORM(对象关系映射),支持许多现成的关系数据库(T2 ): SQLite、PostgreSQL、MySQL、MariaDB和Oracle。ORM为生成和管理数据库<a href="https://docs.djangoproject.com/en/4.1/topics/migrations/">迁移</a>提供支持。基于数据模型创建表单、视图和模板也相当容易，这对于典型的<a href="https://en.wikipedia.org/wiki/Create,_read,_update_and_delete"> CRUD </a> web应用程序来说是完美的。虽然它确实有一些缺点，但对于大多数网络应用来说已经足够好了。</p>
+<p>Flask没有假设数据是如何存储的，但是有大量的库和扩展可以帮助你:</p>
+
+<p>总之，如果您正在使用关系数据库，Django会让您更容易上手，因为它有一个内置的ORM和迁移管理工具。但是，如果您正在使用非关系数据库，或者想要使用不同的ORM，比如SQLAlchemy，Django几乎会在每一步都与您作对。另外，您很可能无法利用Django管理、模型表单或<a href="https://www.django-rest-framework.org/api-guide/serializers/#modelserializer"> DRF模型序列化程序</a>。</p>
+<p>Flask不碍事，让您可以自由挑选最适合您的应用程序的ORM(或ODM)。不过，自由是有代价的:学习曲线更高，出错的空间也更大，因为你要自己管理这些部分。</p>
+<blockquote>
+<p>你自己做的越多，你犯的错误就越多，尤其是当事情扩大的时候。</p>
+</blockquote>
+<h3 id="auth">作家（author的简写）</h3>
+<p>既然大部分网络应用都需要认证(<em>你是谁？</em>)和授权(<em>你被允许做什么？</em>)，Django提供了这一功能以及账户管理和会话支持(通过<a href="https://docs.djangoproject.com/en/4.1/ref/contrib/auth/">用户模型</a>)。Flask支持基于cookie的会话，但是您必须求助于扩展网络来进行帐户管理、认证和授权。</p>
+
+<h3 id="admin">管理</h3>
+<p>Django附带了一个功能性的<a href="https://docs.djangoproject.com/en/4.1/ref/contrib/admin/">管理面板</a>，这是一个web应用程序，它提供了一个用户界面来管理基于您的模型的数据。这是Django的另一个亮点。它允许您在构建应用程序时快速对模型执行CRUD操作，而无需编写任何额外的代码。再说一次，Flask没有附带这样的东西，但是<a href="https://github.com/flask-admin/flask-admin"> Flask-Admin </a>扩展提供了<a href="https://flask-admin.readthedocs.io/en/latest/advanced/#migrating-from-django">所有相同的功能以及更多的功能</a>:</p>
+<blockquote>
+<p>Django自动做很多事情。</p>
+<p>Flask哲学略有不同——显式比隐式好。如果某个东西应该初始化，那么它应该由开发人员来初始化。</p>
+<p>Flask-Admin遵循这个约定。作为一名开发人员，应该由您来告诉Flask-Admin应该显示什么以及如何显示。</p>
+<p>有时这将需要编写一些样板代码，但将来会有回报，尤其是如果您必须实现一些定制逻辑的话。</p>
+</blockquote>
+<p>Flask-Admin支持一定数量的数据库后端，比如SQLAlchemy、Peewee、MongoEngine等等。你也可以<a href="https://flask-admin.readthedocs.io/en/latest/adding_a_new_model_backend/">添加你自己的后端</a>。它还可以与(或不与)流行的Flask auth扩展一起使用:</p>
+<ol>
+<li><a href="https://flask-login.readthedocs.io/">烧瓶-登录</a>和<a href="https://pythonhosted.org/Flask-Principal/">烧瓶-负责人</a></li>
+<li><a href="https://flask-security-too.readthedocs.io/">烧瓶-安全</a></li>
+</ol>
+<h3 id="routing-and-views">路由和视图</h3>
+<p>这两个框架都允许您将URL映射到视图，并支持基于函数和类的视图。</p>
+<p>姜戈</p>
+<p>当一个请求匹配一个URL模式时，保存HTTP请求信息的请求对象被传递给一个视图，然后这个视图被调用。任何时候你需要访问请求对象，你必须<em>显式地</em>传递它。</p>
+<p>URL和视图分别在单独的文件中定义- <em> urls.py </em>和<em> views.py </em>。</p>
+<ol>
+<li><a href="https://docs.djangoproject.com/en/4.1/topics/http/urls/">路由</a></li>
+<li><a href="https://docs.djangoproject.com/en/4.1/topics/http/views/">视图</a></li>
+<li><a href="https://docs.djangoproject.com/en/4.1/topics/class-based-views/">基于类的视图</a></li>
+<li><a href="https://docs.djangoproject.com/en/4.1/ref/request-response/">请求上下文</a></li>
+<li><a href="https://docs.djangoproject.com/en/4.1/topics/http/urls/#how-django-processes-a-request">Django如何处理请求</a></li>
+</ol>
+<p><strong>烧瓶</strong></p>
+<p>在其核心，Flask使用<a href="https://werkzeug.palletsprojects.com"> Werkzeug </a>，它提供URL路由和请求/响应处理。</p>
+<p>请求对象在Flask中是<em>全局的</em>，所以您可以更容易地访问它(只要您导入它)。URL通常与视图一起定义(通过一个<a href="https://flask.palletsprojects.com/patterns/viewdecorators/">装饰器</a>，但是它们可以被<a href="https://flask.palletsprojects.com/patterns/lazyloading/#converting-to-centralized-url-map">分离出来</a>到一个类似Django模式的集中位置。</p>
+<ol>
+<li><a href="https://flask.palletsprojects.com/api/#url-route-registrations">路由</a></li>
+<li><a href="https://flask.palletsprojects.com/views/#views">视图</a></li>
+<li><a href="https://flask.palletsprojects.com/api/#class-based-views">基于类的视图</a></li>
+<li><a href="https://flask.palletsprojects.com/reqcontext/">请求上下文</a></li>
+</ol>
+<blockquote>
+<p>你注意到Django和Flask处理请求对象的不同了吗？一般来说，Flask倾向于更明确地处理事情，但在这种情况下，情况正好相反:Django强迫你明确地传递请求对象，而Flask的请求对象只是神奇地可用。这是Flask的难点之一，尤其是对于那些来自类似风格框架的新手来说，比如<a href="https://expressjs.com/"> Express.js </a>。</p>
+</blockquote>
+<h3 id="forms">形式</h3>
+<p>表单是大多数web应用程序的另一个重要组成部分，与Django打包在一起。这包括输入处理、客户端和服务器端验证以及各种安全问题的处理，如跨站点请求伪造(CSRF)、跨站点脚本(XSS)和SQL注入。它们可以从数据模型中创建(通过<a href="https://docs.djangoproject.com/en/4.1/topics/forms/modelforms/">模型表单</a>)并与管理面板很好地集成。</p>
+<p>Flask默认不支持表单，但是强大的<a href="https://flask-wtf.readthedocs.io"> Flask-WTF </a>扩展集成了Flask和<a href="https://wtforms.readthedocs.io"> WTForms </a>。<a href="https://wtforms-alchemy.readthedocs.io/en/latest/"> WTForms-Alchemy </a>可以用来自动创建基于SQLAlchemy模型的表单，在表单和ORM之间架起一座桥梁，就像Django的ModelForm一样。</p>
+<h3 id="reusable-components">可重用组件</h3>
+<p>关于项目结构，随着你的应用程序变得越来越复杂，这两个框架都让你很容易通过将相关的文件组合在一起，展示相似的功能来分解它们。因此，例如，您可以将所有与用户相关的功能组合在一起，其中可以包括路由、视图、表单、模板和静态资产。</p>
+<p>Django有一个应用程序的概念，而Flask有T2的蓝图。</p>
+<p>Django应用程序比Flask blueprints更复杂，但是一旦设置好，它们更容易使用和重用。另外，由于<em> urls.py </em>、<em> models.py </em>和<em> views.py </em>约定一致的项目结构！-您可以相当容易地向Django项目添加新的开发人员。与此同时，蓝图更简单，更容易启动和运行。</p>
+<h3 id="templates-and-static-files">模板和静态文件</h3>
+<p>模板引擎允许您从后端动态地将信息注入到HTML页面中。Flask默认使用Jinja2 ，而Django有自己的<a href="https://docs.djangoproject.com/en/4.1/ref/templates/">模板引擎</a>。它们在语法和功能集方面<a href="http://jinja.pocoo.org/docs/switching/#django">非常相似</a>。也可以用Django 搭配<a href="https://docs.djangoproject.com/en/4.1/topics/templates/#django.template.backends.jinja2.Jinja2"> Jinja2。</a></p>
+<p>两个框架都支持静态文件处理:</p>
+<ol>
+<li>姜戈</li>
+<li><a href="https://flask.palletsprojects.com/quickstart/#static-files">烧瓶</a></li>
+</ol>
+<p>Django附带了一个方便的管理命令，用于收集所有静态文件，并将它们放在一个中心位置进行生产部署。</p>
+<h3 id="asynchronous-views">异步视图</h3>
+<p>随着<a href="https://docs.djangoproject.com/en/4.1/releases/3.1/#asynchronous-views-and-middleware-support"> Django 3.1 </a>的引入，Django支持<a href="https://docs.djangoproject.com/en/4.1/topics/async/">异步处理程序</a>。使用关键字<code>async</code>可以使视图异步。异步支持也适用于中间件。如果需要在异步视图中进行同步调用，可以使用<a href="https://docs.djangoproject.com/en/4.1/topics/async/#asgiref.sync.sync_to_async"> sync_to_async </a>函数/装饰器。这可以用来与Django中还不支持异步的其他部分进行交互，比如ORM和缓存层。</p>
+<p>异步web服务器，包括但不限于<a href="https://docs.djangoproject.com/en/4.1/howto/deployment/asgi/daphne/">达芙妮</a>、<a href="https://docs.djangoproject.com/en/4.1/howto/deployment/asgi/hypercorn/"> Hypercorn </a>、<a href="https://docs.djangoproject.com/en/4.1/howto/deployment/asgi/uvicorn/">uvicon</a>，应该与Django一起使用，以充分利用异步视图的能力。</p>
+<p><a href="https://palletsprojects.com/blog/flask-2-0-released/"> Flask 2.0 </a>增加了对<a href="https://flask.palletsprojects.com/en/2.2.x/async-await/">异步</a>路由/视图、错误处理程序、请求函数之前和之后以及拆卸回调的内置支持！</p>
+<blockquote>
+<p>关于Django和Flask中异步视图的更多信息，请分别查阅Django 中的<a href="/blog/django-async-views/">异步视图和Flask 2.0 </a>中的<a href="/blog/flask-async/">异步视图。</a></p>
+</blockquote>
+<h3 id="testing">测试</h3>
+<p>两个框架都有内置的测试支持。</p>
+<p>对于单元测试，它们都利用了Python的<a href="https://docs.python.org/3/library/unittest.html"> unittest </a>框架。它们中的每一个都支持一个测试客户机，您可以向它发送请求，然后检查和验证响应的一部分。</p>
+<p>更多信息，请分别参见<a href="https://flask.palletsprojects.com/testing/">测试烧瓶应用</a>和<a href="https://docs.djangoproject.com/en/4.1/topics/testing/">在Django </a>的测试。</p>
+<p>在扩展方面，如果你喜欢unittest框架的工作方式，请查看<a href="https://pythonhosted.org/Flask-Testing">烧瓶测试</a>。另一方面，<a href="https://github.com/pytest-dev/pytest-flask"> pytest-flask </a>延长件为烧瓶增加了<a href="https://docs.pytest.org"> pytest </a>支架。对于Django，请查看<a href="https://pytest-django.readthedocs.io"> pytest-django </a>。</p>
+<h3 id="other-features">其他功能</h3>
+<p>Django还有几个没有提到的特性，但Flask没有:</p>
+
+<h2 id="security">安全性</h2>
+<p>如前所述，Django内置了针对一些常见攻击媒介的保护，如CSRF、XSS和SQL注入。这些安全措施有助于防止代码中的漏洞。Django开发团队还<a href="https://docs.djangoproject.com/en/dev/internals/security/">主动披露</a>并快速修复已知的安全漏洞。另一方面，Flask的代码库要小得多，因此暴露在攻击面前的空间也更小。然而，当你手工制作的应用程序代码出现安全漏洞时，你需要解决并修复它们。</p>
+<p>归根结底，你的安全取决于你最薄弱的一环。因为Flask更依赖于第三方扩展，所以应用程序的安全性将取决于最不安全的扩展。这给开发团队带来了更大的压力，他们需要通过评估和监控第三方库和扩展来维护安全性。保持它们最新是最重要的(也是最困难的)事情，因为每个扩展都有自己的开发团队、文档和发布周期。在某些情况下，可能只有一两个开发人员维护一个特定的扩展。当评估一个扩展优于另一个扩展时，一定要回顾GitHub的问题，看看维护人员通常需要多长时间来应对关键问题。</p>
+<p>这并不意味着Django天生就比Flask更安全；在应用程序的生命周期中，前期保护和维护更容易。</p>
+<p>资源:</p>
+<ol>
+<li><a href="https://flask.palletsprojects.com/security/">烧瓶安全注意事项</a></li>
+<li><a href="https://docs.djangoproject.com/en/4.1/topics/security/">Django的安全</a></li>
+<li><a href="https://smirnov-am.github.io/securing-flask-web-applications/">保护烧瓶网络应用程序</a></li>
+<li><a href="https://web.archive.org/web/20221002220405/https://hashedin.com/blog/protect-your-django-web-application-from-security-threats/">保护您的Django Web应用免受安全威胁</a></li>
+</ol>
+<h2 id="flexibility">灵活性</h2>
+<p>从设计上来说，Flask比Django灵活得多，而且它应该被<a href="https://flask.palletsprojects.com/extensions/">扩展</a>。因此，Flask通常需要更长的设置时间，因为您必须根据业务需求添加适当的扩展——例如ORM、权限、认证等等。这种前期成本为不符合标准Django模型的应用程序带来了更大的灵活性。</p>
+<p>不过，小心点。灵活性给了开发人员更多的自由和控制，但是这会减慢开发速度，特别是对于大型团队，因为需要做出更多的决策。</p>
+<p>开发人员喜欢自由地做他们想做的任何事情来解决问题。由于Flask没有提供许多关于如何开发应用程序的约束或意见，开发者可以介绍他们自己的。结果是，两个功能上可以互换的Flask应用程序通常会有不同的结构。因此，你需要一个更成熟的团队，理解设计模式、可伸缩性和测试的重要性，来处理这样的灵活性。</p>
+<h2 id="education">教育</h2>
+<p>学习模式，而不是语言或框架。</p>
+<p>不管你的最终目标是学习Flask还是Django，先从Flask开始。这是学习web开发基础和最佳实践以及几乎所有框架都通用的web框架核心部分的一个很好的工具。</p>
+<ol>
+<li>Flask比Django更轻，也更露骨。因此，如果您是web开发的新手，但不熟悉Python，您会发现在Flask中开发要容易得多，因为这感觉就像您在用普通的Python定义请求处理程序和视图等等。</li>
+<li>姜戈开销很大。从项目结构到设置，再到安装一些你一无所知的螺母和螺栓，你会迷失方向，最终学到的更多的是Django本身，而不是实际的基础知识。</li>
+</ol>
+<p>几乎所有情况下，都建议先学Flask再学Django。你唯一应该偏离这一点的时候是当你只需要让一个应用程序快速运行来满足一些外部利益相关者的时候。一定要回到Flask，在某个时候学习基础知识。</p>
+<h2 id="open-source">开放源码</h2>
+<p>Django和Flask有强大的开源社区。</p>
+<p><strong>截至2023年1月30日的GitHub统计:</strong></p>
+<table>
+<thead>
+<tr>
+<th>公制的</th>
+<th>姜戈</th>
+<th><a href="https://github.com/pallets/flask">烧瓶</a></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第一次提交</td>
+<td>2005</td>
+<td>2010</td>
+</tr>
+<tr>
+<td>贡献者</td>
+<td>2,337</td>
+<td>690</td>
+</tr>
+<tr>
+<td>用户*</td>
+<td>1,138,608</td>
+<td>1,290,243</td>
+</tr>
+<tr>
+<td>观察者</td>
+<td>2,264</td>
+<td>2,149</td>
+</tr>
+<tr>
+<td>明星</td>
+<td>68,431</td>
+<td>61,711</td>
+</tr>
+</tbody>
+</table>
+<p><small>*依赖项被其他存储库使用的次数</small></p>
+<p>更多信息，请查看Open Hub的Django和Flask的<a href="https://www.openhub.net/p/_compare?project_0=Django&amp;project_1=Flask">开源比较。</a></p>
+<p><strong>截至2023年1月30日堆栈溢出问题:</strong></p>
+
+<p>--</p>
+<p>我们在这里能得出什么结论？</p>
+<ol>
+<li>两个社区都非常活跃</li>
+<li>Django更老，有更多的贡献者</li>
+<li>Flask被更多的项目使用</li>
+<li>Django上有更多的内容</li>
+</ol>
+<p>要从开源的角度真正比较这些框架(或生态系统)，您必须考虑Jinja2和Werkzeug以及一些核心Flask库和扩展，如SQLAlchemy / Flask-SQLAlchemy、Alembic / Flask-Alembic和WTForms / Flask-WTF。</p>
+<p>由于核心Flask功能分散在多个项目中，社区很难创建和开发跨项目的必要协同来保持势头。例如，Flask没有一个单一的、事实上的扩展来创建RESTful APIs截至2023年1月，有(可以说)四种流行的扩展:</p>
+<ol>
+<li>连接</li>
+<li><a href="https://flask-restful.readthedocs.io">烧瓶-RESTful </a></li>
+<li><a href="http://flask-classful.teracy.org/">烧瓶级</a></li>
+<li><a href="https://flask-restx.readthedocs.io/">烧瓶-RESTX </a></li>
+</ol>
+<p>更重要的是，为了找到这些扩展，你需要有相当扎实的信息检索技能。您必须过滤掉所有未维护的扩展以及引用它们的文章。事实上，RESTful APIs有如此多不同的扩展项目，以至于开发自己的开源项目通常更容易。在这一点上，你可能会保持一段时间，但最终它会成为问题的一部分，而不是一个解决方案。</p>
+<p>注意事项:</p>
+<ol>
+<li>这不是对Flask社区的抨击。这在整个开源中是一个问题，特别是在微型web框架中，您经常不得不拼凑由不同开发人员在不同发布周期维护的大量项目，这些项目具有不同的文档质量水平。如果您想看到这一点的极致，请前往JavaScript社区。</li>
+<li>Django社区也不能幸免。这只是一个小问题，因为它几乎处理了构建和保护开箱即用的标准web应用程序所需的一切。</li>
+</ol>
+<p>关于这篇综述的更多信息，请参见Django vs Flask的“开源动力”部分:实践者的视角:</p>
+<blockquote>
+<p>由于没有统一战线，跨推广的协同努力的机会无法实现，从而产生了漏洞百出的推广。这就让开发人员去填补那些已经在工作的全包功能的空白，如果他们只是选择了一个不同的工具来完成这项工作。</p>
+</blockquote>
+<h2 id="hiring">雇用</h2>
+<p>尽管Python和Django都很受欢迎，但很难雇佣Django开发人员。他们很难找到和留住，因为他们的需求很高，而且他们通常更高端，所以他们可能相当昂贵。也没有很多新的、有抱负的web开发人员学习Django，因为这个行业更关注较小的框架，而框架本身很难学习。</p>
+<ol>
+<li><strong>行业趋势</strong>:由于微服务的兴起，有抱负的web开发人员通常会学习更小、更轻量级的框架。此外，由于客户端JavaScript框架Angular、React和Vue的流行，越来越多的web开发人员选择JavaScript而不是Python或Ruby作为他们的第一语言。</li>
+<li>难以学习:令人惊讶的是，缺乏适合初学者的Django教程。即使是Django文档，它非常全面，还有臭名昭著的<a href="https://docs.djangoproject.com/en/4.1/intro/tutorial01/">民意测验教程</a>也不是为初学者设计的。</li>
+</ol>
+<p>Flask也很难租到，但它比Django容易，因为它是一个轻量级框架，抽象层更少。一个在不同语言的类似框架中有经验的优秀开发者，比如<a href="https://expressjs.com/"> Express.js </a>或<a href="http://sinatrarb.com/"> Sinatra </a>，可以很快熟悉Flask应用。当雇佣这样的开发人员时，把你的搜索重点放在那些理解设计模式和基本软件原则的人身上，而不是他们知道的语言或框架。</p>
+<h2 id="use-cases">用例</h2>
+<p>当你决定一个框架时，一定要考虑到你的项目的个人需求。由于Django提供了许多额外的功能，您应该好好利用它们。如果你对姜戈处理事情的方式有强烈的不同意见，你可以选择弗拉斯克。如果您不想利用Django提供的结构和工具，也可以这么说。</p>
+<p>让我们看一些例子。</p>
+<h3 id="database_1">数据库ˌ资料库</h3>
+<p>如果您的应用程序使用SQLite、PostgreSQL、MySQL、MariaDB或Oracle，您应该仔细研究一下Django。另一方面，如果您使用NoSQL或者根本没有数据库，那么Flask是一个可靠的选择。</p>
+<h3 id="project-size-and-anticipated-lifetime">项目规模和预期寿命</h3>
+<p>Flask更适合于较小的、不太复杂的项目，这些项目有明确的范围和较短的预期生命周期。</p>
+<p>因为Django强制使用一致的应用程序结构，而不管项目的大小，几乎所有的Django项目都有相似的结构。因此，Django可以更好地处理更大的项目(更大的团队),这些项目具有更长的生命周期和更大的增长潜力，因为你很可能会不时地雇佣新的开发人员。</p>
+<h3 id="application-type">应用类型</h3>
+<p>您正在构建什么样的应用程序？</p>
+<p>Django擅长用服务器端模板创建全功能的web应用程序。如果您只是开发一个静态网站或RESTful web服务来支持您的SPA或移动应用程序，Flask是一个可靠的选择。Django结合Django REST框架在后一种情况下也能很好地工作。</p>
+<h3 id="restful-apis">RESTful APIs</h3>
+<p>设计RESTful API？</p>
+<p><a href="https://www.django-rest-framework.org/"> Django REST框架</a> (DRF)，最流行的<a href="https://djangopackages.org/">第三方Django包</a>之一，是一个用于通过RESTful接口公开Django模型的框架。它提供了您需要的一切(视图、序列化器、验证、授权)和更多(可浏览API、版本控制、缓存)来快速轻松地构建API。也就是说，请记住，与Django ORM一样，它也是为了与关系数据库相结合。</p>
+<p>Flask也有许多很好的扩展:</p>
+
+<p>一定要看看<a href="https://connexion.readthedocs.io">连接</a>，它将视图、序列化和验证功能组合到一个包中！</p>
+<p>--</p>
+<p>回顾一下<a href="https://softwareengineering.stackexchange.com/a/188358">这个</a>堆栈交换答案，了解您在选择框架时可能需要考虑的许多其他需求。</p>
+<h2 id="performance">表演</h2>
+<p>Flask的性能稍好，因为它更小，层数更少。不过，这里的差别可以忽略不计，尤其是当你考虑I/O的时候。</p>
+<h2 id="conclusion">结论</h2>
+<p>那么，您应该使用哪个框架呢？一如既往，视情况而定。选择使用一种框架或语言或工具，几乎完全取决于当前的环境和问题。</p>
+<p>Django功能齐全，因此您或您的团队需要做的决策更少。那样你可能会走得更快。但是，如果您不同意Django为您做出的选择之一，或者您有独特的应用程序需求，这限制了您可以利用的特性的数量，那么您可能希望使用Flask。</p>
+<p>总会有权衡和妥协。</p>
+<p>考虑项目限制，如时间、知识和预算。你的应用有哪些关键特性？什么是你不能妥协的？你需要快速行动吗？你的应用需要很大的灵活性吗？回答这些问题时，尽量把你的意见放在一边。</p>
+<p>最终，这两个框架都降低了构建web应用程序的门槛，使它们的开发变得更加容易和快捷。</p>
+<p>我希望这有所帮助。要了解更多信息，请查看以下两个优秀资源:</p>
+<ol>
+<li>Django vs Flask:一个实践者的视角</li>
+<li><a href="https://kite.com/blog/python/flask-vs-django-python"> Flask vs. Django:选择你的Python Web框架</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

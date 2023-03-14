@@ -1,0 +1,590 @@
+<html>
+<head>
+<title>What is Werkzeug? </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>什么是工具？</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/what-is-werkzeug/#0001-01-01">https://testdriven.io/blog/what-is-werkzeug/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>这篇文章解释了什么是Werkzeug T1，以及T2 Flask T3如何使用它来实现核心的HTTP功能。在这个过程中，您将使用Werkzeug开发自己的WSGI兼容应用程序，以创建类似Flask的web框架！</p>
+<blockquote>
+<p>本文假设您之前有使用Flask的经验。如果您有兴趣了解有关Flask的更多信息，请查看我关于如何构建、测试和部署Flask应用程序的课程:</p>
+<p><a href="/courses/learn-flask/">用Python和Flask开发Web应用</a></p>
+</blockquote>
+
+
+
+<h2 id="flask-dependencies">烧瓶相关性</h2>
+<p>您可能已经注意到了，但是每次安装Flask时，您也会安装以下依赖项:</p>
+<ol>
+<li><a href="https://click.palletsprojects.com/">点击</a></li>
+<li>其危险性</li>
+<li><a href="https://jinja.palletsprojects.com//">金佳</a></li>
+<li><a href="https://markupsafe.palletsprojects.com/"> MarkupSafe </a></li>
+<li>工具</li>
+</ol>
+<p>Flask是所有这些东西的包装。</p>
+<div class="codehilite"><pre><span/><code>$ pip install Flask
+$ pip freeze
+
+<span class="nv">click</span><span class="o">==</span><span class="m">7</span>.1.2
+<span class="nv">Flask</span><span class="o">==</span><span class="m">1</span>.1.2
+<span class="nv">itsdangerous</span><span class="o">==</span><span class="m">1</span>.1.0
+<span class="nv">Jinja2</span><span class="o">==</span><span class="m">2</span>.11.3
+<span class="nv">MarkupSafe</span><span class="o">==</span><span class="m">1</span>.1.1
+<span class="nv">Werkzeug</span><span class="o">==</span><span class="m">1</span>.0.1  <span class="c1"># !!!</span>
+</code></pre></div>
+
+<h2 id="what-is-werkzeug">什么是工具？</h2>
+<p>Werkzeug是一个库集合，可用于在Python中创建WSGI (Web服务器网关接口)兼容的Web应用程序。</p>
+<blockquote>
+<p>WSGI (Web服务器网关接口)服务器是Python web应用程序所必需的，因为Web服务器不能直接与Python通信。WSGI是web服务器和基于Python的web应用程序之间的接口。</p>
+</blockquote>
+<p>换句话说，Werkzeug提供了一组实用程序来创建可以与WSGI服务器对话的Python应用程序，如<a href="https://gunicorn.org"> Gunicorn </a>。</p>
+<blockquote>
+<p>想了解更多关于WSGI的知识吗？</p>
+<p>看看<a href="https://www.quora.com/What-is-Gunicorn-in-Python/answer/Michael-Herman-3">‘Python中的Gunicorn是什么？’</a>看看<a href="https://testdriven.io/courses/python-web-framework/wsgi/">构建Python Web框架</a>课程。</p>
+</blockquote>
+<p>Werkzeug提供以下功能(<em>哪个烧瓶使用</em>):</p>
+<ol>
+<li>请求处理</li>
+<li>响应处理</li>
+<li>URL路由</li>
+<li>中间件</li>
+<li>HTTP实用程序</li>
+<li>异常处理</li>
+</ol>
+<p>它还提供了一个具有热重装功能的基本开发服务器。</p>
+<p>让我们深入一个使用Werkzeug构建web应用程序的例子。我们还将看看Flask如何实现类似的功能。</p>
+<h2 id="hello-world-app">Hello World应用程序</h2>
+<p>作为对Werkzeug的介绍，让我们首先使用Werkzeug提供的一些关键功能创建一个“Hello World”应用程序。</p>
+<blockquote>
+<p>您可以在GitLab上找到本文讨论的项目的源代码:<a href="https://gitlab.com/patkennedy79/werkzeug_movie_app">https://gitlab.com/patkennedy79/werkzeug_movie_app</a>。</p>
+</blockquote>
+<h3 id="installation">装置</h3>
+<p>首先创建一个新项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir werkzeug_movie_app
+$ <span class="nb">cd</span> werkzeug_movie_app
+$ python3 -m venv venv
+$ <span class="nb">source</span> venv/bin/activate
+<span class="o">(</span>venv<span class="o">)</span>$
+</code></pre></div>
+
+<p>安装工具，Jinja，和<a href="https://redis-py.readthedocs.io/">redis py</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install Werkzeug Jinja2 redis
+<span class="o">(</span>venv<span class="o">)</span>$ pip freeze &gt; requirements.txt
+</code></pre></div>
+
+<p><a href="https://redis.io"> Redis </a>将作为存储电影数据的数据存储解决方案。</p>
+<h3 id="application">应用</h3>
+<p>Werkzeug是用于构建兼容WSGI的web应用程序的库集合。它没有提供像<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L103"> <code>Flask</code> </a>这样的高级类来搭建完整的web应用程序。相反，您需要自己从Werkzeug的库中创建应用程序。</p>
+<p>在项目的顶层文件夹中创建一个新的<em> app.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">werkzeug.wrappers</span> <span class="kn">import</span> <span class="n">Request</span><span class="p">,</span> <span class="n">Response</span>
+
+
+<span class="k">class</span> <span class="nc">MovieApp</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">"""Implements a WSGI application for managing your favorite movies."""</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">dispatch_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="sd">"""Dispatches the request."""</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s1">'Hello World!'</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">wsgi_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">):</span>
+        <span class="sd">"""WSGI application that processes requests and returns responses."""</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="n">Request</span><span class="p">(</span><span class="n">environ</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dispatch_request</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span><span class="p">(</span><span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">):</span>
+        <span class="sd">"""The WSGI server calls this method as the WSGI application."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">wsgi_app</span><span class="p">(</span><span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+    <span class="sd">"""Application factory function that returns an instance of MovieApp."""</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">MovieApp</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<p><code>MovieApp</code>类实现了一个兼容WSGI的web应用程序，该应用程序处理来自不同用户的请求，并向用户返回响应。下面是这个类如何与WSGI服务器交互的流程:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_flow_diagram.png" loading="lazy" class="lazyload" alt="Werkzeug Flow Diagram" src="../Images/e1f788edc9e190e464c5d51fa0d96c15.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_flow_diagram.png"/></p>
+<p>当一个请求进来时，它在<code>wsgi_app()</code>中被处理:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">wsgi_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">):</span>
+    <span class="sd">"""WSGI application that processes requests and returns responses."""</span>
+    <span class="n">request</span> <span class="o">=</span> <span class="n">Request</span><span class="p">(</span><span class="n">environ</span><span class="p">)</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dispatch_request</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">response</span><span class="p">(</span><span class="n">environ</span><span class="p">,</span> <span class="n">start_response</span><span class="p">)</span>
+</code></pre></div>
+
+<p>环境(<code>environ</code>)在<code>Request</code>类中被自动处理以创建一个<code>request</code>对象。然后<code>request</code>在<code>dispatch_request()</code>进行处理。对于这个初始示例，<code>dispatch_request()</code>返回一个响应“Hello World！”。然后从<code>wsgi_app()</code>返回响应。</p>
+<blockquote>
+<p>烧瓶比较:</p>
+<p><code>MovieApp</code>是<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L103"> <code>Flask</code> </a>类的简化版。</p>
+<p>在<code>Flask</code>类中，<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L2417"> <code>wsgi_app()</code> </a>是与WSGI服务器接口的实际WSGI应用程序。此外，<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L1914"> <code>dispatch_request()</code> </a>和<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L1938"> <code>full_dispatch_request()</code> </a>用于执行请求分派，将URL匹配到适用的视图函数并处理异常。</p>
+</blockquote>
+<h3 id="development-server">开发服务器</h3>
+<p>将以下代码添加到<em> app.py </em>的底部，以运行Werkzeug开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="c1"># Run the Werkzeug development server to serve the WSGI application (MovieApp)</span>
+    <span class="kn">from</span> <span class="nn">werkzeug.serving</span> <span class="kn">import</span> <span class="n">run_simple</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">()</span>
+    <span class="n">run_simple</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">,</span> <span class="mi">5000</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">use_debugger</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">use_reloader</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>运行应用程序:</p>
+
+
+<p>导航到<a href="http://localhost:5000"> http://localhost:5000 </a>查看“Hello World！”消息。</p>
+<blockquote>
+<p>烧瓶比较:</p>
+<p>在<code>Flask</code>类中，有一个等价的利用Werkzeug开发服务器的<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L889"> <code>run()</code> </a>方法。</p>
+</blockquote>
+<h2 id="middleware-for-serving-static-files">用于服务静态文件的中间件</h2>
+<p>在web应用程序中，中间件是一个软件组件，可以添加到请求/响应处理管道中以执行特定的功能。</p>
+<p>web服务器/应用程序要执行的一个重要功能是提供静态文件(CSS、JavaScript和图像文件)。Werkzeug为这个功能提供了一个名为<a href="https://github.com/pallets/werkzeug/blob/1.0.1/src/werkzeug/middleware/shared_data.py#L32"> <code>SharedDataMiddleware</code> </a>的中间件。</p>
+<p><code>SharedDataMiddleware</code>非常适合与Werkzeug开发服务器一起工作来提供静态文件。</p>
+<blockquote>
+<p>对于生产环境，您可能希望将Werkzeug开发服务器和<code>SharedDataMiddleware</code>切换为web服务器，如<a href="https://www.nginx.com"> Nginx </a>和WSGI服务器，如Gunicorn。</p>
+</blockquote>
+<p>要使用<code>SharedDataMiddleware</code>，首先将一个名为“static”的新文件夹添加到带有“css”和“img”文件夹的项目中:</p>
+<div class="codehilite"><pre><span/><code>├── app.py
+├── requirements.txt
+└── static
+    ├── css
+    └── img
+</code></pre></div>
+
+<p>在“static/img”文件夹内，添加来自<a href="https://gitlab.com/patkennedy79/werkzeug_movie_app/-/blob/main/static/img/flask.png">https://git lab . com/patkennedy 79/werkzeug _ movie _ app/-/blob/main/static/img/Flask . png</a>的烧瓶标志。保存为flask.png的<em/>。</p>
+<p>接下来，扩展应用程序工厂功能:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+    <span class="sd">"""Application factory function that returns an instance of MovieApp."""</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">MovieApp</span><span class="p">()</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">SharedDataMiddleware</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'/static'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s1">'static'</span><span class="p">)</span>
+    <span class="p">})</span>
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<p>更新顶部的导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">werkzeug.middleware.shared_data</span> <span class="kn">import</span> <span class="n">SharedDataMiddleware</span>
+<span class="kn">from</span> <span class="nn">werkzeug.wrappers</span> <span class="kn">import</span> <span class="n">Request</span><span class="p">,</span> <span class="n">Response</span>
+</code></pre></div>
+
+<p>现在，当Werkzeug应用程序(<code>app</code>)处理一个请求时，它将首先被路由到<code>SharedDataMiddleware</code>以确定是否请求了一个静态文件:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_middleware_diagram.png" loading="lazy" class="lazyload" alt="Werkzeug Middleware Diagram" src="../Images/3342b8beb47c8b2e9ee7eea0635fa054.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_middleware_diagram.png"/></p>
+<p>如果请求静态文件，<code>SharedDataMiddleware</code>将生成静态文件的响应。否则，请求将被传递到Werkzeug应用程序，在<code>wsgi_app()</code>中进行处理。</p>
+<p>要查看<code>SharedDataMiddleware</code>的运行，运行服务器并导航到<a href="http://localhost:5000/static/img/flask.png">http://localhost:5000/static/img/flask . png</a>查看Flask徽标。</p>
+<p>要获得Werkzeug提供的中间件解决方案的完整列表，请查看<a href="https://werkzeug.palletsprojects.com/en/1.0.x/middleware/">中间件</a>文档。</p>
+<blockquote>
+<p>烧瓶比较:</p>
+<p>烧瓶不使用<code>SharedDataMiddleware</code>。它采用不同的方法来提供静态文件。默认情况下，如果静态文件夹<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L597">存在</a>，Flask会自动<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L601">添加一个新的URL规则</a>来提供静态文件。</p>
+<p>为了说明这个概念，在Flask应用程序的顶层项目中运行<code>flask routes</code>,您将看到:</p>
+<div class="codehilite"><pre><span/><span class="o">(</span>venv<span class="o">)</span>$ flask routes
+
+Endpoint     Methods  Rule
+-----------  -------  -----------------------
+index        GET      /
+static       GET      /static/&lt;path:filename&gt;
+</pre></div></blockquote>
+
+<h2 id="templates">模板</h2>
+<p>正如Flask项目中通常所做的那样，我们将使用Jinja作为我们应用程序的模板引擎。</p>
+<p>首先向项目中添加一个名为“templates”的新文件夹:</p>
+<div class="codehilite"><pre><span/><code>├── app.py
+├── requirements.txt
+├── static
+│   ├── css
+│   └── img
+│       └── flask.png
+└── templates
+</code></pre></div>
+
+<p>为了利用Jinja，扩展<code>MovieApp</code>类的构造函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">"""Initializes the Jinja templating engine to render from the 'templates' folder."""</span>
+    <span class="n">template_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s1">'templates'</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">jinja_env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">loader</span><span class="o">=</span><span class="n">FileSystemLoader</span><span class="p">(</span><span class="n">template_path</span><span class="p">),</span>
+                                 <span class="n">autoescape</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">jinja2</span> <span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
+</code></pre></div>
+
+<blockquote>
+<p>烧瓶比较:</p>
+<p>Flask也利用Jinja <a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/templating.py#L36"> <code>Environment</code> </a>来创建模板引擎。</p>
+</blockquote>
+<p>在<code>MovieApp</code>类中，添加一个新的<code>render_template()</code>方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">render_template</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">template_name</span><span class="p">,</span> <span class="o">**</span><span class="n">context</span><span class="p">):</span>
+    <span class="sd">"""Renders the specified template file using the Jinja templating engine."""</span>
+    <span class="n">template</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jinja_env</span><span class="o">.</span><span class="n">get_template</span><span class="p">(</span><span class="n">template_name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">template</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">context</span><span class="p">),</span> <span class="n">mimetype</span><span class="o">=</span><span class="s1">'text/html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>该方法将<code>template_name</code>和任何变量传递给模板引擎(<code>**context</code>)。然后它使用Jinja的<code>render()</code>方法生成一个<code>Response</code>。</p>
+<blockquote>
+<p>烧瓶比较:</p>
+<p><code>render_template()</code>函数看起来不眼熟吗？烧瓶<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/templating.py#L125">风味</a>是烧瓶中使用最多的功能之一。</p>
+</blockquote>
+<p>要查看<code>render_template()</code>的运行情况，请更新<code>dispatch_request()</code>以呈现模板:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">dispatch_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="sd">"""Dispatches the request."""</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_template</span><span class="p">(</span><span class="s1">'base.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>对应用程序的所有请求现在都将呈现<em>模板/base.html </em>模板。</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"UTF-8"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Werkzeug Movie App<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+
+    <span class="cm">&lt;!-- CSS file for styling the application --&gt;</span>
+    <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"/static/css/style.css"</span> <span class="na">type</span><span class="o">=</span><span class="s">"text/css"</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Werkzeug Movie App<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+    {% block body %}
+    {% endblock %}
+<span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>确保将此模板添加到“templates”文件夹中，并保存一份<a href="https://gitlab.com/patkennedy79/werkzeug_movie_app/-/blob/main/static/css/style.css">https://git lab . com/patkennedy 79/werkzeug _ movie _ app/-/blob/main/static/CSS/style . CSS</a>到<em> static/css/style.css </em>的副本。</p>
+<p>运行服务器。导航到<a href="http://localhost:5000"> http://localhost:5000 </a>。您现在应该看到:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_routing_homepage.png" loading="lazy" class="lazyload" alt="Werkzeug Routing Example - Homepage" src="../Images/99677d0c328a2b8c7393d60601e6f5ff.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_routing_homepage.png"/></p>
+<h2 id="routing">按指定路线发送</h2>
+<p>路由意味着将URL与适当的视图功能相匹配。Werkzeug提供了一个<a href="https://werkzeug.palletsprojects.com/en/1.0.x/routing/#werkzeug.routing.Map"> <code>Map</code> </a>类，允许你使用<a href="https://werkzeug.palletsprojects.com/en/1.0.x/routing/#werkzeug.routing.Rule"> <code>Rule</code> </a>对象匹配URL来查看函数。</p>
+<p>让我们在<code>MovieApp</code>构造函数中创建<code>Map</code>对象来说明这是如何工作的:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">"""Initializes the Jinja templating engine to render from the 'templates' folder."""</span>
+    <span class="n">template_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s1">'templates'</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">jinja_env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">loader</span><span class="o">=</span><span class="n">FileSystemLoader</span><span class="p">(</span><span class="n">template_path</span><span class="p">),</span>
+                                 <span class="n">autoescape</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">url_map</span> <span class="o">=</span> <span class="n">Map</span><span class="p">([</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'index'</span><span class="p">),</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/movies'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'movies'</span><span class="p">),</span>
+    <span class="p">])</span>
+</code></pre></div>
+
+<p>不要忘记重要的一点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">werkzeug.routing</span> <span class="kn">import</span> <span class="n">Map</span><span class="p">,</span> <span class="n">Rule</span>
+</code></pre></div>
+
+<p>每个<code>Rule</code>对象定义一个URL和一个视图函数(<code>endpoint</code>)，如果URL匹配，则调用该函数:</p>
+<div class="codehilite"><pre><span/><code>    <span class="bp">self</span><span class="o">.</span><span class="n">url_map</span> <span class="o">=</span> <span class="n">Map</span><span class="p">([</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'index'</span><span class="p">),</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/movies'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'movies'</span><span class="p">),</span>
+    <span class="p">])</span>
+</code></pre></div>
+
+<p>比如请求主页('/')时，要调用<code>index</code>视图函数。</p>
+<blockquote>
+<p>烧瓶比较:</p>
+<p>Flask的一个令人惊奇的特性是<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L1288"> <code>@route</code>装饰器</a>，它被用来给一个视图函数分配一个URL。这个装饰器<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L1278">为Flask应用程序更新了<code>url_map</code> </a>，类似于我们上面定义的手工编码的<code>url_map</code>。</p>
+</blockquote>
+<p>为了利用URL映射，需要更新<code>dispatch_request()</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">dispatch_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="sd">"""Dispatches the request."""</span>
+    <span class="n">adapter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">url_map</span><span class="o">.</span><span class="n">bind_to_environ</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">environ</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">endpoint</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="n">adapter</span><span class="o">.</span><span class="n">match</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">)(</span><span class="n">request</span><span class="p">,</span> <span class="o">**</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">HTTPException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">e</span>
+</code></pre></div>
+
+<p>现在，当一个请求进入<code>dispatch_request()</code>时，<code>url_map</code>将被用来尝试<code>match()</code>一个条目的URL。如果请求的URL包含在<code>url_map</code>中，那么将调用适用的查看功能(<code>endpoint</code>)。如果在<code>url_map</code>中没有找到该URL，则引发异常。</p>
+<blockquote>
+<p>异常处理将很快被介绍！</p>
+</blockquote>
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">werkzeug.exceptions</span> <span class="kn">import</span> <span class="n">HTTPException</span>
+</code></pre></div>
+
+<p>我们已经在<code>url_map</code>中指定了两个视图函数，所以现在让我们在<code>MovieApp</code>类中创建它们:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_template</span><span class="p">(</span><span class="s1">'base.html'</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">movies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_template</span><span class="p">(</span><span class="s1">'movies.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>虽然<em> templates/base.html </em>已在前一部分创建，但现在需要创建<em> templates/movies.html </em>:</p>
+<div class="codehilite"><pre><span/><code>{% extends "base.html" %}
+
+{% block body %}
+<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"table-container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">table</span><span class="p">&gt;</span>
+        <span class="cm">&lt;!-- Table Header --&gt;</span>
+        <span class="p">&lt;</span><span class="nt">thead</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;</span>Index<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;</span>Movie Title<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">thead</span><span class="p">&gt;</span>
+
+        <span class="cm">&lt;!-- Table Elements (Rows) --&gt;</span>
+        <span class="p">&lt;</span><span class="nt">tbody</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>1<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>Knives Out<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>2<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>Pirates of the Caribbean<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>3<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>Inside Man<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">tbody</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">table</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<p>这个模板文件利用模板继承来使用<em>base.html</em>作为父模板。它生成一个包含三部电影的表格。</p>
+<p><a href="http://localhost:5000"> http://localhost:5000 </a>看起来应该是一样的:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_routing_homepage.png" loading="lazy" class="lazyload" alt="Werkzeug Routing Example - Homepage" src="../Images/99677d0c328a2b8c7393d60601e6f5ff.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_routing_homepage.png"/></p>
+<p>但是，如果您导航到<a href="http://localhost:5000/movies">http://localhost:5000/movies</a>，您现在会看到电影列表:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_routing_movies.png" loading="lazy" class="lazyload" alt="Werkzeug Routing Example - List of Movies" src="../Images/359a18f568ea1e4bec65e7826d6390d7.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_routing_movies.png"/></p>
+<h2 id="exception-handling">异常处理</h2>
+<p>尝试导航到<a href="http://localhost:5000/movies2">http://localhost:5000/movies 2</a>:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_exception_invalid_url.png" loading="lazy" class="lazyload" alt="Werkzeug Exception Handling Example - Invalid URL" src="../Images/eee3f69df0d0de77d3bfcdf284b37b9e.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_exception_invalid_url.png"/></p>
+<p>当在<code>url_map</code>中没有找到URL时，返回的页面是默认的错误页面:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">dispatch_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="sd">"""Dispatches the request."""</span>
+    <span class="n">adapter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">url_map</span><span class="o">.</span><span class="n">bind_to_environ</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">environ</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">endpoint</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="n">adapter</span><span class="o">.</span><span class="n">match</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">)(</span><span class="n">request</span><span class="p">,</span> <span class="o">**</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">HTTPException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">e</span>
+</code></pre></div>
+
+<p>此外，您应该在控制台中看到以下内容:</p>
+<div class="codehilite"><pre><span/><code><span class="m">127</span>.0.0.1 - - <span class="o">[</span><span class="m">07</span>/Mar/2021 <span class="m">12</span>:13:17<span class="o">]</span> <span class="s2">"GET /movies2 HTTP/1.1"</span> <span class="m">404</span> -
+</code></pre></div>
+
+<p>让我们通过展开<code>dispatch_request()</code>来创建一个定制的错误页面:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">dispatch_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="sd">"""Dispatches the request."""</span>
+    <span class="n">adapter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">url_map</span><span class="o">.</span><span class="n">bind_to_environ</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">environ</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">endpoint</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="n">adapter</span><span class="o">.</span><span class="n">match</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">)(</span><span class="n">request</span><span class="p">,</span> <span class="o">**</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">NotFound</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">error_404</span><span class="p">()</span>
+    <span class="k">except</span> <span class="n">HTTPException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">e</span>
+</code></pre></div>
+
+<p>更新导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">werkzeug.exceptions</span> <span class="kn">import</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">NotFound</span>
+</code></pre></div>
+
+<p>现在，当在<code>url_map</code>中没有找到URL时，将通过调用<code>error_404()</code>来处理它。在<code>MovieApp</code>类中创建这个新方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">error_404</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_template</span><span class="p">(</span><span class="s2">"404.html"</span><span class="p">)</span>
+    <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="mi">404</span>
+    <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+<p>创建<em>模板/404.html </em>:</p>
+<div class="codehilite"><pre><span/><code>{% extends "base.html" %}
+
+{% block body %}
+<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"error-description"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">h2</span><span class="p">&gt;</span>Page Not Found (404)<span class="p">&lt;/</span><span class="nt">h2</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">h4</span><span class="p">&gt;</span>What you were looking for is just not there!<span class="p">&lt;/</span><span class="nt">h4</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">h4</span><span class="p">&gt;&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">"/"</span><span class="p">&gt;</span>Werkzeug Movie App<span class="p">&lt;/</span><span class="nt">a</span><span class="p">&gt;&lt;/</span><span class="nt">h4</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<p>现在，当您导航到<a href="http://localhost:5000/movies2">http://localhost:5000/movies 2</a>时，您应该会看到一条友好的消息:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_exception_handling.png" loading="lazy" class="lazyload" alt="Werkzeug Exception Handling Example - Custom Error Page" src="../Images/d15fdfc6c71d823c4fb9767f019fcb91.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_exception_handling.png"/></p>
+<blockquote>
+<p>烧瓶比较:</p>
+<p>当<code>Flask</code>类中的<code>full_dispatch_request()</code>检测到异常时，会在<a href="https://github.com/pallets/flask/blob/1.1.2/src/flask/app.py#L1781"> <code>handle_user_exceptions()</code> </a>中优雅地处理。Flask还允许为所有HTTP错误代码定制错误页面。</p>
+</blockquote>
+<h2 id="request-processing">请求处理</h2>
+<p>在本节中，我们将向应用程序添加一个表单，允许用户输入他们最喜欢的电影。</p>
+<h3 id="redis">雷迪斯</h3>
+<p>如前所述，我们将使用Redis(一种内存中的数据结构存储)来保存电影，因为它的读/写速度快，易于设置。</p>
+<p><a href="https://redis.io/download">安装</a>并运行Redis。</p>
+<blockquote>
+<p>启动和运行Redis的最快方法是使用Docker:</p>
+<div class="codehilite"><pre><span/>$ docker run --name some-redis -d -p <span class="m">6379</span>:6379 redis
+</pre></div>
+<p>要检查Redis容器是否正在运行:</p>
+
+<p>要停止正在运行的Redis容器:</p>
+<div class="codehilite"><pre><span/>$ docker stop some-redis  # Use name of Docker container</pre></div>
+
+<p>如果您不是Docker用户，请查看以下资源:</p>
+</blockquote>
+
+<p>为了利用Redis，首先更新<code>MovieApp</code>构造函数来创建<code>StrictRedis</code>的实例:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>  <span class="c1"># Updated!!</span>
+    <span class="sd">"""Initializes the Jinja templating engine to render from the 'templates' folder,</span>
+<span class="sd">    defines the mapping of URLs to view methods, and initializes the Redis interface."""</span>
+    <span class="n">template_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s1">'templates'</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">jinja_env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">loader</span><span class="o">=</span><span class="n">FileSystemLoader</span><span class="p">(</span><span class="n">template_path</span><span class="p">),</span>
+                                 <span class="n">autoescape</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">url_map</span> <span class="o">=</span> <span class="n">Map</span><span class="p">([</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'index'</span><span class="p">),</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/movies'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'movies'</span><span class="p">),</span>
+    <span class="p">])</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">redis</span> <span class="o">=</span> <span class="n">StrictRedis</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">'redis_host'</span><span class="p">],</span> <span class="n">config</span><span class="p">[</span><span class="s1">'redis_port'</span><span class="p">],</span>
+                             <span class="n">decode_responses</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># New!!</span>
+</code></pre></div>
+
+<p>此外，构造函数(<code>__init__()</code>)还有一个额外的参数(<code>config</code>)，用于创建<code>StrictRedis</code>的实例。</p>
+<p>导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">redis</span> <span class="kn">import</span> <span class="n">StrictRedis</span>
+</code></pre></div>
+
+<p>传递给构造函数的配置参数需要在应用程序工厂函数中指定:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+    <span class="sd">"""Application factory function that returns an instance of MovieApp."""</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">MovieApp</span><span class="p">({</span><span class="s1">'redis_host'</span><span class="p">:</span> <span class="s1">'localhost'</span><span class="p">,</span> <span class="s1">'redis_port'</span><span class="p">:</span> <span class="mi">6379</span><span class="p">})</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">SharedDataMiddleware</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'/static'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s1">'static'</span><span class="p">)</span>
+    <span class="p">})</span>
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<h2 id="form-processing">表单处理</h2>
+<p>为了允许用户向Redis存储器添加电影，我们需要在<code>url_map</code>中添加一个新的查看功能:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+    <span class="sd">"""Initializes the Jinja templating engine to render from the 'templates' folder,</span>
+<span class="sd">    defines the mapping of URLs to view methods, and initializes the Redis interface."""</span>
+
+    <span class="o">...</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">url_map</span> <span class="o">=</span> <span class="n">Map</span><span class="p">([</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'index'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">]),</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/movies'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'movies'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">]),</span>
+        <span class="n">Rule</span><span class="p">(</span><span class="s1">'/add'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'add_movie'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">]),</span>  <span class="c1"># !!!</span>
+    <span class="p">])</span>
+
+    <span class="o">...</span>
+</code></pre></div>
+
+<p><code>url_map</code>中的<code>Rule</code>条目已经扩展为指定每个URL允许的HTTP方法。此外，还添加了“/add”URL:</p>
+<div class="codehilite"><pre><span/><code><span class="n">Rule</span><span class="p">(</span><span class="s1">'/add'</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="s1">'add_movie'</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'GET'</span><span class="p">,</span> <span class="s1">'POST'</span><span class="p">]),</span>
+</code></pre></div>
+
+<p>如果用GET或POST方法请求“/add”URL，那么将调用<code>add_movie()</code>视图函数。</p>
+<p>接下来，我们需要在<code>MovieApp</code>类中创建<code>add_movie()</code>视图函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">add_movie</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="sd">"""Adds a movie to the list of favorite movies."""</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">'POST'</span><span class="p">:</span>
+        <span class="n">movie_title</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">'title'</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">redis</span><span class="o">.</span><span class="n">lpush</span><span class="p">(</span><span class="s1">'movies'</span><span class="p">,</span> <span class="n">movie_title</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="s1">'/movies'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_template</span><span class="p">(</span><span class="s1">'add_movie.html'</span><span class="p">)</span>
+</code></pre></div>
+
+<p>导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">werkzeug.utils</span> <span class="kn">import</span> <span class="n">redirect</span>
+</code></pre></div>
+
+<p>如果对'/add '发出GET请求，那么<code>add_movie()</code>将呈现<em>模板/add_movie.html </em>文件。如果向“/add”发出POST请求，那么表单数据将存储在Redis存储器的<code>movies</code>列表中，用户将被重定向到电影列表。</p>
+<p>创建<em>模板/add_movie.html </em>模板文件:</p>
+<div class="codehilite"><pre><span/><code>{% extends "base.html" %}
+
+{% block body %}
+<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"form-container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">form</span> <span class="na">method</span><span class="o">=</span><span class="s">"post"</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"field"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">label</span> <span class="na">for</span><span class="o">=</span><span class="s">"movieTitle"</span><span class="p">&gt;</span>Movie Title:<span class="p">&lt;/</span><span class="nt">label</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">input</span> <span class="na">type</span><span class="o">=</span><span class="s">"text"</span> <span class="na">id</span><span class="o">=</span><span class="s">"movieTitle"</span> <span class="na">name</span><span class="o">=</span><span class="s">"title"</span><span class="p">/&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"field"</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span><span class="p">&gt;</span>Submit<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">form</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<h3 id="display-movies">显示电影</h3>
+<p>因为我们现在将电影存储在Redis中，所以需要更新<code>movie()</code>视图函数来读取Redis中的<code>movies</code>列表:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">movies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="sd">"""Displays the list of favorite movies."""</span>
+    <span class="n">movies</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">redis</span><span class="o">.</span><span class="n">lrange</span><span class="p">(</span><span class="s1">'movies'</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_template</span><span class="p">(</span><span class="s1">'movies.html'</span><span class="p">,</span> <span class="n">movies</span><span class="o">=</span><span class="n">movies</span><span class="p">)</span>
+</code></pre></div>
+
+<p>电影列表将被传递到<em> templates/movies.html </em>模板文件，该文件需要更新以遍历该列表来创建电影表:</p>
+<div class="codehilite"><pre><span/><code>{% extends "base.html" %}
+
+{% block body %}
+<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"table-container"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">table</span><span class="p">&gt;</span>
+        <span class="cm">&lt;!-- Table Header --&gt;</span>
+        <span class="p">&lt;</span><span class="nt">thead</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;</span>Index<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">th</span><span class="p">&gt;</span>Movie Title<span class="p">&lt;/</span><span class="nt">th</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+        <span class="p">&lt;/</span><span class="nt">thead</span><span class="p">&gt;</span>
+
+        <span class="cm">&lt;!-- Table Elements (Rows) --&gt;</span>
+        <span class="p">&lt;</span><span class="nt">tbody</span><span class="p">&gt;</span>
+            {% for movie in movies %}
+            <span class="p">&lt;</span><span class="nt">tr</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ loop.index }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+                <span class="p">&lt;</span><span class="nt">td</span><span class="p">&gt;</span>{{ movie }}<span class="p">&lt;/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;/</span><span class="nt">tr</span><span class="p">&gt;</span>
+            {% endfor %}
+        <span class="p">&lt;/</span><span class="nt">tbody</span><span class="p">&gt;</span>
+    <span class="p">&lt;/</span><span class="nt">table</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+{% endblock %}
+</code></pre></div>
+
+<p>要查看表单处理的效果，首先导航到<a href="http://localhost:5000/add">http://localhost:5000/add</a>并添加一个新电影:</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_request_processing1.png" loading="lazy" class="lazyload" alt="Werkzeug Request Processing Example" src="../Images/d0bd3469d3c93b8ae2a48ef2150b1050.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_request_processing1.png"/></p>
+<p>提交表单后，您应该会被自动重定向到电影列表(可能包括以前添加的电影):</p>
+<p><img data-src="/static/images/blog/werkzeug/werkzeug_request_processing2.png" loading="lazy" class="lazyload" alt="Processing Example - List of Movies" src="../Images/bd0765ff7a0101a5c9b836c40e8fe4ea.png" data-original-src="https://testdriven.io/static/images/blog/werkzeug/werkzeug_request_processing2.png"/></p>
+<p>就是这样！</p>
+<h2 id="why-not-use-werkzeug-instead-of-flask">为什么不用Werkzeug代替Flask？</h2>
+<p>Werkzeug提供了Flask中的许多关键功能，但是Flask增加了许多强大的特性，例如:</p>
+<ol>
+<li>会议</li>
+<li>应用程序和请求上下文</li>
+<li>蓝图</li>
+<li>请求回调函数</li>
+<li>公用事业:<ol>
+<li><code>@route</code>装饰工</li>
+<li><code>url_for()</code>功能</li>
+</ol>
+</li>
+<li>CLI命令</li>
+<li>异常处理</li>
+<li>测试客户端</li>
+<li>烧瓶外壳</li>
+<li>记录</li>
+<li>信号</li>
+<li>扩展ˌ扩张</li>
+</ol>
+<p>与任何web框架一样——不要重新发明轮子！Flask是web开发的一个更好的选择(与Werkzeug相比),因为它有丰富的特性集和大量的扩展。</p>
+<h2 id="conclusion">结论</h2>
+<p>本文通过展示如何使用Werkzeug构建一个简单的web应用程序，概述了Werkzeug，它是Flask的关键组件之一。虽然理解Flask中底层库的工作方式很重要，但是使用Werkzeug创建web应用程序的复杂性应该说明使用Flask开发web应用程序是多么容易！</p>
+<p>此外，如果您有兴趣了解如何测试Werkzeug应用程序，请查看Werkzeug电影应用程序的测试:<a href="https://gitlab.com/patkennedy79/werkzeug_movie_app/-/tree/main/tests">https://git lab . com/patkennedy 79/Werkzeug _ Movie _ App/-/tree/main/tests</a>。</p>
+<p>如果你想了解更多关于Flask的知识，一定要看看我的课程- <a href="/courses/learn-flask/">用Python和Flask开发Web应用</a>。</p>
+<p>干杯！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

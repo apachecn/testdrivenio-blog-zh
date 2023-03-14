@@ -1,0 +1,529 @@
+<html>
+<head>
+<title>Django and Pydantic </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>姜戈和迂腐</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-and-pydantic/#0001-01-01">https://testdriven.io/blog/django-and-pydantic/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本文中，我们将看看如何使用<a href="https://github.com/jordaneremieff/pydantic-django"> Pydantic-Django </a>和<a href="https://github.com/vitalik/django-ninja"> Django Ninja </a>包将<a href="https://pydantic-docs.helpmanual.io/"> Pydantic </a>与<a href="https://www.djangoproject.com/"> Django </a>应用程序集成。</p>
+
+
+
+<h2 id="pydantic">Pydantic</h2>
+<p>Pydantic是一个基于Python类型提示的用于数据验证和设置管理的Python包。它在运行时强制执行类型提示，提供用户友好的错误，允许自定义数据类型，并且与许多流行的ide配合良好。它非常快，也很容易使用！</p>
+<p>让我们看一个例子:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+
+<span class="k">class</span> <span class="nc">Song</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+<p>这里，我们定义了一个具有两个属性的<code>Song</code>模型，这两个属性都是必需的:</p>
+<ol>
+<li><code>id</code>是一个整数</li>
+<li><code>name</code>是字符串</li>
+</ol>
+<p>然后在初始化时进行验证:</p>
+<div class="codehilite"><pre><span/><code><span class="o">&gt;&gt;&gt;</span> <span class="n">song</span> <span class="o">=</span> <span class="n">Song</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'I can almost see you'</span><span class="p">)</span>
+<span class="o">&gt;&gt;</span> <span class="n">song</span><span class="o">.</span><span class="n">name</span>
+<span class="s1">'I can almost see you'</span>
+
+<span class="o">&gt;&gt;</span> <span class="n">Song</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s1">'1'</span><span class="p">)</span>
+<span class="n">pydantic</span><span class="o">.</span><span class="n">error_wrappers</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">:</span> <span class="mi">1</span> <span class="n">validation</span> <span class="n">error</span> <span class="k">for</span> <span class="n">Song</span>
+<span class="n">name</span>
+  <span class="n">field</span> <span class="n">required</span> <span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="n">value_error</span><span class="o">.</span><span class="n">missing</span><span class="p">)</span>
+
+<span class="o">&gt;&gt;&gt;</span> <span class="n">Song</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s1">'foo'</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'I can almost see you'</span><span class="p">)</span>
+<span class="n">pydantic</span><span class="o">.</span><span class="n">error_wrappers</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">:</span> <span class="mi">1</span> <span class="n">validation</span> <span class="n">error</span> <span class="k">for</span> <span class="n">Song</span>
+<span class="nb">id</span>
+  <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">a</span> <span class="n">valid</span> <span class="n">integer</span> <span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="n">type_error</span><span class="o">.</span><span class="n">integer</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>要了解更多关于Pydantic的信息，请务必阅读官方文档中的<a href="https://pydantic-docs.helpmanual.io/">概述</a>页面。</p>
+</blockquote>
+<h2 id="pydantic-and-django">Pydantic和Django</h2>
+<p>当与Django结合使用时，我们可以使用Pydantic来确保在我们的应用程序中只使用与定义的<a href="https://pydantic-docs.helpmanual.io/usage/schema/">模式</a>相匹配的数据。因此，我们将定义验证请求和响应的模式，当验证错误发生时，我们将简单地返回一条用户友好的错误消息。</p>
+<p>虽然您可以在没有任何第三方包的情况下将Pydantic与Django集成在一起，但是我们将利用以下包来简化这个过程:</p>
+<ol>
+<li><a href="https://github.com/jordaneremieff/pydantic-django"> Pydantic-Django </a> -为验证模型数据添加Pydantic支持</li>
+<li>Django Ninja——除了Pydantic，这个包还提供了许多额外的功能，比如自动生成的API文档(通过<a href="https://swagger.io/specification/"> OpenAPI </a>和<a href="https://json-schema.org/"> JSON模式</a>)、序列化和API版本控制</li>
+</ol>
+<blockquote>
+<p>《姜戈忍者》受到了<a href="https://fastapi.tiangolo.com/"> FastAPI </a>的极大启发<a href="https://django-ninja.rest-framework.com/motivation/">。如果您喜欢FastAPI，但仍然想利用Django提供的大部分功能，请查看一下。</a></p>
+</blockquote>
+<h2 id="pydantic-django">Pydantic-Django</h2>
+<p>现在您已经对Pydantic有了一个基本的概念，让我们看一个实际的例子。我们将使用Django和Pydantic-Django创建一个简单的RESTful API，它允许我们获取、列出和创建文章。</p>
+<h3 id="basic-setup">基本设置</h3>
+<p>首先建立一个新的Django项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-with-pydantic <span class="o">&amp;&amp;</span> <span class="nb">cd</span> django-with-pydantic
+$ python3.9 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">django</span><span class="o">==</span><span class="m">3</span>.1.5
+<span class="o">(</span>env<span class="o">)</span>$ django-admin.py startproject core .
+</code></pre></div>
+
+<p>之后，创建一个名为<code>blog</code>的新应用:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py startapp blog
+</code></pre></div>
+
+<p>在<code>INSTALLED_APPS</code>下的<em> core/settings.py </em>中注册app:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'blog.apps.BlogConfig'</span><span class="p">,</span> <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="create-database-models">创建数据库模型</h3>
+<p>接下来，让我们创建一个<code>Article</code>模型。</p>
+<p>将以下内容添加到<em> blog/models.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/models.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">author</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">created</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">username</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s1">'</span>
+</code></pre></div>
+
+<p>创建然后应用迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>在<em> blog/admin.py </em>中注册模型，这样就可以从Django管理面板访问它:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/admin.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+
+<span class="kn">from</span> <span class="nn">blog.models</span> <span class="kn">import</span> <span class="n">Article</span>
+
+
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Article</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="install-pydantic-django-and-create-the-schemas">安装Pydantic-Django并创建模式</h3>
+<p>安装Pydantic和Pydantic-Django:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">pydantic</span><span class="o">==</span><span class="m">1</span>.7.3 pydantic-django<span class="o">==</span><span class="m">0</span>.0.7
+</code></pre></div>
+
+<p>现在，我们可以定义一个模式，它将用于-</p>
+<ol>
+<li>验证来自请求负载的字段，然后使用数据创建新的模型对象</li>
+<li>检索和验证响应对象的模型对象</li>
+</ol>
+<p>创建一个名为<em> blog/schemas.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/schemas.py</span>
+
+<span class="kn">from</span> <span class="nn">pydantic_django</span> <span class="kn">import</span> <span class="n">ModelSchema</span>
+
+<span class="kn">from</span> <span class="nn">blog.models</span> <span class="kn">import</span> <span class="n">Article</span>
+
+
+<span class="k">class</span> <span class="nc">ArticleSchema</span><span class="p">(</span><span class="n">ModelSchema</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Article</span>
+</code></pre></div>
+
+<p>这是最简单的可能模式，它来自我们的模型。</p>
+<blockquote>
+<p>Django模型需要在模式之前加载<em>，因此模式必须位于一个单独的文件中，以避免模型加载错误。</em></p>
+</blockquote>
+<p>使用模式，您还可以通过将<code>exclude</code>或<code>include</code>传递给<code>Config</code>来定义特定模型中应该包含和不应该包含哪些字段。例如，排除<code>author</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">ArticleSchema</span><span class="p">(</span><span class="n">ModelSchema</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Article</span>
+        <span class="n">exclude</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'author'</span><span class="p">]</span>
+
+<span class="c1"># or</span>
+
+<span class="k">class</span> <span class="nc">ArticleSchema</span><span class="p">(</span><span class="n">ModelSchema</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Article</span>
+        <span class="n">include</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'created'</span><span class="p">,</span> <span class="s1">'title'</span><span class="p">,</span> <span class="s1">'content'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>您还可以通过更改模式中的字段来使用模式覆盖Django模型属性。例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">ArticleSchema</span><span class="p">(</span><span class="n">ModelSchema</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Article</span>
+</code></pre></div>
+
+<h3 id="views-and-urls">视图和URL</h3>
+<p>接下来，让我们设置以下端点:</p>
+<ol>
+<li><code>/blog/articles/create/</code>创建新文章</li>
+<li>获取一篇文章</li>
+<li><code>/blog/articles/</code>列出所有文章</li>
+</ol>
+<p>将以下视图添加到<em> blog/views.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/views.py</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">JsonResponse</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.csrf</span> <span class="kn">import</span> <span class="n">csrf_exempt</span>
+<span class="kn">from</span> <span class="nn">django.views.decorators.http</span> <span class="kn">import</span> <span class="n">require_http_methods</span>
+
+<span class="kn">from</span> <span class="nn">blog.models</span> <span class="kn">import</span> <span class="n">Article</span>
+<span class="kn">from</span> <span class="nn">blog.schemas</span> <span class="kn">import</span> <span class="n">ArticleSchema</span>
+
+
+<span class="nd">@csrf_exempt</span>  <span class="c1"># testing purposes; you should always pass your CSRF token with your POST requests (+ authentication)</span>
+<span class="nd">@require_http_methods</span><span class="p">(</span><span class="s1">'POST'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">create_article</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">json_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+
+        <span class="c1"># fetch the user and pass it to schema</span>
+        <span class="n">author</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'author'</span><span class="p">])</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">ArticleSchema</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">author</span><span class="o">=</span><span class="n">author</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'title'</span><span class="p">],</span>
+            <span class="n">content</span><span class="o">=</span><span class="n">json_data</span><span class="p">[</span><span class="s1">'content'</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span>
+            <span class="s1">'article'</span><span class="p">:</span> <span class="n">schema</span><span class="o">.</span><span class="n">dict</span><span class="p">()</span>
+        <span class="p">})</span>
+    <span class="k">except</span> <span class="n">User</span><span class="o">.</span><span class="n">DoesNotExist</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'detail'</span><span class="p">:</span> <span class="s1">'Cannot find a user with this id.'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">404</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">article_id</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">article</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">ArticleSchema</span><span class="o">.</span><span class="n">from_django</span><span class="p">(</span><span class="n">article</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span>
+            <span class="s1">'article'</span><span class="p">:</span> <span class="n">schema</span><span class="o">.</span><span class="n">dict</span><span class="p">()</span>
+        <span class="p">})</span>
+    <span class="k">except</span> <span class="n">Article</span><span class="o">.</span><span class="n">DoesNotExist</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'detail'</span><span class="p">:</span> <span class="s1">'Cannot find an article with this id.'</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">404</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_all_articles</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">articles</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">article</span> <span class="ow">in</span> <span class="n">articles</span><span class="p">:</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">ArticleSchema</span><span class="o">.</span><span class="n">from_django</span><span class="p">(</span><span class="n">article</span><span class="p">)</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">dict</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span>
+        <span class="s1">'articles'</span><span class="p">:</span> <span class="n">data</span>
+    <span class="p">})</span>
+</code></pre></div>
+
+<p>注意我们使用模式的领域，<code>ArticleSchema</code>:</p>
+<ol>
+<li><code>ArticleSchema.create()</code>创建一个新的<code>Article</code>对象</li>
+<li><code>schema.dict()</code>返回我们传递给<code>JsonResponse</code>的字段和值的字典</li>
+<li><code>ArticleSchema.from_django()</code>从一个<code>Article</code>对象生成一个模式</li>
+</ol>
+<blockquote>
+<p>记住:<code>create()</code>和<code>from_django()</code>也将根据模式验证数据。</p>
+</blockquote>
+<p>在“博客”中添加一个<em> urls.py </em>文件，并定义以下URL:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+
+<span class="kn">from</span> <span class="nn">blog</span> <span class="kn">import</span> <span class="n">views</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'articles/create/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">create_article</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'articles/&lt;str:article_id&gt;/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">get_article</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'articles/'</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">get_all_articles</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>现在，让我们将我们的应用程序URL注册到基础项目:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span><span class="p">,</span> <span class="n">include</span>  <span class="c1"># new import</span>
+
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'blog/'</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s1">'blog.urls'</span><span class="p">)),</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="sanity-check">健全性检查</h3>
+<p>要进行测试，首先创建一个超级用户:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py createsuperuser
+</code></pre></div>
+
+<p>然后，运行开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>在新的终端窗口中，用cURL添加新文章:</p>
+<div class="codehilite"><pre><span/><code>$ curl --header <span class="s2">"Content-Type: application/json"</span> --request POST <span class="se">\</span>
+  --data <span class="s1">'{"author":"1","title":"Something Interesting", "content":"Really interesting."}'</span> <span class="se">\</span>
+  http://localhost:8000/blog/articles/create/
+</code></pre></div>
+
+<p>您应该会看到类似这样的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span>
+    <span class="s2">"article"</span>: <span class="o">{</span>
+        <span class="s2">"id"</span>: <span class="m">1</span>,
+        <span class="s2">"author"</span>: <span class="m">1</span>,
+        <span class="s2">"created"</span>: <span class="s2">"2021-02-01T20:01:35.904Z"</span>,
+        <span class="s2">"title"</span>: <span class="s2">"Something Interesting"</span>,
+        <span class="s2">"content"</span>: <span class="s2">"Really interesting."</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div>
+
+<p>然后，您应该能够在<a href="http://127.0.0.1:8000/blog/articles/1/">http://127 . 0 . 0 . 1:8000/blog/articles/1/</a>和<a href="http://127.0.0.1:8000/blog/articles/">http://127 . 0 . 0 . 1:8000/blog/articles/</a>查看文章。</p>
+<h3 id="response-schema">响应模式</h3>
+<p>想要从所有文章的回复中删除<code>created</code>字段吗？</p>
+<p>向<em> blog/schemas.py </em>添加新模式:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">ArticleResponseSchema</span><span class="p">(</span><span class="n">ModelSchema</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Article</span>
+        <span class="n">exclude</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'created'</span><span class="p">]</span>
+</code></pre></div>
+
+<p>然后，更新视图:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">get_all_articles</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">articles</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">article</span> <span class="ow">in</span> <span class="n">articles</span><span class="p">:</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">ArticleResponseSchema</span><span class="o">.</span><span class="n">from_django</span><span class="p">(</span><span class="n">article</span><span class="p">)</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">dict</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span>
+        <span class="s1">'articles'</span><span class="p">:</span> <span class="n">data</span>
+    <span class="p">})</span>
+</code></pre></div>
+
+<p>不要忘记在进口:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">blog.schemas</span> <span class="kn">import</span> <span class="n">ArticleSchema</span><span class="p">,</span> <span class="n">ArticleResponseSchema</span>
+</code></pre></div>
+
+<p>在<a href="http://127.0.0.1:8000/blog/articles/">http://127 . 0 . 0 . 1:8000/blog/articles/</a>测试一下。</p>
+<h2 id="django-ninja">姜戈忍者</h2>
+<p>Django Ninja是一个使用Django和基于Python的类型提示构建API的工具。如上所述，它带有许多<a href="https://django-ninja.rest-framework.com/motivation/#main-features">的强大功能</a>。是“学的快，码的快，跑的快”。</p>
+<h3 id="basic-setup_1">基本设置</h3>
+<p>创建新的Django项目:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir django-with-ninja <span class="o">&amp;&amp;</span> <span class="nb">cd</span> django-with-ninja
+$ python3.9 -m venv env
+$ <span class="nb">source</span> env/bin/activate
+
+<span class="o">(</span>env<span class="o">)</span>$ pip install <span class="nv">django</span><span class="o">==</span><span class="m">3</span>.1.5
+<span class="o">(</span>env<span class="o">)</span>$ django-admin.py startproject core .
+</code></pre></div>
+
+<p>创建一个名为<code>blog</code>的新应用:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py startapp blog
+</code></pre></div>
+
+<p>在<code>INSTALLED_APPS</code>下的<em> core/settings.py </em>中注册app:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/settings.py</span>
+
+<span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">'django.contrib.admin'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.auth'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.contenttypes'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.sessions'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.messages'</span><span class="p">,</span>
+    <span class="s1">'django.contrib.staticfiles'</span><span class="p">,</span>
+    <span class="s1">'blog.apps.BlogConfig'</span><span class="p">,</span> <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<h3 id="create-database-models_1">创建数据库模型</h3>
+<p>接下来，向<em> blog/models.py </em>添加一个<code>Article</code>模型:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/models.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">author</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">created</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">username</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s1">'</span>
+</code></pre></div>
+
+<p>创建和应用迁移:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py makemigrations
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py migrate
+</code></pre></div>
+
+<p>在<em> blog/admin.py </em>中注册模型:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/admin.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">blog.models</span> <span class="kn">import</span> <span class="n">Article</span>
+
+
+<span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Article</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="install-django-ninja-and-create-the-schemas">安装Django Ninja并创建模式</h3>
+<p>安装:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ pip install django-ninja<span class="o">==</span><span class="m">0</span>.10.1
+</code></pre></div>
+
+<p>与Pydantic-Django一样，您需要创建模式来验证您的请求和响应。也就是说，从Django模型自动生成模式看起来会在某个时候到来。</p>
+<blockquote>
+<p>有关自动模式生成支持的更多信息，请查看Django模型中的<a href="https://django-ninja.rest-framework.com/guides/response/django-pydantic/">模式。</a></p>
+</blockquote>
+<p>将以下内容添加到<em> blog/schemas.py </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">from</span> <span class="nn">ninja</span> <span class="kn">import</span> <span class="n">Schema</span>
+
+
+<span class="k">class</span> <span class="nc">UserSchema</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span> <span class="nc">ArticleIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">author</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span> <span class="nc">ArticleOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">author</span><span class="p">:</span> <span class="n">UserSchema</span>
+    <span class="n">created</span><span class="p">:</span> <span class="n">datetime</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+<p>这里，我们创建了三种不同的模式:</p>
+<ol>
+<li><code>UserSchema</code>验证Django用户模型的数据，并将数据转换成Django用户模型的数据</li>
+<li><code>ArticleIn</code>验证和反序列化传递给创建文章的API的数据</li>
+<li><code>ArticleOut</code>验证并序列化来自<code>Article</code>模型的数据</li>
+</ol>
+<p>Django Ninja有一个<a href="https://django-ninja.rest-framework.com/guides/routers/">路由器</a>的概念，用于将一个API拆分成多个模块。</p>
+<p>创建一个<em> blog/api.py </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># blog/api.py</span>
+
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">get_object_or_404</span>
+<span class="kn">from</span> <span class="nn">ninja</span> <span class="kn">import</span> <span class="n">Router</span>
+
+<span class="kn">from</span> <span class="nn">blog.models</span> <span class="kn">import</span> <span class="n">Article</span>
+<span class="kn">from</span> <span class="nn">blog.schemas</span> <span class="kn">import</span> <span class="n">ArticleOut</span><span class="p">,</span> <span class="n">ArticleIn</span>
+
+<span class="n">router</span> <span class="o">=</span> <span class="n">Router</span><span class="p">()</span>
+
+
+<span class="nd">@router</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">'/articles/create'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">create_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="n">ArticleIn</span><span class="p">):</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">dict</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">author</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">'author'</span><span class="p">])</span>
+        <span class="k">del</span> <span class="n">data</span><span class="p">[</span><span class="s1">'author'</span><span class="p">]</span>
+        <span class="n">article</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">author</span><span class="o">=</span><span class="n">author</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">'detail'</span><span class="p">:</span> <span class="s1">'Article has been successfully created.'</span><span class="p">,</span>
+            <span class="s1">'id'</span><span class="p">:</span> <span class="n">article</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">except</span> <span class="n">User</span><span class="o">.</span><span class="n">DoesNotExist</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">'detail'</span><span class="p">:</span> <span class="s1">'The specific user cannot be found.'</span><span class="p">}</span>
+
+
+<span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'/articles/</span><span class="si">{article_id}</span><span class="s1">'</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="n">ArticleOut</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">article_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span><span class="n">Article</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">article</span>
+
+
+<span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'/articles'</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="n">ArticleOut</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">get_articles</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">articles</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">articles</span>
+</code></pre></div>
+
+<p>这里，我们创建了三个函数作为我们的视图。Django Ninja使用HTTP操作装饰器来定义URL结构、<a href="https://django-ninja.rest-framework.com/guides/input/path-params/">路径参数</a>，以及可选的<a href="https://django-ninja.rest-framework.com/guides/input/body/">请求</a>和<a href="https://django-ninja.rest-framework.com/guides/response/">响应</a>模式。</p>
+<p>注意事项:</p>
+<ol>
+<li><code>get_article</code>使用<code>ArticleOut</code>作为其响应模式。<code>ArticleOut</code>将自动用于验证和序列化模型中的数据。</li>
+<li>在<code>get_articles</code>中，Django查询集——例如<code>articles = Article.objects.all()</code>——将通过<code>List[ArticleOut]</code>进行正确验证。</li>
+</ol>
+<h3 id="register-api-endpoints">注册API端点</h3>
+<p>我们要做的最后一件事是创建一个新的<code>NinjaAPI</code>实例，并在<em> core/urls.py </em>中注册我们的API路由器:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># core/urls.py</span>
+
+<span class="kn">from</span> <span class="nn">django.contrib</span> <span class="kn">import</span> <span class="n">admin</span>
+<span class="kn">from</span> <span class="nn">django.urls</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">ninja</span> <span class="kn">import</span> <span class="n">NinjaAPI</span>
+<span class="kn">from</span> <span class="nn">blog.api</span> <span class="kn">import</span> <span class="n">router</span> <span class="k">as</span> <span class="n">blog_router</span>
+
+<span class="n">api</span> <span class="o">=</span> <span class="n">NinjaAPI</span><span class="p">()</span>
+<span class="n">api</span><span class="o">.</span><span class="n">add_router</span><span class="p">(</span><span class="s1">'/blog/'</span><span class="p">,</span> <span class="n">blog_router</span><span class="p">)</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'admin/'</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s1">'api/'</span><span class="p">,</span> <span class="n">api</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>这样，Django Ninja将自动创建以下端点:</p>
+<ol>
+<li><code>/blog/articles/create/</code>创建新文章</li>
+<li>获取一篇文章</li>
+<li><code>/blog/articles/</code>列出所有文章</li>
+</ol>
+<h3 id="sanity-check_1">健全性检查</h3>
+<p>创建超级用户，然后运行开发服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>env<span class="o">)</span>$ python manage.py createsuperuser
+<span class="o">(</span>env<span class="o">)</span>$ python manage.py runserver
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8000/api/docs">http://localhost:8000/api/docs</a>查看自动生成的交互式API文档:</p>
+<p><img data-src="/static/images/blog/django/django-pydantic/api_docs.png" loading="lazy" class="lazyload" alt="api docs" src="../Images/9afc6a37a2d76cbac1de2534c70e5eff.png" data-original-src="https://testdriven.io/static/images/blog/django/django-pydantic/api_docs.png"/></p>
+<p>在这里，您可以看到注册的端点并与之交互。</p>
+<p>尝试添加新文章:</p>
+<p><img data-src="/static/images/blog/django/django-pydantic/add_article.png" loading="lazy" class="lazyload" alt="api docs" src="../Images/e657705b3a2ead52dc01701b9acd742c.png" data-original-src="https://testdriven.io/static/images/blog/django/django-pydantic/add_article.png"/></p>
+<p>自己尝试其余的端点。</p>
+<h2 id="conclusion">结论</h2>
+<p>在本文中，我们首先看了什么是Pydantic，然后看了如何使用Pydantic-Django和Django Ninja将其与Django应用程序集成。</p>
+<p>这两个包目前都在积极开发中。请记住，虽然这两个包都不成熟，但Pydantic-Django仍处于试验阶段(截至本文撰写之时)，所以请谨慎使用。</p>
+<p>您可以在GitHub上获得完整代码:</p>
+<ol>
+<li><a href="https://github.com/duplxey/django-with-pydantic"> django-with-pydantic </a></li>
+<li><a href="https://github.com/duplxey/django-with-ninja">姜戈和忍者</a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

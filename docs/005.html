@@ -1,0 +1,344 @@
+<html>
+<head>
+<title>Serving Static Files from Flask with WhiteNoise and Amazon CloudFront </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用WhiteNoise和Amazon CloudFront从Flask提供静态文件</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/flask-static-files-whitenoise-cloudfront/#0001-01-01">https://testdriven.io/blog/flask-static-files-whitenoise-cloudfront/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>由于它使您的Flask应用程序能够提供自己的静态文件，因此极大地简化了静态文件管理。将它与像<a href="https://aws.amazon.com/cloudfront/"> CloudFront </a>或<a href="https://www.cloudflare.com/"> Cloudflare </a>这样的CDN结合起来，这是一个方便的解决方案——即简单性和性能之间的良好平衡——用于在像<a href="https://heroku.com/"> Heroku </a>或<a href="https://www.pythonanywhere.com/"> PythonAnywhere </a>这样的平台即服务(PaaS)上处理静态文件。</p>
+<p>本教程详细介绍了如何用Flask和WhiteNoise管理静态文件。我们还将配置Amazon CloudFront以获得最佳性能。</p>
+<blockquote>
+<p>值得注意的是，本教程不包括如何处理用户上传的媒体文件。在学习教程的过程中，您可以随意设置。参考<a href="/blog/storing-django-static-and-media-files-on-amazon-s3/">在亚马逊S3上存储Django静态和媒体文件</a>教程了解更多信息。</p>
+</blockquote>
+
+
+
+<h2 id="whitenoise">白噪声</h2>
+<p>假设您设置了一个使用<a href="https://flask.palletsprojects.com/en/2.2.x/patterns/appfactories/">应用程序工厂</a>功能模式的Flask项目，导入并配置WhiteNoise:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span>
+<span class="kn">from</span> <span class="nn">whitenoise</span> <span class="kn">import</span> <span class="n">WhiteNoise</span>
+
+
+<span class="k">def</span> <span class="nf">create_app</span><span class="p">(</span><span class="n">script_info</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">static_folder</span><span class="o">=</span><span class="s2">"staticfiles"</span><span class="p">)</span>
+
+    <span class="n">WHITENOISE_MAX_AGE</span> <span class="o">=</span> <span class="mi">31536000</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"DEBUG"</span><span class="p">]</span> <span class="k">else</span> <span class="mi">0</span>
+
+    <span class="c1"># configure WhiteNoise</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">WhiteNoise</span><span class="p">(</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span><span class="p">,</span>
+        <span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s2">"staticfiles"</span><span class="p">),</span>
+        <span class="n">prefix</span><span class="o">=</span><span class="s2">"assets/"</span><span class="p">,</span>
+        <span class="n">max_age</span><span class="o">=</span><span class="n">WHITENOISE_MAX_AGE</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">hello_world</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">hello</span><span class="o">=</span><span class="s2">"world"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<p>配置:</p>
+<ul>
+<li><code>root</code>是静态文件目录的绝对路径。</li>
+<li><code>prefix</code>是所有静态URL的前缀字符串。换句话说，基于上面的配置，在<code>http://localhost:5000/assets/main.css</code>会有一个<em> main.css </em>静态文件。</li>
+<li><code>max_age</code>是浏览器和代理应该缓存静态文件的时间长度，以秒为单位。</li>
+</ul>
+<blockquote>
+<p>查看官方WhiteNoise文档中的<a href="http://whitenoise.evans.io/en/stable/base.html#configuration-attributes">配置属性</a>部分，了解关于可选参数的更多信息。</p>
+</blockquote>
+<p>在项目根目录中添加一个“静态”目录，出于测试目的，下载一份<a href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.css"> boostrap.css </a>并将其添加到新创建的目录中。将“staticfiles”目录添加到项目根目录中。</p>
+<p>您的项目结构现在应该看起来像这样:</p>
+<div class="codehilite"><pre><span/><code>├── app.py
+├── static
+│   └── bootstrap.css
+└── staticfiles
+</code></pre></div>
+
+<p>接下来，将下面的脚本——名为<em>compress . py</em>——添加到您的项目根中，该脚本压缩“static”目录中的文件，然后将它们复制到“staticfiles”目录中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">gzip</span>
+
+
+<span class="n">INPUT_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s2">"static"</span><span class="p">)</span>
+<span class="n">OUTPUT_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s2">"staticfiles"</span><span class="p">)</span>
+<span class="n">SKIP_COMPRESS_EXTENSIONS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># Images</span>
+    <span class="s2">".jpg"</span><span class="p">,</span>
+    <span class="s2">".jpeg"</span><span class="p">,</span>
+    <span class="s2">".png"</span><span class="p">,</span>
+    <span class="s2">".gif"</span><span class="p">,</span>
+    <span class="s2">".webp"</span><span class="p">,</span>
+    <span class="c1"># Compressed files</span>
+    <span class="s2">".zip"</span><span class="p">,</span>
+    <span class="s2">".gz"</span><span class="p">,</span>
+    <span class="s2">".tgz"</span><span class="p">,</span>
+    <span class="s2">".bz2"</span><span class="p">,</span>
+    <span class="s2">".tbz"</span><span class="p">,</span>
+    <span class="s2">".xz"</span><span class="p">,</span>
+    <span class="s2">".br"</span><span class="p">,</span>
+    <span class="c1"># Flash</span>
+    <span class="s2">".swf"</span><span class="p">,</span>
+    <span class="s2">".flv"</span><span class="p">,</span>
+    <span class="c1"># Fonts</span>
+    <span class="s2">".woff"</span><span class="p">,</span>
+    <span class="s2">".woff2"</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">remove_files</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Removing files from </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="c1"># remove all files from "staticfiles"</span>
+    <span class="n">remove_files</span><span class="p">(</span><span class="n">OUTPUT_PATH</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">dirpath</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">INPUT_PATH</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="n">input_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dirpath</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">input_file</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+            <span class="c1"># compress if file extension is not part of SKIP_COMPRESS_EXTENSIONS</span>
+            <span class="n">name</span><span class="p">,</span> <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ext</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SKIP_COMPRESS_EXTENSIONS</span><span class="p">:</span>
+                <span class="c1"># save compressed file to the "staticfiles" directory</span>
+                <span class="n">compressed_output_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">OUTPUT_PATH</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">.gz"</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Compressing </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Saving </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">.gz"</span><span class="p">)</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">compressed_output_file</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">output</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">finally</span><span class="p">:</span>
+                    <span class="n">output</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Skipping compression of </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="c1"># save original file to the "staticfiles" directory</span>
+            <span class="n">output_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">OUTPUT_PATH</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Saving </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">output_file</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这个脚本:</p>
+<ol>
+<li>删除“staticfiles”目录中的任何现有文件</li>
+<li>遍历“静态”目录中的文件并进行压缩，然后将压缩版本与原始的未压缩版本一起保存到“静态文件”目录中</li>
+</ol>
+<p>通过提供压缩和未压缩版本，当客户特别要求时，WhiteNoise将提供压缩版本。您将很快看到一个这样的例子。</p>
+<p>要进行测试，首先安装WhiteNoise，如果您还没有这样做的话:</p>
+
+
+<p>接下来，将一个伪PNG文件添加到“static”目录中，以确保它在压缩脚本中被跳过，然后运行该脚本:</p>
+<div class="codehilite"><pre><span/><code>$ touch static/test.png
+$ python compress.py
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>Removing files from staticfiles
+
+Compressing bootstrap.css
+Saving bootstrap.css.gz
+Saving bootstrap.css
+
+Skipping compression of test.png
+Saving test.png
+</code></pre></div>
+
+<p>“staticfiles”目录现在应该被填充:</p>
+<div class="codehilite"><pre><span/><code>├── app.py
+├── compress.py
+├── static
+│   ├── bootstrap.css
+│   └── test.png
+└── staticfiles
+    ├── bootstrap.css
+    ├── bootstrap.css.gz
+    └── test.png
+</code></pre></div>
+
+<p>要验证这是否有效，安装并运行<a href="https://gunicorn.org/"> Gunicorn </a>:</p>
+<div class="codehilite"><pre><span/><code>$ pip install gunicorn
+$ gunicorn <span class="s2">"app:create_app()"</span> -b <span class="m">127</span>.0.0.1:5000
+</code></pre></div>
+
+<p>现在，要用cURL测试WhiteNoise的<a href="http://whitenoise.evans.io/en/stable/base.html#compression-support"> gzip功能</a>，运行:</p>
+<div class="codehilite"><pre><span/><code>$ curl -I -H <span class="s2">"Accept-Encoding: gzip"</span> http://localhost:5000/assets/bootstrap.css
+</code></pre></div>
+
+<p>您应该会看到以下响应:</p>
+<div class="codehilite"><pre><span/><code>HTTP/1.1 <span class="m">200</span> OK
+Server: gunicorn
+Date: Mon, <span class="m">13</span> Feb <span class="m">2023</span> <span class="m">18</span>:21:35 GMT
+Connection: close
+Content-Type: text/css<span class="p">;</span> <span class="nv">charset</span><span class="o">=</span><span class="s2">"utf-8"</span>
+Cache-Control: max-age<span class="o">=</span><span class="m">31536000</span>, public
+Access-Control-Allow-Origin: *
+Vary: Accept-Encoding
+Last-Modified: Mon, <span class="m">13</span> Feb <span class="m">2023</span> <span class="m">18</span>:13:44 GMT
+ETag: <span class="s2">"63ead238-305f6"</span>
+Content-Length: <span class="m">25881</span>
+Content-Encoding: gzip
+</code></pre></div>
+
+<p>记下<code>Content-Encoding: gzip</code>。这表明提供了文件的gzip版本。</p>
+<h2 id="cloudfront">云锋</h2>
+<p>虽然这不是必需的，但是强烈建议使用<a href="https://en.wikipedia.org/wiki/Content_delivery_network">内容交付网络</a> (CDN)，因为它将在多个地理边缘位置存储静态文件的缓存版本。然后，您的访问者将从离他们最近的位置获得您的静态内容，这将改善web服务器的整体响应时间。尤其是CloudFront，它提供了许多额外的<a href="https://aws.amazon.com/cloudfront/features/">特性</a>，以及针对DDoS攻击的保护和访问控制权限等等。</p>
+<p>要进行设置，请登录AWS控制台并导航到<a href="https://console.aws.amazon.com/cloudfront/home"> CloudFront仪表板</a>。单击“创建分发”。在“Origin domain”字段中添加您的域(没有http或https ),并保留其余的默认值。然后，单击“创建分发”。</p>
+<blockquote>
+<p>如果您没有配置域名，请随意使用<a href="https://ngrok.com/"> ngrok </a>在本地测试这个设置。在端口5000上启动并运行Gunicorn服务器，<a href="https://ngrok.com/download">下载</a>(如有必要)，然后启动ngrok:</p>
+<p>一旦启动，您应该会看到一个可以与CloudFront一起使用的公共URL。</p><p>想看看这方面的演示吗？看看下面的视频。</p></blockquote>
+
+<p>CloudFront完全配置您的发行版通常需要大约15分钟。但是，您可以在它被完全分发到所有边缘位置之前进行测试，而创建状态仍然是“进行中”。在开始测试之前，可能还需要几分钟。</p>
+<p>要进行测试，获取与CloudFront发行版相关的URL并运行:</p>
+<div class="codehilite"><pre><span/><code>$ curl -I -H <span class="s2">"Accept-Encoding: gzip"</span> https://dxquy3iqeuay6.cloudfront.net/assets/bootstrap.css
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code>HTTP/2 <span class="m">200</span>
+content-type: text/css<span class="p">;</span> <span class="nv">charset</span><span class="o">=</span><span class="s2">"utf-8"</span>
+content-length: <span class="m">25881</span>
+access-control-allow-origin: *
+cache-control: max-age<span class="o">=</span><span class="m">31536000</span>, public
+content-encoding: gzip
+date: Tue, <span class="m">23</span> Feb <span class="m">2021</span> <span class="m">15</span>:39:01 GMT
+etag: <span class="s2">"6035739d-305f6"</span>
+last-modified: Tue, <span class="m">23</span> Feb <span class="m">2021</span> <span class="m">15</span>:29:01 GMT
+server: gunicorn/20.0.4
+vary: Accept-Encoding
+x-cache: Miss from cloudfront
+via: <span class="m">1</span>.1 5f09c808a81a33267d5cc58d93ce6353.cloudfront.net <span class="o">(</span>CloudFront<span class="o">)</span>
+x-amz-cf-pop: DFW53-C1
+x-amz-cf-id: <span class="nv">_aLbrgkskBos4G1tjMFR34__rgmmBSkxaCNGiSdMBmxauX4f4CFO1Q</span><span class="o">==</span>
+</code></pre></div>
+
+<p>现在，您可以使用Flask应用程序中提供的CloudFront域来处理静态文件请求:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="kn">import</span> <span class="n">urljoin</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">render_template</span>
+<span class="kn">from</span> <span class="nn">whitenoise</span> <span class="kn">import</span> <span class="n">WhiteNoise</span>
+
+
+<span class="k">def</span> <span class="nf">create_app</span><span class="p">(</span><span class="n">script_info</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">static_folder</span><span class="o">=</span><span class="s2">"staticfiles"</span><span class="p">)</span>
+
+    <span class="n">WHITENOISE_MAX_AGE</span> <span class="o">=</span> <span class="mi">31536000</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"DEBUG"</span><span class="p">]</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="n">CDN</span> <span class="o">=</span> <span class="s2">"https://dxquy3iqeuay6.cloudfront.net"</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"STATIC_URL"</span><span class="p">]</span> <span class="o">=</span> <span class="n">CDN</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"DEBUG"</span><span class="p">]</span> <span class="k">else</span> <span class="s2">""</span>
+
+    <span class="c1"># configure WhiteNoise</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">WhiteNoise</span><span class="p">(</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span><span class="p">,</span>
+        <span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s2">"staticfiles"</span><span class="p">),</span>
+        <span class="n">prefix</span><span class="o">=</span><span class="s2">"assets/"</span><span class="p">,</span>
+        <span class="n">max_age</span><span class="o">=</span><span class="n">WHITENOISE_MAX_AGE</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">template_global</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">static_url</span><span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">urljoin</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"STATIC_URL"</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">hello_world</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">hello</span><span class="o">=</span><span class="s2">"world"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<p>在你的模板中，应该使用<code>static_url</code>而不是<a href="https://flask.palletsprojects.com/api/#flask.url_for"> url_for </a>。</p>
+<h2 id="sanity-check">健全性检查</h2>
+<p>让我们配置一个模板来测试一下。</p>
+<p>添加新的处理程序:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="kn">import</span> <span class="n">urljoin</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">render_template</span>
+<span class="kn">from</span> <span class="nn">whitenoise</span> <span class="kn">import</span> <span class="n">WhiteNoise</span>
+
+
+<span class="k">def</span> <span class="nf">create_app</span><span class="p">(</span><span class="n">script_info</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">static_folder</span><span class="o">=</span><span class="s2">"staticfiles"</span><span class="p">)</span>
+
+    <span class="n">WHITENOISE_MAX_AGE</span> <span class="o">=</span> <span class="mi">31536000</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"DEBUG"</span><span class="p">]</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="n">CDN</span> <span class="o">=</span> <span class="s2">"https://dxquy3iqeuay6.cloudfront.net"</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"STATIC_URL"</span><span class="p">]</span> <span class="o">=</span> <span class="n">CDN</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"DEBUG"</span><span class="p">]</span> <span class="k">else</span> <span class="s2">""</span>
+
+    <span class="c1"># configure WhiteNoise</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">WhiteNoise</span><span class="p">(</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">wsgi_app</span><span class="p">,</span>
+        <span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s2">"staticfiles"</span><span class="p">),</span>
+        <span class="n">prefix</span><span class="o">=</span><span class="s2">"assets/"</span><span class="p">,</span>
+        <span class="n">max_age</span><span class="o">=</span><span class="n">WHITENOISE_MAX_AGE</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">template_global</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">static_url</span><span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">urljoin</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"STATIC_URL"</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">hello_world</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">hello</span><span class="o">=</span><span class="s2">"world"</span><span class="p">)</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/hi"</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">index</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">"index.html"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">app</span>
+</code></pre></div>
+
+<p>在项目根目录下创建一个名为“templates”的新目录，并向该目录添加一个<em>index.html</em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span> <span class="na">lang</span><span class="o">=</span><span class="s">"en"</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">charset</span><span class="o">=</span><span class="s">"UTF-8"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">name</span><span class="o">=</span><span class="s">"viewport"</span> <span class="na">content</span><span class="o">=</span><span class="s">"width=device-width, initial-scale=1.0"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">meta</span> <span class="na">http-equiv</span><span class="o">=</span><span class="s">"X-UA-Compatible"</span> <span class="na">content</span><span class="o">=</span><span class="s">"ie=edge"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">link</span> <span class="na">rel</span><span class="o">=</span><span class="s">"stylesheet"</span> <span class="na">href</span><span class="o">=</span><span class="s">"{{ static_url('assets', filename='bootstrap.css') }}"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Hello, world!<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">"container"</span> <span class="na">style</span><span class="o">=</span><span class="s">"padding-top:100px"</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Hello, world!<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>重启Gunicorn服务器，然后在<a href="http://localhost:5000/hi"> http://localhost:5000/hi </a>进行测试。</p>
+<p>在浏览器的开发工具中</p>
+<ol>
+<li><em> bootstrap.css </em>文件应该已经从CloudFront加载:<code>https://dxquy3iqeuay6.cloudfront.net/assets/bootstrap.css</code></li>
+<li>文件的gzipped版本应该已经送达:<code>content-encoding: gzip</code></li>
+<li>文件也应该已经从边缘位置的缓存中提供:<code>x-cache: Hit from cloudfront</code></li>
+</ol>
+<p><img data-src="/static/images/blog/flask-whitenoise-cloudfront/hi.png" loading="lazy" class="lazyload" alt="cloudfront http response" src="../Images/02136eaac91df3b9f83942bf4d0588d9.png" data-original-src="https://testdriven.io/static/images/blog/flask-whitenoise-cloudfront/hi.png"/></p>
+<p>尝试运行一个<a href="https://www.webpagetest.org/"> WebPageTest </a>来确保静态文件被正确压缩和缓存:</p>
+<p><img data-src="/static/images/blog/flask-whitenoise-cloudfront/webpagetest.png" loading="lazy" class="lazyload" alt="webpagetest results" src="../Images/a8dc654c3de5ff1dade2b45849812615.png" data-original-src="https://testdriven.io/static/images/blog/flask-whitenoise-cloudfront/webpagetest.png"/></p>
+<p>演示视频:</p>
+<iframe src="https://www.youtube.com/embed/vD-VMMhnqkI" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen="">VIDEO</iframe>
+  </div>
+
+  </div>    
+</body>
+</html>

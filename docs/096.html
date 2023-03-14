@@ -1,0 +1,352 @@
+<html>
+<head>
+<title>Improving Code Confidently with Test-Driven Development </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用测试驱动开发自信地改进代码</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/tdd-benefits/#0001-01-01">https://testdriven.io/blog/tdd-benefits/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>像许多开发人员一样，当我第一次接触到<a href="/test-driven-development/">测试驱动开发</a> (TDD)时，我一点也不理解它。我不知道(也没有耐心)如何先开始写测试。因此，在添加测试之前，我没有花太多精力，而是按照正常的流程编写代码。这种情况持续了好几年。</p>
+<p>早在2017年，我就共同创立了<a href="https://typless.com"> typless </a>，目前我在那里领导工程工作。我们必须在开始时快速行动，因此我们积累了相当多的技术债务。当时，这个平台本身是由一个大型的整体Django应用程序支持的。调试非常困难。代码很难读懂，更难修改。我们会消灭一只虫子，然后另外三只虫子会取代它。说到这里，是时候给TDD一次机会了。我所读到的一切都表明它会有所帮助——事实也的确如此。我终于看到了TDD的一个核心副作用:它使得代码修改变得更加容易。</p>
+
+
+
+<h2 id="software-is-a-living-thing">软件是有生命的东西</h2>
+<p>对任何一个软件来说，最重要的质量因素之一就是它有多容易改变。</p>
+<blockquote>
+<p>“好的设计意味着当我做出改变时，就好像整个程序都是在预料之中的。我可以用几个选择函数调用完美地解决一个任务，不会在代码平静的表面留下丝毫波纹。”<a href="https://twitter.com/grady_booch/status/1252427714851569672">来源</a></p>
+</blockquote>
+<p>软件随着业务需求的变化而变化。不管是什么推动了这种变化，昨天行之有效的解决方案今天可能行不通。</p>
+<p>更改干净的、模块化的代码要容易得多，由测试覆盖，这正是TDD倾向于产生的代码类型。</p>
+<p>让我们看一个例子。</p>
+<h2 id="requirements">要求</h2>
+<p>假设您有一个客户，希望您开发一个基本的电话簿，用于添加和显示(按字母顺序)电话号码。</p>
+<p>您是否应该创建一个数字列表以及一些用于追加、排序和打印的辅助函数？还是应该创建一个类？当然，在这一点上，这可能并不重要。您可以开始编写代码来满足当前的需求。感觉这是最自然的事，对吧？但是，如果这些需求发生了变化，您必须包括搜索或删除，该怎么办呢？如果你不决定一个聪明的策略，代码很快就会变得混乱。</p>
+<p>所以退一步，先写一些测试。</p>
+<h2 id="writing-tests-first">首先编写测试</h2>
+<p>首先，创建(并激活)一个虚拟环境并安装<a href="https://docs.pytest.org/"> pytest </a>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install pytest
+</code></pre></div>
+
+<p>创建一个名为<em> test_phone_book.py </em>的新文件来保存您的测试。</p>
+<p>用两个方法开始一个类似乎是合理的，<code>add</code>和<code>all</code>，对吗？</p>
+<ul>
+<li>给定一个具有<code>records</code>属性的<code>PhoneBook</code>类</li>
+<li>当调用<code>all</code>方法时</li>
+<li>那么所有的数字都应该以升序返回</li>
+</ul>
+<p>测试应该是这样的:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">TestPhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">test_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">phone_book</span> <span class="o">=</span> <span class="n">PhoneBook</span><span class="p">(</span>
+            <span class="n">records</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">(</span><span class="s1">'John Doe'</span><span class="p">,</span> <span class="s1">'03 234 567 890'</span><span class="p">),</span>
+                <span class="p">(</span><span class="s1">'Marry Doe'</span><span class="p">,</span> <span class="s1">'01 234 567 890'</span><span class="p">),</span>
+                <span class="p">(</span><span class="s1">'Donald Doe'</span><span class="p">,</span> <span class="s1">'02 234 567 890'</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="n">previous</span> <span class="o">=</span> <span class="s1">''</span>
+
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">phone_book</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">assert</span> <span class="n">record</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">previous</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这里，我们检查前一个元素在字母顺序上总是小于当前元素。</p>
+<p>运行它:</p>
+
+
+<p>测试当然会失败。</p>
+<p>为了实现，添加一个名为<em> phone_book.py </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">PhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="n">records</span> <span class="ow">or</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)</span>
+</code></pre></div>
+
+<p>将其导入到测试文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">phone_book</span> <span class="kn">import</span> <span class="n">PhoneBook</span>
+
+
+<span class="k">class</span> <span class="nc">TestPhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">test_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">phone_book</span> <span class="o">=</span> <span class="n">PhoneBook</span><span class="p">(</span>
+            <span class="n">records</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">(</span><span class="s1">'John Doe'</span><span class="p">,</span> <span class="s1">'03 234 567 890'</span><span class="p">),</span>
+                <span class="p">(</span><span class="s1">'Marry Doe'</span><span class="p">,</span> <span class="s1">'01 234 567 890'</span><span class="p">),</span>
+                <span class="p">(</span><span class="s1">'Donald Doe'</span><span class="p">,</span> <span class="s1">'02 234 567 890'</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="n">previous</span> <span class="o">=</span> <span class="s1">''</span>
+
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">phone_book</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">assert</span> <span class="n">record</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">previous</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+<p>再次运行:</p>
+
+
+<p>测试现在通过了。你已经满足了第一个要求。</p>
+<p>现在为一个<code>add</code>方法编写一个测试来检查一个新的数字是否在<code>records</code>中。</p>
+<ul>
+<li>用一个<code>add</code>方法给定一个<code>PhoneBook</code></li>
+<li>当添加一个数字并调用<code>all</code>方法时</li>
+<li>那么新号码是返回号码的一部分</li>
+</ul>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">phone_book</span> <span class="kn">import</span> <span class="n">PhoneBook</span>
+
+
+<span class="k">class</span> <span class="nc">TestPhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">test_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">phone_book</span> <span class="o">=</span> <span class="n">PhoneBook</span><span class="p">(</span>
+            <span class="n">records</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">(</span><span class="s1">'John Doe'</span><span class="p">,</span> <span class="s1">'03 234 567 890'</span><span class="p">),</span>
+                <span class="p">(</span><span class="s1">'Marry Doe'</span><span class="p">,</span> <span class="s1">'01 234 567 890'</span><span class="p">),</span>
+                <span class="p">(</span><span class="s1">'Donald Doe'</span><span class="p">,</span> <span class="s1">'02 234 567 890'</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="n">previous</span> <span class="o">=</span> <span class="s1">''</span>
+
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">phone_book</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">assert</span> <span class="n">record</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">previous</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">test_add</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">record</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'John Doe'</span><span class="p">,</span> <span class="s1">'01 234 567 890'</span><span class="p">)</span>
+        <span class="n">phone_book</span> <span class="o">=</span> <span class="n">PhoneBook</span><span class="p">(</span>
+            <span class="n">records</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">(</span><span class="s1">'Marry Doe'</span><span class="p">,</span> <span class="s1">'01 234 567 890'</span><span class="p">),</span>
+                <span class="p">(</span><span class="s1">'Donald Doe'</span><span class="p">,</span> <span class="s1">'02 234 567 890'</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">phone_book</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">phone_book</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</code></pre></div>
+
+<p>测试应该会失败，因为<code>add</code>方法还没有实现。</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">PhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="n">records</span> <span class="ow">or</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+</code></pre></div>
+
+<p><code>PhoneBook</code>类现在满足了上述所有要求。数字可以相加，全部可以按字母顺序排序返回。顾客很高兴。打包并交付代码。</p>
+<h2 id="new-requirements">新要求</h2>
+<p>让我们回顾一下第一个实现。</p>
+<p>尽管我们使用测试来更好地定义应该做什么，但是没有测试我们也可以轻松地编写代码。事实上，这些测试似乎减缓了这一过程。</p>
+<p>几个星期过去了，你还没有客户的消息。他们一定很喜欢添加和查看电话号码。干得好。给自己一个鼓励，给客户发一个关于未付发票的温馨提示。在你点击发送后不到30秒，你收到了一封令人沮丧的电子邮件回复，指出检索数字非常慢。</p>
+<p>这是怎么回事？嗯，每次调用<code>all</code>方法时，你都在对记录进行排序，这将随着时间的推移而变慢。因此，让我们更改代码，在列表初始化和添加新数字时进行排序。</p>
+<p>由于我们关注的是<em>测试接口而不是底层实现</em>，我们可以在不破坏测试的情况下修改代码。</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">PhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">records</span> <span class="ow">or</span> <span class="p">[])</span>
+
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span>
+</code></pre></div>
+
+<p>测试应该还能通过。</p>
+<p>这很好，但我们实际上可以加快速度，因为数字已经排序了。</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">PhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">records</span> <span class="ow">or</span> <span class="p">[],</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">rec</span><span class="p">:</span> <span class="n">rec</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+
+        <span class="n">index</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">record</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="k">break</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">record</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span>
+</code></pre></div>
+
+<p>这里，我们按顺序插入新的数字，并取消排序。</p>
+<p>尽管我们已经改变了实现来满足新的需求，但是我们仍然满足最初的需求。我们怎么知道？进行测试。</p>
+<h2 id="can-we-do-better">我们能做得更好吗？</h2>
+<p>我们已经满足了所有的要求。太好了。我们的客户支付发票。一切都好。时光流逝。你忘了这个项目。然后，你会突然在收件箱里看到他们发来的一封电子邮件，抱怨当添加新号码时，应用程序现在很慢。</p>
+<p>您打开文本编辑器并开始调查。忘记了项目，您从测试开始，然后钻研代码。查看<code>add</code>方法，您会发现您必须在插入之前找到插入数字的确切位置，以保持顺序。这两种方法——插入和搜索插入索引——的时间复杂度都是O(n)。</p>
+<p>那么，如何提高那里的性能呢？</p>
+<p>求助谷歌，栈溢出。运用你的信息检索技能。一个小时左右，你发现插入一棵二叉树的时间复杂度是O(log n)。那更好。除此之外，元素可以通过有序遍历以排序的顺序返回。因此，请继续将您的实现改为使用二叉树而不是列表。</p>
+<h3 id="binary-tree">二叉树</h3>
+<blockquote>
+<p>不熟悉二叉树？查看Python中的<a href="https://youtube.com/watch?v=6oL-0TdVy28">二叉树:简介和遍历算法</a>视频以及优秀的<a href="https://pypi.org/project/binarytree/">二叉树</a>库，</p>
+</blockquote>
+<p>首先，定义一个节点:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Node</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+</code></pre></div>
+
+<p>其次，添加一个插入方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Node</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="c1"># Compare the new value with the parent node</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">left</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">right</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+</code></pre></div>
+
+<p>这里，我们检查当前节点是否有数据集。</p>
+<p>如果不是，则设置数据。</p>
+<p>如果设置了数据，它会检查第一个元素是大于还是小于我们需要插入的数据。在此基础上，它添加左或右节点。</p>
+<p>最后，添加有序遍历方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Node</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="c1"># Compare the new value with the parent node</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">left</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">right</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">inorder_traversal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">root</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inorder_traversal</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">res</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">inorder_traversal</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+<p>有了它，我们可以将它实现到我们的<code>PhoneBook</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">Node</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="c1"># Compare the new value with the parent node</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">left</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">right</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">inorder_traversal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">root</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inorder_traversal</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">res</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">inorder_traversal</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span>
+
+
+<span class="k">class</span> <span class="nc">PhoneBook</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="n">records</span> <span class="ow">or</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">records</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">records</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">elm</span> <span class="ow">in</span> <span class="n">records</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">elm</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">inorder_traversal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)</span>
+</code></pre></div>
+
+<p>进行测试。他们应该通过。</p>
+<h2 id="conclusion">结论</h2>
+<p>首先编写测试有助于很好地定义问题，这有助于编写更好的解决方案。</p>
+<blockquote>
+<p>您可以使用测试来帮助澄清问题以及令人困惑的特性范围。</p>
+</blockquote>
+<p>测试然后检查您的解决方案是否解决了问题。</p>
+<p>大多数客户不会在乎<em>你如何</em>解决问题，只要它有效；因此，我们将测试的重点放在了接口上，而不是实现上。当我们对代码进行修改时，我们不需要修改我们的测试，因为代码解决的问题没有改变。</p>
+<blockquote>
+<p>随着实现复杂性的增加，可能也有必要在那个级别添加单元测试。我建议将您的时间和注意力集中在实现级别的集成测试上，并且只有当您发现您的代码在某个特定区域反复中断时才添加单元测试。</p>
+</blockquote>
+<p>测试给了我们一定的自由，因为我们可以改变实现，而不必担心破坏接口。毕竟，它如何工作并不重要，重要的是它能工作。</p>
+<p>TDD可以提供自信地更好地重构代码所需的信心。更快，更干净，更好的结构-这不重要。</p>
+<p>编码快乐！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

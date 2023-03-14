@@ -1,0 +1,719 @@
+<html>
+<head>
+<title>Python Type Checking </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Python类型检查</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/python-type-checking/#0001-01-01">https://testdriven.io/blog/python-type-checking/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>什么是类型检查？我们为什么需要它？静态和运行时类型检查有什么区别？</p>
+<p>Python是一种<a href="https://en.wikipedia.org/wiki/Strong_and_weak_typing">强类型</a>、<a href="https://en.wikipedia.org/wiki/Dynamic_programming_language">动态</a>编程语言。由于它是动态类型的，类型是动态推断的，所以您可以直接设置变量值，而不像在静态类型编程语言(如Java)中那样定义变量类型。</p>
+
+
+
+
+<p><img data-src="/static/images/blog/python-type-checking/types.png" loading="lazy" class="lazyload" alt="static vs dynamic programming languages" src="../Images/3b4978fed0121d89f0145828107528db.png" data-original-src="https://testdriven.io/static/images/blog/python-type-checking/types.png"/></p>
+<blockquote>
+<p>强的和动态的意味着类型在运行时被推断，但是你不能混合类型。比如<code>a = 1 + '0'</code>在Python中会引发一个错误。另一方面，JavaScript是弱的和动态的，所以类型是在运行时推断的，并且您可以混合使用类型。例如，<code>a = 1 + '0'</code>会将<code>a</code>设置为<code>10</code>。</p>
+</blockquote>
+<p>虽然动态类型带来了灵活性，但它并不总是令人满意的。因此，最近有很多人尝试将静态类型推理引入动态语言。</p>
+<p>在这篇文章中，我们将看看什么是类型提示，以及它们如何给你带来好处。我们还将深入探讨如何使用Python的类型系统通过mypy进行静态类型检查，通过pydantic、marshmallow和typeguard进行运行时类型检查。</p>
+<blockquote>
+<p><a href="/guides/complete-python/">完整Python </a>指南:</p>
+<ol>
+<li><a href="/blog/python-environments/">现代Python环境——依赖性和工作空间管理</a></li>
+<li><a href="/blog/testing-python/">Python中的测试</a></li>
+<li><a href="/blog/modern-tdd/">Python中的现代测试驱动开发</a></li>
+<li><a href="/blog/python-code-quality/"> Python代码质量</a></li>
+<li><a href="/blog/python-type-checking/"> Python类型检查</a>(本文！)</li>
+<li><a href="/blog/documenting-python/">记录Python代码和项目</a></li>
+<li><a href="/blog/python-project-workflow/"> Python项目工作流程</a></li>
+</ol>
+</blockquote>
+
+
+
+
+<p>有许多工具使用类型提示进行静态和运行时类型检查。</p>
+<h3 id="static-typing">静态打字</h3>
+<ol>
+<li><a href="https://github.com/python/mypy"> mypy </a></li>
+<li><a href="https://pyre-check.org/">柴堆</a></li>
+<li><a href="https://github.com/Microsoft/pyright">版权</a></li>
+<li><a href="https://github.com/google/pytype"> pytype </a></li>
+<li><a href="https://github.com/quora/pyanalyze"> pyanalyze </a></li>
+</ol>
+<h3 id="runtime-type-checking-data-validation">运行时类型检查/数据验证</h3>
+<ol>
+<li><a href="https://marshmallow.readthedocs.io/en/stable/">棉花糖</a></li>
+<li><a href="https://github.com/samuelcolvin/pydantic"> pydantic </a></li>
+<li><a href="https://github.com/agronholm/typeguard">打字警卫</a></li>
+<li><a href="https://github.com/seandstewart/typical/">典型</a></li>
+<li><a href="https://github.com/Stewori/pytypes"> pytypes </a></li>
+</ol>
+<h3 id="project-specific">特定项目</h3>
+<ol>
+<li><a href="https://pypi.org/project/pydantic-django/"> pydantic-django </a></li>
+<li><a href="https://pypi.org/project/django-stubs/"> django-stubs </a></li>
+<li><a href="https://github.com/typeddjango">型长江</a></li>
+<li><a href="https://pypi.org/project/Flask-Pydantic/">烧瓶-pydantic </a></li>
+<li><a href="https://flask-marshmallow.readthedocs.io/en/latest/">烧瓶-棉花糖</a></li>
+<li><a href="https://fastapi.tiangolo.com/"> fastapi </a> (pydantic内置——耶！)</li>
+</ol>
+<blockquote>
+<p>查看<a href="https://github.com/typeddjango/awesome-python-typing">牛逼的Python Typing </a>获得完整的工具列表。</p>
+</blockquote>
+<h2 id="type-hints">类型提示</h2>
+<p>Python 3.5版中添加了类型提示。</p>
+<p>它们允许开发人员在Python代码中注释变量、函数参数和函数返回值的预期类型。虽然Python解释器并不强制执行这种类型——同样，Python是一种动态类型语言——但它们确实提供了许多好处。首先，使用类型提示，您可以更好地表达您的代码正在做什么以及如何使用它的意图。更好的理解导致更少的错误。</p>
+<p>例如，假设您有以下函数来计算日平均温度:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>只要您像这样提供一个温度列表，该函数就会按预期工作，并返回预期的结果:</p>
+<div class="codehilite"><pre><span/><code><span class="n">average_temperature</span> <span class="o">=</span> <span class="n">daily_average</span><span class="p">([</span><span class="mf">22.8</span><span class="p">,</span> <span class="mf">19.6</span><span class="p">,</span> <span class="mf">25.9</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">average_temperature</span><span class="p">)</span>  <span class="c1"># =&gt; 22.76666666666667</span>
+</code></pre></div>
+
+<p>如果用字典调用函数，其中键是测量的时间戳，值是温度，会发生什么？</p>
+<div class="codehilite"><pre><span/><code><span class="n">average_temperature</span> <span class="o">=</span> <span class="n">daily_average</span><span class="p">({</span><span class="mi">1599125906</span><span class="p">:</span> <span class="mf">22.8</span><span class="p">,</span> <span class="mi">1599125706</span><span class="p">:</span> <span class="mf">19.6</span><span class="p">,</span> <span class="mi">1599126006</span><span class="p">:</span> <span class="mf">25.9</span><span class="p">})</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">average_temperature</span><span class="p">)</span>  <span class="c1"># =&gt; 1599125872.6666667</span>
+</code></pre></div>
+
+<p>本质上，这个函数现在返回<em>键的总和/键的数量</em>，这显然是错误的。由于函数调用没有引发错误，这可能会被检测到，特别是如果最终用户提供了温度。</p>
+<p>为了避免这种混淆，可以通过注释参数和返回值来添加类型提示:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>现在函数定义告诉我们:</p>
+<ol>
+<li><code>temperatures</code>应该是一个浮动列表:<code>temperatures: list[float]</code></li>
+<li>该函数应该返回一个浮点数:<code>-&gt; float</code></li>
+</ol>
+<div class="codehilite"><pre><span/><code><span class="nb">print</span><span class="p">(</span><span class="n">daily_average</span><span class="o">.</span><span class="vm">__annotations__</span><span class="p">)</span>
+<span class="c1"># {'temperatures': list[float], 'return': &lt;class 'float'&gt;}</span>
+</code></pre></div>
+
+<p>类型提示启用静态类型检查工具。代码编辑器和ide也使用它们，根据类型提示，当特定函数或方法的使用不符合预期时，它们会发出警告，并提供强大的自动完成功能。</p>
+<p>所以，类型提示实际上只是“提示”。换句话说，它们不像静态类型语言中的类型定义那样严格。也就是说，即使它们相当灵活，它们仍然通过更清楚地表达意图来帮助提高代码质量。除此之外，你可以使用许多工具从中获益更多。</p>
+<h3 id="type-annotations-vs-type-hints">类型批注与类型提示</h3>
+<p>类型注释只是注释函数输入、函数输出和变量的语法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">sum_xy</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="s1">'an integer'</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="s1">'another integer'</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+
+
+<span class="nb">print</span><span class="p">(</span><span class="n">sum_xy</span><span class="o">.</span><span class="vm">__annotations__</span><span class="p">)</span>
+<span class="c1"># {'x': 'an integer', 'y': 'another integer', 'return': &lt;class 'int'}</span>
+</code></pre></div>
+
+<p>类型提示建立在注释之上，使它们更有用。提示和注释经常互换使用，但它们是不同的。</p>
+<h3 id="pythons-typing-module">Python的类型模块</h3>
+<p>您可能想知道为什么有时会看到这样的代码:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+
+<span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>它使用内置的<code>float</code>来定义函数返回类型，但是<code>List</code>是从<a href="https://docs.python.org/3/library/typing.html">类型化</a>模块中导入的。</p>
+<p>在<a href="/blog/python39/"> Python 3.9 </a>之前，Python解释器不支持使用内置参数进行类型提示。</p>
+<p>例如，可以使用list作为类型提示，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+</code></pre></div>
+
+<p>但是如果没有类型模块，就不可能定义列表元素的预期类型(<code>list[float]</code>)。对于字典和其他序列和复杂类型也是如此:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dict</span>
+
+
+<span class="k">def</span> <span class="nf">generate_map</span><span class="p">(</span><span class="n">points</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+</code></pre></div>
+
+<p>除此之外，打字模块允许你定义<a href="https://docs.python.org/3.7/library/typing.html#newtype">新类型</a>、<a href="https://docs.python.org/3.7/library/typing.html#type-aliases">类型别名</a>、<a href="https://docs.python.org/3.7/library/typing.html#typing.Any">类型任意</a>等许多事情。</p>
+<p>例如，您可能希望允许多种类型。为此，您可以使用<a href="https://docs.python.org/3.7/library/typing.html#typing.Union"> Union </a>:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span>
+
+
+<span class="k">def</span> <span class="nf">sum_ab</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">b</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</code></pre></div>
+
+<p>从Python 3.9开始，您可以像这样使用内置函数:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">sort_names</span><span class="p">(</span><span class="n">names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="static-type-checking-with-mypy">用mypy进行静态类型检查</h2>
+<p>mypy是一个在编译时进行类型检查的工具。</p>
+<p>您可以像安装任何其他Python包一样安装它:</p>
+
+
+<p>要检查Python模块，您可以像这样运行它:</p>
+<div class="codehilite"><pre><span/><code>$ python -m mypy my_module.py
+</code></pre></div>
+
+<p>所以，让我们再来看一下<code>daily_average</code>的例子:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+
+
+<span class="n">average_temperature</span> <span class="o">=</span> <span class="n">daily_average</span><span class="p">(</span>
+    <span class="p">{</span><span class="mi">1599125906</span><span class="p">:</span> <span class="mf">22.8</span><span class="p">,</span> <span class="mi">1599125706</span><span class="p">:</span> <span class="mf">19.6</span><span class="p">,</span> <span class="mi">1599126006</span><span class="p">:</span> <span class="mf">25.9</span><span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>当使用mypy对此类代码进行类型检查时，不会报告任何错误，因为该函数不使用类型提示:</p>
+<div class="codehilite"><pre><span/><code>Success: no issues found <span class="k">in</span> <span class="m">1</span> <span class="nb">source</span> file
+</code></pre></div>
+
+<p>在以下位置添加类型提示:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">daily_average</span><span class="p">(</span><span class="n">temperatures</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">temperatures</span><span class="p">)</span>
+
+
+<span class="n">average_temperature</span> <span class="o">=</span> <span class="n">daily_average</span><span class="p">(</span>
+    <span class="p">{</span><span class="mi">1599125906</span><span class="p">:</span> <span class="mf">22.8</span><span class="p">,</span> <span class="mi">1599125706</span><span class="p">:</span> <span class="mf">19.6</span><span class="p">,</span> <span class="mi">1599126006</span><span class="p">:</span> <span class="mf">25.9</span><span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>再次运行mypy:</p>
+<div class="codehilite"><pre><span/><code>$ python -m mypy my_module.py
+</code></pre></div>
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>my_module.py:6: error: Argument <span class="m">1</span> to <span class="s2">"daily_average"</span> has incompatible
+<span class="nb">type</span> <span class="s2">"Dict[int, float]"</span><span class="p">;</span> expected <span class="s2">"List[float]"</span>  <span class="o">[</span>arg-type<span class="o">]</span>
+
+Found <span class="m">1</span> error <span class="k">in</span> <span class="m">1</span> file <span class="o">(</span>checked <span class="m">1</span> <span class="nb">source</span> file<span class="o">)</span>
+</code></pre></div>
+
+<p>mypy识别出函数调用不正确。它报告了文件名、行号和错误描述。将类型提示与mypy结合使用有助于减少因误用函数、方法和类而导致的错误。这导致了更快的反馈循环。您不需要运行所有的测试，甚至不需要部署整个应用程序。这种错误会立即通知您。</p>
+<p>在合并或部署代码之前，将mypy添加到CI管道中来检查类型也是一个好主意。有关这方面的更多信息，请查看<a href="/blog/python-code-quality/"> Python代码质量</a>一文。</p>
+<p>尽管就代码质量而言这是一个很大的改进，但静态类型检查并不在运行时强制类型，因为您的程序正在运行。这就是为什么我们也有运行时类型检查器，我们将在接下来看到。</p>
+<blockquote>
+<p><em> mypy </em>附带了<a href="https://github.com/python/typeshed"> typeshed </a>，其中包含Python标准库的外部类型注释和Python内置以及第三方包。</p>
+<p><em> mypy </em>检查Python程序，基本没有运行时开销。虽然它检查类型，鸭式打字仍然发生。因此，它不能用于编译CPython扩展。</p>
+</blockquote>
+<h2 id="runtime-type-checking">运行时类型检查</h2>
+<h3 id="pydantic">迂腐的</h3>
+<p>静态类型检查器在处理来自应用程序用户等外部来源的数据时没有帮助。这就是运行时类型检查器发挥作用的地方。一个这样的工具是<a href="https://pydantic-docs.helpmanual.io/"> pydantic </a>，用于验证数据。当提供的数据与用类型提示定义的类型不匹配时，它会引发验证错误。</p>
+<blockquote>
+<p>pydantic使用<a href="https://pydantic-docs.helpmanual.io/usage/models/#data-conversion">类型转换</a>来转换输入数据，以强制其符合预期的类型。</p>
+</blockquote>
+
+
+<p>其实用起来挺简单的。例如，让我们用几个属性定义一个<code>Song</code>类:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">date</span>
+
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+
+
+<span class="k">class</span> <span class="nc">Song</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">release</span><span class="p">:</span> <span class="n">date</span>
+    <span class="n">genres</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</code></pre></div>
+
+<p>现在，当我们用有效数据初始化一个新的<code>Song</code>时，一切都按预期工作:</p>
+<div class="codehilite"><pre><span/><code><span class="n">song</span> <span class="o">=</span> <span class="n">Song</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">'Bohemian Rhapsody'</span><span class="p">,</span>
+    <span class="n">release</span><span class="o">=</span><span class="s1">'1975-10-31'</span><span class="p">,</span>
+    <span class="n">genres</span><span class="o">=</span><span class="p">[</span>
+        <span class="s1">'Hard Rock'</span><span class="p">,</span>
+        <span class="s1">'Progressive Rock'</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">song</span><span class="p">)</span>
+<span class="c1"># id=101 name='Bohemian Rhapsody' release=datetime.date(1975, 10, 31)</span>
+<span class="c1"># genres=['Hard Rock', 'Progressive Rock']</span>
+</code></pre></div>
+
+<p>然而，当我们试图用无效数据(<code>'1975-31-31'</code>)初始化新的<code>Song</code>时，会产生一个<code>ValidationError</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="n">song</span> <span class="o">=</span> <span class="n">Song</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">'Bohemian Rhapsody'</span><span class="p">,</span>
+    <span class="n">release</span><span class="o">=</span><span class="s1">'1975-31-31'</span><span class="p">,</span>
+    <span class="n">genres</span><span class="o">=</span><span class="p">[</span>
+        <span class="s1">'Hard Rock'</span><span class="p">,</span>
+        <span class="s1">'Progressive Rock'</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">song</span><span class="p">)</span>
+<span class="c1"># pydantic.error_wrappers.ValidationError: 1 validation error for Song</span>
+<span class="c1"># release</span>
+<span class="c1">#   invalid date format (type=value_error.date)</span>
+</code></pre></div>
+
+<p>使用pydantic，我们可以确保在我们的应用程序中只使用与定义的类型相匹配的数据。这不仅会导致更少的错误，而且您需要编写更少的测试。通过使用像pydantic这样的工具，我们不需要为用户发送完全错误的数据的情况编写测试。它由pydantic处理——引发了一个<code>ValidationError</code>。例如，<a href="https://fastapi.tiangolo.com/tutorial/body/"> FastAPI </a>用pydantic验证HTTP请求和响应主体:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">Item</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">price</span><span class="p">:</span> <span class="nb">float</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/items/"</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">Item</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">create_item</span><span class="p">(</span><span class="n">item</span><span class="p">:</span> <span class="n">Item</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">item</span>
+</code></pre></div>
+
+<p><code>create_item</code>处理程序需要一个带有<code>name</code>(字符串)和<code>price</code>(浮点)的有效载荷。响应对象应该看起来相同。现在，如果所提供的有效负载有问题，就会立即出现错误。延迟引发会使调试和确定错误类型的数据的来源变得更加困难。另外，因为它是由pydantic处理的，所以您可以保持您的路由处理程序干净。</p>
+<p>除了利用类型提示进行数据验证之外，您还可以添加自定义验证器来确保数据的正确性。为属性添加自定义验证相当容易。例如，为了防止在<code>Song</code>类中出现风格重复，您可以像这样添加验证:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">date</span>
+
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">validator</span>
+
+
+<span class="k">class</span> <span class="nc">Song</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">release</span><span class="p">:</span> <span class="n">date</span>
+    <span class="n">genres</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+    <span class="nd">@validator</span><span class="p">(</span><span class="s1">'genres'</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">no_duplicates_in_genre</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">'No duplicates allowed in genre.'</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">v</span>
+
+
+<span class="n">song</span> <span class="o">=</span> <span class="n">Song</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">'Bohemian Rhapsody'</span><span class="p">,</span>
+    <span class="n">release</span><span class="o">=</span><span class="s1">'1975-10-31'</span><span class="p">,</span>
+    <span class="n">genres</span><span class="o">=</span><span class="p">[</span>
+        <span class="s1">'Hard Rock'</span><span class="p">,</span>
+        <span class="s1">'Progressive Rock'</span><span class="p">,</span>
+        <span class="s1">'Progressive Rock'</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">song</span><span class="p">)</span>
+<span class="c1"># pydantic.error_wrappers.ValidationError: 1 validation error for Song</span>
+<span class="c1"># genre</span>
+<span class="c1">#   No duplicates allowed in genre. (type=value_error)</span>
+</code></pre></div>
+
+<p>因此，验证方法<code>no_duplicates_in_genre</code>必须用<code>validator</code>修饰，它将属性名作为参数。验证方法必须是类方法，因为验证发生在创建实例之前。对于没有通过验证的数据，它应该引发一个标准的Python <code>ValueError</code>。</p>
+<p>您还可以使用验证器方法在验证发生之前更改值。为此，将<code>pre=True</code>和<code>always=True</code>添加到<code>validator</code>装饰器中:</p>
+<div class="codehilite"><pre><span/><code><span class="nd">@validator</span><span class="p">(</span><span class="s1">'genres'</span><span class="p">,</span> <span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">always</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+<p>例如，您可以将流派转换为小写，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">date</span>
+
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">validator</span>
+
+
+<span class="k">class</span> <span class="nc">Song</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">release</span><span class="p">:</span> <span class="n">date</span>
+    <span class="n">genres</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+    <span class="nd">@validator</span><span class="p">(</span><span class="s1">'genres'</span><span class="p">,</span> <span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">always</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">to_lower_case</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">genre</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">genre</span> <span class="ow">in</span> <span class="n">v</span><span class="p">]</span>
+
+    <span class="nd">@validator</span><span class="p">(</span><span class="s1">'genres'</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">no_duplicates_in_genre</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">'No duplicates allowed in genre.'</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">v</span>
+
+
+<span class="n">song</span> <span class="o">=</span> <span class="n">Song</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">'Bohemian Rhapsody'</span><span class="p">,</span>
+    <span class="n">release</span><span class="o">=</span><span class="s1">'1975-10-31'</span><span class="p">,</span>
+    <span class="n">genres</span><span class="o">=</span><span class="p">[</span>
+        <span class="s1">'Hard Rock'</span><span class="p">,</span>
+        <span class="s1">'PrOgReSsIvE ROCK'</span><span class="p">,</span>
+        <span class="s1">'Progressive Rock'</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">song</span><span class="p">)</span>
+<span class="c1"># pydantic.error_wrappers.ValidationError: 1 validation error for Song</span>
+<span class="c1"># genre</span>
+<span class="c1">#   No duplicates allowed in genre. (type=value_error)</span>
+</code></pre></div>
+
+<p><code>to_lower_case</code>将<code>genres</code>列表中的每个元素转换成小写。因为<code>pre</code>被设置为<code>True</code>，所以这个方法在pydantic验证类型之前被调用。所有泛型都被转换成小写，然后用<code>no_duplicates_in_genre</code>进行验证。</p>
+<p>pydantic还提供了更严格的类型，如<code>PositiveInt</code>和<code>EmailStr</code>，以使您的验证更好。查看文档中的<a href="https://pydantic-docs.helpmanual.io/usage/types/">字段类型</a>，了解更多相关信息。</p>
+<h3 id="marshmallow">棉花糖</h3>
+<p>另一个值得一提的工具是<a href="https://marshmallow.readthedocs.io/en/stable/"> marshmallow </a>，它有助于验证复杂数据，并从/向本机Python类型加载/转储数据。安装与任何其他Python包一样:</p>
+<div class="codehilite"><pre><span/><code>$ pip install marshmallow
+</code></pre></div>
+
+<p>像pydantic一样，您可以向类添加类型验证:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">marshmallow</span> <span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">fields</span><span class="p">,</span> <span class="n">post_load</span>
+
+
+<span class="k">class</span> <span class="nc">Song</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="nb">id</span><span class="p">,</span>
+            <span class="n">name</span><span class="p">,</span>
+            <span class="n">release</span><span class="p">,</span>
+            <span class="n">genres</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="nb">id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">release</span> <span class="o">=</span> <span class="n">release</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">genres</span> <span class="o">=</span> <span class="n">genres</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s1">'&lt;Song(id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">, name=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">), '</span>
+            <span class="sa">f</span><span class="s1">'release=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">release</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span><span class="si">}</span><span class="s1">, genres=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">genres</span><span class="si">}</span><span class="s1">&gt;'</span>
+        <span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SongSchema</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Int</span><span class="p">()</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Str</span><span class="p">()</span>
+    <span class="n">release</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Date</span><span class="p">()</span>
+    <span class="n">genres</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">List</span><span class="p">(</span><span class="n">fields</span><span class="o">.</span><span class="n">String</span><span class="p">())</span>
+
+    <span class="nd">@post_load</span>
+    <span class="k">def</span> <span class="nf">make_song</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Song</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+
+
+<span class="n">external_data</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'id'</span><span class="p">:</span> <span class="mi">101</span><span class="p">,</span>
+    <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'Bohemian Rhapsody'</span><span class="p">,</span>
+    <span class="s1">'release'</span><span class="p">:</span> <span class="s1">'1975-10-31'</span><span class="p">,</span>
+    <span class="s1">'genres'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'Hard Rock'</span><span class="p">,</span> <span class="s1">'Progressive Rock'</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="n">song</span> <span class="o">=</span> <span class="n">SongSchema</span><span class="p">()</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">external_data</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">song</span><span class="p">)</span>
+<span class="c1"># &lt;Song(id=101, name=Bohemian Rhapsody), release=1975-10-31, genres=['Hard Rock', 'Progressive Rock']&gt;</span>
+</code></pre></div>
+
+<p>与pydantic不同，marshmallow不使用类型转换，所以需要分别定义模式和类。例如，<code>external_data</code>中的发布日期必须是ISO字符串。它不适用于<code>datetime</code>对象。</p>
+<p>要将数据反序列化到一个<code>Song</code>对象中，需要向模式中添加一个用<code>@post_load</code> decorator修饰的方法:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SongSchema</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Int</span><span class="p">()</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Str</span><span class="p">()</span>
+    <span class="n">release</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Date</span><span class="p">()</span>
+    <span class="n">genres</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">List</span><span class="p">(</span><span class="n">fields</span><span class="o">.</span><span class="n">String</span><span class="p">(),</span> <span class="n">validate</span><span class="o">=</span><span class="n">no_duplicates</span><span class="p">)</span>
+
+    <span class="nd">@post_load</span>
+    <span class="k">def</span> <span class="nf">make_song</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Song</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>该模式验证数据，如果所有字段都有效，它通过用验证过的数据调用<code>make_song</code>来创建该类的一个实例。</p>
+<p>像pydantic一样，您可以为模式中的每个属性添加自定义验证。例如，您可以防止重复，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">from</span> <span class="nn">marshmallow</span> <span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">fields</span><span class="p">,</span> <span class="n">post_load</span><span class="p">,</span> <span class="n">ValidationError</span>
+
+
+<span class="k">class</span> <span class="nc">Song</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="nb">id</span><span class="p">,</span>
+            <span class="n">name</span><span class="p">,</span>
+            <span class="n">release</span><span class="p">,</span>
+            <span class="n">genres</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="nb">id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">release</span> <span class="o">=</span> <span class="n">release</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">genres</span> <span class="o">=</span> <span class="n">genres</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s1">'&lt;Song(id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">, name=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">), '</span>
+            <span class="sa">f</span><span class="s1">'release=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">release</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span><span class="si">}</span><span class="s1">, genres=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">genres</span><span class="si">}</span><span class="s1">&gt;'</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">no_duplicates</span><span class="p">(</span><span class="n">genres</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">genres</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">genres</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">genre</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">genre</span> <span class="ow">in</span> <span class="n">genres</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">genre</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">genres</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">genres</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                <span class="s1">'No duplicates allowed in genres.'</span>
+            <span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SongSchema</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Int</span><span class="p">()</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Str</span><span class="p">()</span>
+    <span class="n">release</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">Date</span><span class="p">()</span>
+    <span class="n">genres</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">List</span><span class="p">(</span><span class="n">fields</span><span class="o">.</span><span class="n">String</span><span class="p">(),</span> <span class="n">validate</span><span class="o">=</span><span class="n">no_duplicates</span><span class="p">)</span>
+
+    <span class="nd">@post_load</span>
+    <span class="k">def</span> <span class="nf">make_song</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Song</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+
+
+<span class="n">external_data</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">'id'</span><span class="p">:</span> <span class="mi">101</span><span class="p">,</span>
+    <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'Bohemian Rhapsody'</span><span class="p">,</span>
+    <span class="s1">'release'</span><span class="p">:</span> <span class="s1">'1975-10-31'</span><span class="p">,</span>
+    <span class="s1">'genres'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'Hard Rock'</span><span class="p">,</span> <span class="s1">'Progressive Rock'</span><span class="p">,</span> <span class="s1">'ProgressivE Rock'</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="n">song</span> <span class="o">=</span> <span class="n">SongSchema</span><span class="p">()</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">external_data</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">song</span><span class="p">)</span>
+<span class="c1"># marshmallow.exceptions.ValidationError:</span>
+<span class="c1"># {'genres': ['No duplicates allowed in genres.']}</span>
+</code></pre></div>
+
+<p>如您所见，您可以使用pydantic或marshmallow来确保数据在应用程序运行时具有正确的类型。挑一个更符合你风格的。</p>
+<h3 id="typeguard">打字警卫</h3>
+<p>pydantic和marshmallow专注于数据验证和序列化，而<a href="https://github.com/agronholm/typeguard"> typeguard </a>专注于在调用函数时检查类型。mypy只做静态类型检查，而typeguard在程序运行时强制执行类型。</p>
+
+
+<p>让我们来看看和之前一样的例子——一个<code>Song</code>类。这次我们用类型提示参数定义它的<code>__init__</code>方法:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">date</span>
+
+<span class="kn">from</span> <span class="nn">typeguard</span> <span class="kn">import</span> <span class="n">typechecked</span>
+
+
+<span class="nd">@typechecked</span>
+<span class="k">class</span> <span class="nc">Song</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+            <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">release</span><span class="p">:</span> <span class="n">date</span><span class="p">,</span>
+            <span class="n">genres</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="nb">id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">release</span> <span class="o">=</span> <span class="n">release</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">genres</span> <span class="o">=</span> <span class="n">genres</span>
+
+
+<span class="n">song</span> <span class="o">=</span> <span class="n">Song</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">'Bohemian Rhapsody'</span><span class="p">,</span>
+    <span class="n">release</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">1975</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">31</span><span class="p">),</span>
+    <span class="n">genres</span><span class="o">=</span><span class="p">{</span>
+        <span class="s1">'Hard Rock'</span><span class="p">,</span>
+        <span class="s1">'Progressive Rock'</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">song</span><span class="p">)</span>
+<span class="c1"># TypeError: type of argument "genres" must be a list; got set instead</span>
+</code></pre></div>
+
+<p>当您想在运行时执行类型检查时，<code>typechecked</code> decorator可以用于类和函数。运行这段代码将引发一个<code>TypeError</code>,因为流派是一个集合而不是一个列表。您可以类似地对函数使用装饰器，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">typeguard</span> <span class="kn">import</span> <span class="n">typechecked</span>
+
+<span class="nd">@typechecked</span>
+<span class="k">def</span> <span class="nf">sum_ab</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</code></pre></div>
+
+<p>它还附带了一个pytest插件。要在运行测试时检查包<code>my_package</code>的类型，您可以运行以下命令:</p>
+<div class="codehilite"><pre><span/><code>$ python -m pytest --typeguard-packages<span class="o">=</span>my_package
+</code></pre></div>
+
+<p>当用pytest运行时，你不需要使用<code>@typechecked</code>装饰器。因此，您可以修饰您的函数和类，以便在运行时或仅在测试运行时强制类型。无论哪种方式，typeguard都可以成为您的应用程序的强大安全网，以确保它按预期运行。</p>
+<h2 id="flask-with-pydantic">迂腐的烧瓶</h2>
+<p>因此，让我们将所有这些放在一个web应用程序中。如上所述，FastAPI默认使用pydantic。尽管Flask没有对pydantic的内置支持，但我们可以使用绑定将它添加到我们的API中。因此，让我们创建一个新的Flask项目来看看它的运行情况。</p>
+<p>首先，创建一个新文件夹:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir flask_example
+$ <span class="nb">cd</span> flask_example
+</code></pre></div>
+
+<p>接下来，用诗歌初始化您的项目:</p>
+<div class="codehilite"><pre><span/><code>$ poetry init
+Package name <span class="o">[</span>flask_example<span class="o">]</span>:
+Version <span class="o">[</span><span class="m">0</span>.1.0<span class="o">]</span>:
+Description <span class="o">[]</span>:
+Author <span class="o">[</span>Your name &lt;<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8cf5e3f9fecce9e1ede5e0a2efe3e1">[email protected]</a>&gt;, n to skip<span class="o">]</span>:
+License <span class="o">[]</span>:
+Compatible Python versions <span class="o">[</span>^3.7<span class="o">]</span>:  &gt;3.7
+
+Would you like to define your main dependencies interactively? <span class="o">(</span>yes/no<span class="o">)</span> <span class="o">[</span>yes<span class="o">]</span> no
+Would you like to define your development dependencies interactively? <span class="o">(</span>yes/no<span class="o">)</span> <span class="o">[</span>yes<span class="o">]</span> no
+Do you confirm generation? <span class="o">(</span>yes/no<span class="o">)</span> <span class="o">[</span>yes<span class="o">]</span>
+</code></pre></div>
+
+<p>之后，加入烧瓶、<a href="https://pypi.org/project/Flask-Pydantic/"> Flask-Pydantic </a>和pytest:</p>
+<div class="codehilite"><pre><span/><code>$ poetry add flask Flask-Pydantic
+$ poetry add --dev pytest
+</code></pre></div>
+
+<p>创建一个名为<em> test_app.py </em>的文件来保存我们的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">import</span> <span class="nn">pytest</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">app</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span> <span class="nf">client</span><span class="p">():</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"TESTING"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">test_client</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">client</span>
+
+
+<span class="k">def</span> <span class="nf">test_create_todo</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+        <span class="s2">"/todos/"</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Wash the dishes'</span><span class="p">,</span>
+                <span class="s1">'done'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">'deadline'</span><span class="p">:</span> <span class="s1">'2020-12-12'</span>
+            <span class="p">}</span>
+        <span class="p">),</span>
+        <span class="n">content_type</span><span class="o">=</span><span class="s1">'application/json'</span>
+    <span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">201</span>
+
+
+<span class="k">def</span> <span class="nf">test_create_todo_bad_request</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+        <span class="s2">"/todos/"</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s1">'title'</span><span class="p">:</span> <span class="s1">'Wash the dishes'</span><span class="p">,</span>
+                <span class="s1">'done'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">'deadline'</span><span class="p">:</span> <span class="s1">'WHENEVER'</span>
+            <span class="p">}</span>
+        <span class="p">),</span>
+        <span class="n">content_type</span><span class="o">=</span><span class="s1">'application/json'</span>
+    <span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">400</span>
+</code></pre></div>
+
+<p>这里，我们有两个创建新todos的测试。当一切正常时，检查是否返回状态201。另一个检查当提供的数据不符合预期时是否返回状态400。</p>
+<p>接下来，为Flask应用程序添加一个名为<em> app.py </em>的文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">request</span>
+<span class="kn">from</span> <span class="nn">flask_pydantic</span> <span class="kn">import</span> <span class="n">validate</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">CreateTodo</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">deadline</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span>
+
+
+<span class="k">class</span> <span class="nc">Todo</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">deadline</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">"/todos/"</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'POST'</span><span class="p">])</span>
+<span class="nd">@validate</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">CreateTodo</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">todos</span><span class="p">():</span>
+    <span class="n">todo</span> <span class="o">=</span> <span class="n">Todo</span><span class="p">(</span>
+        <span class="n">title</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">body_params</span><span class="o">.</span><span class="n">title</span><span class="p">,</span>
+        <span class="n">done</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">body_params</span><span class="o">.</span><span class="n">done</span><span class="p">,</span>
+        <span class="n">deadline</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">body_params</span><span class="o">.</span><span class="n">deadline</span><span class="p">,</span>
+        <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">todo</span><span class="p">,</span> <span class="mi">201</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+
+<p>我们已经定义了一个创建todos的端点，以及一个名为<code>CreateTodo</code>的请求模式和一个名为<code>Todo</code>的响应模式。现在，当数据被发送到与请求模式不匹配的API时，将返回一个状态400，在主体中包含验证错误。您现在可以运行测试来检查您的API是否确实如所描述的那样运行:</p>
+
+
+<h2 id="running-type-checkers">跑步型跳棋</h2>
+<p>现在你已经知道了工具，下一个问题是:什么时候应该使用它们？</p>
+<p>与代码质量工具非常相似，您通常会运行类型检查器:</p>
+<ol>
+<li>编码时(在ide或代码编辑器中)</li>
+<li>提交时(使用预提交挂钩)</li>
+<li>当代码签入源代码管理时(通过CI管道)</li>
+<li>程序运行期间(运行时检查器)</li>
+</ol>
+<h3 id="inside-your-ide-or-code-editor">在您的ide或代码编辑器中</h3>
+<p>最好尽早并经常检查可能对质量有负面影响的问题。因此，建议在开发过程中静态检查您的代码。许多流行的ide都内置了mypy或类似mypy的静态类型检查器。对于那些没有，可能有一个插件可用。这样的插件会实时警告你类型冲突和潜在的编程错误。</p>
+<p>资源:</p>
+<ol>
+<li><a href="https://www.jetbrains.com/help/pycharm/type-hinting-in-product.html#adding-type-hints">在PyCharm中添加类型提示</a></li>
+<li><a href="https://docs.microsoft.com/en-us/visualstudio/python/editing-python-code-in-visual-studio?view=vs-2019#type-hints">在Visual Studio代码中键入提示</a></li>
+<li><a href="https://packagecontrol.io/">崇高文字包查找器</a></li>
+<li><a href="https://atom.io/packages"> Atom包</a></li>
+</ol>
+<h3 id="pre-commit-hooks">提交前挂钩</h3>
+<p>由于您在编码时不可避免地会遗漏一些警告，所以在提交时用预提交git挂钩检查静态类型问题是一个好的实践。这样，您可以避免提交无法通过CI管道内部类型检查的代码。</p>
+<p>推荐使用<a href="https://pre-commit.com/">预提交框架</a>来管理git挂钩。</p>
+
+
+<p>安装后，添加一个名为。将pre-commit-config.yaml提交到项目。要运行mypy，请添加以下配置:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">repos</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/pre-commit/mirrors-mypy</span><span class="w"/>
+<span class="w">    </span><span class="nt">rev</span><span class="p">:</span><span class="w"> </span><span class="s">'v0.790'</span><span class="w"/>
+<span class="w">    </span><span class="nt">hooks</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mypy</span><span class="w"/>
+</code></pre></div>
+
+<p>最后，要设置git挂钩脚本:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pre-commit install
+</code></pre></div>
+
+<p>现在，每次运行<code>git commit</code> mypy都会在实际提交之前运行。如果有任何问题，提交将被中止。</p>
+<h3 id="ci-pipeline">CI管道</h3>
+<p>在CI管道中运行静态类型检查是有意义的，这样可以防止类型问题合并到代码库中。这可能是运行mypy或其他静态类型检查器的最重要的时候。</p>
+<blockquote>
+<p>使用mypy运行静态类型检查时可能会遇到问题，尤其是在使用没有类型提示的第三方库时。这可能是许多人避免在CI管道中运行mypy检查的主要原因。</p>
+</blockquote>
+<h3 id="during-program-run">在程序运行期间</h3>
+<p>所有以前运行的时间都是在程序实际运行之前。这是静态类型检查器的工作。对于动态类型检查器，你需要一个运行程序。如前所述，使用它们将需要更少的测试，产生更少的错误，并帮助您尽早发现错误。您可以使用它们进行数据验证(使用pydantic和marshmallow)以及在程序运行期间强制类型(使用typeguard)。</p>
+<h2 id="conclusion">结论</h2>
+<p>当代码库很小的时候，类型检查可能看起来没有必要，但是代码库越大，类型检查就越重要。这是保护我们免受容易预防的错误的又一层保护。虽然类型提示不是由解释器强制执行的，但它有助于更好地表达变量、函数或类的意图。大多数现代ide和代码编辑器都提供插件，根据类型提示通知开发人员类型不匹配的情况。为了实施它们，我们可以将mypy包含到我们的工作流中，静态地检查方法的使用是否与它们的类型提示相匹配。虽然静态分析可以改进您的代码，但是您必须考虑到我们的软件正在与外部世界进行通信。因此，鼓励添加运行时类型的检查器，如pydantic或marshmallow。它们有助于验证用户输入，并在可能的最早阶段引发错误。你越快发现错误，就越容易改正并继续前进。</p>
+<blockquote>
+<p><a href="/guides/complete-python/">完整Python </a>指南:</p>
+<ol>
+<li><a href="/blog/python-environments/">现代Python环境——依赖性和工作空间管理</a></li>
+<li><a href="/blog/testing-python/">Python中的测试</a></li>
+<li><a href="/blog/modern-tdd/">Python中的现代测试驱动开发</a></li>
+<li><a href="/blog/python-code-quality/"> Python代码质量</a></li>
+<li><a href="/blog/python-type-checking/"> Python类型检查</a>(本文！)</li>
+<li><a href="/blog/documenting-python/">记录Python代码和项目</a></li>
+<li><a href="/blog/python-project-workflow/"> Python项目工作流程</a></li>
+</ol>
+</blockquote>
+  </div>
+
+  </div>    
+</body>
+</html>

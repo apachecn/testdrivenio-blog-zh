@@ -1,0 +1,310 @@
+<html>
+<head>
+<title>Setting up a Private PyPI Server </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>设置私有PyPI服务器</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/private-pypi/#0001-01-01">https://testdriven.io/blog/private-pypi/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将看看如何使用<a href="https://github.com/pypiserver/pypiserver"> pypiserver </a>、一个<a href="https://pypi.org/"> PyPI </a>兼容服务器和Docker来建立你自己的私有PyPI服务器。我们将在AWS EC2实例上托管服务器。</p>
+
+
+
+<h2 id="aws-setup">AWS设置</h2>
+<p>让我们首先设置一个EC2实例，它将用于托管您的PyPI服务器。</p>
+<p>首先，你需要<a href="https://portal.aws.amazon.com/billing/signup">注册</a>一个<a href="https://aws.amazon.com/"> AWS </a>账户(如果你还没有的话)。</p>
+<blockquote>
+<p>设置您的第一个AWS帐户？</p>
+<p>创建一个非根IAM用户是一个好主意，具有“管理员访问”和“计费”策略，并通过CloudWatch发出计费警报，以便在您的AWS使用成本超过一定金额时提醒您。有关更多信息，请查看<a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#lock-away-credentials">锁定您的AWS帐户Root用户访问密钥</a>和<a href="https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/tracking-free-tier-usage.html">分别创建计费警报</a>。</p>
+</blockquote>
+<h3 id="ec2">EC2</h3>
+<p>登录<a href="https://console.aws.amazon.com/console/home"> AWS控制台</a>，导航到<a href="https://console.aws.amazon.com/ec2/v2/home"> EC2控制台</a>，点击左侧边栏的“实例”。然后，单击“启动实例”按钮:</p>
+<p><img data-src="/static/images/blog/private-pypi/aws_ec2_new_create_instance1.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/2a12d6332b16f572d84a25d382234f13.png" data-original-src="https://testdriven.io/static/images/blog/private-pypi/aws_ec2_new_create_instance1.png"/></p>
+<p>接下来，坚持使用基本的亚马逊Linux AMI:</p>
+<p><img data-src="/static/images/blog/private-pypi/aws_ec2_new_create_instance2.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/ff8c17a85a979235fe2abb709500d64b.png" data-original-src="https://testdriven.io/static/images/blog/private-pypi/aws_ec2_new_create_instance2.png"/></p>
+<p>使用一个<code>t2.micro</code> <a href="https://aws.amazon.com/ec2/instance-types/">实例类型</a>:</p>
+<p><img data-src="/static/images/blog/private-pypi/aws_ec2_new_create_instance3.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/d716487684e666b7f4efead15930b7d4.png" data-original-src="https://testdriven.io/static/images/blog/private-pypi/aws_ec2_new_create_instance3.png"/></p>
+<p>创建一个新的<a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html">密钥对</a>，这样就可以通过SSH连接到实例。保存这个<em>。pem </em>文件放在安全的地方。</p>
+<p><img data-src="/static/images/blog/private-pypi/aws_ec2_new_create_instance4.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/a14bdf0ab7df3b9a98216b487f47ee92.png" data-original-src="https://testdriven.io/static/images/blog/private-pypi/aws_ec2_new_create_instance4.png"/></p>
+<blockquote>
+<p>在Mac或Linux机器上？建议保存<em>。pem </em>文件保存到“/用户/$用户/”。ssh "目录。一定要设置适当的权限，例如<code>chmod 400 ~/.ssh/pypi.pem</code>。</p>
+</blockquote>
+<p>在“网络设置”下，我们将坚持使用默认的VPC，以保持本教程的简单，但可以随时更新。</p>
+<p>接下来，创建一个名为<code>pypi-security-group</code>的新安全组(类似于防火墙)，确保至少打开端口22(用于SSH)和8080(用于HTTP流量)。</p>
+<p><img data-src="/static/images/blog/private-pypi/aws_ec2_new_create_instance5.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/5849c0e8dc4fc62b3e5bfc9f89fec73e.png" data-original-src="https://testdriven.io/static/images/blog/private-pypi/aws_ec2_new_create_instance5.png"/></p>
+<p>单击“启动实例”创建新实例。在“启动状态”页面上，单击“查看所有实例”。然后，在主实例页面上，获取新创建的实例的公共IP:</p>
+<p><img data-src="/static/images/blog/private-pypi/aws_ec2_new_create_instance6.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/c1ce55af53a17fcfd2d67af9ba322c17.png" data-original-src="https://testdriven.io/static/images/blog/private-pypi/aws_ec2_new_create_instance6.png"/></p>
+<h3 id="docker">码头工人</h3>
+<p>实例启动并运行后，我们现在可以在其上安装Docker了。</p>
+<p>使用您的密钥对SSH到实例中，如下所示:</p>
+
+
+<p>首先安装并启动Docker的最新版本和Docker Compose的2.7.0版本:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ sudo yum update -y
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo yum install -y docker
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo service docker start
+
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo curl -L <span class="s2">"https://github.com/docker/compose/releases/download/v2.7.0/docker-compose-</span><span class="k">$(</span>uname -s<span class="k">)</span><span class="s2">-</span><span class="k">$(</span>uname -m<span class="k">)</span><span class="s2">"</span> -o /usr/local/bin/docker-compose
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo chmod +x /usr/local/bin/docker-compose
+
+<span class="o">[</span>ec2-user<span class="o">]</span>$ docker --version
+Docker version <span class="m">20</span>.10.13, build a224086
+
+<span class="o">[</span>ec2-user<span class="o">]</span>$ docker-compose --version
+Docker Compose version v2.7.0
+</code></pre></div>
+
+<p>将<code>ec2-user</code>添加到<code>docker</code>组，这样您就可以执行Docker命令，而不必使用<code>sudo</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ sudo usermod -a -G docker ec2-user
+</code></pre></div>
+
+<p>为了使更改生效，您需要退出SSH会话并重新登录。</p>
+<h2 id="pypi-setup">pypi设置</h2>
+<p>如果您还没有这样做，请SSH回到实例中。</p>
+<p>首先为PyPI服务器创建一个新的项目目录:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ mkdir /home/ec2-user/pypi
+<span class="o">[</span>ec2-user<span class="o">]</span>$ <span class="nb">cd</span> /home/ec2-user/pypi
+</code></pre></div>
+
+<p>添加a <em>坞站-复合. yml </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.7'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">pypi-server</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypiserver/pypiserver:latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080:8080</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">volume</span><span class="w"/>
+<span class="w">        </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi-server</span><span class="w"/>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/packages</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">-P . -a . /data/packages</span><span class="w"/>
+<span class="w">    </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">always</span><span class="w"/>
+
+<span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">pypi-server</span><span class="p">:</span><span class="w"/>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>我们定义了一个名为<code>pypi-server</code>的服务，它使用了<a href="https://hub.docker.com/r/pypiserver/pypiserver"> pypiserver </a> Docker映像。</li>
+<li>我们还定义了一个名为<code>pypi-server</code>的命名卷，它映射到容器中的“/data/packages”文件夹。如果容器由于某种原因关闭，卷和上传的PyPI包将会持续存在。</li>
+<li><code>-P . -a .</code>允许未经授权的访问，而<code>/data/packages</code>表示将从容器中的“/data/packages”文件夹提供包。</li>
+</ol>
+<p>继续旋转容器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>完成后，获取实例IP，并在浏览器中导航到<code>http://&lt;PUBLIC-IP-ADDRESS&gt;:8080</code>。您应该会看到类似如下的内容:</p>
+<p><img data-src="/static/images/blog/private-pypi/pypi.png" loading="lazy" class="lazyload" alt="pypi server" src="../Images/1b8d22691e9b17e52483941dab8ac83e.png" data-original-src="https://testdriven.io/static/images/blog/private-pypi/pypi.png"/></p>
+<h2 id="uploading-and-downloading-without-auth">上传和下载(无授权)</h2>
+<p>如果您还没有想要用来测试您的PyPI服务器的包，那么继续克隆<a href="https://github.com/testdrivenio/private-pypi"> private-pypi </a> repo。</p>
+<p>转到“sample-package”文件夹，创建并激活一个虚拟环境，然后压缩该包:</p>
+
+
+<p>安装<a href="https://twine.readthedocs.io/">捆绳</a>:</p>
+
+
+<p>然后，将包上传到您的PyPI服务器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">$</span><span class="w"> </span><span class="n">twine</span><span class="w"> </span><span class="n">upload</span><span class="w"> </span><span class="o">--</span><span class="n">repository</span><span class="o">-</span><span class="n">url</span><span class="w"> </span><span class="n">http</span><span class="p">:</span><span class="o">//&lt;</span><span class="n">PUBLIC</span><span class="o">-</span><span class="n">IP</span><span class="o">-</span><span class="n">ADDRESS</span><span class="o">&gt;</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="n">dist</span><span class="o">/*</span><span class="w"/>
+
+<span class="c1"># example:</span><span class="w"/>
+<span class="c1"># twine upload --repository-url http://3.101.143.245:8080 dist/*</span><span class="w"/>
+</code></pre></div>
+
+<p>系统将提示您输入用户名和密码。因为我们目前允许未经授权的访问，所以现在让它们都保持空白。如果一切顺利，您应该会看到如下内容:</p>
+<div class="codehilite"><pre><span/><code>Uploading distributions to http://3.101.143.245:8080
+Enter your username:
+Enter your password:
+Uploading muddy_wave-0.1.tar.gz
+<span class="m">100</span>%<span class="p">|</span>█████████████████████████████████████████████<span class="p">|</span> <span class="m">3</span>.64k/3.64k <span class="o">[</span><span class="m">00</span>:00&lt;<span class="m">00</span>:00, <span class="m">30</span>.6kB/s<span class="o">]</span>
+</code></pre></div>
+
+<p>要安装您的软件包，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ pip install --index-url http://&lt;PUBLIC-IP-ADDRESS&gt;:8080 muddy_wave --trusted-host &lt;PUBLIC-IP-ADDRESS&gt;
+
+<span class="c1"># example:</span>
+<span class="c1"># pip install --index-url http://3.101.143.245:8080 muddy_wave --trusted-host 3.101.143.245</span>
+</code></pre></div>
+
+<p>您应该会看到类似这样的内容:</p>
+<div class="codehilite"><pre><span/><code>Looking <span class="k">in</span> indexes: http://3.101.143.245:8080
+Collecting muddy_wave
+  Downloading http://3.101.143.245:8080/packages/muddy_wave-0.1.tar.gz <span class="o">(</span><span class="m">1</span>.0 kB<span class="o">)</span>
+Using legacy <span class="s1">'setup.py install'</span> <span class="k">for</span> muddy-wave, since package <span class="s1">'wheel'</span> is not installed.
+Installing collected packages: muddy-wave
+    Running setup.py install <span class="k">for</span> muddy-wave ... <span class="k">done</span>
+Successfully installed muddy-wave-0.1
+</code></pre></div>
+
+<p>您可以在shell中测试包:</p>
+<div class="codehilite"><pre><span/><code>&gt;&gt;&gt; import muddy_wave
+&gt;&gt;&gt; muddy_wave.hello_world<span class="o">()</span>
+hello, world!
+</code></pre></div>
+
+<p>您还应该能够在浏览器中查看<code>http://&lt;PUBLIC-IP-ADDRESS&gt;:8080/packages/</code>的包。</p>
+<p>至此，让我们看看如何添加身份验证。</p>
+<h2 id="authentication">证明</h2>
+<p>对于auth，我们将使用带有<a href="https://github.com/pypiserver/pypiserver#apache-like-authentication-htpasswd"> htpasswd </a>的基本认证。</p>
+<p>SSH回到实例，并通过<a href="https://www.mankier.com/package/httpd-tools"> httpd-tools </a>安装htpasswd:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ sudo yum install -y httpd-tools
+</code></pre></div>
+
+<p>创建一个“授权”文件夹:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ mkdir /home/ec2-user/pypi/auth
+<span class="o">[</span>ec2-user<span class="o">]</span>$ <span class="nb">cd</span> /home/ec2-user/pypi/auth
+</code></pre></div>
+
+<p>现在，创建您的第一个用户:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ htpasswd -sc .htpasswd &lt;SOME-USERNAME&gt;
+</code></pre></div>
+
+<blockquote>
+<p>使用<code>htpasswd -s .htpasswd &lt;SOME-USERNAME&gt;</code>添加其他用户。</p>
+</blockquote>
+<p>接下来，更新Docker合成文件，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.7'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">pypi-server</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypiserver/pypiserver:latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080:8080</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bind</span><span class="w"/>
+<span class="w">        </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/home/ec2-user/pypi/auth</span><span class="w"/>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/auth</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">volume</span><span class="w"/>
+<span class="w">        </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi-server</span><span class="w"/>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/packages</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">-P /data/auth/.htpasswd -a update,download,list /data/packages</span><span class="w"/>
+<span class="w">    </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">always</span><span class="w"/>
+
+<span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">pypi-server</span><span class="p">:</span><span class="w"/>
+</code></pre></div>
+
+<p>注意事项:</p>
+<ol>
+<li>我们定义了一个绑定挂载来挂载“/home/ec2-user/pypi/auth”文件夹(其中的<em>)。htpasswd </em>文件驻留)到容器内的“/data/auth”。</li>
+<li>我们还更新了命令，使<em> /data/auth/。htpasswd </em>用作密码文件(<code>-P /data/auth/.htpasswd</code>)，更新、下载和列表命令需要认证(<code>-a update,download,list</code>)。</li>
+</ol>
+<p>更新容器:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ <span class="nb">cd</span> /home/ec2-user/pypi
+<span class="o">[</span>ec2-user<span class="o">]</span>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>要进行测试，请导航至<code>http://&lt;PUBLIC-IP-ADDRESS&gt;:8080/packages/</code>。应该会提示您输入用户名和密码。</p>
+<h2 id="uploading-and-downloading-with-auth">上传和下载(带授权)</h2>
+<p>要上传，请在<em> sample-package/setup.py </em>中插入版本:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">setuptools</span> <span class="kn">import</span> <span class="n">setup</span>
+
+
+<span class="n">setup</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">'muddy_wave'</span><span class="p">,</span>
+    <span class="n">packages</span><span class="o">=</span><span class="p">[</span><span class="s1">'muddy_wave'</span><span class="p">],</span>
+    <span class="n">description</span><span class="o">=</span><span class="s1">'Hello, world!'</span><span class="p">,</span>
+    <span class="n">version</span><span class="o">=</span><span class="s1">'0.2'</span><span class="p">,</span>  <span class="c1"># updated</span>
+    <span class="n">url</span><span class="o">=</span><span class="s1">'http://github.com/testdrivenio/private-pypi/sample-package'</span><span class="p">,</span>
+    <span class="n">author</span><span class="o">=</span><span class="s1">'Michael Herman'</span><span class="p">,</span>
+    <span class="n">author_email</span><span class="o">=</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f994909a91989c95b98d9c8a8d9d8b908f9c97d79096">[email protected]</a>'</span><span class="p">,</span>
+    <span class="n">keywords</span><span class="o">=</span><span class="p">[</span><span class="s1">'pip'</span><span class="p">,</span> <span class="s1">'pypi'</span><span class="p">]</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>删除与以前版本相关联的文件和文件夹:</p>
+<div class="codehilite"><pre><span/><code>$ rm -rf build dist muddy_wave.egg-info .eggs
+</code></pre></div>
+
+<p>创建新版本:</p>
+
+
+<p>上传包:</p>
+<div class="codehilite"><pre><span/><code><span class="o">$</span><span class="w"> </span><span class="n">twine</span><span class="w"> </span><span class="n">upload</span><span class="w"> </span><span class="o">--</span><span class="n">repository</span><span class="o">-</span><span class="n">url</span><span class="w"> </span><span class="n">http</span><span class="p">:</span><span class="o">//&lt;</span><span class="n">PUBLIC</span><span class="o">-</span><span class="n">IP</span><span class="o">-</span><span class="n">ADDRESS</span><span class="o">&gt;</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="n">dist</span><span class="o">/*</span><span class="w"/>
+
+<span class="c1"># example:</span><span class="w"/>
+<span class="c1"># twine upload --repository-url http://3.101.143.245:8080 dist/*</span><span class="w"/>
+</code></pre></div>
+
+<p>确保在提示时输入您的用户名和密码。</p>
+<p>如果您不想每次都添加URL或者输入您的用户名和密码，那么将PyPI服务器的配置添加到您的<a href="https://packaging.python.org/specifications/pypirc/">中。pypirc </a>文件，它应该位于您的主目录中——例如<em> ~/。pypirc </em>。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">[distutils]</span><span class="w"/>
+<span class="na">index-servers</span><span class="o">=</span><span class="w"/>
+<span class="w">    </span><span class="na">pypi</span><span class="w"/>
+<span class="w">    </span><span class="na">aws</span><span class="w"/>
+
+<span class="k">[pypi]</span><span class="w"/>
+<span class="na">username: michael</span><span class="w"/>
+<span class="na">password: supersecret</span><span class="w"/>
+
+<span class="k">[aws]</span><span class="w"/>
+<span class="na">repository: http://3.101.143.245:8080</span><span class="w"/>
+<span class="na">username: michael</span><span class="w"/>
+<span class="na">password: supersecret</span><span class="w"/>
+</code></pre></div>
+
+<p>要上传，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ twine upload --repository aws dist/*
+</code></pre></div>
+
+<p>要安装新版本，请运行:</p>
+<div class="codehilite"><pre><span/><code>$ pip install --index-url http://&lt;PUBLIC-IP-ADDRESS&gt;:8080 <span class="nv">muddy_wave</span><span class="o">==</span><span class="m">0</span>.2 --trusted-host &lt;PUBLIC-IP-ADDRESS&gt;
+
+<span class="c1"># example:</span>
+<span class="c1"># pip install --index-url http://3.101.143.245:8080 muddy_wave==0.2 --trusted-host 3.101.143.245</span>
+</code></pre></div>
+
+<p>系统将提示您输入用户名和密码:</p>
+<div class="codehilite"><pre><span/><code>Looking <span class="k">in</span> indexes: http://3.101.143.245:8080
+User <span class="k">for</span> <span class="m">3</span>.101.143.245:8080: michael
+Password:
+Collecting <span class="nv">muddy_wave</span><span class="o">==</span><span class="m">0</span>.2
+  Downloading http://3.101.143.245:8080/packages/muddy_wave-0.2.tar.gz <span class="o">(</span><span class="m">1</span>.0 kB<span class="o">)</span>
+Using legacy <span class="s1">'setup.py install'</span> <span class="k">for</span> muddy-wave, since package <span class="s1">'wheel'</span> is not installed.
+Installing collected packages: muddy-wave
+  Attempting uninstall: muddy-wave
+    Found existing installation: muddy-wave <span class="m">0</span>.1
+    Uninstalling muddy-wave-0.1:
+      Successfully uninstalled muddy-wave-0.1
+    Running setup.py install <span class="k">for</span> muddy-wave ... <span class="k">done</span>
+Successfully installed muddy-wave-0.2
+</code></pre></div>
+
+<p>如果您不想每次都添加<code>--index-url http://3.101.143.245:8080</code>和<code>-trusted-host 3.101.143.245</code>，那么可以将PyPI服务器的配置添加到您的<a href="https://pip.pypa.io/en/stable/user_guide/#config-file"> pip.conf </a>文件中，该文件也应该位于您的主目录中——例如，<em> ~/。pip/pip.conf </em>。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code><span class="k">[global]</span><span class="w"/>
+<span class="na">extra-index-url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">http://3.101.143.245:8080</span><span class="w"/>
+<span class="na">trusted-host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">3.101.143.245</span><span class="w"/>
+</code></pre></div>
+
+<p>现在，要安装，运行:</p>
+<div class="codehilite"><pre><span/><code>$ pip install <span class="nv">muddy_wave</span><span class="o">==</span><span class="m">0</span>.2
+</code></pre></div>
+
+<p>输出:</p>
+<div class="codehilite"><pre><span/><code>Looking <span class="k">in</span> indexes: https://pypi.org/simple, http://3.101.143.245:8080
+User <span class="k">for</span> <span class="m">3</span>.101.143.245:8080: mjhea0
+Password:
+Collecting <span class="nv">muddy_wave</span><span class="o">==</span><span class="m">0</span>.2
+  Downloading http://3.101.143.245:8080/packages/muddy_wave-0.2.tar.gz <span class="o">(</span><span class="m">1</span>.0 kB<span class="o">)</span>
+Using legacy <span class="s1">'setup.py install'</span> <span class="k">for</span> muddy-wave, since package <span class="s1">'wheel'</span> is not installed.
+Installing collected packages: muddy-wave
+  Attempting uninstall: muddy-wave
+    Found existing installation: muddy-wave <span class="m">0</span>.3
+    Uninstalling muddy-wave-0.3:
+      Successfully uninstalled muddy-wave-0.3
+    Running setup.py install <span class="k">for</span> muddy-wave ... <span class="k">done</span>
+Successfully installed muddy-wave-0.2
+</code></pre></div>
+
+<h2 id="supporting-https">支持HTTPS</h2>
+<p>建议配置HTTPS，因为用户名和密码是通过HTTP明文发送的。有许多不同的方法可以实现这一点。几个例子:</p>
+
+<p>第三种方法是最简单的。您需要用<a href="https://aws.amazon.com/certificate-manager/">证书管理器</a>设置一个SSL证书，用<a href="https://aws.amazon.com/elasticloadbalancing/">应用负载平衡器</a>创建一个HTTPS监听器，然后通过<a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html">目标组</a>将443流量代理到实例上的HTTP端口80。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

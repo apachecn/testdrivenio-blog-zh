@@ -1,0 +1,425 @@
+<html>
+<head>
+<title>Basic and Full-text Search with Django and Postgres </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Django和Postgres进行基本和全文搜索</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/django-search/#0001-01-01">https://testdriven.io/blog/django-search/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>与关系数据库不同，全文搜索不是标准化的。有几个开源选项，如ElasticSearch、Solr和Xapian。ElasticSearch可能是最流行的解决方案；但是，设置和维护起来很复杂。此外，如果您没有利用ElasticSearch提供的一些高级功能，您应该坚持使用许多关系数据库(如Postgres、MySQL、SQLite)和非关系数据库(如MongoDB和CouchDB)提供的全文搜索功能。Postgres尤其适合全文搜索。<a href="https://docs.djangoproject.com/en/3.2/topics/db/search/#postgresql-support"> Django也支持开箱即用</a>。</p>
+<p>对于绝大多数Django应用程序，在寻找更强大的解决方案如ElasticSearch或Solr之前，你至少应该从利用Postgres的全文搜索开始。</p>
+<p>在本教程中，您将学习如何使用Postgres向Django应用程序添加基本的全文搜索。您还将通过添加搜索向量字段和数据库索引来优化全文搜索。</p>
+<blockquote>
+<p>这是一个中级教程。它假设您熟悉Django和Docker。查看使用Postgres、Gunicorn和Nginx的教程<a href="/blog/dockerizing-django-with-postgres-gunicorn-and-nginx/">以了解更多信息。</a></p>
+</blockquote>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>使用Q对象模块在Django应用程序中设置基本的搜索功能</li>
+<li>向Django应用程序添加全文搜索</li>
+<li>使用词干、排名和加权技术，按相关性对全文搜索结果进行排序</li>
+<li>向您的搜索结果添加预览</li>
+<li>使用搜索向量字段和数据库索引优化全文搜索</li>
+</ol>
+<h2 id="project-setup-and-overview">项目设置和概述</h2>
+<p>从<a href="https://github.com/testdrivenio/django-search"> django-search </a> repo中克隆出<a href="https://github.com/testdrivenio/django-search/tree/base"> base </a>分支；</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/django-search --branch base --single-branch
+$ <span class="nb">cd</span> django-search
+</code></pre></div>
+
+<p>您将使用Docker和Django来简化Postgres的设置和运行。</p>
+<p>从项目根目录，创建映像并启动Docker容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>接下来，应用迁移并创建超级用户:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py makemigrations
+$ docker-compose <span class="nb">exec</span> web python manage.py migrate
+$ docker-compose <span class="nb">exec</span> web python manage.py createsuperuser
+</code></pre></div>
+
+<p>完成后，导航到<a href="http://127.0.0.1:8011/quotes/">http://127 . 0 . 0 . 1:8011/quotes/</a>以确保应用程序按预期工作。您应该看到以下内容:</p>
+<p><img data-src="/static/images/blog/django/django-search/quote_home.png" loading="lazy" class="lazyload" alt="Quote Home Page" src="../Images/93337690b3a40b47ec8a2594c8ce77dc.png" data-original-src="https://testdriven.io/static/images/blog/django/django-search/quote_home.png"/></p>
+<blockquote>
+<p>想学习如何与Django和Postgres合作吗？查看关于Django与Postgres、Gunicorn和Nginx的文章。</p>
+</blockquote>
+<p>注意<em> quotes/models.py </em>中的<code>Quote</code>型号:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+<span class="k">class</span> <span class="nc">Quote</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">250</span><span class="p">)</span>
+    <span class="n">quote</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">quote</span>
+</code></pre></div>
+
+<p>接下来，运行以下管理命令，将10，000个报价添加到数据库中:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py add_quotes
+</code></pre></div>
+
+<p>这将需要几分钟时间。完成后，导航到<a href="http://127.0.0.1:8011/quotes/">http://127 . 0 . 0 . 1:8011/quotes/</a>查看数据。</p>
+<blockquote>
+<p>视图的输出被缓存了五分钟，所以您可能想要注释掉<em> quotes/views.py </em>中的<code>@method_decorator</code>来加载报价。确保完成后删除评论。</p>
+</blockquote>
+<p><img data-src="/static/images/blog/django/django-search/quote_home_2.png" loading="lazy" class="lazyload" alt="Quote Home Page" src="../Images/ef6ffd677679dc12b3dc1be14413ca5d.png" data-original-src="https://testdriven.io/static/images/blog/django/django-search/quote_home_2.png"/></p>
+<p>在<em>quotes/templates/quote . html</em>文件中，您有一个带有搜索输入字段的基本表单:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">form</span> <span class="na">action</span><span class="o">=</span><span class="s">"{% url 'search_results' %}"</span> <span class="na">method</span><span class="o">=</span><span class="s">"get"</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">input</span>
+    <span class="na">type</span><span class="o">=</span><span class="s">"search"</span>
+    <span class="na">name</span><span class="o">=</span><span class="s">"q"</span>
+    <span class="na">placeholder</span><span class="o">=</span><span class="s">"Search by name or quote..."</span>
+    <span class="na">class</span><span class="o">=</span><span class="s">"form-control"</span>
+  <span class="p">/&gt;</span>
+<span class="p">&lt;/</span><span class="nt">form</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>提交时，表单将数据发送到后端。使用了一个<code>GET</code>请求而不是一个<code>POST</code>请求，这样我们就可以在URL和Django视图中访问查询字符串，允许用户以链接的形式共享搜索结果。</p>
+<blockquote>
+<p>在继续之前，快速浏览一下项目结构和代码的其余部分。</p>
+</blockquote>
+<h2 id="basic-search">基本搜索</h2>
+<p>当使用Django进行搜索时，您通常会通过使用<code>contains</code>或<code>icontains</code>执行搜索查询来进行精确匹配。<a href="https://docs.djangoproject.com/en/3.2/topics/db/queries/#complex-lookups-with-q-objects"> Q对象</a>也可以用来添加AND ( <code>&amp;</code>)或OR ( <code>|</code>)逻辑运算符。</p>
+<p>例如，使用or操作符，在<em>报价/视图. py </em>中覆盖<code>SearchResultsList</code>的默认<code>QuerySet</code>，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SearchResultsList</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Quote</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s2">"quotes"</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s2">"search.html"</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"q"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+            <span class="n">Q</span><span class="p">(</span><span class="n">name__icontains</span><span class="o">=</span><span class="n">query</span><span class="p">)</span> <span class="o">|</span> <span class="n">Q</span><span class="p">(</span><span class="n">quote__icontains</span><span class="o">=</span><span class="n">query</span><span class="p">)</span>
+        <span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们使用了<a href="https://docs.djangoproject.com/en/3.2/topics/db/queries/#retrieving-specific-objects-with-filters">过滤器</a>方法来过滤<code>name</code>或<code>quote</code>字段。此外，我们还使用了<a href="https://docs.djangoproject.com/en/3.2/ref/models/querysets/#icontains"> icontains </a>扩展来检查查询是否出现在<code>name</code>或<code>quote</code>字段中(不区分大小写)。如果找到匹配，将返回肯定的结果。</p>
+<p>不要忘记重要的一点:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.db.models</span> <span class="kn">import</span> <span class="n">Q</span>
+</code></pre></div>
+
+<p>尝试一下:</p>
+<p><img data-src="/static/images/blog/django/django-search/search.png" loading="lazy" class="lazyload" alt="Search Page" src="../Images/7832baa0436d14a8a6838cd3df9e5451.png" data-original-src="https://testdriven.io/static/images/blog/django/django-search/search.png"/></p>
+<p>对于小型数据集，这是向应用程序添加基本搜索功能的好方法。如果您正在处理一个大型数据集，或者想要一个类似于互联网搜索引擎的搜索功能，那么您将需要使用全文搜索。</p>
+<h2 id="full-text-search">全文搜索</h2>
+<p>我们前面看到的基本搜索有几个限制，尤其是当您想要执行复杂的查找时。</p>
+<p>如上所述，使用基本搜索，您只能执行精确匹配。</p>
+<p>另一个限制是<strong>停止字</strong>的限制。<a href="https://www.postgresql.org/docs/current/textsearch-dictionaries.html#TEXTSEARCH-STOPWORDS">停用词</a>是诸如“一个”、“一个”、“该”之类的词。这些词很常见，没有足够的意义，因此应该忽略。要进行测试，请尝试搜索前面带有“the”的单词。假设你搜索了“中间”。在这种情况下，您将只看到“中间”的结果，因此您不会看到任何包含单词“中间”而前面没有“the”的结果。</p>
+<p>比方说你有这两句话:</p>
+<ol>
+<li>我在中间。</li>
+<li>你不喜欢中学。</li>
+</ol>
+<p>每种类型的搜索都会返回以下内容:</p>
+<table>
+<thead>
+<tr>
+<th>询问</th>
+<th>基本搜索</th>
+<th>全文搜索</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“中间”</td>
+<td>1</td>
+<td>1和2</td>
+</tr>
+<tr>
+<td>“中间”</td>
+<td>1和2</td>
+<td>1和2</td>
+</tr>
+</tbody>
+</table>
+<p>另一个问题是忽略相似的单词。使用基本搜索，只返回完全匹配的内容。但是，使用全文搜索时，会考虑相似的单词。要测试，试着找一些类似“pony”和“ponies”的词。使用基本搜索，如果你搜索“小马”，你不会看到包含“小马”的结果，反之亦然。</p>
+<p>说你有这两句话。</p>
+<ol>
+<li>我是一匹小马。</li>
+<li>你不喜欢小马</li>
+</ol>
+<p>每种类型的搜索都会返回以下内容:</p>
+<table>
+<thead>
+<tr>
+<th>询问</th>
+<th>基本搜索</th>
+<th>全文搜索</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“小马”</td>
+<td>1</td>
+<td>1和2</td>
+</tr>
+<tr>
+<td>“小马”</td>
+<td>2</td>
+<td>1和2</td>
+</tr>
+</tbody>
+</table>
+<p>有了全文搜索，这两个问题都得到了缓解。但是，请记住，根据您的目标，全文搜索实际上可能会降低<strong>精度</strong>(质量)和<strong>召回</strong>(相关结果的数量)。通常，全文搜索不如基本搜索精确，因为基本搜索产生完全匹配。也就是说，如果您要搜索包含大量文本的大型数据集，那么全文搜索是首选，因为它通常要快得多。</p>
+<p><a href="https://en.wikipedia.org/wiki/Full-text_search">全文搜索</a>是一种高级搜索技术，它会在尝试匹配搜索标准时检查每个存储文档中的所有单词。此外，使用全文搜索，您可以对被索引的单词使用特定语言的<a href="https://en.wikipedia.org/wiki/Stemming">词干</a>。例如，单词“驱动”、“被驱动”和“被驱动”将被记录在单个概念单词“驱动”下。词干化是将单词缩减为词干、词根或词根形式的过程。</p>
+<p>可以说全文搜索并不完美。很可能检索到许多与预期搜索查询不相关(误报)的文档。然而，有一些基于贝叶斯算法的技术可以帮助减少这样的问题。</p>
+<p>要利用Django的Postgres全文搜索，请将<code>django.contrib.postgres</code>添加到您的<code>INSTALLED_APPS</code>列表中:</p>
+<div class="codehilite"><pre><span/><code><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="o">...</span>
+
+    <span class="s2">"django.contrib.postgres"</span><span class="p">,</span>  <span class="c1"># new</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>接下来，我们来看两个快速的全文搜索示例，分别针对单个字段和多个字段。</p>
+<h3 id="single-field-search">单一字段搜索</h3>
+<p>像这样更新<code>SearchResultsList</code>视图功能下的<code>get_queryset</code>功能:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SearchResultsList</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Quote</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s2">"quotes"</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s2">"search.html"</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"q"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">quote__search</span><span class="o">=</span><span class="n">query</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们针对单个字段quote字段设置了全文搜索。</p>
+<p><img data-src="/static/images/blog/django/django-search/search_2.png" loading="lazy" class="lazyload" alt="Search Page" src="../Images/3cce54e2aa1df16282a201ea978e4e00.png" data-original-src="https://testdriven.io/static/images/blog/django/django-search/search_2.png"/></p>
+<p>如你所见，它考虑了相似的单词。在上面的例子中，“ponies”和“pony”被视为相似的词。</p>
+<h3 id="multi-field-search">多字段搜索</h3>
+<p>要搜索多个字段和相关模型，可以使用<code>SearchVector</code>类。</p>
+<p>再次更新<code>SearchResultsList</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SearchResultsList</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Quote</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s2">"quotes"</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s2">"search.html"</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"q"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span><span class="n">search</span><span class="o">=</span><span class="n">SearchVector</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"quote"</span><span class="p">))</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+            <span class="n">search</span><span class="o">=</span><span class="n">query</span>
+        <span class="p">)</span>
+</code></pre></div>
+
+<p>为了搜索多个字段，您可以使用<code>SearchVector</code>对查询集进行<a href="https://docs.djangoproject.com/en/3.2/topics/db/aggregation/">注释</a>。vector是您正在搜索的数据，它已经被转换成易于搜索的形式。在上面的例子中，这些数据是数据库中的<code>name</code>和<code>quote</code>字段。</p>
+<p>确保添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.postgres.search</span> <span class="kn">import</span> <span class="n">SearchVector</span>
+</code></pre></div>
+
+<p>尝试一些搜索。</p>
+<h2 id="stemming-and-ranking">词干和排序</h2>
+<p>在这一节中，您将结合几种方法，如<a href="https://docs.djangoproject.com/en/3.1/ref/contrib/postgres/search/#searchvector"> SearchVector </a>、<a href="https://docs.djangoproject.com/en/3.1/ref/contrib/postgres/search/#searchquery"> SearchQuery </a>和<a href="https://docs.djangoproject.com/en/3.1/ref/contrib/postgres/search/#searchrank"> SearchRank </a>来生成一个非常健壮的搜索，它使用词干和排名。</p>
+<p>同样，词干化是将单词缩减为词干、词根或词根形式的过程。使用词干，像“child”和“children”这样的单词将被视为相似的单词。另一方面，排名允许我们根据相关性对结果进行排序。</p>
+<p>更新<code>SearchResultsList</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SearchResultsList</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Quote</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s2">"quotes"</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s2">"search.html"</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"q"</span><span class="p">)</span>
+        <span class="n">search_vector</span> <span class="o">=</span> <span class="n">SearchVector</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"quote"</span><span class="p">)</span>
+        <span class="n">search_query</span> <span class="o">=</span> <span class="n">SearchQuery</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
+                <span class="n">search</span><span class="o">=</span><span class="n">search_vector</span><span class="p">,</span> <span class="n">rank</span><span class="o">=</span><span class="n">SearchRank</span><span class="p">(</span><span class="n">search_vector</span><span class="p">,</span> <span class="n">search_query</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">search</span><span class="o">=</span><span class="n">search_query</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-rank"</span><span class="p">)</span>
+        <span class="p">)</span>
+</code></pre></div>
+
+<p>这里发生了什么事？</p>
+<ol>
+<li><code>SearchVector</code> -再次使用搜索向量搜索多个字段。数据被转换成另一种形式，因为您不再像使用<code>icontains</code>时那样只是搜索原始文本。因此，有了这个，你将能够很容易地搜索复数。例如，搜索“flask”和“flask”会得到相同的搜索结果，因为它们基本上是<em>相同的东西。</em></li>
+<li><code>SearchQuery</code> -翻译表单中作为查询提供给我们的单词，通过词干算法传递它们，然后寻找所有结果词的匹配。</li>
+<li><code>SearchRank</code> -允许我们根据相关性对结果进行排序。它考虑了查询术语在文档中出现的频率、术语与文档的接近程度以及它们在文档中出现的位置有多重要。</li>
+</ol>
+<p>添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.postgres.search</span> <span class="kn">import</span> <span class="n">SearchVector</span><span class="p">,</span> <span class="n">SearchQuery</span><span class="p">,</span> <span class="n">SearchRank</span>
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/django/django-search/search_3.png" loading="lazy" class="lazyload" alt="Search Page" src="../Images/68940c150055dc3e56d449a5966bf27e.png" data-original-src="https://testdriven.io/static/images/blog/django/django-search/search_3.png"/></p>
+<p>将基本搜索的结果与全文搜索的结果进行比较。有明显的区别。在全文搜索中，最先显示结果最多的查询。这就是<code>SearchRank</code>的力量。组合<code>SearchVector</code>、<code>SearchQuery</code>和<code>SearchRank</code>是一种比基本搜索更强大、更精确的快速搜索方式。</p>
+<h2 id="adding-weights">添加重量</h2>
+<p>全文搜索使我们能够为数据库中的某些字段添加比其他字段更重要的内容。我们可以通过给查询增加权重来实现这一点。</p>
+<p><a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/search/#postgresql-fts-weighting-queries">权重</a>应该是以下字母D、C、B、a中的一个，默认情况下，这些权重分别指的是数字0.1、0.2、0.4、1.0。</p>
+<p>更新<code>SearchResultsList</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SearchResultsList</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Quote</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s2">"quotes"</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s2">"search.html"</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"q"</span><span class="p">)</span>
+        <span class="n">search_vector</span> <span class="o">=</span> <span class="n">SearchVector</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="s2">"B"</span><span class="p">)</span> <span class="o">+</span> <span class="n">SearchVector</span><span class="p">(</span>
+            <span class="s2">"quote"</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="s2">"A"</span>
+        <span class="p">)</span>
+        <span class="n">search_query</span> <span class="o">=</span> <span class="n">SearchQuery</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span><span class="n">rank</span><span class="o">=</span><span class="n">SearchRank</span><span class="p">(</span><span class="n">search_vector</span><span class="p">,</span> <span class="n">search_query</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">rank__gte</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-rank"</span><span class="p">)</span>
+        <span class="p">)</span>
+</code></pre></div>
+
+<p>这里，您使用<code>name</code>和<code>quote</code>字段向<code>SearchVector</code>添加了权重。权重0.4和1.0分别应用于名称和报价字段。因此，引用匹配将优先于名称内容匹配。最后，过滤结果，只显示大于0.3的结果。</p>
+<h2 id="adding-a-preview-to-the-search-results">向搜索结果添加预览</h2>
+<p>在本节中，您将通过<a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/search/#searchheadline"> SearchHeadline </a>方法添加一点搜索结果的预览。这将突出显示搜索结果查询。</p>
+<p>再次更新<code>SearchResultsList</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SearchResultsList</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Quote</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s2">"quotes"</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s2">"search.html"</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"q"</span><span class="p">)</span>
+        <span class="n">search_vector</span> <span class="o">=</span> <span class="n">SearchVector</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"quote"</span><span class="p">)</span>
+        <span class="n">search_query</span> <span class="o">=</span> <span class="n">SearchQuery</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="n">search_headline</span> <span class="o">=</span> <span class="n">SearchHeadline</span><span class="p">(</span><span class="s2">"quote"</span><span class="p">,</span> <span class="n">search_query</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
+            <span class="n">search</span><span class="o">=</span><span class="n">search_vector</span><span class="p">,</span>
+            <span class="n">rank</span><span class="o">=</span><span class="n">SearchRank</span><span class="p">(</span><span class="n">search_vector</span><span class="p">,</span> <span class="n">search_query</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span><span class="n">headline</span><span class="o">=</span><span class="n">search_headline</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">search</span><span class="o">=</span><span class="n">search_query</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-rank"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><code>SearchHeadline</code>接收您想要预览的字段。在这种情况下，这将是查询的<code>quote</code>字段，以粗体显示。</p>
+<p>确保添加导入:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.postgres.search</span> <span class="kn">import</span> <span class="n">SearchVector</span><span class="p">,</span> <span class="n">SearchQuery</span><span class="p">,</span> <span class="n">SearchRank</span><span class="p">,</span> <span class="n">SearchHeadline</span>
+</code></pre></div>
+
+<p>在尝试一些搜索之前，更新<em>quotes/templates/search . html</em>中的<code>&lt;li&gt;&lt;/li&gt;</code>，如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">li</span><span class="p">&gt;</span>{{ quote.headline | safe }} - <span class="p">&lt;</span><span class="nt">b</span><span class="p">&gt;</span>By <span class="p">&lt;</span><span class="nt">i</span><span class="p">&gt;</span>{{ quote.name }}<span class="p">&lt;/</span><span class="nt">i</span><span class="p">&gt;&lt;/</span><span class="nt">b</span><span class="p">&gt;&lt;/</span><span class="nt">li</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>现在，不再像以前那样显示报价，而是只显示完整报价字段的预览以及突出显示的搜索查询。</p>
+<h2 id="boosting-performance">提升性能</h2>
+<p>全文搜索是一个密集的过程。要解决性能低下的问题，您可以:</p>
+<ol>
+<li>用<a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/search/#searchvectorfield"> SearchVectorField </a>将搜索向量保存到数据库中。换句话说，我们将创建一个单独的数据库字段，包含已处理的搜索向量，并在任何时候对<code>quote</code>或<code>name</code>字段进行插入或更新时更新该字段，而不是动态地将字符串转换为搜索向量。</li>
+<li>创建一个<a href="https://en.wikipedia.org/wiki/Database_index">数据库索引</a>，这是一个提高数据库数据检索过程速度的数据结构。因此，它加快了查询速度。Postgres给了你几个<a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/indexes/">索引</a>，可能适用于不同的情况。可以说，<a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/indexes/#ginindex">基尼指数</a>是最受欢迎的。</li>
+</ol>
+<blockquote>
+<p>要了解关于全文搜索性能的更多信息，请查看Django文档中的<a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/search/#performance">性能</a>一节。</p>
+</blockquote>
+<h3 id="search-vector-field">搜索矢量场</h3>
+<p>首先向<em> quotes/models.py </em>中的<code>Quote</code>模型添加一个新的<a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/search/#searchvectorfield"> SearchVectorField </a>字段:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.postgres.search</span> <span class="kn">import</span> <span class="n">SearchVectorField</span>  <span class="c1"># new</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Quote</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">250</span><span class="p">)</span>
+    <span class="n">quote</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+    <span class="n">search_vector</span> <span class="o">=</span> <span class="n">SearchVectorField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># new</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">quote</span>
+</code></pre></div>
+
+<p>创建迁移文件:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py makemigrations
+</code></pre></div>
+
+<p>现在，只有当数据库中已经存在<code>quote</code>或<code>name</code>对象时，才能填充该字段。因此，每当<code>quote</code>或<code>name</code>字段被更新时，我们需要添加一个触发器来更新<code>search_vector</code>字段。为此，在“报价/迁移”中创建一个名为<em>0003 _ search _ vector _ trigger . py</em>的定制迁移文件:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.postgres.search</span> <span class="kn">import</span> <span class="n">SearchVector</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">migrations</span>
+
+
+<span class="k">def</span> <span class="nf">compute_search_vector</span><span class="p">(</span><span class="n">apps</span><span class="p">,</span> <span class="n">schema_editor</span><span class="p">):</span>
+    <span class="n">Quote</span> <span class="o">=</span> <span class="n">apps</span><span class="o">.</span><span class="n">get_model</span><span class="p">(</span><span class="s2">"quotes"</span><span class="p">,</span> <span class="s2">"Quote"</span><span class="p">)</span>
+    <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">search_vector</span><span class="o">=</span><span class="n">SearchVector</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"quote"</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">Migration</span><span class="p">(</span><span class="n">migrations</span><span class="o">.</span><span class="n">Migration</span><span class="p">):</span>
+
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"quotes"</span><span class="p">,</span> <span class="s2">"0002_quote_search_vector"</span><span class="p">),</span>
+    <span class="p">]</span>
+
+    <span class="n">operations</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">migrations</span><span class="o">.</span><span class="n">RunSQL</span><span class="p">(</span>
+            <span class="n">sql</span><span class="o">=</span><span class="s2">"""</span>
+<span class="s2">            CREATE TRIGGER search_vector_trigger</span>
+<span class="s2">            BEFORE INSERT OR UPDATE OF name, quote, search_vector</span>
+<span class="s2">            ON quotes_quote</span>
+<span class="s2">            FOR EACH ROW EXECUTE PROCEDURE</span>
+<span class="s2">            tsvector_update_trigger(</span>
+<span class="s2">                search_vector, 'pg_catalog.english', name, quote</span>
+<span class="s2">            );</span>
+<span class="s2">            UPDATE quotes_quote SET search_vector = NULL;</span>
+<span class="s2">            """</span><span class="p">,</span>
+            <span class="n">reverse_sql</span><span class="o">=</span><span class="s2">"""</span>
+<span class="s2">            DROP TRIGGER IF EXISTS search_vector_trigger</span>
+<span class="s2">            ON quotes_quote;</span>
+<span class="s2">            """</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">migrations</span><span class="o">.</span><span class="n">RunPython</span><span class="p">(</span>
+            <span class="n">compute_search_vector</span><span class="p">,</span> <span class="n">reverse_code</span><span class="o">=</span><span class="n">migrations</span><span class="o">.</span><span class="n">RunPython</span><span class="o">.</span><span class="n">noop</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+</code></pre></div>
+
+<blockquote>
+<p>根据您的项目结构，您可能需要更新<code>dependencies</code>中先前迁移文件的名称。</p>
+</blockquote>
+<p>应用迁移:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py migrate
+</code></pre></div>
+
+<p>要使用新字段进行搜索，请像这样更新<code>SearchResultsList</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="k">class</span> <span class="nc">SearchResultsList</span><span class="p">(</span><span class="n">ListView</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">Quote</span>
+    <span class="n">context_object_name</span> <span class="o">=</span> <span class="s2">"quotes"</span>
+    <span class="n">template_name</span> <span class="o">=</span> <span class="s2">"search.html"</span>
+
+    <span class="k">def</span> <span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"q"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Quote</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">search_vector</span><span class="o">=</span><span class="n">query</span><span class="p">)</span>
+</code></pre></div>
+
+<p>再次更新<em>quotes/templates/search . html</em>中的<code>&lt;li&gt;&lt;/li&gt;</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">&lt;</span><span class="nt">li</span><span class="p">&gt;</span>{{ quote.quote | safe }} - <span class="p">&lt;</span><span class="nt">b</span><span class="p">&gt;</span>By <span class="p">&lt;</span><span class="nt">i</span><span class="p">&gt;</span>{{ quote.name }}<span class="p">&lt;/</span><span class="nt">i</span><span class="p">&gt;&lt;/</span><span class="nt">b</span><span class="p">&gt;&lt;/</span><span class="nt">li</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<h3 id="index">索引</h3>
+<p>最后，我们来设置一个函数索引，<a href="https://docs.djangoproject.com/en/3.2/ref/contrib/postgres/indexes/#ginindex"> GinIndex </a>。</p>
+<p>更新<code>Quote</code>型号:</p>
+<div class="codehilite"><pre><span/><code><span class="kn">from</span> <span class="nn">django.contrib.postgres.indexes</span> <span class="kn">import</span> <span class="n">GinIndex</span>  <span class="c1"># new</span>
+<span class="kn">from</span> <span class="nn">django.contrib.postgres.search</span> <span class="kn">import</span> <span class="n">SearchVectorField</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Quote</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">250</span><span class="p">)</span>
+    <span class="n">quote</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+    <span class="n">search_vector</span> <span class="o">=</span> <span class="n">SearchVectorField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">quote</span>
+
+    <span class="c1"># new</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">GinIndex</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">"search_vector"</span><span class="p">]),</span>
+        <span class="p">]</span>
+</code></pre></div>
+
+<p>最后一次创建和应用迁移:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> web python manage.py makemigrations
+$ docker-compose <span class="nb">exec</span> web python manage.py migrate
+</code></pre></div>
+
+<p>测试一下。</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，指导您向Django应用程序添加基本的全文搜索。我们还研究了如何通过添加搜索向量字段和数据库索引来优化全文搜索功能。</p>
+<p>从<a href="https://github.com/testdrivenio/django-search"> django-search </a> repo中获取完整代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

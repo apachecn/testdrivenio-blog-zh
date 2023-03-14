@@ -1,0 +1,450 @@
+<html>
+<head>
+<title>Continuously Deploying Django to AWS EC2 with Docker and GitLab </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Docker和GitLab将Django持续部署到AWS EC2</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/deploying-django-to-ec2-with-docker-and-gitlab/#0001-01-01">https://testdriven.io/blog/deploying-django-to-ec2-with-docker-and-gitlab/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将了解如何配置GitLab CI，以便将Django和Docker应用程序持续部署到Amazon Web Services (AWS) EC2。</p>
+<p><em>依赖关系</em>:</p>
+<ol>
+<li>Django v3.2.5</li>
+<li>文档v20.10.4</li>
+<li>python 3 . 9 . 6版</li>
+</ol>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>设置新的EC2实例</li>
+<li>配置AWS安全组</li>
+<li>在EC2实例上安装Docker</li>
+<li>设置无密码SSH登录</li>
+<li>为数据持久性配置AWS RDS</li>
+<li>使用Docker将Django部署到AWS EC2</li>
+<li>配置GitLab CI以持续将Django部署到EC2</li>
+</ol>
+<h2 id="project-setup">项目设置</h2>
+<p>除了Django和Docker，我们将使用的演示项目还包括<a href="https://www.postgresql.org/"> Postgres </a>、<a href="https://www.nginx.com"> Nginx </a>和<a href="https://gunicorn.org/"> Gunicorn </a>。</p>
+<blockquote>
+<p>好奇这个项目是怎么开发出来的？查看Postgres、Gunicorn和Nginx的博客文章。</p>
+</blockquote>
+<p>从克隆基础项目开始:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://gitlab.com/testdriven/django-gitlab-ec2.git --branch base --single-branch
+$ <span class="nb">cd</span> django-gitlab-ec2
+</code></pre></div>
+
+<p>要进行本地测试，构建映像并旋转容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8000/"> http://localhost:8000/ </a>。您应该看到:</p>
+
+
+<h2 id="aws-setup">AWS设置</h2>
+<p>让我们首先设置一个EC2实例来部署我们的应用程序，并配置RDS。</p>
+<p>首先，你需要<a href="https://portal.aws.amazon.com/billing/signup">注册</a>一个<a href="https://aws.amazon.com/"> AWS </a>账户(如果你还没有的话)。</p>
+<blockquote>
+<p>设置您的第一个AWS帐户？</p>
+<p>创建一个非根IAM用户是一个好主意，具有“管理员访问”和“计费”策略，并通过CloudWatch发出计费警报，以便在您的AWS使用成本超过一定金额时提醒您。有关更多信息，请查看<a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#lock-away-credentials">锁定您的AWS帐户Root用户访问密钥</a>和<a href="https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/tracking-free-tier-usage.html">分别创建计费警报</a>。</p>
+</blockquote>
+<h3 id="ec2">EC2</h3>
+<p>登录<a href="https://console.aws.amazon.com/console/home"> AWS控制台</a>，导航到<a href="https://console.aws.amazon.com/ec2/v2/home"> EC2控制台</a>，点击左侧边栏的“实例”。然后，单击“启动实例”按钮:</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance1.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/3ac50ee3d20ba9dfcb560329a29a5879.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance1.png"/></p>
+<p>接下来，使用基本的<a href="https://aws.amazon.com/amazon-linux-ami/">亚马逊Linux AMI </a>和<code>t2.micro</code> <a href="https://aws.amazon.com/ec2/instance-types/">实例类型</a>:</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance2.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/ccc0fbdec433bf61b30686a7aba067c2.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance2.png"/></p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance3.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/030b3dca35b94f57b8c8389ba23d333a.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance3.png"/></p>
+<p>单击“下一步:配置实例详细信息”。为了使本教程简单，我们将坚持使用默认的VPC，但也可以随时更新。</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance4.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/06457a8e2beab9b1fcabae9975d4983f.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance4.png"/></p>
+<p>多次单击“下一步”按钮，直到进入“配置安全组”步骤。创建一个名为<code>django-security-group</code>的新安全组(类似于防火墙)，确保至少HTTP 80和SSH 22是开放的。</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance5.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/da07cce274470a4bc2f55978cbbc2c8c.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance5.png"/></p>
+<p>点击“查看并启动”。</p>
+<p>在下一页，单击“启动”。在modal上，创建一个新的<a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html">密钥对</a>，这样就可以通过SSH连接到实例。保存这个<em>。pem </em>文件放在安全的地方。</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance6.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/addccb8657cd6538150c8a52b3785615.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance6.png"/></p>
+<blockquote>
+<p>在Mac或Linux机器上？建议保存<em>。pem </em>文件到“/用户/$用户/”。ssh "目录。一定要设置适当的权限，例如<code>chmod 400 ~/.ssh/django.pem</code>。</p>
+</blockquote>
+<p>单击“启动实例”创建新实例。在“启动状态”页面上，单击“查看实例”。然后，在主实例页面上，获取新创建的实例的公共IP:</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance7.png" loading="lazy" class="lazyload" alt="new ec2 instance" src="../Images/d9982ef1d24e7b5b0378c2e31b2e1b70.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_ec2_new_create_instance7.png"/></p>
+<h3 id="docker">码头工人</h3>
+<p>实例启动并运行后，我们现在可以在其上安装Docker了。</p>
+<p>使用您的密钥对SSH到实例中，如下所示:</p>
+
+
+<p>首先安装并启动最新版本的Docker和版本1.29.2的Docker Compose:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ sudo yum update -y
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo yum install -y docker
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo service docker start
+
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo curl -L <span class="s2">"https://github.com/docker/compose/releases/download/1.29.2/docker-compose-</span><span class="k">$(</span>uname -s<span class="k">)</span><span class="s2">-</span><span class="k">$(</span>uname -m<span class="k">)</span><span class="s2">"</span> <span class="se">\</span>
+    -o /usr/local/bin/docker-compose
+<span class="o">[</span>ec2-user<span class="o">]</span>$ sudo chmod +x /usr/local/bin/docker-compose
+
+<span class="o">[</span>ec2-user<span class="o">]</span>$ docker --version
+Docker version <span class="m">20</span>.10.4, build d3cb89e
+
+<span class="o">[</span>ec2-user<span class="o">]</span>$ docker-compose --version
+docker-compose version <span class="m">1</span>.29.2, build 5becea4c
+</code></pre></div>
+
+<p>将<code>ec2-user</code>添加到<code>docker</code>组，这样您就可以执行Docker命令，而不必使用<code>sudo</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ sudo usermod -a -G docker ec2-user
+</code></pre></div>
+
+<p>接下来，生成一个新的SSH密钥:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ ssh-keygen -t rsa
+</code></pre></div>
+
+<p>将密钥保存到<em> /home/ec2-user/。ssh/id_rsa </em>并且不设置密码。这将分别生成一个公钥和私钥- <em> id_rsa </em>和<em> id_rsa.pub </em>。要设置无密码SSH登录，请将公钥复制到<a href="https://security.stackexchange.com/questions/20706/what-is-the-difference-between-authorized-keys-and-known-hosts-file-for-ssh"> authorized_keys </a>文件中，并设置适当的权限:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ cat ~/.ssh/id_rsa.pub
+<span class="o">[</span>ec2-user<span class="o">]</span>$ vi ~/.ssh/authorized_keys
+<span class="o">[</span>ec2-user<span class="o">]</span>$ chmod <span class="m">600</span> ~/.ssh/authorized_keys
+<span class="o">[</span>ec2-user<span class="o">]</span>$ chmod <span class="m">600</span> ~/.ssh/id_rsa
+</code></pre></div>
+
+<p>复制私钥的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ cat ~/.ssh/id_rsa
+</code></pre></div>
+
+<p>退出远程SSH会话。将密钥设置为本地计算机上的环境变量:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">export</span> <span class="nv">PRIVATE_KEY</span><span class="o">=</span><span class="s1">'-----BEGIN RSA PRIVATE KEY-----</span>
+<span class="s1">MIIEpAIBAAKCAQEA04up8hoqzS1+APIB0RhjXyObwHQnOzhAk5Bd7mhkSbPkyhP1</span>
+<span class="s1">...</span>
+<span class="s1">iWlX9HNavcydATJc1f0DpzF0u4zY8PY24RVoW8vk+bJANPp1o2IAkeajCaF3w9nf</span>
+<span class="s1">q/SyqAWVmvwYuIhDiHDaV2A==</span>
+<span class="s1">-----END RSA PRIVATE KEY-----'</span>
+</code></pre></div>
+
+<p>将密钥添加到<a href="https://www.ssh.com/ssh/agent"> ssh-agent </a>中:</p>
+<div class="codehilite"><pre><span/><code>$ ssh-add - <span class="o">&lt;&lt;&lt;</span> <span class="s2">"</span><span class="si">${</span><span class="nv">PRIVATE_KEY</span><span class="si">}</span><span class="s2">"</span>
+</code></pre></div>
+
+<p>要进行测试，请运行:</p>
+
+
+<p>然后，为应用程序创建一个新目录:</p>
+<div class="codehilite"><pre><span/><code>$ ssh -o <span class="nv">StrictHostKeyChecking</span><span class="o">=</span>no <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a0d2cfcfd4e0">[email protected]</a>&lt;YOUR_INSTANCE_IP&gt; mkdir /home/ec2-user/app
+
+<span class="c1"># example:</span>
+<span class="c1"># ssh -o StrictHostKeyChecking=no <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="513432637c24223423116061617f63677f606361">[email protected]</a>.143 mkdir /home/ec2-user/app</span>
+</code></pre></div>
+
+<h3 id="rds">无线电数据系统</h3>
+<p>接下来，让我们通过AWS关系数据库服务(RDS)构建一个生产Postgres数据库。</p>
+<p>导航到<a href="https://console.aws.amazon.com/rds"> Amazon RDS </a>，点击侧边栏上的“数据库”，然后点击“创建数据库”按钮。</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance1.png" loading="lazy" class="lazyload" alt="new rds instance" src="../Images/d871a2924ed119a7e5b005f7629ecca9.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance1.png"/></p>
+<p>对于“引擎选项”，选择“PostgreSQL”引擎和<code>PostgreSQL 12.7-R1</code>版本。</p>
+<p>使用“自由层”模板。</p>
+<blockquote>
+<p>有关免费层的更多信息，请查看<a href="https://aws.amazon.com/free/"> AWS免费层</a>指南。</p>
+</blockquote>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance2.png" loading="lazy" class="lazyload" alt="new rds instance" src="../Images/4251f9961a84513dcf2323b2d7632268.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance2.png"/></p>
+<p>在“设置”下:</p>
+<ol>
+<li>“数据库实例标识符”:<code>djangodb</code></li>
+<li>“主用户名”:<code>webapp</code></li>
+<li>“主密码”:勾选“自动生成密码”</li>
+</ol>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance3.png" loading="lazy" class="lazyload" alt="new rds instance" src="../Images/030e29459e130a9eafae70e58140eb1c.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance3.png"/></p>
+<p>向下滚动到“连接”部分。坚持使用默认的“VPC”并选择<code>django-security-group</code>安全组。关闭“公共可访问性”。</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance4.png" loading="lazy" class="lazyload" alt="new rds instance" src="../Images/671e169561da9279f52a315ef49dda20.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance4.png"/></p>
+<p>在“附加配置”下，将“初始数据库名称”更改为<code>django_prod</code>，然后创建新数据库。</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance5.png" loading="lazy" class="lazyload" alt="new rds instance" src="../Images/871fde9a3b2adee4ac0b0e293cc512fb.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_rds_new_create_instance5.png"/></p>
+<p>单击“查看凭据详细信息”按钮查看生成的密码。记下它。</p>
+<p>RDS实例启动需要几分钟时间。一旦它可用，记下端点。例如:</p>
+<div class="codehilite"><pre><span/><code>djangodb.c7kxiqfnzo9e.us-west-1.rds.amazonaws.com
+</code></pre></div>
+
+<p>完整的URL如下所示:</p>
+<div class="codehilite"><pre><span/><code><span class="nl">postgres</span><span class="p">:</span><span class="o">//</span><span class="nl">webapp</span><span class="p">:</span><span class="n">YOUR_PASSWORD</span><span class="nv">@djangodb</span><span class="p">.</span><span class="n">c7kxiqfnzo9e</span><span class="p">.</span><span class="n">us</span><span class="o">-</span><span class="n">west</span><span class="o">-</span><span class="mf">1.</span><span class="n">rds</span><span class="p">.</span><span class="n">amazonaws</span><span class="p">.</span><span class="nl">com</span><span class="p">:</span><span class="mi">5432</span><span class="o">/</span><span class="n">django_prod</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>请记住，您无法在VPC之外访问数据库。因此，如果您想直接连接到它，您需要使用<a href="https://en.wikipedia.org/wiki/Tunneling_protocol#Secure_Shell_tunneling"> SSH隧道</a>通过SSH进入EC2实例并从那里连接到数据库。我们很快就会看到如何做到这一点。</p>
+</blockquote>
+<h2 id="gitlab-ci">GitLab CI</h2>
+<p><a href="https://gitlab.com/users/sign_up">注册</a>一个GitLab账号(如果需要的话)，然后<a href="https://docs.gitlab.com/ee/user/project/working_with_projects.html#create-a-project">创建一个新项目</a>(再次，如果需要的话)。</p>
+<h3 id="build-stage">构建阶段</h3>
+<p>接下来，添加一个名为<em>的GitLab CI/CD配置文件。gitlab-ci.yml </em>到项目根:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">image</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker/compose:1.29.2</span><span class="w"/>
+<span class="w">  </span><span class="nt">entrypoint</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">""</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_HOST</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp://docker:2375</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+
+<span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">before_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">export IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">export WEB_IMAGE=$IMAGE:web</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">export NGINX_IMAGE=$IMAGE:nginx</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apk add --no-cache bash</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x ./setup_env.sh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash ./setup_env.sh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:web || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:nginx || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose -f docker-compose.ci.yml build</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:web</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:nginx</span><span class="w"/>
+</code></pre></div>
+
+<p>在这里，我们定义了单个<code>build</code> <a href="https://docs.gitlab.com/ee/ci/yaml/#stages">阶段</a>，在这里我们:</p>
+<ol>
+<li>设置<code>IMAGE</code>、<code>WEB_IMAGE</code>和<code>NGINX_IMAGE</code>环境变量</li>
+<li>安装bash</li>
+<li>为<em> setup_env.sh </em>设置适当的权限</li>
+<li>运行<em> setup_env.sh </em></li>
+<li>登录到<a href="https://docs.gitlab.com/ee/user/packages/container_registry/"> GitLab容器注册表</a></li>
+<li>如果图像存在，请提取图像</li>
+<li>构建图像</li>
+<li>将图像上传到注册表</li>
+</ol>
+<p>将<em> setup_env.sh </em>文件添加到项目根目录:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+<span class="nb">echo</span> <span class="nv">DEBUG</span><span class="o">=</span><span class="m">0</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_ENGINE</span><span class="o">=</span>django.db.backends.postgresql &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">DATABASE</span><span class="o">=</span>postgres &gt;&gt; .env
+
+<span class="nb">echo</span> <span class="nv">SECRET_KEY</span><span class="o">=</span><span class="nv">$SECRET_KEY</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_DATABASE</span><span class="o">=</span><span class="nv">$SQL_DATABASE</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_USER</span><span class="o">=</span><span class="nv">$SQL_USER</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_PASSWORD</span><span class="o">=</span><span class="nv">$SQL_PASSWORD</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_HOST</span><span class="o">=</span><span class="nv">$SQL_HOST</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_PORT</span><span class="o">=</span><span class="nv">$SQL_PORT</span> &gt;&gt; .env
+</code></pre></div>
+
+<p>这个文件将创建所需的<em>。env </em>文件，基于在GitLab项目的CI/CD设置中找到的环境变量(设置&gt; CI / CD &gt;变量)。根据上面的RDS连接信息添加变量。</p>
+<p>例如:</p>
+<ol>
+<li><code>SECRET_KEY</code> : <code>9zYGEFk2mn3mWB8Bmg9SAhPy6F4s7cCuT8qaYGVEnu7huGRKW9</code></li>
+<li><code>SQL_DATABASE</code> : <code>djangodb</code></li>
+<li><code>SQL_HOST</code> : <code>djangodb.c7kxiqfnzo9e.us-west-1.rds.amazonaws.com</code></li>
+<li><code>SQL_PASSWORD</code> : <code>3ZQtN4vxkZp2kAa0vinV</code></li>
+<li><code>SQL_PORT</code> : <code>5432</code></li>
+<li><code>SQL_USER</code> : <code>webapp</code></li>
+</ol>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/gitlab-config.png" loading="lazy" class="lazyload" alt="gitlab config" src="../Images/9c577cb7297fdc35bba36b2059a89f45.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/gitlab-config.png"/></p>
+<p>完成后，提交代码并上传到GitLab以触发新的构建。确保它通过。您应该会在GitLab容器注册表中看到这些图像:</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/gitlab-container-registry.png" loading="lazy" class="lazyload" alt="gitlab config" src="../Images/6a6a45665b60343ee65999958b1b224b.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/gitlab-container-registry.png"/></p>
+<h2 id="aws-security-group">AWS安全组</h2>
+<p>接下来，在将部署添加到CI流程之前，我们需要更新“安全组”的入站端口，以便可以从EC2实例访问端口5432。为什么这是必要的？转到<em> app/entrypoint.prod.sh </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+<span class="k">if</span> <span class="o">[</span> <span class="s2">"</span><span class="nv">$DATABASE</span><span class="s2">"</span> <span class="o">=</span> <span class="s2">"postgres"</span> <span class="o">]</span>
+<span class="k">then</span>
+    <span class="nb">echo</span> <span class="s2">"Waiting for postgres..."</span>
+
+    <span class="k">while</span> ! nc -z <span class="nv">$SQL_HOST</span> <span class="nv">$SQL_PORT</span><span class="p">;</span> <span class="k">do</span>
+      sleep <span class="m">0</span>.1
+    <span class="k">done</span>
+
+    <span class="nb">echo</span> <span class="s2">"PostgreSQL started"</span>
+<span class="k">fi</span>
+
+<span class="nb">exec</span> <span class="s2">"</span><span class="nv"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c6e286">[email protected]</a></span><span class="s2">"</span>
+</code></pre></div>
+
+<p>在这里，我们在启动Gunciorn之前，通过测试与<a href="https://en.wikipedia.org/wiki/Netcat"> netcat </a>的连接，等待Postgres实例变得健康。如果端口5432没有打开，循环将永远继续下去。</p>
+<p>因此，再次导航到<a href="https://console.aws.amazon.com/ec2/v2/home"> EC2控制台</a>，点击左侧边栏上的“安全组”。选择<code>django-security-group</code>安全组，点击“编辑入站规则”:</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_security_group_update1.png" loading="lazy" class="lazyload" alt="security group" src="../Images/133fc8d427758be7b1f2383c504061b7.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_security_group_update1.png"/></p>
+<p>单击“添加规则”。在类型下，选择“PostgreSQL ”,并在源下选择<code>django-security-group</code>安全组:</p>
+<p><img data-src="/static/images/blog/django/django-gitlab-ec2/aws_security_group_update2.png" loading="lazy" class="lazyload" alt="security group" src="../Images/eb28a77acd9418a4163d3d745b18e4e5.png" data-original-src="https://testdriven.io/static/images/blog/django/django-gitlab-ec2/aws_security_group_update2.png"/></p>
+<p>现在，与该组相关联的任何AWS服务都可以通过端口5432访问RDS实例。单击“保存规则”。</p>
+<h2 id="gitlab-ci-deploy-stage">GitLab CI:部署阶段</h2>
+<p>接下来，给<em>增加一个<code>deploy</code>阶段。gitlab-ci.yml </em>并创建一个用于两个阶段的全局<code>before_script</code>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">image</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker/compose:1.29.2</span><span class="w"/>
+<span class="w">  </span><span class="nt">entrypoint</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">""</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_HOST</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp://docker:2375</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+
+<span class="nt">before_script</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">export IMAGE=$CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">export WEB_IMAGE=$IMAGE:web</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">export NGINX_IMAGE=$IMAGE:nginx</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apk add --no-cache openssh-client bash</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x ./setup_env.sh</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash ./setup_env.sh</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span><span class="w"/>
+
+<span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:web || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker pull $IMAGE:nginx || true</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose -f docker-compose.ci.yml build</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:web</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $IMAGE:nginx</span><span class="w"/>
+
+<span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mkdir -p ~/.ssh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echo "$PRIVATE_KEY" | tr -d '\r' &gt; ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cat ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod 700 ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eval "$(ssh-agent -s)"</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ssh-add ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ssh-keyscan -H 'gitlab.com' &gt;&gt; ~/.ssh/known_hosts</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x ./deploy.sh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a0c5c3928dd5d3c5d2e0">[email protected]</a>$EC2_PUBLIC_IP_ADDRESS:/home/ec2-user/app</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash ./deploy.sh</span><span class="w"/>
+</code></pre></div>
+
+<p>因此，在<code>deploy</code>阶段，我们:</p>
+<ol>
+<li>将私有ssh密钥添加到SSH代理中</li>
+<li>复制完<em>。env </em>和<em> docker-compose.prod.yml </em>文件到远程服务器</li>
+<li>为<em> deploy.sh </em>设置适当的权限</li>
+<li>运行<em> deploy.sh </em></li>
+</ol>
+<p>将<em> deploy.sh </em>添加到项目根:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+ssh -o <span class="nv">StrictHostKeyChecking</span><span class="o">=</span>no <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4b2e2879663e382e390b">[email protected]</a><span class="nv">$EC2_PUBLIC_IP_ADDRESS</span> <span class="s">&lt;&lt; 'ENDSSH'</span>
+<span class="s">  cd /home/ec2-user/app</span>
+<span class="s">  export $(cat .env | xargs)</span>
+<span class="s">  docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY</span>
+<span class="s">  docker pull $IMAGE:web</span>
+<span class="s">  docker pull $IMAGE:nginx</span>
+<span class="s">  docker-compose -f docker-compose.prod.yml up -d</span>
+<span class="s">ENDSSH</span>
+</code></pre></div>
+
+<p>因此，在登录到服务器后，我们</p>
+<ol>
+<li>导航到部署目录</li>
+<li>添加环境变量</li>
+<li>登录GitLab容器注册表</li>
+<li>调出图像</li>
+<li>旋转容器</li>
+</ol>
+<p>将<code>EC2_PUBLIC_IP_ADDRESS</code>和<code>PRIVATE_KEY</code>环境变量添加到GitLab中。</p>
+<p>更新<em> setup_env.sh </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/sh</span>
+
+<span class="nb">echo</span> <span class="nv">DEBUG</span><span class="o">=</span><span class="m">0</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_ENGINE</span><span class="o">=</span>django.db.backends.postgresql &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">DATABASE</span><span class="o">=</span>postgres &gt;&gt; .env
+
+<span class="nb">echo</span> <span class="nv">SECRET_KEY</span><span class="o">=</span><span class="nv">$SECRET_KEY</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_DATABASE</span><span class="o">=</span><span class="nv">$SQL_DATABASE</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_USER</span><span class="o">=</span><span class="nv">$SQL_USER</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_PASSWORD</span><span class="o">=</span><span class="nv">$SQL_PASSWORD</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_HOST</span><span class="o">=</span><span class="nv">$SQL_HOST</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">SQL_PORT</span><span class="o">=</span><span class="nv">$SQL_PORT</span> &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">WEB_IMAGE</span><span class="o">=</span><span class="nv">$IMAGE</span>:web  &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">NGINX_IMAGE</span><span class="o">=</span><span class="nv">$IMAGE</span>:nginx  &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">CI_REGISTRY_USER</span><span class="o">=</span><span class="nv">$CI_REGISTRY_USER</span>   &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">CI_JOB_TOKEN</span><span class="o">=</span><span class="nv">$CI_JOB_TOKEN</span>  &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">CI_REGISTRY</span><span class="o">=</span><span class="nv">$CI_REGISTRY</span>  &gt;&gt; .env
+<span class="nb">echo</span> <span class="nv">IMAGE</span><span class="o">=</span><span class="nv">$CI_REGISTRY</span>/<span class="nv">$CI_PROJECT_NAMESPACE</span>/<span class="nv">$CI_PROJECT_NAME</span> &gt;&gt; .env
+</code></pre></div>
+
+<p>接下来，将服务器的IP添加到Django设置中的<code>ALLOWED_HOSTS</code>列表。</p>
+<p>提交并推送您的代码以触发新的构建。构建通过后，导航到实例的IP。您应该看到:</p>
+
+
+<h2 id="postgresql-via-ssh-tunnel">通过SSH隧道的PostgreSQL</h2>
+<p>需要访问数据库？</p>
+<p>宋承宪入框:</p>
+
+
+<p>安装Postgres:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ sudo amazon-linux-extras install postgresql12 -y
+</code></pre></div>
+
+<p>然后，运行<code>psql</code>，像这样:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>ec2-user<span class="o">]</span>$ psql -h &lt;YOUR_RDS_ENDPOINT&gt; -U webapp -d django_prod
+
+<span class="c1"># example:</span>
+<span class="c1"># psql -h djangodb.c7vzuyfvhlgz.us-east-1.rds.amazonaws.com -U webapp -d django_prod</span>
+</code></pre></div>
+
+<p>输入密码。</p>
+<div class="codehilite"><pre><span/><code>psql <span class="o">(</span><span class="m">12</span>.7<span class="o">)</span>
+SSL connection <span class="o">(</span>protocol: TLSv1.2, cipher: ECDHE-RSA-AES256-GCM-SHA384, bits: <span class="m">256</span>, compression: off<span class="o">)</span>
+Type <span class="s2">"help"</span> <span class="k">for</span> help.
+
+<span class="nv">django_prod</span><span class="o">=</span>&gt; <span class="se">\l</span>
+                                   List of databases
+    Name     <span class="p">|</span>  Owner   <span class="p">|</span> Encoding <span class="p">|</span>   Collate   <span class="p">|</span>    Ctype    <span class="p">|</span>   Access privileges
+-------------+----------+----------+-------------+-------------+-----------------------
+ django_prod <span class="p">|</span> webapp   <span class="p">|</span> UTF8     <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> en_US.UTF-8 <span class="p">|</span>
+ postgres    <span class="p">|</span> webapp   <span class="p">|</span> UTF8     <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> en_US.UTF-8 <span class="p">|</span>
+ rdsadmin    <span class="p">|</span> rdsadmin <span class="p">|</span> UTF8     <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> <span class="nv">rdsadmin</span><span class="o">=</span>CTc/rdsadmin
+ template0   <span class="p">|</span> rdsadmin <span class="p">|</span> UTF8     <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> <span class="o">=</span>c/rdsadmin          +
+             <span class="p">|</span>          <span class="p">|</span>          <span class="p">|</span>             <span class="p">|</span>             <span class="p">|</span> <span class="nv">rdsadmin</span><span class="o">=</span>CTc/rdsadmin
+ template1   <span class="p">|</span> webapp   <span class="p">|</span> UTF8     <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> en_US.UTF-8 <span class="p">|</span> <span class="o">=</span>c/webapp            +
+             <span class="p">|</span>          <span class="p">|</span>          <span class="p">|</span>             <span class="p">|</span>             <span class="p">|</span> <span class="nv">webapp</span><span class="o">=</span>CTc/webapp
+<span class="o">(</span><span class="m">5</span> rows<span class="o">)</span>
+
+<span class="nv">django_prod</span><span class="o">=</span>&gt; <span class="se">\q</span>
+</code></pre></div>
+
+<p>完成后，退出SSH会话。</p>
+<h2 id="update-gitlab-ci">更新GitLab CI</h2>
+<p>最后，更新<code>deploy</code>阶段，使其仅在对<code>master</code>分支进行更改时运行:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">deploy</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mkdir -p ~/.ssh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echo "$PRIVATE_KEY" | tr -d '\r' &gt; ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cat ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod 700 ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eval "$(ssh-agent -s)"</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ssh-add ~/.ssh/id_rsa</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ssh-keyscan -H 'gitlab.com' &gt;&gt; ~/.ssh/known_hosts</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x ./deploy.sh</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scp  -o StrictHostKeyChecking=no -r ./.env ./docker-compose.prod.yml <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d6b3b5e4fba3a5b3a496">[email protected]</a>$EC2_PUBLIC_IP_ADDRESS:/home/ec2-user/app</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash ./deploy.sh</span><span class="w"/>
+<span class="w">  </span><span class="nt">only</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">master</span><span class="w"/>
+</code></pre></div>
+
+<p>为了测试，创建一个新的<code>develop</code>分支。在<em> urls.py </em>中的<code>world</code>后加一个感叹号:</p>
+<div class="codehilite"><pre><span/><code><span class="k">def</span> <span class="nf">home</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s1">'hello'</span><span class="p">:</span> <span class="s1">'world!'</span><span class="p">})</span>
+</code></pre></div>
+
+<p>将您的更改提交并推送到GitLab。确保只运行<code>build</code>阶段。一旦构建通过，打开一个针对<code>master</code>分支的PR并合并变更。这将触发一个包含两个阶段的新管道- <code>build</code>和<code>deploy</code>。确保部署按预期工作:</p>
+
+
+<h2 id="next-steps">后续步骤</h2>
+<p>本教程介绍了如何配置GitLab CI，以便将Django和Docker应用程序持续部署到AWS EC2。</p>
+<p>此时，您可能希望使用域名而不是IP地址。为此，您需要:</p>
+<ol>
+<li>设置一个静态IP地址并<a href="https://aws.amazon.com/premiumsupport/knowledge-center/ec2-associate-static-public-ip/">将</a>关联到您的EC2实例</li>
+<li>通过亚马逊证书管理器创建一个SSL证书</li>
+<li>安装新的<a href="https://aws.amazon.com/elasticloadbalancing/">弹性负载平衡器</a>并在其上安装证书</li>
+</ol>
+<p>想挑战吗？为了使整个过程自动化，因此您不需要每次都手动提供一个新实例并在其上安装Docker，设置<a href="https://aws.amazon.com/ecs/">弹性容器服务</a>。有关这方面的更多信息，请查看<a href="https://testdriven.io/courses/aws-flask-react/">将Flask和React微服务部署到AWS ECS </a>课程和<a href="/blog/deploying-django-to-ecs-with-terraform/">使用Terraform将Django部署到AWS ECS</a>教程。</p>
+<p>你可以在django-gitlab-ec2  repo中找到最终代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

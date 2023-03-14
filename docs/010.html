@@ -1,0 +1,717 @@
+<html>
+<head>
+<title>Dockerizing FastAPI with Postgres, Uvicorn, and Traefik </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Postgres、Uvicorn和Traefik对FastAPI进行Dockerizing</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/fastapi-docker-traefik/#0001-01-01">https://testdriven.io/blog/fastapi-docker-traefik/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将看看如何用Postgres、Uvicorn和Docker设置FastAPI。对于生产环境，我们将添加Gunicorn、Traefik，并进行加密。</p>
+
+
+
+<h2 id="project-setup">项目设置</h2>
+<p>首先创建一个项目目录:</p>
+<div class="codehilite"><pre><span/><code>$ mkdir fastapi-docker-traefik <span class="o">&amp;&amp;</span> <span class="nb">cd</span> fastapi-docker-traefik
+$ python3.11 -m venv venv
+$ <span class="nb">source</span> venv/bin/activate
+</code></pre></div>
+
+<blockquote>
+<p>你可以随意把virtualenv和Pip换成诗歌<a href="https://python-poetry.org">或</a><a href="https://github.com/pypa/pipenv"> Pipenv </a>。更多信息，请查看<a href="/blog/python-environments/">现代Python环境</a>。</p>
+</blockquote>
+<p>然后，创建以下文件和文件夹:</p>
+<div class="codehilite"><pre><span/><code>├── app
+│   ├── __init__.py
+│   └── main.py
+└── requirements.txt
+</code></pre></div>
+
+<blockquote>
+<p>以下命令将创建项目结构:</p><div class="codehilite"><pre><span/><code>$ mkdir app <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  touch app/__init__.py app/main.py requirements.txt
+</code></pre></div>
+</blockquote>
+
+<p>将ASGI服务器<a href="https://fastapi.tiangolo.com/"> FastAPI </a>和<a href="https://www.uvicorn.org/">uvicon</a>添加到<em> requirements.txt </em>:</p>
+<div class="codehilite"><pre><span/><code>fastapi==0.89.1
+uvicorn==0.20.0
+</code></pre></div>
+
+<p>安装它们:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ pip install -r requirements.txt
+</code></pre></div>
+
+<p>接下来，让我们在<em> app/main.py </em>中创建一个简单的FastAPI应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app/main.py</span>
+
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"FastAPI, Docker, and Traefik"</span><span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">read_root</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>运行应用程序:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>venv<span class="o">)</span>$ uvicorn app.main:app
+</code></pre></div>
+
+<p>导航至<a href="http://127.0.0.1:8000"> 127.0.0.1:8000 </a>。您应该看到:</p>
+
+
+<p>一旦完成就杀死服务器。退出，然后也删除虚拟环境。</p>
+<h2 id="docker">码头工人</h2>
+<p>安装<a href="https://docs.docker.com/install/"> Docker </a>，如果你还没有的话，那么添加一个<em> Dockerfile </em>到项目根目录:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># Dockerfile</span>
+
+<span class="c"># pull the official docker image</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.11.1-slim</span>
+
+<span class="c"># set work directory</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="c"># set env variables</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONDONTWRITEBYTECODE <span class="m">1</span>
+<span class="k">ENV</span><span class="w"> </span>PYTHONUNBUFFERED <span class="m">1</span>
+
+<span class="c"># install dependencies</span>
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="c"># copy project</span>
+<span class="k">COPY</span><span class="w"> </span>. .
+</code></pre></div>
+
+<p>所以，我们从Python 3.11.1的<code>slim</code> <a href="https://hub.docker.com/_/python/"> Docker镜像</a>开始。然后我们设置了一个<a href="https://docs.docker.com/engine/reference/builder/#workdir">工作目录</a>以及两个环境变量:</p>
+<ol>
+<li><code>PYTHONDONTWRITEBYTECODE</code>:防止Python将pyc文件写入磁盘(相当于<code>python -B</code> <a href="https://docs.python.org/3/using/cmdline.html#cmdoption-B">选项</a></li>
+<li><code>PYTHONUNBUFFERED</code>:防止Python缓冲stdout和stderr(相当于<code>python -u</code> <a href="https://docs.python.org/3/using/cmdline.html#cmdoption-u">选项</a></li>
+</ol>
+<p>最后，我们复制了<em> requirements.txt </em>文件，安装了依赖项，并复制了项目。</p>
+<blockquote>
+<p>查看<a href="/blog/docker-best-practices/"> Docker针对Python开发人员的最佳实践</a>，了解更多关于构造Docker文件的信息，以及为基于Python的开发配置Docker的一些最佳实践。</p>
+</blockquote>
+<p>接下来，将一个<em> docker-compose.yml </em>文件添加到项目根:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># docker-compose.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uvicorn app.main:app --host 0.0.0.0</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.:/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8008:8000</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>查看<a href="https://docs.docker.com/compose/compose-file/">合成文件参考</a>，了解该文件如何工作的信息。</p>
+</blockquote>
+<p>建立形象:</p>
+
+
+<p>构建映像后，运行容器:</p>
+
+
+<p>导航到<a href="http://localhost:8008"> http://localhost:8008 </a>再次查看hello world健全性检查。</p>
+<blockquote>
+<p>如果这不起作用，通过<code>docker-compose logs -f</code>检查日志中的错误。</p>
+</blockquote>
+<h2 id="postgres">Postgres</h2>
+<p>要配置Postgres，我们需要在<em> docker-compose.yml </em>文件中添加一个新服务，设置一个ORM，并安装<a href="https://github.com/MagicStack/asyncpg"> asyncpg </a>。</p>
+<p>首先，向<em> docker-compose.yml </em>添加一个名为<code>db</code>的新服务:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># docker-compose.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash -c 'while !&lt;/dev/tcp/db/5432; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0'</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.:/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8008:8000</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DATABASE_URL=postgresql://fastapi_traefik:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3e585f4d4a5f4e57614a4c5f5b5857557e5a5c">[email protected]</a>:5432/fastapi_traefik</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db</span><span class="w"/>
+<span class="w">  </span><span class="nt">db</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:15-alpine</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres_data:/var/lib/postgresql/data/</span><span class="w"/>
+<span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER=fastapi_traefik</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD=fastapi_traefik</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_DB=fastapi_traefik</span><span class="w"/>
+
+<span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">postgres_data</span><span class="p">:</span><span class="w"/>
+</code></pre></div>
+
+<p>为了在容器的生命周期之外保存数据，我们配置了一个卷。这个配置将把<code>postgres_data</code>绑定到容器中的“/var/lib/postgresql/data/”目录。</p>
+<p>我们还添加了一个环境键来定义默认数据库的名称，并设置用户名和密码。</p>
+<blockquote>
+<p>查看<a href="https://hub.docker.com/_/postgres"> Postgres Docker Hub页面</a>的“环境变量”部分了解更多信息。</p>
+</blockquote>
+<p>注意<code>web</code>服务中的新命令:</p>
+<div class="codehilite"><pre><span/><code>bash -c <span class="s1">'while !&lt;/dev/tcp/db/5432; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0'</span>
+</code></pre></div>
+
+<p>将持续到Postgres完成。一旦启动，<code>uvicorn app.main:app --host 0.0.0.0</code>就会运行。</p>
+<p>接下来，将一个名为<em> config.py </em>的新文件添加到“app”目录中，在这里我们将定义特定于环境的<a href="https://fastapi.tiangolo.com/advanced/settings/">配置</a>变量:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app/config.py</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseSettings</span><span class="p">,</span> <span class="n">Field</span>
+
+
+<span class="k">class</span> <span class="nc">Settings</span><span class="p">(</span><span class="n">BaseSettings</span><span class="p">):</span>
+    <span class="n">db_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="s1">'DATABASE_URL'</span><span class="p">)</span>
+
+<span class="n">settings</span> <span class="o">=</span> <span class="n">Settings</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这里，我们用一个<code>db_url</code>属性定义了一个<code>Settings</code>类。来自pydantic的<a href="https://pydantic-docs.helpmanual.io/usage/settings/"> BaseSettings </a>验证数据，这样当我们创建一个<code>Settings</code>的实例时，<code>db_url</code>将自动从环境变量中加载。</p>
+<blockquote>
+<p>我们本来可以使用<code>os.getenv()</code>，但是随着环境变量数量的增加，这变得非常重复。通过使用<code>BaseSettings</code>，您可以指定环境变量名，它将被自动加载。</p>
+<p>你可以在这里了解更多关于pydantic设置管理<a href="https://pydantic-docs.helpmanual.io/usage/settings/">。</a></p>
+</blockquote>
+<p>我们将使用ormar与数据库通信。</p>
+<p>在<em> requirements.txt </em>中添加<a href="https://collerek.github.io/ormar/"> ormar </a>，一个Python的异步迷你ORM，以及asyncpg和psycopg2:</p>
+<div class="codehilite"><pre><span/><code>asyncpg==0.27.0
+fastapi==0.89.1
+ormar==0.12.1
+psycopg2-binary==2.9.5
+uvicorn==0.20.0
+</code></pre></div>
+
+<blockquote>
+<p>请随意将ormar换成您选择的ORM。寻找一些异步选项？看看<a href="https://github.com/mjhea0/awesome-fastapi#databases">令人敬畏的FastAPI repo </a>和<a href="https://twitter.com/testdrivenio/status/1383457727003783173">这个Twitter帖子</a>。</p>
+</blockquote>
+<p>接下来，创建一个<em> app/db.py </em>文件来建立一个模型:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app/db.py</span>
+
+<span class="kn">import</span> <span class="nn">databases</span>
+<span class="kn">import</span> <span class="nn">ormar</span>
+<span class="kn">import</span> <span class="nn">sqlalchemy</span>
+
+<span class="kn">from</span> <span class="nn">.config</span> <span class="kn">import</span> <span class="n">settings</span>
+
+<span class="n">database</span> <span class="o">=</span> <span class="n">databases</span><span class="o">.</span><span class="n">Database</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">db_url</span><span class="p">)</span>
+<span class="n">metadata</span> <span class="o">=</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">MetaData</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">BaseMeta</span><span class="p">(</span><span class="n">ormar</span><span class="o">.</span><span class="n">ModelMeta</span><span class="p">):</span>
+    <span class="n">metadata</span> <span class="o">=</span> <span class="n">metadata</span>
+    <span class="n">database</span> <span class="o">=</span> <span class="n">database</span>
+
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">ormar</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">(</span><span class="n">BaseMeta</span><span class="p">):</span>
+        <span class="n">tablename</span> <span class="o">=</span> <span class="s2">"users"</span>
+
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">ormar</span><span class="o">.</span><span class="n">Integer</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ormar</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">active</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">ormar</span><span class="o">.</span><span class="n">Boolean</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+
+<span class="n">engine</span> <span class="o">=</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">create_engine</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">db_url</span><span class="p">)</span>
+<span class="n">metadata</span><span class="o">.</span><span class="n">create_all</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这将创建一个pydanic模型和一个SQLAlchemy表。</p>
+<p>ormar使用<a href="https://www.sqlalchemy.org/"> SQLAlchemy </a>创建数据库/表格并构建数据库查询，使用<a href="https://github.com/encode/databases">数据库</a>异步执行查询，使用<a href="https://pydantic-docs.helpmanual.io/"> pydantic </a>进行数据验证。注意，每个<code>ormar.Model</code>也是一个<code>pydantic.BaseModel</code>，所以所有的pydantic方法在一个模型上也是可用的。由于这些表是使用SQLAlchemy(在幕后)创建的，所以可以通过<a href="https://alembic.sqlalchemy.org/en/latest/"> Alembic </a>进行数据库迁移。</p>
+<blockquote>
+<p>查看官方ormar文档中的<a href="https://collerek.github.io/ormar/models/migrations/#alembic-usage"> Alembic用法</a>，了解更多关于使用Alembic和ormar的信息。</p>
+</blockquote>
+<p>接下来，更新<em> app/main.py </em>以连接到数据库并添加一个虚拟用户:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># app/main.py</span>
+
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+
+<span class="kn">from</span> <span class="nn">app.db</span> <span class="kn">import</span> <span class="n">database</span><span class="p">,</span> <span class="n">User</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"FastAPI, Docker, and Traefik"</span><span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">read_root</span><span class="p">():</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">on_event</span><span class="p">(</span><span class="s2">"startup"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">startup</span><span class="p">():</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">database</span><span class="o">.</span><span class="n">is_connected</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">database</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+    <span class="c1"># create a dummy entry</span>
+    <span class="k">await</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="s2">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="364253454276425345421855595b">[email protected]</a>"</span><span class="p">)</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">on_event</span><span class="p">(</span><span class="s2">"shutdown"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">shutdown</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">database</span><span class="o">.</span><span class="n">is_connected</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">database</span><span class="o">.</span><span class="n">disconnect</span><span class="p">()</span>
+</code></pre></div>
+
+<p>这里，我们使用FastAPI的<a href="https://fastapi.tiangolo.com/advanced/events/">事件处理程序</a>来创建一个数据库连接。<code>@app.on_event("startup")</code>在应用程序启动前创建数据库连接池。</p>
+
+
+<p>一旦建立了连接，startup事件中的上面一行就会向我们的表中添加一个虚拟条目。确保条目仅在不存在时才被创建。</p>
+<p>shutdown事件关闭所有与数据库的连接。我们还添加了一条路由来显示<code>users</code>表中的所有条目。</p>
+<p>构建新的映像并旋转两个容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>确保<code>users</code>表已创建:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> db psql --username<span class="o">=</span>fastapi_traefik --dbname<span class="o">=</span>fastapi_traefik
+
+psql <span class="o">(</span><span class="m">15</span>.1<span class="o">)</span>
+Type <span class="s2">"help"</span> <span class="k">for</span> help.
+
+<span class="nv">fastapi_traefik</span><span class="o">=</span><span class="c1"># \l</span>
+                                              List of databases
+      Name       <span class="p">|</span>      Owner      <span class="p">|</span> Encoding <span class="p">|</span>  Collate   <span class="p">|</span>   Ctype    <span class="p">|</span>          Access privileges
+-----------------+-----------------+----------+------------+------------+-------------------------------------
+ fastapi_traefik <span class="p">|</span> fastapi_traefik <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span>
+ postgres        <span class="p">|</span> fastapi_traefik <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span>
+ template0       <span class="p">|</span> fastapi_traefik <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span> <span class="o">=</span>c/fastapi_traefik                 +
+                 <span class="p">|</span>                 <span class="p">|</span>          <span class="p">|</span>            <span class="p">|</span>            <span class="p">|</span> <span class="nv">fastapi_traefik</span><span class="o">=</span>CTc/fastapi_traefik
+ template1       <span class="p">|</span> fastapi_traefik <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span> <span class="o">=</span>c/fastapi_traefik                 +
+                 <span class="p">|</span>                 <span class="p">|</span>          <span class="p">|</span>            <span class="p">|</span>            <span class="p">|</span> <span class="nv">fastapi_traefik</span><span class="o">=</span>CTc/fastapi_traefik
+<span class="o">(</span><span class="m">4</span> rows<span class="o">)</span>
+
+
+<span class="nv">fastapi_traefik</span><span class="o">=</span><span class="c1"># \c fastapi_traefik</span>
+You are now connected to database <span class="s2">"fastapi_traefik"</span> as user <span class="s2">"fastapi_traefik"</span>.
+
+<span class="nv">fastapi_traefik</span><span class="o">=</span><span class="c1"># \dt</span>
+            List of relations
+ Schema <span class="p">|</span> Name  <span class="p">|</span> Type  <span class="p">|</span>      Owner
+--------+-------+-------+-----------------
+ public <span class="p">|</span> users <span class="p">|</span> table <span class="p">|</span> fastapi_traefik
+<span class="o">(</span><span class="m">1</span> row<span class="o">)</span>
+
+<span class="nv">fastapi_traefik</span><span class="o">=</span><span class="c1"># \q</span>
+</code></pre></div>
+
+<p>您也可以通过运行以下命令来检查该卷是否已创建:</p>
+<div class="codehilite"><pre><span/><code>$ docker volume inspect fastapi-docker-traefik_postgres_data
+</code></pre></div>
+
+<p>您应该会看到类似如下的内容:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>
+    <span class="o">{</span>
+        <span class="s2">"CreatedAt"</span>: <span class="s2">"2023-01-31T15:59:10Z"</span>,
+        <span class="s2">"Driver"</span>: <span class="s2">"local"</span>,
+        <span class="s2">"Labels"</span>: <span class="o">{</span>
+            <span class="s2">"com.docker.compose.project"</span>: <span class="s2">"fastapi-docker-traefik"</span>,
+            <span class="s2">"com.docker.compose.version"</span>: <span class="s2">"2.12.2"</span>,
+            <span class="s2">"com.docker.compose.volume"</span>: <span class="s2">"postgres_data"</span>
+        <span class="o">}</span>,
+        <span class="s2">"Mountpoint"</span>: <span class="s2">"/var/lib/docker/volumes/fastapi-docker-traefik_postgres_data/_data"</span>,
+        <span class="s2">"Name"</span>: <span class="s2">"fastapi-docker-traefik_postgres_data"</span>,
+        <span class="s2">"Options"</span>: null,
+        <span class="s2">"Scope"</span>: <span class="s2">"local"</span>
+    <span class="o">}</span>
+<span class="o">]</span>
+</code></pre></div>
+
+<p>导航至<a href="http://127.0.0.1:8008"> 127.0.0.1:8008 </a>。您应该看到:</p>
+
+
+<h2 id="production-dockerfile">生产文档</h2>
+<p>为了部署我们的应用程序，我们需要添加一个WSGI服务器<a href="https://gunicorn.org/"> Gunicorn </a>，以生成Uvicorn的实例。我们不用编写自己的产品<em> Dockerfile </em>，我们可以利用<a href="https://github.com/tiangolo/uvicorn-gunicorn-docker">uvicon-gunicorn</a>，这是一个预建的Docker映像，包含uvicon和guni corn，用于由核心FastAPI作者维护的高性能web应用程序。</p>
+<p>创建一个名为<em> Dockerfile.prod </em>的新Dockerfile，用于生产构建:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># Dockerfile.prod</span>
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">tiangolo/uvicorn-gunicorn:python3.11-slim</span>
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>. .
+</code></pre></div>
+
+<p>就是这样。<code>tiangolo/uvicorn-gunicorn:python3.11.1-slim</code> <a href="https://github.com/tiangolo/uvicorn-gunicorn-docker/blob/0.7.0/docker-images/python3.11-slim.dockerfile">图像</a>为我们做了很多工作。我们只是复制了<em> requirements.txt </em>文件，安装了依赖项，然后复制了所有的项目文件。</p>
+<p>接下来，为生产创建一个名为<em> docker-compose.prod.yml </em>的新合成文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># docker-compose.prod.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">dockerfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dockerfile.prod</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8009:80</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DATABASE_URL=postgresql://fastapi_traefik_prod:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8bedeaf8ffeafbe2d4fff9eaeeede2e0d4fbf9e4efcbefe9">[email protected]</a>:5432/fastapi_traefik_prod</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db</span><span class="w"/>
+<span class="w">  </span><span class="nt">db</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:15-alpine</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres_data_prod:/var/lib/postgresql/data/</span><span class="w"/>
+<span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER=fastapi_traefik_prod</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD=fastapi_traefik_prod</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_DB=fastapi_traefik_prod</span><span class="w"/>
+
+<span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">postgres_data_prod</span><span class="p">:</span><span class="w"/>
+</code></pre></div>
+
+<p>将这个文件与<em> docker-compose.yml </em>进行比较。有什么不同？</p>
+<p>我们使用的<code>uvicorn-gunicorn</code> Docker映像使用一个<a href="https://github.com/tiangolo/uvicorn-gunicorn-docker/tree/0.7.0#custom-appprestartsh"> prestart.sh </a>脚本在应用程序启动前运行命令。我们可以用这个来等待Postgres。</p>
+<p>修改<em> Dockerfile.prod </em>如下:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># Dockerfile.prod</span>
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">tiangolo/uvicorn-gunicorn:python3.11-slim</span>
+
+<span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> apt-get install -y netcat
+
+<span class="k">COPY</span><span class="w"> </span>requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="k">COPY</span><span class="w"> </span>. .
+</code></pre></div>
+
+<p>然后，将一个<em> prestart.sh </em>文件添加到项目的根目录:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># prestart.sh</span>
+
+<span class="nb">echo</span> <span class="s2">"Waiting for postgres connection"</span>
+
+<span class="k">while</span> ! nc -z db <span class="m">5432</span><span class="p">;</span> <span class="k">do</span>
+    sleep <span class="m">0</span>.1
+<span class="k">done</span>
+
+<span class="nb">echo</span> <span class="s2">"PostgreSQL started"</span>
+
+<span class="nb">exec</span> <span class="s2">"</span><span class="nv"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f8dcb8">[email protected]</a></span><span class="s2">"</span>
+</code></pre></div>
+
+<p>在本地更新文件权限:</p>
+
+
+<p>将<a href="https://docs.docker.com/compose/reference/down/">下放到</a>开发容器(以及带有<code>-v</code>标志的相关卷):</p>
+
+
+<p>然后，构建生产映像并启动容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose -f docker-compose.prod.yml up -d --build
+</code></pre></div>
+
+<p>测试<a href="http://127.0.0.1:8009"> 127.0.0.1:8009 </a>是否工作。</p>
+<h2 id="traefik">Traefik</h2>
+<p>接下来，让我们添加<a href="https://traefik.io/traefik/"> Traefik </a>，一个<a href="https://www.cloudflare.com/learning/cdn/glossary/reverse-proxy/">反向代理</a>。</p>
+<blockquote>
+<p>刚接触Traefik？查看官方<a href="https://doc.traefik.io/traefik/getting-started/concepts/">入门</a>指南。</p>
+<p><strong> Traefik vs Nginx </strong> : Traefik是一个现代的、HTTP反向代理和负载平衡器。它经常被比作<a href="https://www.nginx.com"> Nginx </a>，一个网络服务器和反向代理。由于Nginx主要是一个网络服务器，它可以用来提供网页，也可以作为一个反向代理和负载平衡器。总的来说，Traefik的启动和运行更简单，而Nginx的功能更丰富。</p>
+<p><strong> Traefik </strong> :</p>
+<ol>
+<li>反向代理和负载平衡器</li>
+<li>通过开箱即用的<a href="https://letsencrypt.org/">让我们加密</a>，自动发布和更新SSL证书</li>
+<li>将Traefik用于简单的、基于Docker的微服务</li>
+</ol>
+<p><strong> Nginx </strong>:</p>
+<ol>
+<li>Web服务器、反向代理和负载平衡器</li>
+<li>比trafik稍快</li>
+<li>对复杂的服务使用Nginx</li>
+</ol>
+</blockquote>
+<p>添加一个名为<em> traefik.dev.toml </em>的新文件:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># traefik.dev.toml</span><span class="w"/>
+
+<span class="c1"># listen on port 80</span><span class="w"/>
+<span class="k">[entryPoints]</span><span class="w"/>
+<span class="w">  </span><span class="k">[entryPoints.web]</span><span class="w"/>
+<span class="w">    </span><span class="n">address</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">":80"</span><span class="w"/>
+
+<span class="c1"># Traefik dashboard over http</span><span class="w"/>
+<span class="k">[api]</span><span class="w"/>
+<span class="n">insecure</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+
+<span class="k">[log]</span><span class="w"/>
+<span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"DEBUG"</span><span class="w"/>
+
+<span class="k">[accessLog]</span><span class="w"/>
+
+<span class="c1"># containers are not discovered automatically</span><span class="w"/>
+<span class="k">[providers]</span><span class="w"/>
+<span class="w">  </span><span class="k">[providers.docker]</span><span class="w"/>
+<span class="w">    </span><span class="n">exposedByDefault</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="w"/>
+</code></pre></div>
+
+<p>在这里，由于我们不想公开<code>db</code>服务，我们将<a href="https://doc.traefik.io/traefik/providers/docker/#exposedbydefault"> exposedByDefault </a>设置为<code>false</code>。要手动公开服务，我们可以将<code>"traefik.enable=true"</code>标签添加到Docker组合文件中。</p>
+<p>接下来，更新<em> docker-compose.yml </em>文件，以便Traefik发现我们的<code>web</code>服务并添加一个新的<code>traefik</code>服务:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># docker-compose.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash -c 'while !&lt;/dev/tcp/db/5432; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0'</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.:/app</span><span class="w"/>
+<span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w">  </span><span class="c1"># new</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DATABASE_URL=postgresql://fastapi_traefik:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="50363123243120390f2422313536393b103432">[email protected]</a>:5432/fastapi_traefik</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db</span><span class="w"/>
+<span class="w">    </span><span class="nt">labels</span><span class="p">:</span><span class="w"> </span><span class="c1"># new</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.enable=true"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.fastapi.rule=Host(`fastapi.localhost`)"</span><span class="w"/>
+<span class="w">  </span><span class="nt">db</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:15-alpine</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres_data:/var/lib/postgresql/data/</span><span class="w"/>
+<span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER=fastapi_traefik</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD=fastapi_traefik</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_DB=fastapi_traefik</span><span class="w"/>
+<span class="w">  </span><span class="nt">traefik</span><span class="p">:</span><span class="w"> </span><span class="c1"># new</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">traefik:v2.9.6</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8008:80</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8081:8080</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"./traefik.dev.toml:/etc/traefik/traefik.toml"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"/var/run/docker.sock:/var/run/docker.sock:ro"</span><span class="w"/>
+
+<span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">postgres_data</span><span class="p">:</span><span class="w"/>
+</code></pre></div>
+
+<p>首先，<code>web</code>服务只对端口<code>8000</code>上的其他容器公开。我们还为<code>web</code>服务添加了以下标签:</p>
+<ol>
+<li><code>traefik.enable=true</code>使Traefik能够发现服务</li>
+<li><code>traefik.http.routers.fastapi.rule=Host(`fastapi.localhost`)</code>当请求有<code>Host=fastapi.localhost</code>时，请求被重定向到该服务</li>
+</ol>
+<p>记下<code>traefik</code>服务中的卷:</p>
+<ol>
+<li>将本地配置文件映射到容器中的配置文件，以便保持设置同步</li>
+<li><code>/var/run/docker.sock:/var/run/docker.sock:ro</code>使Traefik能够发现其他容器</li>
+</ol>
+<p>要进行测试，首先取下任何现有的容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose down -v
+$ docker-compose -f docker-compose.prod.yml down -v
+</code></pre></div>
+
+<p>构建新的开发映像并启动容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>导航到<a href="http://fastapi.localhost:8008/">http://fastapi.localhost:8008/</a>您应该看到:</p>
+
+
+<p>您也可以通过cURL进行测试:</p>
+<div class="codehilite"><pre><span/><code>$ curl -H Host:fastapi.localhost http://0.0.0.0:8008
+</code></pre></div>
+
+<p>接下来，在<a href="http://fastapi.localhost:8081"> fastapi.localhost:8081 </a>查看<a href="https://doc.traefik.io/traefik/operations/dashboard/">仪表盘</a>:</p>
+<p><img data-src="/static/images/blog/fastapi/fastapi-docker-traefik/traefik_dashboard.png" loading="lazy" class="lazyload" alt="traefik dashboard" src="../Images/c388e49cdf834296ca304b677e08a153.png" data-original-src="https://testdriven.io/static/images/blog/fastapi/fastapi-docker-traefik/traefik_dashboard.png"/></p>
+<p>完成后，将容器和体积拿下来:</p>
+
+
+<h2 id="lets-encrypt">让我们加密</h2>
+<p>我们已经在开发模式下成功地创建了FastAPI、Docker和Traefik的工作示例。对于生产，您需要配置Traefik来通过Let's Encrypt 管理TLS证书。简而言之，Traefik将自动联系证书颁发机构来颁发和续订证书。</p>
+<p>因为Let's Encrypt不会为<code>localhost</code>颁发证书，所以你需要在云计算实例(比如<a href="https://m.do.co/c/d8f211a4b4c2"> DigitalOcean </a> droplet或AWS EC2实例)上运行你的生产容器。您还需要一个有效的域名。如果你没有，你可以在<a href="https://www.freenom.com/"> Freenom </a>创建一个免费域名。</p>
+<blockquote>
+<p>我们使用一个<a href="https://m.do.co/c/d8f211a4b4c2"> DigitalOcean </a> droplet为Docker提供一个计算实例，并部署生产容器来测试Traefik配置。</p>
+</blockquote>
+<p>假设您配置了一个计算实例并设置了一个自由域，那么现在就可以在生产模式下设置Traefik了。</p>
+<p>首先将Traefik配置的生产版本添加到名为<em> traefik.prod.toml </em>的文件中:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># traefik.prod.toml</span><span class="w"/>
+
+<span class="k">[entryPoints]</span><span class="w"/>
+<span class="w">  </span><span class="k">[entryPoints.web]</span><span class="w"/>
+<span class="w">    </span><span class="n">address</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">":80"</span><span class="w"/>
+<span class="w">  </span><span class="k">[entryPoints.web.http]</span><span class="w"/>
+<span class="w">    </span><span class="k">[entryPoints.web.http.redirections]</span><span class="w"/>
+<span class="w">      </span><span class="k">[entryPoints.web.http.redirections.entryPoint]</span><span class="w"/>
+<span class="w">        </span><span class="n">to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"websecure"</span><span class="w"/>
+<span class="w">        </span><span class="n">scheme</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"https"</span><span class="w"/>
+
+<span class="w">  </span><span class="k">[entryPoints.websecure]</span><span class="w"/>
+<span class="w">    </span><span class="n">address</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">":443"</span><span class="w"/>
+
+<span class="k">[accessLog]</span><span class="w"/>
+
+<span class="k">[api]</span><span class="w"/>
+<span class="n">dashboard</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w"/>
+
+<span class="k">[providers]</span><span class="w"/>
+<span class="w">  </span><span class="k">[providers.docker]</span><span class="w"/>
+<span class="w">    </span><span class="n">exposedByDefault</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="w"/>
+
+<span class="k">[certificatesResolvers.letsencrypt.acme]</span><span class="w"/>
+<span class="w">  </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="10697f656250757d71797c3e737f7d">[email protected]</a>"</span><span class="w"/>
+<span class="w">  </span><span class="n">storage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"/certificates/acme.json"</span><span class="w"/>
+<span class="w">  </span><span class="k">[certificatesResolvers.letsencrypt.acme.httpChallenge]</span><span class="w"/>
+<span class="w">    </span><span class="n">entryPoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"web"</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>确保用您的实际电子邮件地址替换<code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d5acbaa0a795b0b8b4bcb9fbb6bab8">[email protected]</a></code>。</p>
+</blockquote>
+<p>这里发生了什么:</p>
+<ol>
+<li>将我们不安全的HTTP应用程序的入口点设置为端口80</li>
+<li>将我们的安全HTTPS应用程序的入口点设置为端口443</li>
+<li>将所有不安全的请求重定向到安全端口</li>
+<li><code>exposedByDefault = false</code>取消所有服务</li>
+<li><code>dashboard = true</code>启用监控仪表板</li>
+</ol>
+<p>最后，请注意:</p>
+<div class="codehilite"><pre><span/><code><span class="k">[certificatesResolvers.letsencrypt.acme]</span><span class="w"/>
+<span class="w">  </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f881978d8ab89d95999194d69b9795">[email protected]</a>"</span><span class="w"/>
+<span class="w">  </span><span class="n">storage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"/certificates/acme.json"</span><span class="w"/>
+<span class="w">  </span><span class="k">[certificatesResolvers.letsencrypt.acme.httpChallenge]</span><span class="w"/>
+<span class="w">    </span><span class="n">entryPoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"web"</span><span class="w"/>
+</code></pre></div>
+
+<p>这是让我们加密配置的地方。我们定义了证书将被存储在哪里<a href="https://doc.traefik.io/traefik/https/acme/#storage"/>以及<a href="https://doc.traefik.io/traefik/https/acme/#the-different-acme-challenges">验证类型</a>，这是一个<a href="https://letsencrypt.org/docs/challenge-types/#http-01-challenge"> HTTP挑战</a>。</p>
+<p>接下来，假设您更新了域名的DNS记录，创建两个新的A记录，它们都指向您的计算实例的公共IP:</p>
+<ol>
+<li><code>fastapi-traefik.your-domain.com</code> -用于网络服务</li>
+<li><code>dashboard-fastapi-traefik.your-domain.com</code> -用于Traefik仪表板</li>
+</ol>
+<blockquote>
+<p>确保用您的实际域名替换<code>your-domain.com</code>。</p>
+</blockquote>
+<p>接下来，像这样更新<em> docker-compose.prod.yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># docker-compose.prod.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">dockerfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dockerfile.prod</span><span class="w"/>
+<span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w">  </span><span class="c1"># new</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DATABASE_URL=postgresql://fastapi_traefik_prod:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2f494e5c5b4e5f46705b5d4e4a494644705f5d404b6f4b4d">[email protected]</a>:5432/fastapi_traefik_prod</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db</span><span class="w"/>
+<span class="w">    </span><span class="nt">labels</span><span class="p">:</span><span class="w">  </span><span class="c1"># new</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.enable=true"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.fastapi.rule=Host(`fastapi-traefik.your-domain.com`)"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.fastapi.tls=true"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.fastapi.tls.certresolver=letsencrypt"</span><span class="w"/>
+<span class="w">  </span><span class="nt">db</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:15-alpine</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres_data_prod:/var/lib/postgresql/data/</span><span class="w"/>
+<span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER=fastapi_traefik_prod</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD=fastapi_traefik_prod</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_DB=fastapi_traefik_prod</span><span class="w"/>
+<span class="w">  </span><span class="nt">traefik</span><span class="p">:</span><span class="w">  </span><span class="c1"># new</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">dockerfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dockerfile.traefik</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80:80</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">443:443</span><span class="w"/>
+<span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"/var/run/docker.sock:/var/run/docker.sock:ro"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"./traefik-public-certificates:/certificates"</span><span class="w"/>
+<span class="w">    </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.enable=true"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.dashboard.rule=Host(`dashboard-fastapi-traefik.your-domain.com`)</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">(PathPrefix(`/`)"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.dashboard.tls=true"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.dashboard.tls.certresolver=letsencrypt"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6713150602010e0c490f1313174915081213021514490306140f050806150349140215110e04025a06170e270e0913021509060b">[email protected]</a>"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.routers.dashboard.middlewares=auth"</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"traefik.http.middlewares.auth.basicauth.users=testuser:$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1"</span><span class="w"/>
+
+<span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">postgres_data_prod</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">traefik-public-certificates</span><span class="p">:</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>同样，确保用您的实际域名替换<code>your-domain.com</code>。</p>
+</blockquote>
+<p>这里有什么新鲜事？</p>
+<p>在<code>web</code>服务中，我们添加了以下标签:</p>
+<ol>
+<li><code>traefik.http.routers.fastapi.rule=Host(`fastapi-traefik.your-domain.com`)</code>将主机更改为实际的域</li>
+<li><code>traefik.http.routers.fastapi.tls=true</code>启用HTTPS</li>
+<li><code>traefik.http.routers.fastapi.tls.certresolver=letsencrypt</code>将证书颁发者设置为让我们加密</li>
+</ol>
+<p>接下来，对于<code>traefik</code>服务，我们为证书目录添加了适当的端口和一个卷。该卷确保即使容器关闭，证书仍然有效。</p>
+<p>至于标签:</p>
+<ol>
+<li><code>traefik.http.routers.dashboard.rule=Host(`dashboard-fastapi-traefik.your-domain.com`)</code>定义仪表板主机，因此可以在<code>$Host/dashboard/</code>访问</li>
+<li><code>traefik.http.routers.dashboard.tls=true</code>启用HTTPS</li>
+<li><code>traefik.http.routers.dashboard.tls.certresolver=letsencrypt</code>将证书解析器设置为“让我们加密”</li>
+<li><code>traefik.http.routers.dashboard.middlewares=auth</code>启用<code>HTTP BasicAuth</code>中间件</li>
+<li><code>traefik.http.middlewares.auth.basicauth.users</code>定义用于登录的用户名和散列密码</li>
+</ol>
+<p>您可以使用htpasswd实用程序创建新的密码哈希:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># username: testuser</span>
+<span class="c1"># password: password</span>
+
+$ <span class="nb">echo</span> <span class="k">$(</span>htpasswd -nb testuser password<span class="k">)</span> <span class="p">|</span> sed -e s/<span class="se">\\</span>$/<span class="se">\\</span>$<span class="se">\\</span>$/g
+testuser:<span class="nv">$$</span>apr1<span class="nv">$$</span>jIKW.bdS<span class="nv">$$</span>eKXe4Lxjgy/rH65wP1iQe1
+</code></pre></div>
+
+<p>随意使用一个<code>env_file</code>来存储用户名和密码作为环境变量</p>
+<div class="codehilite"><pre><span/><code>USERNAME=testuser
+HASHED_PASSWORD=$$apr1$$jIKW.bdS$$eKXe4Lxjgy/rH65wP1iQe1
+</code></pre></div>
+
+<p>最后，添加一个名为<em> Dockerfile.traefik </em>的新Dockerfile:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># Dockerfile.traefik</span>
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">traefik:v2.9.6</span>
+
+<span class="k">COPY</span><span class="w"> </span>./traefik.prod.toml ./etc/traefik/traefik.toml
+</code></pre></div>
+
+<p>接下来，旋转新容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose -f docker-compose.prod.yml up -d --build
+</code></pre></div>
+
+<p>确保这两个URL有效:</p>
+<ol>
+<li><a href="https://fastapi-traefik.your-domain.com">https://fastapi-traefik.your-domain.com</a></li>
+<li><a href="https://dashboard-fastapi-traefik.your-domain.com/dashboard">https://dashboard-fastapi-traefik.your-domain.com/dashboard</a></li>
+</ol>
+<p>此外，请确保当您访问上述网址的HTTP版本时，您会被重定向到HTTPS版本。</p>
+<p>最后，让我们加密有效期为<a href="https://letsencrypt.org/2015/11/09/why-90-days.html"> 90天</a>的证书。Treafik将在后台自动为您处理证书更新，这样您就少了一件担心的事情！</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们介绍了如何用Postgres容器化一个FastAPI应用程序进行开发。我们还创建了一个生产就绪的Docker Compose文件，设置了Traefik和让我们加密，以便通过HTTPS为应用程序提供服务，并启用了一个安全的仪表板来监控我们的服务。</p>
+<p>就生产环境的实际部署而言，您可能希望使用:</p>
+<ol>
+<li>完全托管的数据库服务——像<a href="https://aws.amazon.com/rds/"> RDS </a>或<a href="https://cloud.google.com/sql/">云SQL</a>——而不是在一个容器中管理你自己的Postgres实例。</li>
+<li>服务的非根用户</li>
+</ol>
+<p>您可以在<a href="https://github.com/testdrivenio/fastapi-docker-traefik">fastapi-docker-traefik</a>repo中找到代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

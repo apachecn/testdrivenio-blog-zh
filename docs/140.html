@@ -1,0 +1,1033 @@
+<html>
+<head>
+<title>Running Flask on Kubernetes </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>在Kubernetes上运行烧瓶</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/running-flask-on-kubernetes/#0001-01-01">https://testdriven.io/blog/running-flask-on-kubernetes/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>在本教程中，我们将首先从总体上了解Kubernetes和容器编排，然后我们将逐步详细介绍如何将基于Flask的微服务(以及Postgres和Vue.js)部署到Kubernetes集群。</p>
+<blockquote>
+<p>这是一个中级教程。它假定你有烧瓶和Docker的基本工作知识。查看<a href="/courses/tdd-flask/">使用Python、Flask和Docker </a>进行测试驱动开发课程，了解关于这些工具的更多信息。</p>
+</blockquote>
+<p>依赖关系:</p>
+<ul>
+<li>kubernetes 1 . 21 . 0版</li>
+<li>minikube 1 . 19 . 0版</li>
+<li>文档v20.10.5</li>
+<li>坞站-复合v1.28.5</li>
+</ul>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够:</p>
+<ol>
+<li>解释什么是容器编排，以及为什么需要使用编排工具</li>
+<li>讨论使用Kubernetes相对于其他编排工具(如Docker Swarm和弹性容器服务(ECS ))的利弊</li>
+<li>解释以下Kubernetes原语:节点、Pod、服务、标签、部署、入口和卷</li>
+<li>使用Docker Compose在本地构建基于Python的微服务</li>
+<li>将Kubernetes集群配置为使用Minikube在本地运行</li>
+<li>设置一个卷来保存Kubernetes集群中的Postgres数据</li>
+<li>使用Kubernetes的秘密来管理敏感信息</li>
+<li>在Kubernetes上运行Flask，Gunicorn，Postgres和Vue</li>
+<li>通过入口将烧瓶和Vue暴露给外部用户</li>
+</ol>
+<h2 id="what-is-container-orchestration">什么是容器编排？</h2>
+<p>当您从在单台机器上部署容器转移到在多台机器上部署容器时，您将需要一个编排工具来管理(并自动化)容器在整个系统中的安排、协调和可用性。</p>
+<p>编排工具有助于:</p>
+<ol>
+<li>跨服务器容器通信</li>
+<li>水平缩放</li>
+<li>服务发现</li>
+<li>负载平衡</li>
+<li>安全性/TLS</li>
+<li>零停机部署</li>
+<li>卷回</li>
+<li>记录</li>
+<li>监视</li>
+</ol>
+<p>这就是Kubernetes与其他一些编排工具的契合之处，比如T2、Docker Swarm、T4、ECS、Mesos和Nomad。</p>
+<p>你应该用哪一个？</p>
+<ul>
+<li>如果您需要管理大型、复杂的集群，请使用Kubernetes</li>
+<li>如果您刚刚起步和/或需要管理中小型集群，请使用<em> Docker Swarm </em></li>
+<li>如果您已经在使用一些AWS服务，请使用<em> ECS </em></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>赞成的意见</th>
+<th>骗局</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>库伯内特斯</td>
+<td>大型社区，灵活，大多数功能，时尚</td>
+<td>复杂的设置、高学习曲线、hip</td>
+</tr>
+<tr>
+<td>码头工人群</td>
+<td>易于设置，非常适合小型集群</td>
+<td>受Docker API的限制</td>
+</tr>
+<tr>
+<td>精英公司</td>
+<td>全面管理的服务，与AWS集成</td>
+<td>供应商锁定</td>
+</tr>
+</tbody>
+</table>
+<p>市场上还有许多由Kubernetes管理的服务:</p>
+<ol>
+<li><a href="https://cloud.google.com/kubernetes-engine/">谷歌Kubernetes引擎</a> (GKE)</li>
+<li><a href="https://aws.amazon.com/eks/">弹性Kubernetes服务</a> (EKS)</li>
+<li>Azure Kubernetes服务公司</li>
+<li><a href="https://www.digitalocean.com/products/kubernetes/">数字海洋Kubernetes </a></li>
+</ol>
+<blockquote>
+<p>更多信息，请查看<a href="https://blog.kublr.com/choosing-the-right-containerization-and-cluster-management-tool-fdfcec5700df">选择正确的容器化和集群管理工具</a>博文。</p>
+</blockquote>
+<h2 id="kubernetes-concepts">不可思议的概念</h2>
+<p>在开始之前，让我们先来看看一些您必须使用的来自<a href="https://kubernetes.io/docs/concepts/overview/kubernetes-api/"> Kubernetes API </a>的基本构件:</p>
+<ol>
+<li>一个<strong> <a href="https://kubernetes.io/docs/concepts/architecture/nodes/">节点</a> </strong>是一个用于运行Kubernetes的工作机。每个节点都由Kubernetes主节点管理。</li>
+<li>一个<strong> <a href="https://kubernetes.io/docs/concepts/workloads/pods/pod/"> Pod </a> </strong>是在一个节点上运行的一组逻辑紧密耦合的应用程序容器。Pod中的容器部署在一起并共享资源(如数据量和网络地址)。多个单元可以在一个节点上运行。</li>
+<li>一个<strong> <a href="https://kubernetes.io/docs/concepts/services-networking/service/">服务</a> </strong>是执行类似功能的一组逻辑单元。它支持负载平衡和服务发现。它是豆荚上的一个抽象层；豆荚是短暂的，而服务是持久的。</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/">部署</a> </strong>用于描述Kubernetes的期望状态。它们规定了如何创建、部署和复制pod。</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/">标签</a> </strong>是附属于资源(如pod)的键/值对，用于组织相关资源。你可以把它们想象成CSS选择器。例如:<ul>
+<li><em>环境</em> - <code>dev</code>，<code>test</code>，<code>prod</code></li>
+<li><em> App版本</em> - <code>beta</code>，<code>1.2.1</code></li>
+<li><em>类型</em> - <code>client</code>，<code>server</code>，<code>db</code></li>
+</ul>
+</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/services-networking/ingress/"> Ingress </a> </strong>是一组路由规则，用于根据请求主机或路径控制外部对服务的访问。</li>
+<li><strong> <a href="https://kubernetes.io/docs/concepts/storage/volumes/">卷</a> </strong>用于保存容器寿命之外的数据。它们对于像Redis和Postgres这样的有状态应用程序尤其重要。<ul>
+<li>一个<em> <a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/">持久卷</a> </em>定义一个独立于正常Pod生命周期的存储卷。它是在它所在的特定舱之外被管理的。</li>
+<li><em> <a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims">持久卷声明</a> </em>是用户使用持久卷的请求。</li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p>更多信息，请查看<a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/">学习Kubernetes基础知识</a>教程以及来自<a href="https://mherman.org/presentations/flask-kubernetes">Kubernetes</a>演讲的<a href="https://mherman.org/presentations/flask-kubernetes/#38"> Kubernetes概念</a>幻灯片。</p>
+</blockquote>
+<h2 id="project-setup">项目设置</h2>
+<p>克隆出<a href="https://github.com/testdrivenio/flask-vue-kubernetes">flask-vue-kubernetes</a>repo，然后构建映像并旋转容器:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/flask-vue-kubernetes
+$ <span class="nb">cd</span> flask-vue-kubernetes
+$ docker-compose up -d --build
+</code></pre></div>
+
+<p>创建并植入数据库<code>books</code>表:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose <span class="nb">exec</span> server python manage.py recreate_db
+$ docker-compose <span class="nb">exec</span> server python manage.py seed_db
+</code></pre></div>
+
+<p>在您选择的浏览器中测试以下服务器端端点。</p>
+<p><a href="http://localhost:5001/books/ping">http://localhost:5001/books/ping</a></p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"container_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dee114fa81ea"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pong!"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"success"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p><code>container_id</code>是应用程序运行所在的Docker容器的id。</p>
+</blockquote>
+<div class="codehilite"><pre><span/><code>$ docker ps --filter <span class="nv">name</span><span class="o">=</span>flask-vue-kubernetes_server --format <span class="s2">"{{.ID}}"</span>
+
+dee114fa81ea
+</code></pre></div>
+
+<p><a href="http://localhost:5001/books">http://localhost:5001/books</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"books"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"J. K. Rowling"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"read"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Harry Potter and the Philosopher's Stone"</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Dr. Seuss"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"read"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Green Eggs and Ham"</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Jack Kerouac"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"read"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"On the Road"</span><span class="w"/>
+<span class="w">  </span><span class="p">}],</span><span class="w"/>
+<span class="w">  </span><span class="nt">"container_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dee114fa81ea"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"success"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>导航到<a href="http://localhost:8080"> http://localhost:8080 </a>。确保基本CRUD功能按预期工作:</p>
+<p><img data-src="/static/images/gifs/blog/flask-kubernetes/v1.gif" loading="lazy" class="lazyload" alt="v1 app" src="../Images/bbcaac63695d61ae01d96d27f840bddb.png" data-original-src="https://testdriven.io/static/images/gifs/blog/flask-kubernetes/v1.gif"/></p>
+<p>在继续之前，快速浏览一下代码:</p>
+<div class="codehilite"><pre><span/><code>├── .gitignore
+├── README.md
+├── deploy.sh
+├── docker-compose.yml
+├── kubernetes
+│   ├── flask-deployment.yml
+│   ├── flask-service.yml
+│   ├── minikube-ingress.yml
+│   ├── persistent-volume-claim.yml
+│   ├── persistent-volume.yml
+│   ├── postgres-deployment.yml
+│   ├── postgres-service.yml
+│   ├── secret.yml
+│   ├── vue-deployment.yml
+│   └── vue-service.yml
+└── services
+    ├── client
+    │   ├── .babelrc
+    │   ├── .editorconfig
+    │   ├── .eslintignore
+    │   ├── .eslintrc.js
+    │   ├── .postcssrc.js
+    │   ├── Dockerfile
+    │   ├── Dockerfile-minikube
+    │   ├── README.md
+    │   ├── build
+    │   ├── config
+    │   │   ├── dev.env.js
+    │   │   ├── index.js
+    │   │   └── prod.env.js
+    │   ├── index.html
+    │   ├── package-lock.json
+    │   ├── package.json
+    │   ├── src
+    │   │   ├── App.vue
+    │   │   ├── assets
+    │   │   │   └── logo.png
+    │   │   ├── components
+    │   │   │   ├── Alert.vue
+    │   │   │   ├── Books.vue
+    │   │   │   ├── HelloWorld.vue
+    │   │   │   └── Ping.vue
+    │   │   ├── main.js
+    │   │   └── router
+    │   │       └── index.js
+    │   └── static
+    │       └── .gitkeep
+    ├── db
+    │   ├── create.sql
+    │   └── Dockerfile
+    └── server
+        ├── .dockerignore
+        ├── Dockerfile
+        ├── entrypoint.sh
+        ├── manage.py
+        ├── project
+        │   ├── __init__.py
+        │   ├── api
+        │   │   ├── __init__.py
+        │   │   ├── books.py
+        │   │   └── models.py
+        │   └── config.py
+        └── requirements.txt
+</code></pre></div>
+
+<blockquote>
+<p>想学习如何构建这个项目吗？查看<a href="https://testdriven.io/blog/developing-a-single-page-app-with-flask-and-vuejs">用Flask和Vue.js开发单页应用</a>的博文。</p>
+</blockquote>
+<h2 id="minikube">迷你库贝</h2>
+<p>Minikube是一个允许开发者在本地使用和运行Kubernetes集群的工具。这是快速启动和运行集群的好方法，这样您就可以开始与Kubernetes API进行交互。</p>
+<p>遵循官方的<a href="https://minikube.sigs.k8s.io/docs/start/">入门</a>指南，安装Minikube以及:</p>
+<ol>
+<li>一个<a href="https://en.wikipedia.org/wiki/Hypervisor">虚拟机管理程序</a>(像<a href="https://www.virtualbox.org/wiki/Downloads"> VirtualBox </a>或<a href="https://github.com/moby/hyperkit"> HyperKit </a>)来管理虚拟机</li>
+<li>在Kubernetes上部署和管理应用程序</li>
+</ol>
+<p>如果你用的是Mac，我们建议用<a href="https://brew.sh/"> Homebrew </a>安装Kubectl和Minikube:</p>
+<div class="codehilite"><pre><span/><code>$ brew update
+$ brew install kubectl
+$ brew install minikube
+</code></pre></div>
+
+<p>然后，启动组合仪表并拉起Minikube <a href="https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/">仪表盘</a>:</p>
+<div class="codehilite"><pre><span/><code>$ minikube config <span class="nb">set</span> vm-driver hyperkit
+$ minikube start
+$ minikube dashboard
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/flask-kubernetes/minikube-dashboard1.png" loading="lazy" class="lazyload" alt="minikube dashboard" src="../Images/cd0678928c1e6c4195a079d7801383c5.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/minikube-dashboard1.png"/></p>
+<blockquote>
+<p>值得注意的是，配置文件将位于<em> ~/中。kube </em>目录，而所有的虚拟机位将在<em> ~/中。minikube </em>目录。</p>
+</blockquote>
+<p>现在我们可以开始通过Kubernetes API创建对象了。</p>
+<p>如果你遇到了Minikube的问题，通常最好是完全删除它并重新开始。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code>$ minikube stop<span class="p">;</span> minikube delete
+$ rm /usr/local/bin/minikube
+$ rm -rf ~/.minikube
+<span class="c1"># re-download minikube</span>
+$ minikube start
+</code></pre></div>
+
+<h2 id="creating-objects">创建对象</h2>
+<p>要在Kubernetes中创建新的<a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/kubernetes-objects/">对象</a>，您必须提供一个描述其期望状态的“规范”。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/flask-kubernetes:latest</span><span class="w"/>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span><span class="w"/>
+</code></pre></div>
+
+<p>必填字段:</p>
+<ol>
+<li><code>apiVersion</code> - <a href="https://kubernetes.io/docs/reference/#api-reference">【立方API】</a>版本</li>
+<li><code>kind</code> -您想要创建的对象的类型</li>
+<li><code>metadata</code> -关于物体的信息，以便可以唯一识别</li>
+<li><code>spec</code> -目标的期望状态</li>
+</ol>
+<p>在上面的例子中，这个规范将为Flask应用程序创建一个新的部署，带有一个副本(Pod)。注意<code>containers</code>部分。这里，我们指定了Docker映像以及应用程序将运行的容器端口。</p>
+<p>为了运行我们的应用程序，我们需要设置以下对象:</p>
+<p><img data-src="/static/images/blog/flask-kubernetes/kubernetes-objects.png" loading="lazy" class="lazyload" alt="objects" src="../Images/ed13d311396d8dc8b50135205487b8b8.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/kubernetes-objects.png"/></p>
+<h2 id="volume">卷</h2>
+<p>同样，由于容器是短暂的，我们需要配置一个卷，通过一个<a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistent-volumes"> PersistentVolume </a>和一个<a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims"> PersistentVolumeClaim </a>来存储Pod外部的Postgres数据。</p>
+<p>注意<em>kubernetes/persistent-volume . yml</em>中的YAML文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PersistentVolume</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pv</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">capacity</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2Gi</span><span class="w"/>
+<span class="w">  </span><span class="nt">storageClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w"/>
+<span class="w">  </span><span class="nt">accessModes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ReadWriteOnce</span><span class="w"/>
+<span class="w">  </span><span class="nt">hostPath</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">"/data/postgres-pv"</span><span class="w"/>
+</code></pre></div>
+
+<p>此配置将在节点内的“/data/postgres-pv”处创建一个<a href="https://kubernetes.io/docs/concepts/storage/volumes/#hostpath">主机路径</a>持久卷。卷的大小为2gb，访问模式为<a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes"> ReadWriteOnce </a>，这意味着卷可以通过单个节点以读写方式装载。</p>
+<blockquote>
+<p>值得注意的是，Kubernetes只支持在单节点集群上使用hostPath。</p>
+</blockquote>
+<p>创建卷:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl apply -f ./kubernetes/persistent-volume.yml
+</code></pre></div>
+
+<p>查看详细信息:</p>
+
+
+<p>您应该看到:</p>
+<div class="codehilite"><pre><span/><code>NAME         CAPACITY  ACCESS MODES  RECLAIM POLICY  STATUS     CLAIM   STORAGECLASS   REASON  AGE
+postgres-pv  2Gi       RWO           Retain          Available          standard               14s
+</code></pre></div>
+
+<p>您还应该在仪表板中看到该对象:</p>
+<p><img data-src="/static/images/blog/flask-kubernetes/minikube-dashboard2.png" loading="lazy" class="lazyload" alt="minikube dashboard" src="../Images/5cf81e013a1b13f29bfc535b12d50fe4.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/minikube-dashboard2.png"/></p>
+<p><em>立方/持久-体积索赔. yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PersistentVolumeClaim</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pvc</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">accessModes</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ReadWriteOnce</span><span class="w"/>
+<span class="w">  </span><span class="nt">resources</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">requests</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2Gi</span><span class="w"/>
+<span class="w">  </span><span class="nt">volumeName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pv</span><span class="w"/>
+<span class="w">  </span><span class="nt">storageClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w"/>
+</code></pre></div>
+
+<p>创建体积索赔:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl apply -f ./kubernetes/persistent-volume-claim.yml
+</code></pre></div>
+
+<p>查看详细信息:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pvc
+
+NAME           STATUS   VOLUME        CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+postgres-pvc   Bound    postgres-pv   2Gi        RWO            standard       15s
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/flask-kubernetes/minikube-dashboard-pvc.png" loading="lazy" class="lazyload" alt="minikube dashboard" src="../Images/182d6dcdf2404bc912fa04fac9b67d6b.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/minikube-dashboard-pvc.png"/></p>
+<h2 id="secrets">秘密</h2>
+<p><a href="https://kubernetes.io/docs/concepts/configuration/secret/">秘密</a>用于处理敏感信息，如密码、API令牌和SSH密钥。我们将设置一个秘密来存储我们的Postgres数据库凭证。</p>
+<p><em>立方/秘密。yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span><span class="w"/>
+<span class="nt">data</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">c2FtcGxl</span><span class="w"/>
+<span class="w">  </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cGxlYXNlY2hhbmdlbWU=</span><span class="w"/>
+</code></pre></div>
+
+<p><code>user</code>和<code>password</code>字段是base64编码的字符串(<a href="https://en.wikipedia.org/wiki/Security_through_obscurity">安全性通过模糊性</a>):</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">echo</span> -n <span class="s2">"pleasechangeme"</span> <span class="p">|</span> base64
+<span class="nv">cGxlYXNlY2hhbmdlbWU</span><span class="o">=</span>
+
+$ <span class="nb">echo</span> -n <span class="s2">"sample"</span> <span class="p">|</span> base64
+c2FtcGxl
+</code></pre></div>
+
+<blockquote>
+<p>请记住，任何有权访问群集的用户都能够以纯文本形式读取这些值。如果你想加密传输中的和静止的秘密，看看<a href="https://testdriven.io/managing-secrets-with-vault-and-consul">保险库</a>。</p>
+</blockquote>
+<p>添加机密对象:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl apply -f ./kubernetes/secret.yml
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/flask-kubernetes/minikube-dashboard-secrets.png" loading="lazy" class="lazyload" alt="minikube dashboard" src="../Images/75851cd7f16189ae57a31bf7aca49427.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/minikube-dashboard-secrets.png"/></p>
+<h2 id="postgres">Postgres</h2>
+<p>在集群中设置了卷和数据库凭证后，我们现在可以配置Postgres数据库本身。</p>
+<p><em>kubrintes/posters部署. yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">database</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:13-alpine</span><span class="w"/>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER</span><span class="w"/>
+<span class="w">            </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">                </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">                </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span><span class="w"/>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD</span><span class="w"/>
+<span class="w">            </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">                </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">                </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span><span class="w"/>
+<span class="w">        </span><span class="nt">volumeMounts</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-volume-mount</span><span class="w"/>
+<span class="w">            </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/lib/postgresql/data</span><span class="w"/>
+<span class="w">      </span><span class="nt">volumes</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-volume-mount</span><span class="w"/>
+<span class="w">        </span><span class="nt">persistentVolumeClaim</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">claimName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-pvc</span><span class="w"/>
+<span class="w">      </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Always</span><span class="w"/>
+</code></pre></div>
+
+<p>这里发生了什么事？</p>
+<ol>
+<li><code>metadata</code><ul>
+<li><code>name</code>字段定义了部署名称- <code>postgres</code></li>
+<li><code>labels</code>为部署定义标签- <code>name: database</code></li>
+</ul>
+</li>
+<li><code>spec</code><ul>
+<li><code>replicas</code>定义要运行的pod数量- <code>1</code></li>
+<li><code>selector</code>定义部署如何找到要管理的单元</li>
+<li><code>template</code><ul>
+<li><code>metadata</code><ul>
+<li><code>labels</code>指出哪些标签应该分配给Pod - <code>service: postgres</code></li>
+</ul>
+</li>
+<li><code>spec</code><ul>
+<li><code>containers</code>定义与每个Pod相关的容器</li>
+<li><code>volumes</code>定义体积索赔- <code>postgres-volume-mount</code></li>
+<li><code>restartPolicy</code>定义了<a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/">重启策略</a> - <code>Always</code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<p>进一步，Pod名称为<code>postgres</code>，图像为<code>postgres:13-alpine</code>，将从Docker Hub中拉取。来自秘密对象的数据库凭证也被传入。</p>
+<p>最后，在应用时，卷声明将被安装到Pod中。声明被装载到“/var/lib/PostgreSQL/data”——默认位置——而数据将存储在持久卷“/data/postgres-pv”中。</p>
+<p>创建部署:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/postgres-deployment.yml
+</code></pre></div>
+
+<p>状态:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get deployments
+
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+postgres   <span class="m">1</span>/1     <span class="m">1</span>            <span class="m">1</span>           12s
+</code></pre></div>
+
+<p><em>立方/研究生服务. yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span><span class="w"/>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterIP</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span><span class="w"/>
+</code></pre></div>
+
+<p>这里发生了什么事？</p>
+<ol>
+<li><code>metadata</code><ul>
+<li><code>name</code>字段定义了服务名- <code>postgres</code></li>
+<li><code>labels</code>定义服务的标签- <code>name: database</code></li>
+</ul>
+</li>
+<li><code>spec</code><ul>
+<li><code>selector</code>定义服务适用的Pod标签和值- <code>service: postgres</code></li>
+<li><code>type</code>定义了<code>ClusterIP</code>服务的<a href="https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types">类型</a></li>
+<li><code>ports</code><ul>
+<li><code>port</code>定义暴露给集群的端口</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p>花点时间回到部署规范。服务中的<code>selector</code>如何与部署相关联？</p>
+</blockquote>
+<p>由于<a href="https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types">服务类型</a>是<code>ClusterIP</code>，它没有对外公开，所以它是<em>唯一的</em>，可以被其他对象从集群内部访问。</p>
+<p>创建服务:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/postgres-service.yml
+</code></pre></div>
+
+<p>使用Pod名称创建<code>books</code>数据库:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pods
+
+NAME                        READY   STATUS    RESTARTS   AGE
+postgres-95566f9-xs2cf   <span class="m">1</span>/1     Running   <span class="m">0</span>          93s
+
+$ kubectl <span class="nb">exec</span> postgres-95566f9-xs2cf --stdin --tty -- createdb -U sample books
+</code></pre></div>
+
+<p>验证创建:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl <span class="nb">exec</span> postgres-95566f9-xs2cf --stdin --tty -- psql -U sample
+
+psql <span class="o">(</span><span class="m">13</span>.2<span class="o">)</span>
+Type <span class="s2">"help"</span> <span class="k">for</span> help.
+
+<span class="nv">sample</span><span class="o">=</span><span class="c1"># \l</span>
+                                 List of databases
+   Name    <span class="p">|</span>  Owner   <span class="p">|</span> Encoding <span class="p">|</span>  Collate   <span class="p">|</span>   Ctype    <span class="p">|</span>   Access privileges
+-----------+----------+----------+------------+------------+-----------------------
+ books     <span class="p">|</span> sample   <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span>
+ postgres  <span class="p">|</span> postgres <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span>
+ sample    <span class="p">|</span> postgres <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span>
+ template0 <span class="p">|</span> postgres <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span> <span class="o">=</span>c/postgres          +
+           <span class="p">|</span>          <span class="p">|</span>          <span class="p">|</span>            <span class="p">|</span>            <span class="p">|</span> <span class="nv">postgres</span><span class="o">=</span>CTc/postgres
+ template1 <span class="p">|</span> postgres <span class="p">|</span> UTF8     <span class="p">|</span> en_US.utf8 <span class="p">|</span> en_US.utf8 <span class="p">|</span> <span class="o">=</span>c/postgres          +
+           <span class="p">|</span>          <span class="p">|</span>          <span class="p">|</span>            <span class="p">|</span>            <span class="p">|</span> <span class="nv">postgres</span><span class="o">=</span>CTc/postgres
+<span class="o">(</span><span class="m">5</span> rows<span class="o">)</span>
+
+<span class="nv">sample</span><span class="o">=</span><span class="c1">#</span>
+</code></pre></div>
+
+<p>您也可以通过以下方式获取Pod名称:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pod -l <span class="nv">service</span><span class="o">=</span>postgres -o <span class="nv">jsonpath</span><span class="o">=</span><span class="s2">"{.items[0].metadata.name}"</span>
+</code></pre></div>
+
+<p>将值赋给变量，然后创建数据库:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nv">POD_NAME</span><span class="o">=</span><span class="k">$(</span>kubectl get pod -l <span class="nv">service</span><span class="o">=</span>postgres -o <span class="nv">jsonpath</span><span class="o">=</span><span class="s2">"{.items[0].metadata.name}"</span><span class="k">)</span>
+$ kubectl <span class="nb">exec</span> <span class="nv">$POD_NAME</span> --stdin --tty -- createdb -U sample books
+</code></pre></div>
+
+<h2 id="flask">瓶</h2>
+<p>花点时间回顾一下Flask项目结构以及<em>docker文件</em>和<em> entrypoint.sh </em>文件:</p>
+<ol>
+<li>"服务/服务器"</li>
+<li><em>服务/服务器/Dockerfile </em></li>
+<li><em>服务/服务器/入口点. sh </em></li>
+</ol>
+<p><em>立方/flask部署. yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/flask-kubernetes:latest</span><span class="w"/>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">FLASK_ENV</span><span class="w"/>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"development"</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APP_SETTINGS</span><span class="w"/>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"project.config.DevelopmentConfig"</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_USER</span><span class="w"/>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POSTGRES_PASSWORD</span><span class="w"/>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-credentials</span><span class="w"/>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span><span class="w"/>
+<span class="w">      </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Always</span><span class="w"/>
+</code></pre></div>
+
+<p>这应该类似于Postgres部署规范。最大的不同是，你可以在<a href="https://hub.docker.com/"> Docker Hub </a>、<code>mjhea0/flask-kubernetes</code>上使用我预先构建和推送的图像，或者构建和推送你自己的图像。</p>
+<p>例如:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -t &lt;YOUR_DOCKER_HUB_NAME&gt;/flask-kubernetes ./services/server
+$ docker push &lt;YOUR_DOCKER_HUB_NAME&gt;/flask-kubernetes
+</code></pre></div>
+
+<p>如果您使用自己的名称，请确保在<em>kubernetes/flashboard-deploy . yml</em>中将<code>mjhea0</code>替换为您的Docker Hub名称。</p>
+<blockquote>
+<p>或者，如果不想将映像推送到Docker注册表，在本地构建映像后，可以将<code>image-pull-policy</code>标志设置为<code>Never</code>以始终使用本地映像。</p>
+</blockquote>
+<p>创建部署:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/flask-deployment.yml
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/flask-kubernetes/minikube-dashboard-pg-deployments.png" loading="lazy" class="lazyload" alt="minikube dashboard" src="../Images/80b6175932c876307390158a13342e0c.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/minikube-dashboard-pg-deployments.png"/></p>
+<p>这将立即旋转一个新的Pod:</p>
+<p><img data-src="/static/images/blog/flask-kubernetes/minikube-dashboard-pg-pod.png" loading="lazy" class="lazyload" alt="minikube dashboard" src="../Images/7915888e4b1cfde7d99bb311058a193d.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/minikube-dashboard-pg-pod.png"/></p>
+<p><em>久效磷/flask-service.yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span><span class="w"/>
+<span class="w">    </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>好奇<code>targetPort</code>和<code>port</code>有什么关系？查看官方<a href="https://kubernetes.io/docs/concepts/services-networking/service/#defining-a-service">服务</a>指南。</p>
+</blockquote>
+<p>创建服务:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/flask-service.yml
+</code></pre></div>
+
+<p>确保Pod与服务相关联:</p>
+<p><img data-src="/static/images/blog/flask-kubernetes/minikube-dashboard-pg-service.png" loading="lazy" class="lazyload" alt="minikube dashboard" src="../Images/6b05bdccbc0ba09d062709581b11f5c1.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/minikube-dashboard-pg-service.png"/></p>
+<p>应用迁移并为数据库设定种子:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get pods
+
+NAME                        READY     STATUS    RESTARTS   AGE
+flask-66988cb97d-n88b4      <span class="m">1</span>/1       Running   <span class="m">0</span>          21m
+postgres-95566f9-xs2cf      <span class="m">1</span>/1       Running   <span class="m">0</span>          36m
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code>$ kubectl <span class="nb">exec</span> flask-66988cb97d-n88b4 --stdin --tty -- python manage.py recreate_db
+$ kubectl <span class="nb">exec</span> flask-66988cb97d-n88b4 --stdin --tty -- python manage.py seed_db
+</code></pre></div>
+
+<p>验证:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl <span class="nb">exec</span> postgres-95566f9-xs2cf --stdin --tty -- psql -U sample
+
+psql <span class="o">(</span><span class="m">13</span>.2<span class="o">)</span>
+Type <span class="s2">"help"</span> <span class="k">for</span> help.
+
+<span class="nv">sample</span><span class="o">=</span><span class="c1"># \c books</span>
+You are now connected to database <span class="s2">"books"</span> as user <span class="s2">"sample"</span>.
+
+<span class="nv">books</span><span class="o">=</span><span class="c1"># select * from books;</span>
+
+ id <span class="p">|</span>                  title                   <span class="p">|</span>    author     <span class="p">|</span> <span class="nb">read</span>
+----+------------------------------------------+---------------+------
+  <span class="m">1</span> <span class="p">|</span> On the Road                              <span class="p">|</span> Jack Kerouac  <span class="p">|</span> t
+  <span class="m">2</span> <span class="p">|</span> Harry Potter and the Philosopher<span class="err">'</span>s Stone <span class="p">|</span> J. K. Rowling <span class="p">|</span> f
+  <span class="m">3</span> <span class="p">|</span> Green Eggs and Ham                       <span class="p">|</span> Dr. Seuss     <span class="p">|</span> t
+<span class="o">(</span><span class="m">3</span> rows<span class="o">)</span>
+</code></pre></div>
+
+<h2 id="ingress">进入</h2>
+<p>要使流量能够访问集群内部的Flask API，您可以使用节点端口、负载平衡器或入口:</p>
+<ol>
+<li>一个<a href="https://kubernetes.io/docs/concepts/services-networking/service/#nodeport">节点端口</a>在节点上的一个开放端口上公开一个服务。</li>
+<li>顾名思义，<a href="https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer">负载平衡器</a>创建一个指向集群中服务的外部负载平衡器。</li>
+<li>与前两种方法不同，<a href="https://kubernetes.io/docs/concepts/services-networking/ingress/">入口</a>不是一种服务；相反，它位于服务之上，作为集群的入口点。</li>
+</ol>
+<blockquote>
+<p>要了解更多信息，请查看官方的<a href="https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types">出版服务</a>指南。</p>
+</blockquote>
+<p><em>kubernetes/minikube-ingress . yml</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">networking.k8s.io/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ingress</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minikube-ingress</span><span class="w"/>
+<span class="w">  </span><span class="nt">annotations</span><span class="p">:</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">rules</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hello.world</span><span class="w"/>
+<span class="w">    </span><span class="nt">http</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">paths</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span><span class="w"/>
+<span class="w">        </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span><span class="w"/>
+<span class="w">        </span><span class="nt">backend</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">service</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">number</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/books</span><span class="w"/>
+<span class="w">        </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span><span class="w"/>
+<span class="w">        </span><span class="nt">backend</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">service</span><span class="p">:</span><span class="w"/>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">flask</span><span class="w"/>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"/>
+<span class="w">              </span><span class="nt">number</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span><span class="w"/>
+</code></pre></div>
+
+<p>这里，我们定义了以下HTTP规则:</p>
+<ol>
+<li><code>/</code> -将请求路由到Vue服务(我们仍然需要设置它)</li>
+<li><code>/books</code> -将请求路由到Flask服务</li>
+</ol>
+<p>启用入口<a href="https://github.com/kubernetes/minikube/tree/master/deploy/addons/ingress">插件</a>:</p>
+<div class="codehilite"><pre><span/><code>$ minikube addons <span class="nb">enable</span> ingress
+</code></pre></div>
+
+<p>创建入口对象:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl apply -f ./kubernetes/minikube-ingress.yml
+</code></pre></div>
+
+<blockquote>
+<p>如果您看到一个<code>Internal error occurred: failed calling webhook "validate.nginx.ingress.kubernetes.io"</code>错误，尝试移除<code>ValidatingWebhookConfiguration</code>:</p>
+<div class="codehilite"><pre><span/>$ kubectl delete -A ValidatingWebhookConfiguration ingress-nginx-admission
+</pre></div><p>有关更多信息，请查看此<a href="https://stackoverflow.com/questions/61616203/nginx-ingress-controller-failed-calling-webhook/61681896#61681896">堆栈溢出线程</a>。</p>
+</blockquote>
+
+<p>接下来，您需要更新您的<em> /etc/hosts </em>文件，以便将请求从我们定义的主机<code>hello.world</code>路由到Minikube实例。</p>
+<p>向<em> /etc/hosts </em>添加一个条目:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nb">echo</span> <span class="s2">"</span><span class="k">$(</span>minikube ip<span class="k">)</span><span class="s2"> hello.world"</span> <span class="p">|</span> sudo tee -a /etc/hosts
+</code></pre></div>
+
+<p>尝试一下:</p>
+<p><a href="http://hello.world/books/ping">http://hello.world/books/ping</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"container_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"flask-66988cb97d-n88b4"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="s2">"pong!"</span><span class="p">,</span><span class="w"> </span><span class="nt">"status"</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="s2">"success"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p><a href="http://hello.world/books">http://hello.world/books</a>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"books"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Jack Kerouac"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"read"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"On the Road"</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"J. K. Rowling"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"read"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Harry Potter and the Philosopher's Stone"</span><span class="w"/>
+<span class="w">  </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Dr. Seuss"</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"read"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"/>
+<span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Green Eggs and Ham"</span><span class="w"/>
+<span class="w">  </span><span class="p">}],</span><span class="w"/>
+<span class="w">  </span><span class="nt">"container_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"flask-66988cb97d-n88b4"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"success"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="vue">某视频剪辑软件</h2>
+<p>继续，查看Vue项目以及相关的docker文件:</p>
+<ol>
+<li>"服务/客户"</li>
+<li><em>/服务/客户端/Dockerfile </em></li>
+<li><em>/服务/客户端/Dockerfile-minikube </em></li>
+</ol>
+<p><em>立方/视图部署. yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/vue-kubernetes:latest</span><span class="w"/>
+<span class="w">      </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Always</span><span class="w"/>
+</code></pre></div>
+
+<p>同样，要么使用我的映像，要么构建您自己的映像并推送到Docker Hub:</p>
+<div class="codehilite"><pre><span/><code>$ docker build -t &lt;YOUR_DOCKERHUB_NAME&gt;/vue-kubernetes ./services/client <span class="se">\</span>
+    -f ./services/client/Dockerfile-minikube
+$ docker push &lt;YOUR_DOCKERHUB_NAME&gt;/vue-kubernetes
+</code></pre></div>
+
+<p>创建部署:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/vue-deployment.yml
+</code></pre></div>
+
+<p>验证Pod是否已随部署一起创建:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get deployments vue
+
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+vue    <span class="m">1</span>/1     <span class="m">1</span>            <span class="m">1</span>           40s
+
+
+$ kubectl get pods
+
+NAME                        READY   STATUS    RESTARTS   AGE
+flask-66988cb97d-n88b4      <span class="m">1</span>/1     Running   <span class="m">0</span>          37m
+postgres-95566f9-xs2cf      <span class="m">1</span>/1     Running   <span class="m">0</span>          71m
+vue-cd9d7d445-xl7wd         <span class="m">1</span>/1     Running   <span class="m">0</span>          2m32s
+</code></pre></div>
+
+<blockquote>
+<p>如何在仪表板中验证Pod和部署是否已成功创建？</p>
+</blockquote>
+<p><em>立方/视图服务. yml </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span><span class="w"/>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span><span class="w"/>
+<span class="nt">metadata</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="nt">spec</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vue</span><span class="w"/>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span><span class="w"/>
+<span class="w">    </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span><span class="w"/>
+</code></pre></div>
+
+<p>创建服务:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl create -f ./kubernetes/vue-service.yml
+</code></pre></div>
+
+<p>确保<a href="http://hello.world/">http://hello.world/</a>按预期工作。</p>
+<p><img data-src="/static/images/blog/flask-kubernetes/bookshelf.png" loading="lazy" class="lazyload" alt="bookshelf app" src="../Images/90fbfc54692df157d574cbf99db962fb.png" data-original-src="https://testdriven.io/static/images/blog/flask-kubernetes/bookshelf.png"/></p>
+<h2 id="scaling">缩放比例</h2>
+<p>Kubernetes使其易于扩展，当流量负载变得超过单个单元的处理能力时，可以根据需要添加额外的单元。</p>
+<p>例如，让我们向集群添加另一个Flask Pod:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl scale deployment flask --replicas<span class="o">=</span><span class="m">2</span>
+</code></pre></div>
+
+<p>确认:</p>
+<div class="codehilite"><pre><span/><code>$ kubectl get deployments flask
+
+NAME    READY   UP-TO-DATE   AVAILABLE   AGE
+flask   <span class="m">2</span>/2     <span class="m">2</span>            <span class="m">2</span>           11m
+</code></pre></div>
+
+<div class="codehilite"><pre><span/><code>$ kubectl get pods -o wide
+
+NAME                     READY   STATUS    RESTARTS   AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+flask-66988cb97d-hqpbh   <span class="m">1</span>/1     Running   <span class="m">0</span>          27s     <span class="m">172</span>.17.0.10   minikube   &lt;none&gt;           &lt;none&gt;
+flask-66988cb97d-n88b4   <span class="m">1</span>/1     Running   <span class="m">0</span>          39m     <span class="m">172</span>.17.0.7    minikube   &lt;none&gt;           &lt;none&gt;
+postgres-95566f9-xs2cf   <span class="m">1</span>/1     Running   <span class="m">0</span>          74m     <span class="m">172</span>.17.0.6    minikube   &lt;none&gt;           &lt;none&gt;
+vue-cd9d7d445-xl7wd      <span class="m">1</span>/1     Running   <span class="m">0</span>          5m18s   <span class="m">172</span>.17.0.9    minikube   &lt;none&gt;           &lt;none&gt;
+</code></pre></div>
+
+<p>向服务提出一些请求:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="k">for</span> <span class="o">((</span><span class="nv">i</span><span class="o">=</span><span class="m">1</span><span class="p">;</span>i&lt;<span class="o">=</span><span class="m">10</span><span class="p">;</span>i++<span class="o">))</span><span class="p">;</span> <span class="k">do</span> curl http://hello.world/books/ping<span class="p">;</span> <span class="k">done</span>
+</code></pre></div>
+
+<p>您应该看到不同的<code>container_id</code>被返回，表明请求通过两个副本之间的循环算法被适当地路由:</p>
+<div class="codehilite"><pre><span/><code><span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-n88b4"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-hqpbh"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-hqpbh"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-n88b4"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-n88b4"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-hqpbh"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-n88b4"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-hqpbh"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-n88b4"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">"container_id"</span>:<span class="s2">"flask-66988cb97d-hqpbh"</span>,<span class="s2">"message"</span>:<span class="s2">"pong!"</span>,<span class="s2">"status"</span>:<span class="s2">"success"</span><span class="o">}</span>
+</code></pre></div>
+
+<p>如果在流量冲击集群时缩减规模，会发生什么情况？打开两个终端窗口，并在上进行测试。您应该会看到流量被适当地重新路由。再试一次，但这次要放大。</p>
+<h2 id="helpful-commands">有用的命令</h2>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minikube start</code></td>
+<td>启动本地Kubernetes集群</td>
+</tr>
+<tr>
+<td><code>minikube ip</code></td>
+<td>显示集群的IP地址</td>
+</tr>
+<tr>
+<td><code>minikube dashboard</code></td>
+<td>在浏览器中打开Kubernetes仪表板</td>
+</tr>
+<tr>
+<td><code>kubectl version</code></td>
+<td>显示Kubectl版本</td>
+</tr>
+<tr>
+<td><code>kubectl cluster-info</code></td>
+<td>显示集群信息</td>
+</tr>
+<tr>
+<td><code>kubectl get nodes</code></td>
+<td>列出节点</td>
+</tr>
+<tr>
+<td><code>kubectl get pods</code></td>
+<td>列出了窗格</td>
+</tr>
+<tr>
+<td><code>kubectl get deployments</code></td>
+<td>列出部署</td>
+</tr>
+<tr>
+<td><code>kubectl get services</code></td>
+<td>列出服务</td>
+</tr>
+<tr>
+<td><code>minikube stop</code></td>
+<td>停止本地Kubernetes集群</td>
+</tr>
+<tr>
+<td><code>minikube delete</code></td>
+<td>删除本地Kubernetes集群</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>查看<a href="https://github.com/dennyzhang/cheatsheet-kubernetes-A4"> Kubernetes备忘单</a>了解更多命令。</p>
+</blockquote>
+<h2 id="automation-script">自动化脚本</h2>
+<p>准备好把所有东西放在一起了吗？</p>
+<p>看看项目根目录中的<em> deploy.sh </em>脚本。这个脚本:</p>
+<ol>
+<li>创建一个持久卷和一个持久卷声明</li>
+<li>通过Kubernetes Secrets添加数据库凭证</li>
+<li>创建Postgres部署和服务</li>
+<li>创建Flask部署和服务</li>
+<li>启用入口</li>
+<li>应用了入口规则</li>
+<li>创建Vue部署和服务</li>
+</ol>
+<div class="codehilite"><pre><span/><code><span class="ch">#!/bin/bash</span>
+
+
+<span class="nb">echo</span> <span class="s2">"Creating the volume..."</span>
+
+kubectl apply -f ./kubernetes/persistent-volume.yml
+kubectl apply -f ./kubernetes/persistent-volume-claim.yml
+
+
+<span class="nb">echo</span> <span class="s2">"Creating the database credentials..."</span>
+
+kubectl apply -f ./kubernetes/secret.yml
+
+
+<span class="nb">echo</span> <span class="s2">"Creating the postgres deployment and service..."</span>
+
+kubectl create -f ./kubernetes/postgres-deployment.yml
+kubectl create -f ./kubernetes/postgres-service.yml
+<span class="nv">POD_NAME</span><span class="o">=</span><span class="k">$(</span>kubectl get pod -l <span class="nv">service</span><span class="o">=</span>postgres -o <span class="nv">jsonpath</span><span class="o">=</span><span class="s2">"{.items[0].metadata.name}"</span><span class="k">)</span>
+kubectl <span class="nb">exec</span> <span class="nv">$POD_NAME</span> --stdin --tty -- createdb -U sample books
+
+
+<span class="nb">echo</span> <span class="s2">"Creating the flask deployment and service..."</span>
+
+kubectl create -f ./kubernetes/flask-deployment.yml
+kubectl create -f ./kubernetes/flask-service.yml
+<span class="nv">FLASK_POD_NAME</span><span class="o">=</span><span class="k">$(</span>kubectl get pod -l <span class="nv">app</span><span class="o">=</span>flask -o <span class="nv">jsonpath</span><span class="o">=</span><span class="s2">"{.items[0].metadata.name}"</span><span class="k">)</span>
+kubectl <span class="nb">exec</span> <span class="nv">$FLASK_POD_NAME</span> --stdin --tty -- python manage.py recreate_db
+kubectl <span class="nb">exec</span> <span class="nv">$FLASK_POD_NAME</span> --stdin --tty -- python manage.py seed_db
+
+
+<span class="nb">echo</span> <span class="s2">"Adding the ingress..."</span>
+
+minikube addons <span class="nb">enable</span> ingress
+kubectl delete -A ValidatingWebhookConfiguration ingress-nginx-admission
+kubectl apply -f ./kubernetes/minikube-ingress.yml
+
+
+<span class="nb">echo</span> <span class="s2">"Creating the vue deployment and service..."</span>
+
+kubectl create -f ./kubernetes/vue-deployment.yml
+kubectl create -f ./kubernetes/vue-service.yml
+</code></pre></div>
+
+<p>试试吧！</p>
+
+
+<p>完成后，创建<code>books</code>数据库，应用迁移，并播种数据库:</p>
+<div class="codehilite"><pre><span/><code>$ <span class="nv">POD_NAME</span><span class="o">=</span><span class="k">$(</span>kubectl get pod -l <span class="nv">service</span><span class="o">=</span>postgres -o <span class="nv">jsonpath</span><span class="o">=</span><span class="s2">"{.items[0].metadata.name}"</span><span class="k">)</span>
+$ kubectl <span class="nb">exec</span> <span class="nv">$POD_NAME</span> --stdin --tty -- createdb -U sample books
+
+$ <span class="nv">FLASK_POD_NAME</span><span class="o">=</span><span class="k">$(</span>kubectl get pod -l <span class="nv">app</span><span class="o">=</span>flask -o <span class="nv">jsonpath</span><span class="o">=</span><span class="s2">"{.items[0].metadata.name}"</span><span class="k">)</span>
+$ kubectl <span class="nb">exec</span> <span class="nv">$FLASK_POD_NAME</span> --stdin --tty -- python manage.py recreate_db
+$ kubectl <span class="nb">exec</span> <span class="nv">$FLASK_POD_NAME</span> --stdin --tty -- python manage.py seed_db
+</code></pre></div>
+
+<p>更新<em> /etc/hosts </em>，然后在浏览器中测试出来。</p>
+<h2 id="conclusion">结论</h2>
+<p>在本教程中，我们了解了如何在Kubernetes上运行基于Flask的微服务。</p>
+<p>至此，您应该对Kubernetes的工作原理有了基本的了解，并且能够部署一个运行应用程序的集群。</p>
+<p>其他资源:</p>
+<ol>
+<li><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/">学习立方基础</a></li>
+<li><a href="https://kubernetes.io/docs/concepts/configuration/overview/">配置最佳实践</a></li>
+<li><a href="https://mherman.org/presentations/flask-kubernetes">用Kubernetes刻度烧瓶</a></li>
+<li><a href="https://testdriven.io/running-flask-on-docker-swarm">在Docker Swarm上运行烧瓶</a>(比较和对比Docker Swarm与Kubernetes上的运行烧瓶)</li>
+<li><a href="https://testdriven.io/deploying-a-node-app-to-google-cloud-with-kubernetes">使用Kubernetes将Node应用部署到Google Cloud】</a></li>
+</ol>
+<p>您可以在GitHub上的<a href="https://github.com/testdrivenio/flask-vue-kubernetes">flask-vue-kubernetes</a>repo中找到代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>

@@ -1,0 +1,602 @@
+<html>
+<head>
+<title>Faster CI Builds with Docker Layer Caching and BuildKit </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>通过Docker层缓存和构建工具包加快CI构建</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/faster-ci-builds-with-docker-cache/#0001-01-01">https://testdriven.io/blog/faster-ci-builds-with-docker-cache/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本文着眼于如何使用Docker层缓存和<a href="https://docs.docker.com/develop/develop-images/build_enhancements/">构建工具包</a>来加速您在<a href="https://circleci.com/"> CircleCI </a>、<a href="https://docs.gitlab.com/ee/ci/"> GitLab CI </a>和<a href="https://github.com/features/actions"> GitHub Actions </a>上基于Docker的构建。</p>
+
+
+
+<h2 id="docker-layer-caching">Docker层缓存</h2>
+<p>Docker会在构建映像时缓存每一层，只有在自上次构建以来该层或其上的层发生了变化时，才会重新构建每一层。因此，您可以使用Docker缓存显著加快构建速度。让我们看一个简单的例子。</p>
+<p><em> Dockerfile </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># pull base image</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9.7-slim</span>
+
+<span class="c"># install netcat</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get -y install netcat <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get clean
+
+<span class="c"># set working directory</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/usr/src/app</span>
+
+<span class="c"># install requirements</span>
+<span class="k">COPY</span><span class="w"> </span>./requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install -r requirements.txt
+
+<span class="c"># add app</span>
+<span class="k">COPY</span><span class="w"> </span>. .
+
+<span class="c"># run server</span>
+<span class="k">CMD</span><span class="w"> </span>gunicorn -b <span class="m">0</span>.0.0.0:5000 manage:app
+</code></pre></div>
+
+<blockquote>
+<p>您可以在GitHub上的<a href="https://github.com/testdrivenio/docker-ci-cache"> docker-ci-cache </a> repo中找到该项目的完整源代码。</p>
+</blockquote>
+<p>第一次Docker构建可能需要几分钟才能完成，这取决于您的连接速度。后续构建应该只需要几秒钟，因为层在第一次构建后会被缓存:</p>
+<div class="codehilite"><pre><span/><code><span class="o">[</span>+<span class="o">]</span> Building <span class="m">0</span>.4s <span class="o">(</span><span class="m">12</span>/12<span class="o">)</span> <span class="nv">FINISHED</span>
+ <span class="o">=</span>&gt; <span class="o">[</span>internal<span class="o">]</span> load build definition from Dockerfile                                                                     <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">=</span>&gt; transferring dockerfile: 37B                                                                                      <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">[</span>internal<span class="o">]</span> load .dockerignore                                                                                        <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">=</span>&gt; transferring context: 35B                                                                                         <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">[</span>internal<span class="o">]</span> load metadata <span class="k">for</span> docker.io/library/python:3.9.7-slim                                                     <span class="m">0</span>.3s
+ <span class="o">=</span>&gt; <span class="o">[</span>internal<span class="o">]</span> load build context                                                                                        <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">=</span>&gt; transferring context: 555B                                                                                        <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">[</span><span class="m">1</span>/7<span class="o">]</span> FROM docker.io/library/python:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8ebda0b7a0b9a3fde2e7e3cefde6efbcbbb8">[email protected]</a>:bdefda2b80c5b4d993ef83d2445d81b2b894bf627b62bd7b0f01244de2b6a  <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; CACHED <span class="o">[</span><span class="m">2</span>/7<span class="o">]</span> RUN apt-get update <span class="o">&amp;&amp;</span>     apt-get -y install netcat <span class="o">&amp;&amp;</span>     apt-get clean                                <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; CACHED <span class="o">[</span><span class="m">3</span>/7<span class="o">]</span> WORKDIR /usr/src/app                                                                                    <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; CACHED <span class="o">[</span><span class="m">4</span>/7<span class="o">]</span> COPY ./requirements.txt .                                                                               <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; CACHED <span class="o">[</span><span class="m">5</span>/7<span class="o">]</span> RUN pip install -r requirements.txt                                                                     <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; CACHED <span class="o">[</span><span class="m">6</span>/7<span class="o">]</span> COPY project .                                                                                          <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; CACHED <span class="o">[</span><span class="m">7</span>/7<span class="o">]</span> COPY manage.py .                                                                                        <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; exporting to image                                                                                                   <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">=</span>&gt; exporting layers                                                                                                  <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">=</span>&gt; writing image sha256:2b8b7c5a6d1b77d5bcd689ab265b0281ad531bd2e34729cff82285f5abdcb59f                             <span class="m">0</span>.0s
+ <span class="o">=</span>&gt; <span class="o">=</span>&gt; naming to docker.io/library/cache                                                                                 <span class="m">0</span>.0s
+</code></pre></div>
+
+<p>即使您对源代码进行了更改，也应该只需要几秒钟就可以完成构建，因为不需要下载依赖项。只有最后两层需要重建，换句话说:</p>
+<div class="codehilite"><pre><span/><code> <span class="o">=</span>&gt; <span class="o">[</span><span class="m">6</span>/7<span class="o">]</span> COPY project .
+ <span class="o">=</span>&gt; <span class="o">[</span><span class="m">7</span>/7<span class="o">]</span> COPY manage.py .
+</code></pre></div>
+
+<p>要避免缓存失效:</p>
+<ol>
+<li>用不太可能改变的命令开始你的docker文件</li>
+<li>尽可能晚地放置更有可能改变的命令(如<code>COPY . .</code>)</li>
+<li>仅添加必要的文件(使用<em>)。dockerignore </em>文件)</li>
+</ol>
+<blockquote>
+<p>要获得更多的技巧和最佳实践，请查看针对Python开发人员的Docker最佳实践文章。</p>
+</blockquote>
+<h2 id="buildkit">构建工具包</h2>
+<p>如果你使用的是Docker版本&gt; = <a href="https://docs.docker.com/engine/release-notes/#19030"> 19.03 </a>，你可以使用BuildKit，一个容器映像构建器，来代替Docker引擎中传统的映像构建器后端。如果没有BuildKit，如果本地图像注册表中不存在图像，您需要在构建之前提取远程图像，以便利用Docker层缓存。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code>$ docker pull mjhea0/docker-ci-cache:latest
+
+$ docker docker build --tag mjhea0/docker-ci-cache:latest .
+</code></pre></div>
+
+<p>使用BuildKit，您不需要在构建之前提取远程映像，因为它会在映像注册表中缓存每个构建层。然后，当您构建映像时，在构建过程中会根据需要下载每个层。</p>
+<p>要启用BuildKit，请将<code>DOCKER_BUILDKIT</code>环境变量设置为<code>1</code>。然后，打开内嵌层缓存，使用<code>BUILDKIT_INLINE_CACHE</code>构建参数。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="nb">export</span> <span class="nv">DOCKER_BUILDKIT</span><span class="o">=</span><span class="m">1</span>
+
+<span class="c1"># Build and cache image</span>
+$ docker build --tag mjhea0/docker-ci-cache:latest --build-arg <span class="nv">BUILDKIT_INLINE_CACHE</span><span class="o">=</span><span class="m">1</span> .
+
+<span class="c1"># Build image from remote cache</span>
+$ docker build --cache-from mjhea0/docker-ci-cache:latest .
+</code></pre></div>
+
+<h2 id="ci-environments">CI环境</h2>
+<p>因为CI平台为每个构建提供了一个全新的环境，所以您需要使用一个远程图像注册表作为BuildKit的层缓存的缓存源。</p>
+<p>步骤:</p>
+<ol>
+<li>
+<p>登录图像注册中心(如<a href="https://hub.docker.com/">码头中心</a>、<a href="https://aws.amazon.com/ecr/">弹性集装箱注册中心</a> (ECR)、以及<a href="https://quay.io/">码头</a>等等)。</p>
+<blockquote>
+<p>值得注意的是，GitLab和GitHub都有自己的注册表，可以在平台上的库(公共和私有)中使用，分别是<a href="https://docs.gitlab.com/ee/user/packages/container_registry/"> GitLab容器注册表</a>和<a href="https://github.com/features/packages"> GitHub包</a>。</p>
+</blockquote>
+</li>
+<li>
+<p>使用Docker build的<code>--cache-from</code> <a href="https://docs.docker.com/engine/reference/commandline/build/#options">选项</a>将现有图像用作缓存源。</p>
+</li>
+<li>如果构建成功，将新的映像推送到注册表中。</li>
+</ol>
+<p>让我们看看如何在CircleCI、GitLab CI和GitHub Actions上做到这一点，使用单级和多级Docker构建，使用和不使用Docker Compose。每个示例都使用Docker Hub作为映像注册中心，并将<code>REGISTRY_USER</code>和<code>REGISTRY_PASS</code>设置为CI构建中的变量，以便向注册中心推送数据或从中提取数据。</p>
+<blockquote>
+<p>确保在构建环境中将<code>REGISTRY_USER</code>和<code>REGISTRY_PASS</code>设置为环境变量:</p>
+<ol>
+<li>循环</li>
+<li><a href="https://docs.gitlab.com/ee/ci/variables/"> GitLab CI </a></li>
+<li><a href="https://help.github.com/en/actions/configuring-and-managing-workflows/using-variables-and-secrets-in-a-workflow"> GitHub动作</a></li>
+</ol>
+</blockquote>
+<h2 id="single-stage-builds">单阶段构建</h2>
+<p>圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/single-stage/circle.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">machine</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-2004:202010-01</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">      </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">checkout</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build from dockerfile</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">            </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">              </span><span class="no">--cache-from $CACHE_IMAGE:latest \</span><span class="w"/>
+<span class="w">              </span><span class="no">--tag $CACHE_IMAGE:latest \</span><span class="w"/>
+<span class="w">              </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">              </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:latest</span><span class="w"/>
+</code></pre></div>
+
+<p>GitLab CI:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/single-stage/.gitlab-ci.yml</span><span class="w"/>
+
+<span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+
+<span class="nt">docker-build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">before_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $CACHE_IMAGE:latest</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--tag $CACHE_IMAGE:latest</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">  </span><span class="nt">after_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:latest</span><span class="w"/>
+</code></pre></div>
+
+<p>GitHub操作:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/single-stage/github.yml</span><span class="w"/>
+
+<span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Docker Build</span><span class="w"/>
+
+<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Docker Image</span><span class="w"/>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Checkout master</span><span class="w"/>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="74171c11171f1b0100340245">[email protected]</a></span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build from dockerfile</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">            </span><span class="no">--cache-from $CACHE_IMAGE:latest \</span><span class="w"/>
+<span class="w">            </span><span class="no">--tag $CACHE_IMAGE:latest \</span><span class="w"/>
+<span class="w">            </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">            </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:latest</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="compose">构成</h3>
+<p>如果您正在使用Docker Compose，您可以将<code>cache_from</code> <a href="https://docs.docker.com/compose/compose-file/compose-file-v3/#cache_from">选项</a>添加到Compose文件，当您运行<code>docker-compose build</code>时，它会映射回<code>docker build --cache-from &lt;image&gt;</code>命令。</p>
+<p>示例:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">cache_from</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache:latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache:latest</span><span class="w"/>
+</code></pre></div>
+
+<p>为了利用BuildKit，请确保您使用的是Docker Compose &gt;= <a href="https://github.com/docker/compose/releases/tag/1.25.0"> 1.25.0 </a>版本。要启用BuildKit，请将<code>DOCKER_BUILDKIT</code>和<code>COMPOSE_DOCKER_CLI_BUILD</code>环境变量设置为<code>1</code>。然后，再次打开内嵌层缓存，使用<code>BUILDKIT_INLINE_CACHE</code> build参数。</p>
+<p>圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/single-stage/compose/circle.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">machine</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-2004:202010-01</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">      </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">      </span><span class="nt">COMPOSE_DOCKER_CLI_BUILD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">checkout</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build images</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:latest</span><span class="w"/>
+</code></pre></div>
+
+<p>GitLab CI:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/single-stage/compose/.gitlab-ci.yml</span><span class="w"/>
+
+<span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker/compose:latest</span><span class="w"/>
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">COMPOSE_DOCKER_CLI_BUILD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+
+<span class="nt">docker-build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">before_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">  </span><span class="nt">after_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:latest</span><span class="w"/>
+</code></pre></div>
+
+<p>GitHub操作:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/single-stage/compose/github.yml</span><span class="w"/>
+
+<span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Docker Build</span><span class="w"/>
+
+<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">COMPOSE_DOCKER_CLI_BUILD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Docker Image</span><span class="w"/>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Checkout master</span><span class="w"/>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="70131815131b1f0504300641">[email protected]</a></span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Docker images</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:latest</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="multi-stage-builds">多阶段构建</h2>
+<p>使用<a href="https://docs.docker.com/develop/develop-images/multistage-build/">多阶段构建</a>模式，您必须对每个中间阶段应用相同的工作流(构建，然后推送),因为这些映像在最终映像创建之前就被丢弃了。<code>--target</code> <a href="https://docs.docker.com/compose/compose-file/compose-file-v3/#target">选项</a>可用于单独构建多阶段构建的每个阶段。</p>
+<p><em> Dockerfile.multi </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c"># base</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9.7</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">base</span>
+<span class="k">COPY</span><span class="w"> </span>./requirements.txt /
+<span class="k">RUN</span><span class="w"> </span>pip wheel --no-cache-dir --no-deps --wheel-dir /wheels -r requirements.txt
+
+<span class="c"># stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.9.7-slim</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get update <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get -y install netcat <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    apt-get clean
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/usr/src/app</span>
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>base /wheels /wheels
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>base requirements.txt .
+<span class="k">RUN</span><span class="w"> </span>pip install --no-cache /wheels/*
+<span class="k">COPY</span><span class="w"> </span>. /usr/src/app
+<span class="k">CMD</span><span class="w"> </span>gunicorn -b <span class="m">0</span>.0.0.0:5000 manage:app
+</code></pre></div>
+
+<p>圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/multi-stage/circle.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">machine</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-2004:202010-01</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">      </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">checkout</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build base from dockerfile</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">            </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">              </span><span class="no">--target base \</span><span class="w"/>
+<span class="w">              </span><span class="no">--cache-from $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">              </span><span class="no">--tag $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">              </span><span class="no">--file ./Dockerfile.multi \</span><span class="w"/>
+<span class="w">              </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">              </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build stage from dockerfile</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">            </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">              </span><span class="no">--cache-from $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">              </span><span class="no">--cache-from $CACHE_IMAGE:stage \</span><span class="w"/>
+<span class="w">              </span><span class="no">--tag $CACHE_IMAGE:stage \</span><span class="w"/>
+<span class="w">              </span><span class="no">--file ./Dockerfile.multi \</span><span class="w"/>
+<span class="w">              </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">              </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push base image to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push stage image to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:stage</span><span class="w"/>
+</code></pre></div>
+
+<p>GitLab CI:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/multi-stage/.gitlab-ci.yml</span><span class="w"/>
+
+<span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:stable</span><span class="w"/>
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay2</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+
+<span class="nt">docker-build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">before_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--target base</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--tag $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile.multi</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $CACHE_IMAGE:stage</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--tag $CACHE_IMAGE:stage</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile.multi</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">  </span><span class="nt">after_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:stage</span><span class="w"/>
+</code></pre></div>
+
+<p>GitHub操作:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/multi-stage/github.yml</span><span class="w"/>
+
+<span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Docker Build</span><span class="w"/>
+
+<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Docker Image</span><span class="w"/>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Checkout master</span><span class="w"/>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6e0d060b0d05011b1a2e185f">[email protected]</a></span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build base from dockerfile</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">            </span><span class="no">--target base \</span><span class="w"/>
+<span class="w">            </span><span class="no">--cache-from $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">            </span><span class="no">--tag $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">            </span><span class="no">--file ./Dockerfile.multi \</span><span class="w"/>
+<span class="w">            </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">            </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build stage from dockerfile</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">            </span><span class="no">--cache-from $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">            </span><span class="no">--cache-from $CACHE_IMAGE:stage \</span><span class="w"/>
+<span class="w">            </span><span class="no">--tag $CACHE_IMAGE:stage \</span><span class="w"/>
+<span class="w">            </span><span class="no">--file ./Dockerfile.multi \</span><span class="w"/>
+<span class="w">            </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">            </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push base image to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push stage image to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:stage</span><span class="w"/>
+</code></pre></div>
+
+<h3 id="compose_1">构成</h3>
+<p>示例合成文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.8'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">web</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">cache_from</span><span class="p">:</span><span class="w"/>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache:stage</span><span class="w"/>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache:stage</span><span class="w"/>
+</code></pre></div>
+
+<p>圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈：</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/multi-stage/compose/circle.yml</span><span class="w"/>
+
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">machine</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-2004:202010-01</span><span class="w"/>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">      </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">      </span><span class="nt">COMPOSE_DOCKER_CLI_BUILD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">checkout</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build base from dockerfile</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">            </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">              </span><span class="no">--target base \</span><span class="w"/>
+<span class="w">              </span><span class="no">--cache-from $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">              </span><span class="no">--tag $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">              </span><span class="no">--file ./Dockerfile.multi \</span><span class="w"/>
+<span class="w">              </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">              </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Docker images</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose -f docker-compose.multi.yml build --build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push base image to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"/>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push stage image to docker hub</span><span class="w"/>
+<span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:stage</span><span class="w"/>
+</code></pre></div>
+
+<p>GitLab CI:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/multi-stage/compose/.gitlab-ci.yml</span><span class="w"/>
+
+<span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker/compose:latest</span><span class="w"/>
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker:dind</span><span class="w"/>
+
+<span class="nt">variables</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_DRIVER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">overlay</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">COMPOSE_DOCKER_CLI_BUILD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">stages</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+
+<span class="nt">docker-build</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span><span class="w"/>
+<span class="w">  </span><span class="nt">before_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u $REGISTRY_USER -p $REGISTRY_PASS</span><span class="w"/>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker build</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--target base</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--cache-from $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--tag $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--file ./Dockerfile.multi</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">--build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">"."</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose -f docker-compose.multi.yml build --build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">  </span><span class="nt">after_script</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:stage</span><span class="w"/>
+</code></pre></div>
+
+<p>GitHub操作:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># _config-examples/multi-stage/compose/github.yml</span><span class="w"/>
+
+<span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Docker Build</span><span class="w"/>
+
+<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">]</span><span class="w"/>
+
+<span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">CACHE_IMAGE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mjhea0/docker-ci-cache</span><span class="w"/>
+<span class="w">  </span><span class="nt">DOCKER_BUILDKIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+<span class="w">  </span><span class="nt">COMPOSE_DOCKER_CLI_BUILD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"/>
+
+<span class="nt">jobs</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Docker Image</span><span class="w"/>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span><span class="w"/>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Checkout master</span><span class="w"/>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b9dad1dcdad2d6cccdf9cf88">[email protected]</a></span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build base from dockerfile</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"/>
+<span class="w">          </span><span class="no">docker build \</span><span class="w"/>
+<span class="w">            </span><span class="no">--target base \</span><span class="w"/>
+<span class="w">            </span><span class="no">--cache-from $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">            </span><span class="no">--tag $CACHE_IMAGE:base \</span><span class="w"/>
+<span class="w">            </span><span class="no">--file ./Dockerfile.multi \</span><span class="w"/>
+<span class="w">            </span><span class="no">--build-arg BUILDKIT_INLINE_CACHE=1 \</span><span class="w"/>
+<span class="w">            </span><span class="no">"."</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build images</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose -f docker-compose.multi.yml build --build-arg BUILDKIT_INLINE_CACHE=1</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push base image to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:base</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Push stage image to docker hub</span><span class="w"/>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker push $CACHE_IMAGE:stage</span><span class="w"/>
+</code></pre></div>
+
+<h2 id="conclusion">结论</h2>
+<p>本文概述的缓存策略应该适用于单阶段构建和包含两个或三个阶段的多阶段构建。</p>
+<p>添加到构建步骤的每个阶段都需要一个新的构建，并为每个父阶段添加<code>--cache-from</code>选项。因此，每个新阶段都会增加更多的混乱，使得CI文件越来越难以阅读。幸运的是，BuildKit支持多阶段构建，Docker层缓存使用单阶段构建。有关这种高级构建工具包模式的更多信息，请阅读以下文章:</p>
+<ol>
+<li><a href="https://www.docker.com/blog/advanced-dockerfiles-faster-builds-and-smaller-images-using-buildkit-and-multistage-builds/">高级docker文件:使用BuildKit和多阶段构建实现更快的构建和更小的映像</a></li>
+<li><a href="https://medium.com/titansoft-engineering/docker-build-cache-sharing-on-multi-hosts-with-buildkit-and-buildx-eb8f7005918e"> Docker用BuildKit和buildx在多主机上构建缓存共享</a></li>
+<li><a href="https://dev.to/pst418/speed-up-multi-stage-docker-builds-in-ci-cd-with-buildkit-s-registry-cache-11gi">利用Buildkit的注册表缓存加速CI/CD中的多级Docker构建</a></li>
+</ol>
+<p>最后，需要注意的是，虽然缓存可能会加快您的CI构建速度，但您应该不时地在没有缓存的情况下重建您的映像，以便下载最新的操作系统补丁和安全更新。关于这方面的更多信息，请查看<a href="https://www.reddit.com/r/docker/comments/bhm9i0/faster_ci_builds_with_docker_cache/">这个线程</a>。</p>
+<p>--</p>
+<p>代码可以在<a href="https://github.com/testdrivenio/docker-ci-cache"> docker-ci-cache </a> repo中找到:</p>
+<ol>
+<li><a href="https://github.com/testdrivenio/docker-ci-cache/tree/master/_config-examples/single-stage">单级示例</a></li>
+<li><a href="https://github.com/testdrivenio/docker-ci-cache/tree/master/_config-examples/multi-stage">多阶段示例</a></li>
+</ol>
+<p>干杯！</p>
+  </div>
+
+  </div>    
+</body>
+</html>

@@ -1,0 +1,654 @@
+<html>
+<head>
+<title>Testing Angular with Cypress and Docker </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Cypress和Docker测试角度</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/testing-angular-with-cypress-and-docker/#0001-01-01">https://testdriven.io/blog/testing-angular-with-cypress-and-docker/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>Cypress是一个强大的测试框架，它使得编写端到端的测试变得很快，只需要很少的设置。</p>
+<p>这篇文章详细介绍了如何使用Cypress和Docker为Angular应用程序添加端到端(E2E)测试。我们将着眼于向一个新的和现有的Angular项目添加测试，以及将Cypress合并到您与Docker的持续集成流程中。</p>
+<p><img data-src="/static/images/gifs/blog/angular-cypress/all-tests.gif" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/fc8d65fc40ec31e7c8ecc4857805c499.png" data-original-src="https://testdriven.io/static/images/gifs/blog/angular-cypress/all-tests.gif"/></p>
+<p><em>依赖关系:</em></p>
+<ul>
+<li>cypress 2 . 1 . 0版</li>
+<li>Angular CLI版本1.7.3 (Angular版本5.2.0)</li>
+<li>坞站v18.03.1-ce</li>
+<li>节点v10.0.0</li>
+</ul>
+
+
+
+<h2 id="objectives">目标</h2>
+<p>本教程结束时，您将能够...</p>
+<ol>
+<li>将Cypress添加到新的和现有的角度项目中</li>
+<li>使用端到端测试测试Angular应用程序</li>
+<li>设置Cypress从Docker容器运行</li>
+<li>将Cypress集成到一个持续的集成过程中</li>
+</ol>
+<h2 id="new-angular-project">新角度项目</h2>
+<p>这一部分着眼于如何将Cypress添加到新的Angular项目中。</p>
+<p>如果您还没有安装<a href="https://cli.angular.io/"> Angular CLI </a>,则从全局安装开始，然后创建一个新的Angular项目:</p>
+<div class="codehilite"><pre><span/><code>$ npm install -g @angular/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="95f6f9fcd5a4bba2bba6">[email protected]</a>
+$ ng new angular-cypress
+$ <span class="nb">cd</span> angular-cypress
+</code></pre></div>
+
+<p>运行服务器:</p>
+
+
+<p>在浏览器中导航至<a href="http://localhost:4200"> http://localhost:4200 </a>。您应该看到“欢迎使用应用程序！”带棱角标志的信息。完成后杀死服务器。</p>
+<p>然后，安装Cypress:</p>
+
+
+<p>打开Cypress测试运行器:</p>
+<div class="codehilite"><pre><span/><code>$ ./node_modules/.bin/cypress open
+</code></pre></div>
+
+<p>由于这是我们第一次运行测试运行程序，Cypress将自动搭建一个文件夹结构:</p>
+<div class="codehilite"><pre><span/><code>└─── cypress
+    ├── fixtures
+    │   └── example.json
+    ├── integration
+    │   └── example_spec.js
+    ├── plugins
+    │   └── index.js
+    └── support
+        ├── commands.js
+        └── index.js
+</code></pre></div>
+
+<p>它还将向项目根添加一个空的<em> cypress.json </em>配置文件。</p>
+<blockquote>
+<p>查看官方Cypress <a href="https://docs.cypress.io">文档</a>中的<a href="https://docs.cypress.io/guides/core-concepts/writing-and-organizing-tests.html">编写和组织测试</a>，以获得关于上述文件夹结构的更多信息。</p>
+</blockquote>
+<p>值得注意的是，此时我们已经可以开始编写和运行测试了。Cypress附带了启动和运行所需的一切，无需任何配置！</p>
+<p>最后，移除示例规范文件-<em>cypress/integration/example _ spec . js</em>。在它的位置，添加一个<em> spec.js </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'My App'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'loads'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'h1'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Welcome to app!'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>Cypress对TypeScript有<a href="https://docs.cypress.io/guides/tooling/typescript-support.html">支持</a>，但是我遇到了许多类型定义冲突。截至发稿时，GitHub上有一个<a href="https://github.com/Microsoft/TypeScript/issues/22331">公开</a>问题来解决这个问题。</p>
+</blockquote>
+<p>这是一个基本的测试规范文件，它打开主页面并确认页面加载，并且有一个带有<code>Welcome to app!</code>文本的<code>H1</code>标签。</p>
+<p>命令:</p>
+<ol>
+<li><code>visit()</code>访问提供的网址。</li>
+<li><code>get()</code>通过选择器查询元素。</li>
+<li><code>contains()</code>获取包含文本的元素。这也是一个<a href="https://docs.cypress.io/guides/core-concepts/introduction-to-cypress.html#Default-Assertions">内置的</a>断言。</li>
+</ol>
+<blockquote>
+<p>关于这些命令的更多信息，请查看Cypress <a href="https://docs.cypress.io/api/table-of-contents"> API </a>。</p>
+</blockquote>
+<p>赛普拉斯在引擎盖下用一把<a href="https://mochajs.org/">摩卡</a>的叉子作为它的测试者，还有<a href="https://www.chaijs.com/">柴</a>作为断言，<a href="https://sinonjs.org/">西农</a>作为嘲讽和揶揄。因此，如果你过去用过摩卡或茉莉，你应该会觉得<code>describe</code>和<code>it</code>块很熟悉。</p>
+<p>通过更新项目根目录中的<em> cypress.json </em>文件，设置<code>baseUrl</code>并关闭视频录制:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://127.0.0.1:4200"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"videoRecording"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>然后Cypress会在<code>cy.visit()</code>中的URL前面加上<code>baseUrl</code>。</p>
+<p>在一个终端窗口运行Angular应用程序:</p>
+
+
+<p>然后，在另一个终端窗口中打开测试运行程序:</p>
+<div class="codehilite"><pre><span/><code>$ ./node_modules/.bin/cypress open
+</code></pre></div>
+
+<p>测试在一个<a href="https://electronjs.org/">电子</a>应用程序中运行，该应用程序将你的测试与被测应用程序并排显示。单击“运行所有测试”按钮开始新的测试运行:</p>
+<p><img data-src="/static/images/blog/angular-cypress/electron-app.png" loading="lazy" class="lazyload" alt="cypress test runner" src="../Images/dfdfd6de4ceeaacc3f6557f10c755863.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/electron-app.png"/></p>
+<p>Cypress将推出一个新的用户界面，它将完成规格文件中的每一步:</p>
+<p><img data-src="/static/images/blog/angular-cypress/first-test-run.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/023be98967e024fabc7769f15e74598b.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/first-test-run.png"/></p>
+<p>在运行器激活的情况下，Cypress会监视您的代码，并且会在发生更改时重新运行测试。试试吧！对<em>src/app/app . component . html</em>模板中的<code>&lt;h1&gt;&lt;/h1&gt;</code>元素进行快速更改，以观察测试的中断。</p>
+<p>恢复您刚才所做的更改，以便再次通过测试，然后在继续之前停止测试运行程序和Angular development server。</p>
+<h2 id="docker-for-ci">CI的Docker</h2>
+<p>让我们将Docker添加到组合中，以简化持续集成环境的测试——如<a href="https://jenkins.io/"> Jenkins </a>、<a href="https://travis-ci.org/"> Travis CI </a>或<a href="https://circleci.com/"> Circle </a>。在这些环境中，我们希望在一个容器中提供Angular应用程序，在另一个容器中运行Cypress测试。</p>
+<p>添加一个<em> Dockerfile </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="c1">#########################</span>
+<span class="c1">### build environment ###</span>
+<span class="c1">#########################</span>
+
+<span class="c1"># base image</span>
+FROM node:9.6.1 as builder
+
+<span class="c1"># install chrome for protractor tests</span>
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub <span class="p">|</span> apt-key add -
+RUN sh -c <span class="s1">'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" &gt;&gt; /etc/apt/sources.list.d/google.list'</span>
+RUN apt-get update <span class="o">&amp;&amp;</span> apt-get install -yq google-chrome-stable
+
+<span class="c1"># set working directory</span>
+RUN mkdir /usr/src/app
+WORKDIR /usr/src/app
+
+<span class="c1"># add `/usr/src/app/node_modules/.bin` to $PATH</span>
+ENV PATH /usr/src/app/node_modules/.bin:<span class="nv">$PATH</span>
+
+<span class="c1"># install and cache app dependencies</span>
+COPY package.json /usr/src/app/package.json
+RUN npm install
+RUN npm install -g @angular/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="02616e6b42332c352c33">[email protected]</a> --unsafe
+
+<span class="c1"># add app</span>
+COPY . /usr/src/app
+
+<span class="c1"># run tests</span>
+RUN ng <span class="nb">test</span> --watch<span class="o">=</span><span class="nb">false</span>
+
+<span class="c1"># generate build</span>
+RUN npm run build
+
+<span class="c1">##################</span>
+<span class="c1">### production ###</span>
+<span class="c1">##################</span>
+
+<span class="c1"># base image</span>
+FROM nginx:1.13.9-alpine
+
+<span class="c1"># copy artifact build from the 'build environment'</span>
+COPY --from<span class="o">=</span>builder /usr/src/app/dist /usr/share/nginx/html
+
+<span class="c1"># expose port 80</span>
+EXPOSE <span class="m">80</span>
+
+<span class="c1"># run nginx</span>
+CMD <span class="o">[</span><span class="s2">"nginx"</span>, <span class="s2">"-g"</span>, <span class="s2">"daemon off;"</span><span class="o">]</span>
+</code></pre></div>
+
+<p>在这里，使用Docker <a href="https://docs.docker.com/develop/develop-images/multistage-build/">多级构建</a>，我们创建了一个用于构建Angular应用程序的临时映像。角度构建过程完成后，静态文件被复制到生产映像，临时映像被丢弃。</p>
+<blockquote>
+<p>有关这方面的更多信息，请查看<a href="https://mherman.org/blog/2018/02/26/dockerizing-an-angular-app">dockering an Angular App</a>的博文。</p>
+</blockquote>
+<p>下一步，添加一个<em>坞站-复合. yml </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.6'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">angular</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">dockerfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dockerfile</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">'80:80'</span><span class="w"/>
+</code></pre></div>
+
+<p>构建映像并旋转容器:</p>
+<div class="codehilite"><pre><span/><code>$ docker-compose up -d --build
+</code></pre></div>
+
+<p>一旦启动，确保应用程序在<a href="http://localhost"> http://localhost </a>上运行。</p>
+<p>同样，我们将在一个单独的容器中运行Cypress测试，所以添加一个名为<em> Dockerfile-cypress </em>的新Dockerfile:</p>
+<div class="codehilite"><pre><span/><code><span class="cp"># base image</span>
+<span class="n">FROM</span><span class="w"> </span><span class="n">cypress</span><span class="o">/</span><span class="n">browsers</span><span class="o">:</span><span class="n">chrome65</span><span class="o">-</span><span class="n">ff57</span><span class="w"/>
+
+<span class="cp"># set working directory</span>
+<span class="n">RUN</span><span class="w"> </span><span class="n">mkdir</span><span class="w"> </span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">app</span><span class="w"/>
+<span class="n">WORKDIR</span><span class="w"> </span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">app</span><span class="w"/>
+
+<span class="cp"># install cypress</span>
+<span class="n">RUN</span><span class="w"> </span><span class="n">npm</span><span class="w"> </span><span class="n">install</span><span class="w"> </span><span class="n">cypress</span><span class="mf">@2.1.0</span><span class="w"/>
+
+<span class="cp"># copy cypress files and folders</span>
+<span class="n">COPY</span><span class="w"> </span><span class="n">cypress</span><span class="w"> </span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">app</span><span class="o">/</span><span class="n">cypress</span><span class="w"/>
+<span class="n">COPY</span><span class="w"> </span><span class="n">cypress</span><span class="p">.</span><span class="n">json</span><span class="w"> </span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">app</span><span class="o">/</span><span class="n">cypress</span><span class="p">.</span><span class="n">json</span><span class="w"/>
+
+<span class="cp"># confirm the cypress install</span>
+<span class="n">RUN</span><span class="w"> </span><span class="p">.</span><span class="o">/</span><span class="n">node_modules</span><span class="o">/</span><span class="p">.</span><span class="n">bin</span><span class="o">/</span><span class="n">cypress</span><span class="w"> </span><span class="n">verify</span><span class="w"/>
+</code></pre></div>
+
+<blockquote>
+<p>查看官方<a href="https://github.com/cypress-io/cypress-docker-images"> Cypress Docker Images </a> repo，了解更多关于可用基本图像的信息。</p>
+</blockquote>
+<p>像这样更新<em> docker-compose.yml </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">'3.6'</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">angular</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">dockerfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dockerfile</span><span class="w"/>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">'80:80'</span><span class="w"/>
+
+<span class="w">  </span><span class="nt">cypress</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span><span class="w"/>
+<span class="w">      </span><span class="nt">dockerfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dockerfile-cypress</span><span class="w"/>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"/>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">angular</span><span class="w"/>
+<span class="w">    </span><span class="nt">network_mode</span><span class="p">:</span><span class="w"> </span><span class="s">'host'</span><span class="w"/>
+</code></pre></div>
+
+<p>注意<a href="https://docs.docker.com/compose/compose-file/#network_mode">网络模式</a>。通过将其设置为<code>host</code>，Cypress容器将能够从主机访问localhost。查看<a href="https://stackoverflow.com/questions/24319662/from-inside-of-a-docker-container-how-do-i-connect-to-the-localhost-of-the-mach">这个</a>堆栈溢出问题了解更多信息。</p>
+<p>现在，当我们运行测试时，我们需要<a href="https://docs.cypress.io/guides/references/configuration.html#Overriding-Options">覆盖<em> cypress.json </em>文件中设置的<code>baseURL</code>:</a></p>
+<div class="codehilite"><pre><span/><code>$ docker-compose run cypress ./node_modules/.bin/cypress run <span class="se">\</span>
+    --config <span class="nv">baseUrl</span><span class="o">=</span>http://127.0.0.1
+</code></pre></div>
+
+<blockquote>
+<p>值得一提的是，您还可以将一个不同的配置文件复制到容器中，该配置文件是特定于使用Docker和/或在CI环境中运行测试的，如下所示:</p>
+</blockquote>
+<div class="codehilite"><pre><span/><code>COPY cypress-ci.json /usr/src/app/cypress.json
+</code></pre></div>
+
+<p>测试应该通过:</p>
+<div class="codehilite"><pre><span/><code><span class="o">(</span>Tests Starting<span class="o">)</span>
+
+
+My App
+  ✓ loads <span class="o">(</span>679ms<span class="o">)</span>
+
+
+<span class="m">1</span> passing <span class="o">(</span>792ms<span class="o">)</span>
+
+
+<span class="o">(</span>Tests Finished<span class="o">)</span>
+
+- Tests:           <span class="m">1</span>
+- Passes:          <span class="m">1</span>
+- Failures:        <span class="m">0</span>
+- Pending:         <span class="m">0</span>
+- Duration:        <span class="m">0</span> seconds
+- Screenshots:     <span class="m">0</span>
+- Video Recorded:  <span class="nb">false</span>
+- Cypress Version: <span class="m">2</span>.1.0
+
+
+<span class="o">(</span>All Done<span class="o">)</span>
+</code></pre></div>
+
+<p>把容器拿下来:</p>
+
+
+<h2 id="travis-ci">特拉维斯·CI</h2>
+<p>接下来，让我们使用Travis CI进行持续集成。向项目根目录添加一个<em> .travis.yml </em>文件:</p>
+<div class="codehilite"><pre><span/><code><span class="nt">language</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node_js</span><span class="w"/>
+
+<span class="nt">node_js</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w"/>
+
+<span class="nt">services</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker</span><span class="w"/>
+
+<span class="nt">env</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="nt">global</span><span class="p">:</span><span class="w"/>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DOCKER_COMPOSE_VERSION=1.21.1</span><span class="w"/>
+
+<span class="nt">before_install</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sudo rm /usr/local/bin/docker-compose</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` &gt; docker-compose</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chmod +x docker-compose</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sudo mv docker-compose /usr/local/bin</span><span class="w"/>
+
+<span class="nt">before_script</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sleep 3</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose up -d --build</span><span class="w"/>
+
+<span class="nt">script</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose run cypress ./node_modules/.bin/cypress run --config baseUrl=http://127.0.0.1</span><span class="w"/>
+
+<span class="nt">after_script</span><span class="p">:</span><span class="w"/>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker-compose down</span><span class="w"/>
+</code></pre></div>
+
+<p>如果你想测试一下，在GitHub上创建一个新的repo，<a href="https://docs.travis-ci.com/user/getting-started">为这个repo启用</a> Travis，然后推上你的代码。</p>
+<p>至此，让我们继续向现有的Angular项目添加Cypress测试。</p>
+<h2 id="existing-angular-project">现有角度项目</h2>
+<p>在这一节中，我们将把Cypress添加到Angular项目中，该项目已经构建了基于令牌的认证。app本身来自Angular中的<a href="http://mherman.org/blog/2018/04/17/authentication-in-angular-with-ngrx">认证与NGRX </a>博文。代码中有一个小错误，我们将用Cypress来充实它。</p>
+<p>首先克隆项目并安装依赖项:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/mjhea0/angular-auth-ngrx
+$ <span class="nb">cd</span> angular-auth-ngrx
+$ npm install
+</code></pre></div>
+
+<p>该应用程序需要具有以下路由的后端:</p>
+<table>
+<thead>
+<tr>
+<th>统一资源定位器</th>
+<th>HTTP动词</th>
+<th>行动</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>http://localhost:1337/register</td>
+<td>邮政</td>
+<td>注册新用户</td>
+</tr>
+<tr>
+<td>http://localhost:1337/login</td>
+<td>邮政</td>
+<td>让用户登录</td>
+</tr>
+<tr>
+<td>http://本地主机:1337/status</td>
+<td>得到</td>
+<td>获取用户状态</td>
+</tr>
+</tbody>
+</table>
+<p>我们将使用一个生成伪令牌的伪后端来测试前端的功能。在新的终端窗口中克隆repo，安装依赖项，启动应用程序:</p>
+<div class="codehilite"><pre><span/><code>$ git clone https://github.com/testdrivenio/fake-token-api
+$ <span class="nb">cd</span> fake-token-api
+$ npm install
+$ npm start
+</code></pre></div>
+
+<p>旋转角度应用程序:</p>
+
+
+<p>导航到<a href="http://localhost:4200"> http://localhost:4200 </a>。确保您可以注册并使用以下凭据登录:</p>
+
+<p>让开发服务器保持运行。</p>
+<h2 id="adding-cypress">添加柏树</h2>
+<p>安装Cypress并在新的终端窗口中打开测试运行程序:</p>
+
+
+<p>移除示例规范文件并更新<em> cypress.json </em>:</p>
+<div class="codehilite"><pre><span/><code><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://127.0.0.1:4200"</span><span class="p">,</span><span class="w"/>
+<span class="w">  </span><span class="nt">"videoRecording"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"/>
+<span class="p">}</span><span class="w"/>
+</code></pre></div>
+
+<p>让我们编写一些测试来确保:</p>
+<ol>
+<li>主页面加载</li>
+<li>用户可以注册</li>
+<li>用户可以登录</li>
+<li>只有经过认证的用户才能查看<code>/status</code>路线</li>
+</ol>
+<p>我们将按组件对其进行分类:</p>
+<ol>
+<li>登陆</li>
+<li>注册</li>
+<li>签约雇用</li>
+<li>状态</li>
+</ol>
+<h3 id="test-landing-component">测试:着陆组件</h3>
+<p>添加一个新的规格文件-<em>landing . component . spec . js</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'Landing Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should display the landing page'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'h1'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Angular + NGRX'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>这里没有什么新东西，所以继续运行测试:</p>
+<p><img data-src="/static/images/blog/angular-cypress/test-run-landing-component1.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/1cd31366c32cc8673c3e72162cae0d20.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/test-run-landing-component1.png"/></p>
+<h3 id="test-login-component">测试:登录组件</h3>
+<p>再次添加一个新的规范文件-<em>log in . component . spec . js</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'LogIn Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should log a user in'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="email"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e094859394a094859394ce838f8d">[email protected]</a>'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="password"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="s1">'test'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button[type="submit"]'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4d39283e390d39283e39632e2220">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log out'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>在这个测试中，我们导航到主页，单击Log in按钮，提交带有正确凭证的表单，然后确认登录成功。</p>
+<p>运行测试！</p>
+<p><img data-src="/static/images/blog/angular-cypress/test-run-login-component1.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/929fbea34d333a42d7aeaba0f3f6c2da.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/test-run-login-component1.png"/></p>
+<p>尝试将鼠标悬停在UI左侧的一个测试步骤上——它将显示该步骤的DOM快照。默认情况下，Cypress会保存50张快照。例如，将鼠标悬停在<code>CONTAINS You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="196d7c6a6d596d7c6a6d377a7674">[email protected]</a>!</code>步骤上。请注意，该元素现在是如何在右侧的应用程序中突出显示的:</p>
+<p><img data-src="/static/images/blog/angular-cypress/test-run-login-component3.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/e366a2f04305d588c609b4f5791fbe47.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/test-run-login-component3.png"/></p>
+<p>您也可以打开开发人员工具来获取有关该步骤的更多信息:</p>
+<p><img data-src="/static/images/blog/angular-cypress/test-run-login-component4.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/1e68b6f7c0cf40d57409e7a8a800427f.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/test-run-login-component4.png"/></p>
+<p>最后，您可以使用调试器来停止正在运行的测试，检查变量的状态，进行更改，然后重新运行测试。</p>
+<p>这些特性使得调试失败的测试变得容易。</p>
+<p>接下来，让我们确保如果凭据不正确，用户不会登录。像这样更新规范:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'LogIn Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should log a user in if the credentials are valid'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="email"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8ffbeafcfbcffbeafcfba1ece0e2">[email protected]</a>'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="password"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="s1">'test'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button[type="submit"]'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="780c1d0b0c380c1d0b0c561b1715">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log out'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should not log a user in if the credentials are invalid'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="email"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ee80819aae8d819c9c8b8d9ac08d8183">[email protected]</a>'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="password"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="s1">'incorrect'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button[type="submit"]'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="502435232410243523247e333f3d">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'div.alert.alert-danger'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Incorrect email and/or password.'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>测试应该会通过。为了保持代码简洁，我们可以创建自己的<a href="https://docs.cypress.io/api/cypress-api/custom-commands.html">定制命令</a>让用户登录。简而言之，Cypress命令允许您创建自己的可重用动作。</p>
+<p>更新<em>cypress/support/commands . js</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">Cypress</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="s1">'login'</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">email</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="email"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="nx">email</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="password"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="nx">password</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button[type="submit"]'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>然后更新规格:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'LogIn Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should log a user in if the credentials are valid'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">login</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ed99889e99ad99889e99c38e8280">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'test'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b1c5d4c2c5f1c5d4c2c59fd2dedc">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log out'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should not log a user in if the credentials are invalid'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">login</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1b75746f5b787469697e786f35787476">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'incorrect'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d8acbdabac98acbdabacf6bbb7b5">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/log-in'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'div.alert.alert-danger'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Incorrect email and/or password.'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>确保测试仍然通过。您是否注意到我们添加了一个带有<code>location()</code>的附加断言，以确保用户在成功登录后被正确重定向？</p>
+<p>让我们再添加一个退出测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should log an authenticated user out'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">login</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d5a1b0a6a195a1b0a6a1fbb6bab8">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'test'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c2b6a7b1b682b6a7b1b6eca1adaf">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log out'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'h1'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Angular + NGRX'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p><img data-src="/static/images/blog/angular-cypress/test-run-login-component2.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/3a4dd9926d19df186c2350aa59062d89.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/test-run-login-component2.png"/></p>
+<h3 id="test-signup-component">测试:注册组件</h3>
+<p>测试这个组件与登录组件非常相似。首先创建一个新的规范文件-<em>sign up . component . spec . js</em>。</p>
+<p>测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'SignUp Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should sign a user up'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">signup</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3f4b5a4c4b7f4b5a4c4b115c5052">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'test'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="552130262115213026217b363a38">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log out'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should throw an error if the email is already is use'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">signup</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5c35321c292f39723f3331">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'test'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4c38293f380c38293f38622f2321">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/sign-up'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'div.alert.alert-danger'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'That email is already in use.'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>添加命令:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">Cypress</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="s1">'login'</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">email</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="email"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="nx">email</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="password"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="nx">password</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button[type="submit"]'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+
+<span class="nx">Cypress</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="s1">'signup'</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">email</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="email"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="nx">email</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'form input[name="password"]'</span><span class="p">).</span><span class="nx">clear</span><span class="p">().</span><span class="nx">type</span><span class="p">(</span><span class="nx">password</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'button[type="submit"]'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>确保测试通过:</p>
+<p><img data-src="/static/images/blog/angular-cypress/test-run-signup-component1.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/2b05ae2b120efde84038ecff209c8f59.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/test-run-signup-component1.png"/></p>
+<p>在继续之前的最后一件事，让我们确保注册表单的状态在初始加载时是正确的。</p>
+<p>添加以下测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should not display an error message when a user first hits the component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">login</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0668697246656974746365722865696b">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'incorrect'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'div.alert.alert-danger'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Incorrect email and/or password.'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Cancel'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Sign up'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'div.alert.alert-danger'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>该测试应该会失败:</p>
+<p><img data-src="/static/images/blog/angular-cypress/test-run-signup-component2.png" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/45fa098039adb0e389934a3c0c0dd051.png" data-original-src="https://testdriven.io/static/images/blog/angular-cypress/test-run-signup-component2.png"/></p>
+<p>向登录规范添加一个类似的测试:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">it</span><span class="p">(</span><span class="s1">'should not display an error message when a user first hits the component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">signup</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="244d4a645157410a474b49">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'test'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'div.alert.alert-danger'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'That email is already in use.'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Cancel'</span><span class="p">).</span><span class="nx">click</span><span class="p">()</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Log in'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">  </span><span class="nx">cy</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'div.alert.alert-danger'</span><span class="p">)</span><span class="w"/>
+<span class="w">    </span><span class="p">.</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">);</span><span class="w"/>
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>它也应该失败。因此，我们在代码中发现了一个错误:消息状态没有在组件init上被清除。您可以自己解决这个问题，或者注释掉失败的断言。</p>
+<h3 id="test-status-component">测试:状态组件</h3>
+<p>添加spec-<em>status . component . spec . js</em>:</p>
+<div class="codehilite"><pre><span/><code><span class="nx">describe</span><span class="p">(</span><span class="s1">'Status Component'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should display the component if a user is logged in'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">login</span><span class="p">(</span><span class="s1">'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1a6e7f696e5a6e7f696e34797577">[email protected]</a>'</span><span class="p">,</span><span class="w"> </span><span class="s1">'test'</span><span class="p">);</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'p'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'You logged in <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="becadbcdcafecadbcdca90ddd1d3">[email protected]</a>!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/status'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'h1'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status Works!'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Home'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="w">  </span><span class="nx">it</span><span class="p">(</span><span class="s1">'should not display the component if a user is not logged in'</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">visit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'a.btn'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status'</span><span class="p">).</span><span class="nx">click</span><span class="p">();</span><span class="w"/>
+<span class="w">    </span><span class="nx">cy</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">location</span><span class="p">(</span><span class="s1">'pathname'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'eq'</span><span class="p">,</span><span class="w"> </span><span class="s1">'/log-in'</span><span class="p">)</span><span class="w"/>
+<span class="w">      </span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">'h1'</span><span class="p">).</span><span class="nx">contains</span><span class="p">(</span><span class="s1">'Status Works!'</span><span class="p">).</span><span class="nx">should</span><span class="p">(</span><span class="s1">'not.be.visible'</span><span class="p">);</span><span class="w"/>
+<span class="w">  </span><span class="p">});</span><span class="w"/>
+
+<span class="p">});</span><span class="w"/>
+</code></pre></div>
+
+<p>确保所有测试都通过:</p>
+<p><img data-src="/static/images/gifs/blog/angular-cypress/all-tests.gif" loading="lazy" class="lazyload" alt="cypress test run" src="../Images/fc8d65fc40ec31e7c8ecc4857805c499.png" data-original-src="https://testdriven.io/static/images/gifs/blog/angular-cypress/all-tests.gif"/></p>
+<h2 id="conclusion">结论</h2>
+<p>就是这样！</p>
+<p>Cypress是一个强大的端到端测试工具。有了它，您可以在下载后几分钟内使用熟悉的断言库开始编写测试。测试在电子应用中实时运行，这使得调试失败的断言变得容易。这个项目背后有一个强大的社区，并且<a href="https://docs.cypress.io">文档</a>非常优秀！</p>
+<p>从以下回复中获取最终代码:</p>
+<ol>
+<li><a href="https://github.com/testdrivenio/angular-cypress">角柏</a></li>
+<li><a href="https://github.com/mjhea0/angular-auth-ngrx">角度认证ngrx </a></li>
+</ol>
+  </div>
+
+  </div>    
+</body>
+</html>

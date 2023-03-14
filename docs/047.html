@@ -1,0 +1,342 @@
+<html>
+<head>
+<title>Parallelism, Concurrency, and AsyncIO in Python - by example </title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Python中的并行性、并发性和异步性——示例</h1>
+<blockquote>原文：<a href="https://testdriven.io/blog/python-concurrency-parallelism/#0001-01-01">https://testdriven.io/blog/python-concurrency-parallelism/#0001-01-01</a></blockquote><div><div class="blog-content long-content" data-local-nav-source="">
+    <p>本教程着眼于如何通过多处理、线程和异步来加速CPU绑定和IO绑定操作。</p>
+
+
+
+<h2 id="concurrency-vs-parallelism">并发性与并行性</h2>
+<p>并发和并行是相似的术语，但它们不是一回事。</p>
+<p>并发是指在CPU上同时运行多个任务的能力。任务可以在重叠的时间段内开始、运行和完成。在单个CPU的情况下，多个任务在<a href="https://en.wikipedia.org/wiki/Context_switch">上下文切换</a>的帮助下运行，其中存储了一个进程的状态，以便稍后调用和执行。</p>
+<p>同时，并行性是指在多个CPU内核上同时运行多个任务的能力。</p>
+<p>虽然它们可以提高应用程序的速度，但是并发和并行不应该到处使用。用例取决于任务是CPU受限还是IO受限。</p>
+<p>受CPU限制的任务是受CPU限制的。例如，数学计算是受CPU限制的，因为计算能力随着计算机处理器数量的增加而增加。并行性适用于CPU受限的任务。理论上，如果一个任务被分成n个子任务，这n个任务中的每一个都可以并行运行，以有效地将时间减少到原来非并行任务的1/n。并发是IO绑定任务的首选，因为您可以在获取IO资源的同时做其他事情。</p>
+<p>CPU密集型任务的最好例子是在数据科学中。数据科学家处理大量的数据。对于数据预处理，他们可以将数据分成多个批处理并并行运行，从而有效地减少处理的总时间。增加内核数量可以提高处理速度。</p>
+<p>网页抓取是IO绑定的。因为该任务对CPU的影响很小，因为大部分时间都花在从网络读取数据和向网络写入数据上。其他常见的IO绑定任务包括数据库调用以及向磁盘读写文件。像Django和Flask这样的Web应用程序都是IO绑定的应用程序。</p>
+<blockquote>
+<p>如果您有兴趣了解更多关于Python中线程、多处理和异步的区别，请查看文章<a href="/blog/concurrency-parallelism-asyncio/">用并发、并行和异步加速Python。</a></p>
+</blockquote>
+<h2 id="scenario">方案</h2>
+<p>至此，让我们来看看如何加速以下任务:</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># tasks.py</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">current_process</span>
+<span class="kn">from</span> <span class="nn">threading</span> <span class="kn">import</span> <span class="n">current_thread</span>
+
+<span class="kn">import</span> <span class="nn">requests</span>
+
+
+<span class="k">def</span> <span class="nf">make_request</span><span class="p">(</span><span class="n">num</span><span class="p">):</span>
+    <span class="c1"># io-bound</span>
+
+    <span class="n">pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+    <span class="n">thread_name</span> <span class="o">=</span> <span class="n">current_thread</span><span class="p">()</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">process_name</span> <span class="o">=</span> <span class="n">current_process</span><span class="p">()</span><span class="o">.</span><span class="n">name</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">process_name</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">thread_name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://httpbin.org/ip"</span><span class="p">)</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">make_request_async</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">client</span><span class="p">):</span>
+    <span class="c1"># io-bound</span>
+
+    <span class="n">pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+    <span class="n">thread_name</span> <span class="o">=</span> <span class="n">current_thread</span><span class="p">()</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">process_name</span> <span class="o">=</span> <span class="n">current_process</span><span class="p">()</span><span class="o">.</span><span class="n">name</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">process_name</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">thread_name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://httpbin.org/ip"</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_prime_numbers</span><span class="p">(</span><span class="n">num</span><span class="p">):</span>
+    <span class="c1"># cpu-bound</span>
+
+    <span class="n">pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+    <span class="n">thread_name</span> <span class="o">=</span> <span class="n">current_thread</span><span class="p">()</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">process_name</span> <span class="o">=</span> <span class="n">current_process</span><span class="p">()</span><span class="o">.</span><span class="n">name</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">process_name</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">thread_name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="n">numbers</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">prime</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="mi">2</span>
+
+    <span class="k">while</span> <span class="n">p</span> <span class="o">*</span> <span class="n">p</span> <span class="o">&lt;=</span> <span class="n">num</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">prime</span><span class="p">[</span><span class="n">p</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">p</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+                <span class="n">prime</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">prime</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">prime</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">prime</span><span class="p">[</span><span class="n">p</span><span class="p">]:</span>
+            <span class="n">numbers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">numbers</span>
+</code></pre></div>
+
+<blockquote>
+<p>本教程中的所有代码示例都可以在<a href="https://github.com/testdrivenio/parallel-concurrent-examples-python">parallel-concurrent-examples-python</a>repo中找到。</p>
+</blockquote>
+<p>注意事项:</p>
+<ul>
+<li><code>make_request</code>向<a href="https://httpbin.org/ip">https://httpbin.org/ip</a>发出X次HTTP请求。</li>
+<li><code>make_request_async</code>与<a href="https://www.python-httpx.org/"> HTTPX </a>异步发出相同的HTTP请求。</li>
+<li><code>get_prime_numbers</code>通过厄拉多塞方法的<a href="https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes">筛子，计算从2到给定极限的素数。</a></li>
+</ul>
+<p>我们将使用标准库中的以下库来加速上述任务:</p>
+
+
+<h2 id="io-bound-operation">IO绑定操作</h2>
+<p>同样，IO绑定任务在IO上花费的时间比在CPU上花费的时间多。</p>
+<p>由于web抓取是IO绑定的，我们应该使用线程来加快处理速度，因为检索HTML (IO)比解析它(CPU)要慢。</p>
+<p>场景:<em>如何加速一个基于Python的网页抓取和爬取脚本？</em></p>
+<h3 id="sync-example">同步示例</h3>
+<p>先说一个基准。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># io-bound_sync.py</span>
+
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">make_request</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">):</span>
+        <span class="n">make_request</span><span class="p">(</span><span class="n">num</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">main</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Elapsed run time: </span><span class="si">{</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="si">}</span><span class="s2"> seconds."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们使用<code>make_request</code>函数发出了100个HTTP请求。因为请求是同步发生的，所以每个任务都是按顺序执行的。</p>
+<div class="codehilite"><pre><span/><code>Elapsed run time: 15.710984757 seconds.
+</code></pre></div>
+
+<p>因此，每个请求大约需要0.16秒。</p>
+<h3 id="threading-example">线程示例</h3>
+<div class="codehilite"><pre><span/><code><span class="c1"># io-bound_concurrent_1.py</span>
+
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">make_request</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">):</span>
+        <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">make_request</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">num</span><span class="p">,)))</span>
+        <span class="n">tasks</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">tasks</span><span class="p">:</span>
+        <span class="n">task</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">main</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Elapsed run time: </span><span class="si">{</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="si">}</span><span class="s2"> seconds."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在这里，同一个<code>make_request</code>函数被调用100次。这次使用<code>threading</code>库为每个请求创建一个线程。</p>
+<div class="codehilite"><pre><span/><code>Elapsed run time: 1.020112515 seconds.
+</code></pre></div>
+
+<p>总时间从大约16s减少到大约1s。</p>
+<p>由于我们对每个请求使用单独的线程，您可能会奇怪为什么整个过程没有花0.16秒就完成了。这些额外的时间是管理线程的开销。Python中的<a href="https://wiki.python.org/moin/GlobalInterpreterLock">全局解释器锁</a> (GIL)确保一次只有一个线程使用Python字节码。</p>
+<h3 id="concurrentfutures-example">并发.未来示例</h3>
+<div class="codehilite"><pre><span/><code><span class="c1"># io-bound_concurrent_2.py</span>
+
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">wait</span>
+
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">make_request</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">futures</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">()</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">):</span>
+            <span class="n">futures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">make_request</span><span class="p">,</span> <span class="n">num</span><span class="p">))</span>
+
+    <span class="n">wait</span><span class="p">(</span><span class="n">futures</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">main</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Elapsed run time: </span><span class="si">{</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="si">}</span><span class="s2"> seconds."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里我们使用了<code>concurrent.futures.ThreadPoolExecutor</code>来实现多线程。在创建了所有的未来/承诺之后，我们使用<code>wait</code>来等待它们全部完成。</p>
+<div class="codehilite"><pre><span/><code>Elapsed run time: 1.340592231 seconds
+</code></pre></div>
+
+<p><code>concurrent.futures.ThreadPoolExecutor</code>实际上是围绕<code>multithreading</code>库的一个抽象，这使得它更容易使用。在前面的例子中，我们将每个请求分配给一个线程，总共使用了100个线程。但是<code>ThreadPoolExecutor</code>默认工作线程的数量为<code>min(32, os.cpu_count() + 4)</code>。ThreadPoolExecutor的存在是为了简化实现多线程的过程。如果你想对多线程有更多的控制，请使用<code>multithreading</code>库。</p>
+<h3 id="asyncio-example">AsyncIO示例</h3>
+<div class="codehilite"><pre><span/><code><span class="c1"># io-bound_concurrent_3.py</span>
+
+<span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">import</span> <span class="nn">httpx</span>
+
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">make_request_async</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
+            <span class="o">*</span><span class="p">[</span><span class="n">make_request_async</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span> <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">)]</span>
+        <span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+    <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="n">elapsed_time</span> <span class="o">=</span> <span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Elapsed run time: </span><span class="si">{</span><span class="n">elapsed_time</span><span class="si">}</span><span class="s2"> seconds"</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+<p>此处使用<code>httpx</code>，因为<code>requests</code>不支持异步操作。</p>
+</blockquote>
+<p>这里，我们使用了<code>asyncio</code>来实现并发。</p>
+<div class="codehilite"><pre><span/><code>Elapsed run time: 0.553961068 seconds
+</code></pre></div>
+
+<p><code>asyncio</code>比其他方法更快，因为<code>threading</code>利用了OS(操作系统)线程。所以线程由操作系统管理，线程切换由操作系统抢占。<code>asyncio</code>使用由Python解释器定义的协程。使用协程，程序决定何时以最佳方式切换任务。这由asyncio中的<code>even_loop</code>处理。</p>
+<h2 id="cpu-bound-operation">CPU限制的操作</h2>
+<p>场景:<em>如何加速一个简单的数据处理脚本？</em></p>
+<h3 id="sync-example_1">同步示例</h3>
+<p>同样，让我们从一个基准开始。</p>
+<div class="codehilite"><pre><span/><code><span class="c1"># cpu-bound_sync.py</span>
+
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">get_prime_numbers</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">16000</span><span class="p">):</span>
+        <span class="n">get_prime_numbers</span><span class="p">(</span><span class="n">num</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">main</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Elapsed run time: </span><span class="si">{</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="si">}</span><span class="s2"> seconds."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们对从1000到16000的数字执行了<code>get_prime_numbers</code>函数。</p>
+<div class="codehilite"><pre><span/><code>Elapsed run time: 17.863046316 seconds.
+</code></pre></div>
+
+<h3 id="multiprocessing-example">多重处理示例</h3>
+<div class="codehilite"><pre><span/><code><span class="c1"># cpu-bound_parallel_1.py</span>
+
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span><span class="p">,</span> <span class="n">cpu_count</span>
+
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">get_prime_numbers</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">Pool</span><span class="p">(</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">as</span> <span class="n">p</span><span class="p">:</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">starmap</span><span class="p">(</span><span class="n">get_prime_numbers</span><span class="p">,</span> <span class="nb">zip</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">16000</span><span class="p">)))</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">main</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Elapsed run time: </span><span class="si">{</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="si">}</span><span class="s2"> seconds."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>在这里，我们使用<code>multiprocessing</code>来计算质数。</p>
+<div class="codehilite"><pre><span/><code>Elapsed run time: 2.9848740599999997 seconds.
+</code></pre></div>
+
+<h3 id="concurrentfutures-example_1">并发.未来示例</h3>
+<div class="codehilite"><pre><span/><code><span class="c1"># cpu-bound_parallel_2.py</span>
+
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ProcessPoolExecutor</span><span class="p">,</span> <span class="n">wait</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">cpu_count</span>
+
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">get_prime_numbers</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">futures</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">with</span> <span class="n">ProcessPoolExecutor</span><span class="p">(</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">16000</span><span class="p">):</span>
+            <span class="n">futures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">get_prime_numbers</span><span class="p">,</span> <span class="n">num</span><span class="p">))</span>
+
+    <span class="n">wait</span><span class="p">(</span><span class="n">futures</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">main</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Elapsed run time: </span><span class="si">{</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="si">}</span><span class="s2"> seconds."</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这里，我们使用<code>concurrent.futures.ProcessPoolExecutor</code>实现了多重处理。一旦作业被添加到futures中，<code>wait(futures)</code>就会等待它们完成。</p>
+<div class="codehilite"><pre><span/><code>Elapsed run time: 4.452427557 seconds.
+</code></pre></div>
+
+<p><code>concurrent.futures.ProcessPoolExecutor</code>是围绕<code>multiprocessing.Pool</code>的包装器。它和<code>ThreadPoolExecutor</code>有同样的局限性。如果你想对多重处理有更多的控制，使用<code>multiprocessing.Pool</code>。<code>concurrent.futures</code>提供了对多处理和线程的抽象，使得两者之间的切换变得容易。</p>
+<h2 id="conclusion">结论</h2>
+<p>值得注意的是，使用多重处理来执行<code>make_request</code>函数将比线程方式慢得多，因为进程需要等待IO。不过，多处理方法将比同步方法更快。</p>
+<p>类似地，与并行性相比，对CPU受限的任务使用并发性是不值得的。</p>
+<p>也就是说，使用并发性或并行性来执行脚本会增加复杂性。您的代码通常更难阅读、测试和调试，所以只有在长时间运行的脚本绝对需要时才使用它们。</p>
+<p>我通常从这里开始，因为-</p>
+<ol>
+<li>在并发和并行之间来回切换很容易</li>
+<li>从属库不需要支持asyncio ( <code>requests</code> vs <code>httpx</code>)</li>
+<li>与其他方法相比，它更清晰、更容易阅读</li>
+</ol>
+<p>从GitHub的<a href="https://github.com/testdrivenio/parallel-concurrent-examples-python">parallel-concurrent-examples-python</a>repo中抓取代码。</p>
+  </div>
+
+  </div>    
+</body>
+</html>
